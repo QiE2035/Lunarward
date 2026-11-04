@@ -1,0 +1,139 @@
+<Project Sdk="Uno.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-desktop</TargetFramework>
+    <RootNamespace>Starward</RootNamespace>
+    <AssemblyName>Lunarward</AssemblyName>
+    <!-- 版本号参与 User-Agent，为空会产生非法 header（见 13-lessons L-26） -->
+    <Version>0.1.0</Version>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <InformationalVersion>0.1.0-linux</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Nullable>enable</Nullable>
+    <LangVersion>preview</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UnoFeatures>SkiaRenderer;</UnoFeatures>
+    <EnableDefaultUnoItems>true</EnableDefaultUnoItems>
+    <EnableDefaultXamlItems>false</EnableDefaultXamlItems>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <!-- Lunarward：交给 Uno 生成入口点，不使用上游的 WinUI 专用 Main -->
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <ApplicationManifest />
+    <Platforms>AnyCPU</Platforms>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0618;CS8632;CS8618;CS8625;CS8602;CS8604;CS8600;CS8603;CS8629;CS0169;CS0649;CS0067;CS0108;CS0414</NoWarn>
+  </PropertyGroup>
+
+  <!-- 上游 Starward.Assets 里的图片/字体/模板：直接从 vendor 镜像链接进输出，不再复制一份进仓库 -->
+  <ItemGroup>
+    <Content Include="../../vendor/upstream/large-resource/Starward.Assets/Assets/**/*"
+             Link="Assets/%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 上游把入口点交给 Uno 生成，因此 App.xaml 必须显式声明为 ApplicationDefinition -->
+    <ApplicationDefinition Include="App.xaml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="Dapper" Version="2.1.79" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Ini" Version="10.0.12" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.12" />
+    <PackageReference Include="MiniExcel" Version="1.46.0" />
+    <PackageReference Include="Tmds.DBus" Version="0.95.2" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.5" />
+    <PackageReference Include="Hi3Helper.Sophon" Version="1.7.1" />
+    <PackageReference Include="NuGet.Versioning" Version="7.9.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.12" />
+    <PackageReference Include="ZiggyCreatures.FusionCache" Version="2.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Starward.Core\Starward.Core.csproj" />
+    <ProjectReference Include="..\Starward.Language\Starward.Language.csproj" />
+    <ProjectReference Include="..\Starward.Setup.Core\Starward.Setup.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 登录助手（M1 临时方案，见 Features/GameRecord/WebLoginService.cs） -->
+    <Content Include="Assets/login-helper/**" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets/lunarward.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- M1-0 测量用：Windows 专有 / 未移植文件先排除编译（不删除，保留源码） -->
+  <ItemGroup>
+    <Compile Remove="Controls/CachedImage.cs" />
+
+    <Compile Remove="Features/Background/AccentColorHelper.cs" />
+    <Compile Remove="Features/Background/AppBackground.xaml.cs" />
+    <Compile Remove="Features/Codec/HDR10GammaEffect.cs" />
+    <Compile Remove="Features/Codec/ImageInfo.cs" />
+    <Compile Remove="Features/Codec/ImageLoader.cs" />
+    <Compile Remove="Features/Codec/ImageSaver.cs" />
+    <Compile Remove="Features/Codec/ImageThumbnail.cs" />
+    <Compile Remove="Features/Codec/SrgbGammaEffect.cs" />
+    <Compile Remove="Features/Codec/UhdrGainmapEffect.cs" />
+    <Compile Remove="Features/Codec/VP9Helper.cs" />
+    <Compile Remove="Features/GameInstall/GameInstallService.cs" />
+    <Compile Remove="Features/GameSetting/GenshinHDRLuminanceSettingDialog.xaml.cs" />
+    <Compile Remove="Features/GameInstall/GameInstallTaskStartedMessage.cs" />
+    <Compile Remove="Features/GameInstall/InstallGameDialog.xaml.cs" />
+    <Compile Remove="Features/GameInstall/PreDownloadDialog.xaml.cs" />
+    <Compile Remove="Features/GameLauncher/GameNoticeWindow.xaml.cs" />
+    <Compile Remove="Features/GameRecord/BBSWebBridge.xaml.cs" />
+    <Compile Remove="Features/GameRecord/BattleChronicleWindow.xaml.cs" />
+    <Compile Remove="Features/GameRecord/LoginPage.xaml.cs" />
+    <Compile Remove="Features/GamepadControl/GamepadController.cs" />
+    <Compile Remove="Features/GamepadControl/SimulateInputTipsWindow.xaml.cs" />
+    <Compile Remove="Features/Overlay/OverlayWindow.xaml.cs" />
+    <Compile Remove="Features/Overlay/RunningGame.cs" />
+    <Compile Remove="Features/Overlay/RunningGameService.cs" />
+    <Compile Remove="Features/RPC/RpcService.cs" />
+    <Compile Remove="Features/Screenshot/ImageBatchConvertWindow.xaml.cs" />
+    <Compile Remove="Features/Screenshot/ImageViewWindow.xaml.cs" />
+    <Compile Remove="Features/Screenshot/ImageViewWindow2.xaml.cs" />
+    <Compile Remove="Features/Screenshot/ScreenCaptureContext.cs" />
+    <Compile Remove="Features/Screenshot/ScreenCaptureHelper.cs" />
+    <Compile Remove="Features/Screenshot/ScreenCaptureInfoWindow.xaml.cs" />
+    <Compile Remove="Features/Screenshot/ScreenCaptureItem.cs" />
+    <Compile Remove="Features/Screenshot/ScreenCaptureService.cs" />
+    <Compile Remove="Features/Screenshot/ScreenshotHelper.cs" />
+    <Compile Remove="Features/Screenshot/ScreenshotPage.xaml.cs" />
+    <Compile Remove="Features/Screenshot/ScreenshotPage2.xaml.cs" />
+    <Compile Remove="Features/Screenshot/ScrollViewerExtensions.cs" />
+    <Compile Remove="Features/Setting/HotkeyManager.cs" />
+    <Compile Remove="Features/Setting/ScreenshotSetting.xaml.cs" />
+    <Compile Remove="Features/UrlProtocol/TestUrlProtocolWindow.xaml.cs" />
+    <Compile Remove="Features/UrlProtocol/UrlProtocolService.cs" />
+    <Compile Remove="Frameworks/WindowEx.cs" />
+    <Compile Remove="Helpers/AccentColorHelper.cs" />
+    <Compile Remove="Helpers/ClipboardHelper.cs" />
+    <Compile Remove="Helpers/DriveHelper.cs" />
+    <Compile Remove="Helpers/FileDialogHelper.cs" />
+    <Compile Remove="Helpers/SystemUIHelper.cs" />
+    <Compile Remove="Helpers/TransparentBackdrop.cs" />
+    <Compile Remove="Helpers/XamlRootExtension.cs" />
+    <Compile Remove="Features/Update/SetupService.cs" />
+    <Compile Remove="Helpers/SystemBackdropHelper.cs" />
+    <Compile Remove="Features/Update/UpdateService.cs" />
+    <Compile Remove="Features/Update/UpdateWindow.xaml.cs" />
+  </ItemGroup>
+
+  <!-- Hi3Helper.ZstdNet 固定到 Lib/linux-x64 找 libzstd，而发行版只有 libzstd.so.1；
+       这里给它放符号链接，避免要求用户装 zstd 开发包。 -->
+  <Target Name="LunarwardZstdShim" AfterTargets="Build" Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="sh -c 'src=&quot;&quot;; for c in /usr/lib/libzstd.so.1 /usr/lib/x86_64-linux-gnu/libzstd.so.1 /lib/libzstd.so.1 /usr/local/lib/libzstd.so.1; do [ -e &quot;$c&quot; ] &amp;&amp; src=&quot;$c&quot; &amp;&amp; break; done; [ -n &quot;$src&quot; ] || exit 0; mkdir -p &quot;$(OutDir)Lib/linux-x64&quot;; for n in libzstd libzstd-bmi2; do ln -sf &quot;$src&quot; &quot;$(OutDir)Lib/linux-x64/$n.so&quot;; done'" />
+  </Target>
+
+  <Target Name="LunarwardZstdShimPublish" AfterTargets="Publish" Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="sh -c 'src=&quot;&quot;; for c in /usr/lib/libzstd.so.1 /usr/lib/x86_64-linux-gnu/libzstd.so.1 /lib/libzstd.so.1 /usr/local/lib/libzstd.so.1; do [ -e &quot;$c&quot; ] &amp;&amp; src=&quot;$c&quot; &amp;&amp; break; done; [ -n &quot;$src&quot; ] || exit 0; mkdir -p &quot;$(PublishDir)Lib/linux-x64&quot;; for n in libzstd libzstd-bmi2; do ln -sf &quot;$src&quot; &quot;$(PublishDir)Lib/linux-x64/$n.so&quot;; done'" />
+  </Target>
+</Project>

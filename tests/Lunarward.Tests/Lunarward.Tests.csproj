@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Lunarward.Tests</RootNamespace>
+    <!-- 测试只覆盖纯逻辑，直接链接源文件，避免引用 Uno UI 工程（D37）。 -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/ProtoReader.cs" Link="Linked/ProtoReader.cs" />
+    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/SophonChunkManifest.cs" Link="Linked/SophonChunkManifest.cs" />
+    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/InstallPlanner.cs" Link="Linked/InstallPlanner.cs" />
+    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/ChunkResume.cs" Link="Linked/ChunkResume.cs" />
+    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/GameVersionMarker.cs" Link="Linked/GameVersionMarker.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+  </ItemGroup>
+
+</Project>

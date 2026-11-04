@@ -1,0 +1,102 @@
+<UserControl x:Class="LunarwardPoc.CompatPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:LunarwardPoc"
+             Background="#18181C">
+  <UserControl.Resources>
+    <AcrylicBrush x:Key="ProbeAcrylic"
+                  FallbackColor="#F52C2C2C"
+                  TintColor="#FF2C2C2C"
+                  TintOpacity="0.6" />
+    <local:BoolToTextConverter x:Key="BoolToText" />
+  </UserControl.Resources>
+
+  <ScrollViewer x:Name="Scroller">
+    <StackPanel Spacing="14" Padding="24">
+      <TextBlock Text="XAML 兼容性探针（上游常用写法）" FontSize="18" Foreground="#EDEDF2" />
+
+      <!-- 1. x:Bind 函数调用 -->
+      <Border Background="#202128" CornerRadius="8" Padding="14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="① x:Bind 函数绑定 {x:Bind Describe(Count)}" FontSize="12" Foreground="#8C93A8" />
+          <TextBlock Text="{x:Bind Describe(Count), Mode=OneWay}" Foreground="#DDE1EC" />
+        </StackPanel>
+      </Border>
+
+      <!-- 2. x:Bind + Converter -->
+      <Border Background="#202128" CornerRadius="8" Padding="14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="② x:Bind + Converter" FontSize="12" Foreground="#8C93A8" />
+          <TextBlock Text="{x:Bind IsReady, Converter={StaticResource BoolToText}, Mode=OneWay}" Foreground="#DDE1EC" />
+        </StackPanel>
+      </Border>
+
+      <!-- 3. TwoWay -->
+      <Border Background="#202128" CornerRadius="8" Padding="14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="③ TwoWay 绑定（改下面输入框，上面的标签应同步）" FontSize="12" Foreground="#8C93A8" />
+          <TextBox Text="{x:Bind Title, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="320" HorizontalAlignment="Left" />
+          <TextBlock Text="{x:Bind Title, Mode=OneWay}" Foreground="#DDE1EC" />
+        </StackPanel>
+      </Border>
+
+      <!-- 4. x:Load -->
+      <Border Background="#202128" CornerRadius="8" Padding="14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="④ x:Load 条件加载" FontSize="12" Foreground="#8C93A8" />
+          <Border x:Name="XLoadProbe" x:Load="{x:Bind IsReady, Mode=OneWay}" Background="#2E4A38" CornerRadius="6" Padding="10">
+            <TextBlock Text="x:Load 可见（IsReady=true）" Foreground="#B8E6C8" />
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <!-- 5. AcrylicBrush -->
+      <Border Background="{StaticResource ProbeAcrylic}" CornerRadius="8" Height="64">
+        <TextBlock Text="⑤ AcrylicBrush（TintOpacity 0.6）" Margin="14" VerticalAlignment="Center" Foreground="#EDEDF2" />
+      </Border>
+
+      <!-- 6. ThemeShadow -->
+      <Border Background="#26303F" CornerRadius="8" Height="64" Translation="0,0,32" Margin="0,0,0,8">
+        <Border.Shadow>
+          <ThemeShadow />
+        </Border.Shadow>
+        <TextBlock Text="⑥ ThemeShadow + Translation Z=32" Margin="14" VerticalAlignment="Center" Foreground="#EDEDF2" />
+      </Border>
+
+      <!-- 7. ItemsRepeater -->
+      <Border Background="#202128" CornerRadius="8" Padding="14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="⑦ ItemsRepeater" FontSize="12" Foreground="#8C93A8" />
+          <ItemsRepeater ItemsSource="{x:Bind Items, Mode=OneWay}">
+            <ItemsRepeater.Layout>
+              <StackLayout Spacing="4" Orientation="Vertical" />
+            </ItemsRepeater.Layout>
+            <ItemsRepeater.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" Foreground="#DDE1EC" />
+              </DataTemplate>
+            </ItemsRepeater.ItemTemplate>
+          </ItemsRepeater>
+        </StackPanel>
+      </Border>
+
+      <!-- 8. PipsPager -->
+      <Border Background="#202128" CornerRadius="8" Padding="14">
+        <StackPanel Spacing="6">
+          <TextBlock Text="⑧ PipsPager" FontSize="12" Foreground="#8C93A8" />
+          <PipsPager NumberOfPages="5" MaxVisiblePips="5" />
+        </StackPanel>
+      </Border>
+
+      <!-- 9. InfoBar -->
+      <InfoBar Severity="Informational" Title="⑨ InfoBar" Message="Uno 下的 InfoBar 观感" IsOpen="True" IsClosable="False" />
+
+      <!-- 10. ContentDialog -->
+      <Button Content="⑩ 打开 ContentDialog" Click="OnShowDialog" Width="220" HorizontalAlignment="Left" />
+
+      <!-- 11. TeachingTip（不展开，只验证能否构造与布局） -->
+      <TeachingTip x:Name="Tip" Title="⑪ TeachingTip" Subtitle="探针" IsOpen="False" />
+      <Button Content="⑪ 打开 TeachingTip" Click="OnShowTip" Width="220" HorizontalAlignment="Left" />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

@@ -1,0 +1,60 @@
+# Maintainer: Lunarward contributors
+# 说明：本文件用于 Arch 系（AUR）构建。Release 产物是 framework-dependent 的
+# dotnet 应用，运行时依赖 dotnet-runtime；wine/proton、libvlc、xdotool 等为可选依赖，
+# 缺失时应用按 D33 诚实降级（不静默假成功）。
+
+pkgname=lunarward
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Linux launcher for miHoYo/HoYoverse games, ported from Starward"
+arch=('x86_64')
+url="https://github.com/Scighost/Starward"
+license=('MIT')
+depends=('dotnet-runtime' 'gtk3' 'libx11' 'fontconfig' 'zstd')
+makedepends=('dotnet-sdk>=10.0' 'git')
+optdepends=(
+  'wine: 使用系统 wine 作为运行器'
+  'libvlc: 视频壁纸（缺失时回退静态壁纸）'
+  'xdotool: 全局热键唤回最小化窗口'
+  'webkit2gtk-4.1: 米游社/HoYoLAB 登录窗口'
+  'python-gobject: 登录助手（WebKitGTK 的 Python 绑定）'
+  'kdialog: 文件选择对话框（或 zenity）'
+  'spectacle: 截图（KDE；也支持 grim / gnome-screenshot）'
+)
+source=("$pkgname::git+file://${startdir}/..#branch=linux-port")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$pkgname"
+}
+
+build() {
+  # 必须进到项目目录再执行：dotnet 从**当前工作目录**向上找 global.json，
+  # 仓库根的 global.json 钉的是 SDK 10.0.400（上游要求），而本地/发行环境是 10.0.302。
+  cd "$pkgname/src/Lunarward"
+  export DOTNET_CLI_TELEMETRY_OPTOUT=1
+  dotnet publish Lunarward.csproj \
+    -c Release -r linux-x64 --self-contained false \
+    -p:Version="$pkgver" \
+    -o "$srcdir/publish"
+}
+
+package() {
+  install -d "$pkgdir/usr/lib/lunarward" \
+             "$pkgdir/usr/bin" \
+             "$pkgdir/usr/share/applications" \
+             "$pkgdir/usr/share/icons/hicolor/256x256/apps" \
+             "$pkgdir/usr/share/licenses/$pkgname"
+
+  cp -a "$srcdir/publish/." "$pkgdir/usr/lib/lunarward/"
+
+  cat > "$pkgdir/usr/bin/lunarward" <<'SH'
+#!/bin/sh
+exec /usr/lib/lunarward/Lunarward "$@"
+SH
+  chmod 755 "$pkgdir/usr/bin/lunarward"
+
+  install -m 644 "$srcdir/$pkgname/packaging/lunarward.desktop" "$pkgdir/usr/share/applications/lunarward.desktop"
+  install -m 644 "$srcdir/$pkgname/packaging/lunarward.png" "$pkgdir/usr/share/icons/hicolor/256x256/apps/lunarward.png"
+  install -m 644 "$srcdir/$pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

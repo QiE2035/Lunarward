@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net9.0-windows</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <Version>0.3.1</Version>
+        <Authors>Scighost</Authors>
+        <PackageProjectUrl>https://github.com/Scighost/Starward/tree/large-resource</PackageProjectUrl>
+        <Description>7z.dll v24.09
+https://github.com/JeremyAnsel/SharpSevenZip
+https://github.com/DGP-Studio/Snap.HPatch fcdb459</Description>
+    </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="ZstdSharp.Port" Version="0.8.5" />
+	</ItemGroup>
+
+    <ItemGroup>
+        <None Update="$(MSBuildThisFileDirectory)runtimes\**">
+            <PackagePath>.\</PackagePath>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <Pack>true</Pack>
+        </None>
+    </ItemGroup>
+
+</Project>

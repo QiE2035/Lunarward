@@ -1,0 +1,95 @@
+using CommunityToolkit.Mvvm.Messaging;
+using Microsoft.Extensions.Logging;
+using Microsoft.UI.Xaml.Controls;
+using Starward.Frameworks;
+using System;
+
+
+namespace Starward.Features.Setting;
+
+public sealed partial class SettingPage : PageBase
+{
+
+
+    private readonly ILogger<SettingPage> _logger = AppConfig.GetLogger<SettingPage>();
+
+
+    public SettingPage()
+    {
+        this.InitializeComponent();
+        // Lunarward：M1 截图验证用，指定 LUNARWARD_SUBPAGE=GeneralSetting 时直接进该子页（正式版移除）
+        Type initialPage = ResolveInitialPage();
+        Frame_Setting.Navigate(initialPage);
+        // 调试直达时同步左侧选中项，避免「高亮在关于、内容在高级」
+        foreach (object item in NavigationView_Setting.MenuItems)
+        {
+            if (item is NavigationViewItem nvi && Equals(nvi.Tag, initialPage.Name))
+            {
+                NavigationView_Setting.SelectedItem = nvi;
+                break;
+            }
+        }
+        WeakReferenceMessenger.Default.Register<LanguageChangedMessage>(this, (_, _) => this.Bindings.Update());
+    }
+
+
+
+    private static Type ResolveInitialPage()
+    {
+        Type? type = Starward.Features.Dev.DevSwitches.SubPage switch
+        {
+            nameof(AboutSetting) => typeof(AboutSetting),
+            nameof(GeneralSetting) => typeof(GeneralSetting),
+            nameof(DownloadSetting) => typeof(DownloadSetting),
+            nameof(FileManageSetting) => typeof(FileManageSetting),
+            nameof(ScreenshotSetting) => typeof(ScreenshotSetting),
+            nameof(AdvancedSetting) => typeof(AdvancedSetting),
+            nameof(ToolboxSetting) => typeof(ToolboxSetting),
+            nameof(HotkeySetting) => typeof(HotkeySetting),
+            nameof(GamepadControlSetting) => typeof(GamepadControlSetting),
+            nameof(RuntimeEnvironmentSetting) => typeof(RuntimeEnvironmentSetting),
+            _ => null,
+        };
+        return type ?? typeof(AboutSetting);
+    }
+
+
+    private void NavigationView_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        try
+        {
+            Type? type = args.InvokedItemContainer?.Tag switch
+            {
+                nameof(AboutSetting) => typeof(AboutSetting),
+                nameof(GeneralSetting) => typeof(GeneralSetting),
+                nameof(DownloadSetting) => typeof(DownloadSetting),
+                nameof(FileManageSetting) => typeof(FileManageSetting),
+                nameof(ScreenshotSetting) => typeof(ScreenshotSetting),
+                nameof(AdvancedSetting) => typeof(AdvancedSetting),
+                nameof(ToolboxSetting) => typeof(ToolboxSetting),
+                nameof(HotkeySetting) => typeof(HotkeySetting),
+                nameof(GamepadControlSetting) => typeof(GamepadControlSetting),
+                nameof(RuntimeEnvironmentSetting) => typeof(RuntimeEnvironmentSetting),
+                _ => null,
+            };
+            if (type is not null)
+            {
+                Frame_Setting.Navigate(type);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Setting page navigate.");
+        }
+    }
+
+
+
+    protected override void OnUnloaded()
+    {
+        WeakReferenceMessenger.Default.UnregisterAll(this);
+    }
+
+
+
+}

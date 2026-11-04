@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=Lunarward
+Comment=Linux launcher for miHoYo/HoYoverse games
+Comment[zh_CN]=米哈游/HoYoverse 游戏的 Linux 启动器
+Exec=lunarward %u
+Icon=lunarward
+Terminal=false
+Categories=Game;Utility;
+Keywords=Genshin;StarRail;ZZZ;miHoYo;HoYoverse;wine;
+StartupNotify=true
+MimeType=x-scheme-handler/lunarward;
+Actions=LaunchDefault;
+
+[Desktop Action LaunchDefault]
+Name=Open Lunarward
+Exec=lunarward

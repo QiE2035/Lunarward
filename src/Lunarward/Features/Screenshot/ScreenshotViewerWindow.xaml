@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<sf:WindowEx x:Class="Starward.Features.Screenshot.ScreenshotViewerWindow"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:lang="using:Starward.Language"
+    xmlns:local="using:Starward.Features.Screenshot"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sf="using:Starward.Frameworks"
+             Title="Lunarward"
+             mc:Ignorable="d">
+
+    <Grid x:Name="RootGrid" Background="{ThemeResource CustomAcrylicBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid Margin="16,12,16,8">
+            <TextBlock x:Name="TextBlock_FileName"
+                       VerticalAlignment="Center"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+                <Button x:Name="Button_Previous" Click="Button_Previous_Click" Content="{x:Bind lang:Lang.Lunarward_Viewer_Prev}" />
+                <Button x:Name="Button_Next" Click="Button_Next_Click" Content="{x:Bind lang:Lang.Lunarward_Viewer_Next}" />
+                <Button x:Name="Button_OpenFolder" Click="Button_OpenFolder_Click" Content="{x:Bind lang:Lang.Lunarward_Viewer_ShowInFolder}" />
+                <Button x:Name="Button_Close" Click="Button_Close_Click" Content="{x:Bind lang:Lang.Lunarward_Viewer_Close}" />
+            </StackPanel>
+        </Grid>
+
+        <Image x:Name="Image_Preview"
+               Grid.Row="1"
+               Margin="16,0,16,8"
+               Stretch="Uniform" />
+
+        <TextBlock x:Name="TextBlock_Status"
+                   Grid.Row="2"
+                   Margin="16,0,16,12"
+                   FontSize="12"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   Text="Esc 关闭 · ← → 切换" />
+    </Grid>
+</sf:WindowEx>
