@@ -245,6 +245,23 @@ public sealed partial class GameBannerAndPost : UserControl
     }
 
 
+    private void PostRow_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        try
+        {
+            if (sender is FrameworkElement { DataContext: GamePost post } && !string.IsNullOrWhiteSpace(post.Link))
+            {
+                Helpers.OpenUrl.Open(post.Link);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "open post link failed");
+        }
+        e.Handled = true;
+    }
+
+
     private void Image_Banner_Tapped(object sender, TappedRoutedEventArgs e)
     {
         // Uno 下 DataTemplate 里的元素拿不到 DataContext，退到 FlipView 当前选中项。

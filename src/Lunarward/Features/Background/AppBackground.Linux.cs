@@ -54,6 +54,22 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         VerticalAlignment = VerticalAlignment.Stretch,
     };
 
+    // 视频帧走 SkiaSharp 画布：Uno/Skia 的 Image 对 WriteableBitmap 的像素更新不重绘（L-87），
+    // 反复赋 Source、甚至双缓冲换实例都无效，实测两次截图差异 0.00%。
+    private readonly SkiaSharp.Views.Windows.SKXamlCanvas _videoCanvas = new()
+    {
+        Opacity = 0.6,
+        Visibility = Visibility.Collapsed,
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        VerticalAlignment = VerticalAlignment.Stretch,
+    };
+
+    private SkiaSharp.SKBitmap? _videoSurface;
+
+    private int _videoWidth;
+
+    private int _videoHeight;
+
 
     public AppBackground()
     {
@@ -70,10 +86,11 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         // 可读性：Windows 上壁纸会被系统亚克力模糊+压暗，这里没有模糊，只能靠「深色底 + 降低壁纸不透明度」近似，
         // 否则亮色壁纸会让上层文字完全看不清（实测默认兜底图就是一张明亮的过场 CG）。
         _image.Opacity = 0.42;
+        _videoCanvas.PaintSurface += VideoCanvas_PaintSurface;
         Content = new Grid
         {
             Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0xFF, 0x16, 0x16, 0x1A)),
-            Children = { _image },
+            Children = { _image, _videoCanvas },
         };
     }
 
@@ -371,13 +388,11 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 
     private string? _currentVideoPath;
 
-    private WriteableBitmap? _videoBitmap;
+    // 旧的 WriteableBitmap 双缓冲方案已废弃（Uno/Skia 不重绘，L-87），保留字段清理见 StopVideoBackground。
 
-    private WriteableBitmap? _videoBitmapBack;   // 双缓冲：交替赋值不同实例才会触发重绘
 
-    private bool _videoBitmapFlip;
 
-    private byte[]? _videoPixels;
+
 
 
     /// <summary>
@@ -440,10 +455,6 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             _videoPlayer.SetOverlay(themePath);
             int width = _videoPlayer.Width;
             int height = _videoPlayer.Height;
-            _videoBitmap = new WriteableBitmap(width, height);
-            _videoBitmapBack = new WriteableBitmap(width, height);
-            _videoBitmapFlip = false;
-            _videoPixels = new byte[width * height * 4];
             _videoPlayer.FrameReady += (pixels, w, h) =>
             {
                 DispatcherQueue.TryEnqueue(() => PresentVideoFrame(pixels, w, h));
@@ -453,7 +464,8 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
                 StopVideoBackground();
                 return false;
             }
-            _image.Opacity = 0.6;
+            _image.Visibility = Visibility.Collapsed;
+            _videoCanvas.Visibility = Visibility.Visible;
             _currentVideoPath = videoPath;
             Serilog.Log.Information("[background] video background started: {path}", videoPath);
             return true;
@@ -471,20 +483,24 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     {
         try
         {
-            if (_videoBitmap is null || _videoBitmapBack is null || _disposed)
+            if (_disposed || width <= 0 || height <= 0)
             {
                 return;
             }
-            System.Buffer.BlockCopy(pixels, 0, _videoPixels!, 0, pixels.Length);
-            // Uno/Skia 下对同一个 WriteableBitmap 反复赋给 Source 不会重绘（引用没变，L-71）。
-            // 「置空再赋同一实例」也不够，这里改成双缓冲交替：每次赋的是另一个实例，强制重新采样。
-            _videoBitmapFlip = !_videoBitmapFlip;
-            WriteableBitmap target = _videoBitmapFlip ? _videoBitmap : _videoBitmapBack;
-            using (Stream stream = target.PixelBuffer.AsStream())
+            if (_videoSurface is null || _videoWidth != width || _videoHeight != height)
             {
-                stream.Write(_videoPixels!, 0, _videoPixels!.Length);
+                _videoSurface?.Dispose();
+                _videoSurface = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(width, height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Opaque));
+                _videoWidth = width;
+                _videoHeight = height;
             }
-            _image.Source = target;
+            nint target = _videoSurface.GetPixels();
+            if (target == 0)
+            {
+                return;
+            }
+            System.Runtime.InteropServices.Marshal.Copy(pixels, 0, target, Math.Min(pixels.Length, _videoSurface.ByteCount));
+            _videoCanvas.Invalidate();
         }
         catch (Exception ex)
         {
@@ -494,14 +510,35 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     }
 
 
+    private void VideoCanvas_PaintSurface(object? sender, SkiaSharp.Views.Windows.SKPaintSurfaceEventArgs e)
+    {
+        SkiaSharp.SKCanvas canvas = e.Surface.Canvas;
+        canvas.Clear(SkiaSharp.SKColors.Black);
+        SkiaSharp.SKBitmap? bitmap = _videoSurface;
+        if (bitmap is null || bitmap.Width <= 0 || bitmap.Height <= 0)
+        {
+            return;
+        }
+        // UniformToFill：按画布比例裁切，保持与静态壁纸一致的观感
+        float scale = Math.Max((float)e.Info.Width / bitmap.Width, (float)e.Info.Height / bitmap.Height);
+        float drawWidth = bitmap.Width * scale;
+        float drawHeight = bitmap.Height * scale;
+        var destination = new SkiaSharp.SKRect((e.Info.Width - drawWidth) / 2f, (e.Info.Height - drawHeight) / 2f, (e.Info.Width + drawWidth) / 2f, (e.Info.Height + drawHeight) / 2f);
+        canvas.DrawBitmap(bitmap, destination);
+    }
+
+
     private void StopVideoBackground()
     {
         _videoPlayer?.Dispose();
         _videoPlayer = null;
         _currentVideoPath = null;
-        _videoBitmap = null;
-        _videoBitmapBack = null;
-        _videoPixels = null;
+        _videoSurface?.Dispose();
+        _videoSurface = null;
+        _videoWidth = 0;
+        _videoHeight = 0;
+        _videoCanvas.Visibility = Visibility.Collapsed;
+        _image.Visibility = Visibility.Visible;
         _image.Opacity = 0.42;
     }
 

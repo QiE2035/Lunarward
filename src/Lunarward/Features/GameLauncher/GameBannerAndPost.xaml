@@ -119,22 +119,24 @@
                                     </ItemsRepeater.Layout>
                                     <ItemsRepeater.ItemTemplate>
                                         <DataTemplate x:DataType="sch:GamePost">
-                                            <Grid ColumnSpacing="16">
+                                            <!-- Uno 的 ItemsRepeater 在 ScrollViewer 里按无限宽度测量，
+                                                 行内 Grid 不设上限时标题会一路顶到卡片外（实测日期列被挤出卡片）。
+                                                 卡片固定 380 DIP，减去 PivotItem 左右 12+12 与右侧 16 → 340。 -->
+                                            <Grid ColumnSpacing="16" MaxWidth="340" Tapped="PostRow_Tapped" Background="Transparent">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
+                                                <!-- 上游用 Hyperlink.NavigateUri；Uno 下它走 Launcher.LaunchUriAsync（Linux 静默失败，L-74），
+                                                     而且带 Hyperlink 的 TextBlock 在这里不按宽度省略、会顶出卡片。
+                                                     改成普通 TextBlock + 行级 Tapped，点击仍由 OpenUrl 打开。 -->
                                                 <TextBlock VerticalAlignment="Center"
                                                            HorizontalAlignment="Stretch"
                                                            MaxLines="1"
                                                            TextTrimming="CharacterEllipsis"
-                                                           TextWrapping="NoWrap">
-                                                    <Hyperlink Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                                               NavigateUri="{x:Bind Link}"
-                                                               UnderlineStyle="None">
-                                                        <Run Text="{x:Bind Title}" />
-                                                    </Hyperlink>
-                                                </TextBlock>
+                                                           TextWrapping="NoWrap"
+                                                           Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                           Text="{x:Bind Title}" />
                                                 <TextBlock Grid.Column="1"
                                                            VerticalAlignment="Center"
                                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
