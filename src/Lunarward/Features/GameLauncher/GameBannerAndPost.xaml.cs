@@ -234,16 +234,45 @@ public sealed partial class GameBannerAndPost : UserControl
 
 
 
-    private async void Image_Banner_Tapped(object sender, TappedRoutedEventArgs e)
+    private void Image_Banner_Loaded(object sender, RoutedEventArgs e)
     {
-        try
+        // FlipView 会把指针事件标记为已处理，普通的 Tapped 订阅收不到；
+        // 这里用 handledEventsToo:true 注册，保证点轮播一定进我们的处理。
+        if (sender is UIElement element)
         {
-            if (sender is FrameworkElement fe && fe.DataContext is GameBanner banner)
-            {
-                Starward.Helpers.OpenUrl.Open(banner.Image.Link);
-            }
+            element.AddHandler(UIElement.TappedEvent, new TappedEventHandler(Image_Banner_Tapped), true);
         }
-        catch { }
+    }
+
+
+    private void Image_Banner_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        // Uno 下 DataTemplate 里的元素拿不到 DataContext，退到 FlipView 当前选中项。
+        GameBanner? banner = (sender as FrameworkElement)?.DataContext as GameBanner
+                             ?? FlipView_Banner?.SelectedItem as GameBanner;
+        if (banner is not null && !string.IsNullOrWhiteSpace(banner.Image?.Link))
+        {
+            Starward.Helpers.OpenUrl.Open(banner.Image.Link);
+        }
+        else
+        {
+            Serilog.Log.Information("Banner tapped but no GameBanner available");
+        }
+    }
+
+
+    private void Grid_BannerContainer_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        // Uno 下 DataTemplate 里的 Image.Tapped 不触发、容器 DataContext 为 null，
+        // 只能从 FlipView 的选中项取当前轮播条目。
+        if (FlipView_Banner?.SelectedItem is GameBanner banner && !string.IsNullOrWhiteSpace(banner.Image?.Link))
+        {
+            Starward.Helpers.OpenUrl.Open(banner.Image.Link);
+        }
+        else
+        {
+            Serilog.Log.Information("Banner tapped but no selected item (selected={Selected})", FlipView_Banner?.SelectedItem is null ? "<null>" : FlipView_Banner.SelectedItem.GetType().Name);
+        }
     }
 
 
@@ -277,6 +306,27 @@ public sealed partial class GameBannerAndPost : UserControl
             }
         }
         catch { }
+
+#if DEBUG
+        // 开发期验证：环境变量 LUNARWARD_DEV_BANNER_AUTOLINK=1 时，加载后自动打开当前轮播链接，
+        // 用于在无法可靠合成鼠标点击的环境里验证链接取值与 xdg-open 链路。
+        if (Environment.GetEnvironmentVariable("LUNARWARD_DEV_BANNER_AUTOLINK") == "1")
+        {
+            _ = DispatcherQueue.TryEnqueue(async () =>
+            {
+                await Task.Delay(1500);
+                if (FlipView_Banner?.SelectedItem is GameBanner devBanner && !string.IsNullOrWhiteSpace(devBanner.Image?.Link))
+                {
+                    Serilog.Log.Information("[dev] banner autolink: {Link}", devBanner.Image.Link);
+                    Starward.Helpers.OpenUrl.Open(devBanner.Image.Link);
+                }
+                else
+                {
+                    Serilog.Log.Information("[dev] banner autolink: no banner selected");
+                }
+            });
+        }
+#endif
     }
 
 

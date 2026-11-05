@@ -34,7 +34,8 @@
         <!--  Banner  -->
         <Grid Name="Grid_BannerContainer"
               PointerEntered="Grid_BannerContainer_PointerEntered"
-              PointerExited="Grid_BannerContainer_PointerExited">
+              PointerExited="Grid_BannerContainer_PointerExited"
+              Tapped="Grid_BannerContainer_Tapped">
             <FlipView Name="FlipView_Banner"
                       Background="Transparent"
                       CornerRadius="8"
@@ -43,13 +44,14 @@
                 <FlipView.ItemTemplate>
                     <DataTemplate x:DataType="sch:GameBanner">
                         <sc:CachedImage Name="Image_Banner"
+                                        Loaded="Image_Banner_Loaded"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center"
                                         sh:PointerCursor.CursorShape="Hand"
                                         IsRightTapEnabled="False"
                                         Source="{x:Bind Image.Url}"
                                         Stretch="UniformToFill"
-                                        Tapped="Image_Banner_Tapped" />
+                                        />
                     </DataTemplate>
                 </FlipView.ItemTemplate>
             </FlipView>

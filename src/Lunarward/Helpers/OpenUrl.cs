@@ -20,6 +20,7 @@ internal static class OpenUrl
         {
             return false;
         }
+        WarnIfDefaultHandlerMissing(target);
         // xdg-open 是 freedesktop 标准入口，KDE/GNOME/XFCE 都装了；失败再退 gio（部分精简环境只留 gio）。
         if (TryStart("xdg-open", target))
         {
@@ -31,6 +32,49 @@ internal static class OpenUrl
         }
         Serilog.Log.Warning("open {Target} failed: neither xdg-open nor gio is usable", target);
         return false;
+    }
+
+
+    /// <summary>
+    /// `xdg-open` 在「默认程序指向一个不存在的 .desktop」时依然返回 0、什么都不打开，
+    /// 用户看到的就是「点了没反应」。这里提前把这种环境下最可疑的情况记进日志，便于排查。
+    /// </summary>
+    private static void WarnIfDefaultHandlerMissing(string target)
+    {
+        try
+        {
+            string scheme = target.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || target.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                ? "x-scheme-handler/https"
+                : "inode/directory";
+            using var query = Process.Start(new ProcessStartInfo("xdg-mime") { UseShellExecute = false, ArgumentList = { "query", "default", scheme }, RedirectStandardOutput = true });
+            string? desktop = query?.StandardOutput.ReadToEnd().Trim();
+            if (query is not null && !query.WaitForExit(3000))
+            {
+                query.Kill(entireProcessTree: true);
+            }
+            if (string.IsNullOrEmpty(desktop))
+            {
+                Serilog.Log.Warning("no default handler for {Scheme}; xdg-open will do nothing ({Target})", scheme, target);
+                return;
+            }
+            string? home = Environment.GetEnvironmentVariable("HOME");
+            string[] probes =
+            {
+                $"/usr/share/applications/{desktop}",
+                $"/usr/local/share/applications/{desktop}",
+                System.IO.Path.Combine(home ?? "", ".local/share/applications", desktop),
+                System.IO.Path.Combine(home ?? "", ".local/share/flatpak/exports/share/applications", desktop),
+                $"/var/lib/flatpak/exports/share/applications/{desktop}",
+            };
+            if (!Array.Exists(probes, System.IO.File.Exists))
+            {
+                Serilog.Log.Warning("default handler {Desktop} for {Scheme} does not exist on disk; xdg-open will do nothing ({Target})", desktop, scheme, target);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "probe default handler failed");
+        }
     }
 
 
