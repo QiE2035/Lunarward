@@ -25,7 +25,12 @@ internal static class OpenUrl
         {
             return true;
         }
-        return TryStart("gio", "open", target);
+        if (TryStart("gio", "open", target))
+        {
+            return true;
+        }
+        Serilog.Log.Warning("open {Target} failed: neither xdg-open nor gio is usable", target);
+        return false;
     }
 
 

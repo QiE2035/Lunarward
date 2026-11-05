@@ -24,6 +24,9 @@ public interface IStatusNotifierWatcher : IDBusObject
 public interface IStatusNotifierItem : IDBusObject
 {
     Task<object> GetAsync(string prop);
+    // KDE 的 plasmashell 用 Properties.GetAll 一次性拉全部属性（实测只发 GetAll，不发逐个 Get）；
+    // 少了这条，宿主拿不到 Menu/IconName/IconPixmap → 右键菜单不出现、托盘图标显示成占位。
+    Task<IDictionary<string, object>> GetAllAsync();
     Task SetAsync(string prop, object val);
     Task<IDisposable> WatchPropertiesAsync(Action<PropertyChanges> handler);
     Task ActivateAsync(int x, int y);
@@ -39,6 +42,7 @@ public interface IDBusMenu : IDBusObject
     Task EventAsync(int id, string eventId, object data, uint timestamp);
     Task AboutToShowAsync(int id);
     Task<object> GetAsync(string prop);
+    Task<IDictionary<string, object>> GetAllAsync();
 }
 
 internal sealed class NullDisposable : IDisposable
@@ -106,6 +110,15 @@ internal sealed class TrayMenu : IDBusMenu
 
     public Task AboutToShowAsync(int id) => Task.CompletedTask;
 
+    public Task<IDictionary<string, object>> GetAllAsync() => Task.FromResult<IDictionary<string, object>>(new Dictionary<string, object>
+    {
+        ["Version"] = 3u,
+        ["TextDirection"] = "ltr",
+        ["Status"] = "normal",
+        ["IconThemePath"] = Array.Empty<string>(),
+    });
+
+
     public Task<object> GetAsync(string prop) => Task.FromResult(prop switch
     {
         "Version" => (object)3u,
@@ -133,6 +146,21 @@ internal sealed class SniObject : IStatusNotifierItem
 
     public ObjectPath ObjectPath => new("/StatusNotifierItem");
 
+    public Task<IDictionary<string, object>> GetAllAsync() => Task.FromResult<IDictionary<string, object>>(new Dictionary<string, object>
+    {
+        ["Category"] = "ApplicationStatus",
+        ["Id"] = "lunarward",
+        ["Title"] = "Lunarward",
+        ["Status"] = "Active",
+        ["IconName"] = "lunarward",
+        ["IconPixmap"] = TrayIconPixmap.Load(),
+        ["IconThemePath"] = "",
+        ["ItemIsMenu"] = true,
+        ["Menu"] = new ObjectPath("/MenuBar"),
+        ["WindowId"] = 0,
+    });
+
+
     public Task<object> GetAsync(string prop) => Task.FromResult(prop switch
     {
         "Category" => (object)"ApplicationStatus",
@@ -152,7 +180,14 @@ internal sealed class SniObject : IStatusNotifierItem
     public Task<IDisposable> WatchPropertiesAsync(Action<PropertyChanges> handler) => Task.FromResult<IDisposable>(NullDisposable.Instance);
     public Task ActivateAsync(int x, int y) { _activate(); return Task.CompletedTask; }
     public Task SecondaryActivateAsync(int x, int y) { _activate(); return Task.CompletedTask; }
-    public Task ContextMenuAsync(int x, int y) { _menu(); return Task.CompletedTask; }
+    public Task ContextMenuAsync(int x, int y)
+    {
+        // 宿主找不到 dbusmenu 时会退化成调这个方法（plasmashell：
+        // "Could not find DBusMenu interface, falling back to calling ContextMenu()"）。
+        // 宿主里画不了我们自己的菜单，至少把主窗口叫出来，别让右键彻底没反应。
+        _menu();
+        return Task.CompletedTask;
+    }
     public Task ScrollAsync(int delta, string orientation) => Task.CompletedTask;
 }
 
@@ -176,7 +211,7 @@ public static class StatusNotifierTray
             var connection = new Connection(Address.Session!);
             await connection.ConnectAsync();
             var menu = new TrayMenu(ShowMainWindow, QuitApplication, OpenSettings, OpenScreenshotFolder);
-            var sni = new SniObject(ShowMainWindow, () => { });
+            var sni = new SniObject(ShowMainWindow, ShowMainWindow);
             await connection.RegisterObjectAsync(menu);
             await connection.RegisterObjectAsync(sni);
             string serviceName = $"org.kde.StatusNotifierItem-{Environment.ProcessId}-1";

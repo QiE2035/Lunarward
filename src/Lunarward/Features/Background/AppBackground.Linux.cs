@@ -11,6 +11,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.UI;
 using Starward.Core.HoYoPlay;
+using Starward.Features.ViewHost;
 using System;
 using System.IO;
 using System.Runtime.InteropServices.WindowsRuntime;
@@ -60,6 +61,9 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         // 上游 AppBackground.xaml.cs 里注册了 BackgroundChangedMessage；Linux 侧之前漏了这条，
         // 结果「点背景切换器 → 发消息 → 没人消费」，表现就是切了没反应（L-70）。
         WeakReferenceMessenger.Default.Register<AppBackground, BackgroundChangedMessage>(this, (r, m) => r.OnBackgroundChangedMessage(m));
+        // 上游在 OnMainWindowStateChanged 里对视频做 Pause/Play（隐藏、锁屏时停，激活时续）；
+        // Linux 版之前没注册这条消息，视频永远在跑（L-70 同类遗漏）。
+        WeakReferenceMessenger.Default.Register<AppBackground, MainWindowStateChangedMessage>(this, (r, m) => r.OnWindowStateChangedMessage(m));
         // 上游 AppBackground.xaml 用 Win2D 画视频帧、用 ImageEx 贴静态图；这两个在这里都不可用，
         // 所以不走 InitializeComponent，直接放一个 Image 承担「贴壁纸」这件事（视频壁纸见 M3）。
         //
@@ -102,6 +106,105 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         {
             Serilog.Log.Warning(ex, "[background] apply selected background failed");
         }
+    }
+
+
+    /// <summary>
+    /// 隐藏/锁屏时暂停视频壁纸，重新激活时继续（上游 AppBackground.xaml.cs:591-608 的同名逻辑）。
+    /// </summary>
+    private void OnWindowStateChangedMessage(MainWindowStateChangedMessage message)
+    {
+        try
+        {
+            if (_videoPlayer is null)
+            {
+                return;
+            }
+            if (message.Activate)
+            {
+                _videoPlayer.Resume();
+            }
+            else if (message.Hide || message.SessionLock)
+            {
+                _videoPlayer.Pause();
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "[background] toggle video playback failed");
+        }
+    }
+
+
+    /// <summary>
+    /// 载入静态背景：底图 + 主题图（透明底的标题文字层）合成一张图。
+    /// 主题图下载失败/不存在时退回单张底图，不黑屏。
+    /// </summary>
+    private async Task<ImageSource?> LoadBackgroundImageAsync(string filePath, GameBackground? background, CancellationToken token)
+    {
+        string? themePath = null;
+        // 自定义背景是用户自己的图，上游不给它叠主题图，这里保持一致。
+        if (background is not null
+            && background.Type is not GameBackground.BACKGROUND_TYPE_CUSTOM
+            && background.Theme?.Url is { Length: > 0 } themeUrl)
+        {
+            try
+            {
+                using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(6));
+                themePath = await _backgroundService.GetBackgroundFileAsync(themeUrl, timeout.Token);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Debug(ex, "[background] theme image unavailable, using plain background");
+            }
+        }
+        if (token.IsCancellationRequested)
+        {
+            return null;
+        }
+        if (string.IsNullOrWhiteSpace(themePath) || !File.Exists(themePath))
+        {
+            return ToBitmap(filePath);
+        }
+        try
+        {
+            byte[] png = await Task.Run(() => ComposeBackgroundPng(filePath, themePath), token);
+            if (token.IsCancellationRequested)
+            {
+                return null;
+            }
+            var bitmap = new BitmapImage();
+            using var stream = new MemoryStream(png);
+            await bitmap.SetSourceAsync(stream.AsRandomAccessStream());
+            return bitmap;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "[background] compose background with theme failed, using plain background");
+            return ToBitmap(filePath);
+        }
+    }
+
+
+    /// <summary>SkiaSharp 合成：底图铺满 + 主题图按上游语义整幅拉伸叠加，输出 PNG。</summary>
+    private static byte[] ComposeBackgroundPng(string backgroundPath, string themePath)
+    {
+        using var background = SkiaSharp.SKBitmap.Decode(backgroundPath);
+        using var theme = SkiaSharp.SKBitmap.Decode(themePath);
+        if (background is null || theme is null)
+        {
+            throw new InvalidOperationException("decode background/theme failed");
+        }
+        var info = new SkiaSharp.SKImageInfo(background.Width, background.Height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul);
+        using var surface = SkiaSharp.SKSurface.Create(info);
+        var canvas = surface.Canvas;
+        canvas.Clear(SkiaSharp.SKColors.Black);
+        canvas.DrawBitmap(background, new SkiaSharp.SKRect(0, 0, background.Width, background.Height));
+        canvas.DrawBitmap(theme, new SkiaSharp.SKRect(0, 0, background.Width, background.Height));
+        canvas.Flush();
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
     }
 
 
@@ -249,7 +352,9 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             }
             _lastBackgroundFile = filePath;
             CurrentGameBackground = background;
-            BackgroundImageSource = ToBitmap(filePath);
+            // 上游静态背景也会把 Theme 图（透明底的标题文字层）叠在底图上（AppBackground.xaml.cs:419-437）；
+            // 之前只贴底图，所以暂停/静态时左上角没有标题文字（实测主题图 99.1% 像素透明，是纯文字层）。
+            BackgroundImageSource = await LoadBackgroundImageAsync(filePath, background, token);
         }
         catch (Exception ex)
         {

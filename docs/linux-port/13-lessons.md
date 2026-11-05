@@ -708,3 +708,30 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
   2. Uno 的顶层窗口在 KDE 下**没有** `_NET_WM_PID` → 匹配窗口要按 `WM_NAME`/`WM_CLASS` 兜底。
   3. 手写 xcb 结构体偏移：`xcb_setup_t` 的 `vendor_len=24`、`roots_len=28`、`pixmap_formats_len=29`（header 40 字节），
      `xcb_get_property_reply_t` 的 `value_len` 在偏移 **16**（不是 24）。这两处错一次，症状都是「读不到 root / 列表为空」，与 X 服务器无关。
+
+### L-85 · StatusNotifierItem 只实现 `Properties.Get` 会让 KDE 同时丢掉菜单和图标
+
+- **现象**：KDE 上托盘图标显示成占位、右键没有菜单；代码里 DBusMenu 数据本身是对的（`GetLayout` 手工调用能拿到 4 项）。
+- **证据链**：`gdbus … Properties.GetAll` 报 `UnknownMethod` → 抓总线：plasmashell 只发一次 `Properties.GetAll`，失败后不再访问 `/MenuBar`
+  → plasmashell 日志 `Could not find DBusMenu interface, falling back to calling ContextMenu()`。
+- **原因**：tmds.dbus 用「接口方法名 = D-Bus 方法名（去 `Async`）」的约定，`GetAsync` 恰好对上 `Properties.Get`，
+  但 `Properties.GetAll` 没有对应方法就没人实现；KDE 的属性获取走 `GetAll` 单次批量。
+- **修法**：接口里补 `GetAllAsync()`（返回 `IDictionary<string, object>`），SNI 与 `com.canonical.dbusmenu` 各实现一份；
+  顺手把 `ContextMenu` 回调从空 lambda 改成「唤回主窗口」，宿主实在拿不到 dbusmenu 时也有兜底。
+- **教训**：D-Bus 的「可选接口」不是真可选——宿主用哪个方法取属性，决定了你必须实现哪几个方法；验证要看**宿主的行为**（总线抓包 + 宿主日志），不要只看自己对象返回得对不对。
+
+### L-86 · Uno X11：把已存在的窗口重新 map 不会触发 `Window.Activated`
+
+- **现象**：隐藏 → `--show`/托盘唤回后窗口回来了，但背景视频不恢复（一直暂停），截图差异 0.00%。
+- **证据**：`[bg-diag]` 日志里只有 `activate=False hide=True`，唤回后没有 `activate=True`；`Window.Activated` 不触发。
+- **原因**：Uno 的 `Activated` 只在窗口获得焦点时发；`xcb_map_window` + `_NET_ACTIVE_WINDOW` 让 kwin 把窗口重新显示，
+  但走的是「map 已存在窗口」路径，托管层不再产生 `Activated`。
+- **修法**：`WindowEx.Show()` 在 `X11Window.Show()` 成功后自己发一条 `MainWindowStateChangedMessage{Activate=true}`（与 `MainWindow.OnWindowActivated` 同语义）。
+- **教训**：自己接管框架缺失的能力（D47）时，也要接管**框架本该因此触发的事件**，否则「窗口回来了、状态没回来」。
+
+### L-87 · 米哈游背景的 `Theme` 图是纯透明文字层，静态背景必须合成
+
+- **现象**：暂停/静态背景时左上角没有标题文字，用户以为是「海报文字丢了」。
+- **证据**：下载的 `0eefc26b…webp` 2560×1440，**99.1% 像素 alpha=0**，只有标题文字不透明；上游静态分支 `DrawImage(底图)` + `DrawImage(Theme)` 两次合成。
+- **修法**：`AppBackground.Linux.LoadBackgroundImageAsync` 下主题图（6 秒超时）→ SkiaSharp 合成 → PNG → `BitmapImage`；失败退回底图。
+- **教训**：上游把「底图」和「文字层」拆成两张资源，只看其中一张会以为「素材缺了文字」；移植时先对齐上游的**绘制顺序**，再谈差异。

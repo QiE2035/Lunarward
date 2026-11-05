@@ -118,6 +118,34 @@ internal sealed class VideoBackgroundPlayer : IDisposable
         }
     }
 
+    /// <summary>窗口隐藏/锁屏时暂停播放（上游 MainWindowStateChangedMessage 语义），帧停住但保留最后一帧。</summary>
+    public void Pause()
+    {
+        try
+        {
+            _player?.SetPause(true);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "pause video background failed");
+        }
+    }
+
+
+    /// <summary>窗口重新激活时继续播放。</summary>
+    public void Resume()
+    {
+        try
+        {
+            _player?.SetPause(false);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "resume video background failed");
+        }
+    }
+
+
     public void Stop()
     {
         try

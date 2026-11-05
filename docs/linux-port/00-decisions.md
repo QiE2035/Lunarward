@@ -340,6 +340,38 @@
 
 **未做**：托盘图标在 KDE 上显示为占位（用户指示暂缓）；没有做隐藏后的托盘气泡提示。
 
+## D48 · 托盘菜单、背景视频与静态主题图的三处真实缺陷（2026-11-05）
+
+**背景**：用户报四个问题（m11814）：视频背景「静止」且暂停后缺左上角标题文字、托盘右键没菜单、轮播点击无效、左下角资讯文字溢出。
+按 D46 逐条取证后，前三项里有两项被证实是**同一个缺陷**的两个症状。
+
+1. **托盘右键无菜单 + 托盘图标占位（同一根因）**
+   - 证据：`gdbus … Properties.GetAll org.kde.StatusNotifierItem` → `org.freedesktop.DBus.Error.UnknownMethod`；
+     抓会话总线可见 plasmashell 启动时只调**一次** `Properties.GetAll`，失败后不再访问 `/MenuBar`，
+     日志 `Could not find DBusMenu interface, falling back to calling ContextMenu()`。
+   - 原因：tmds.dbus 的属性访问靠接口方法命名约定（`GetAsync`→`Get`），我们只实现了 `GetAsync`，没实现 `GetAllAsync`；
+     KDE 恰好只用 `GetAll` 一次性取 `Menu`/`IconName`/`IconPixmap` → `m_menu` 为 null（菜单没了）、图标名解析不到（显示占位）。
+   - 修法：`IStatusNotifierItem` / `IDBusMenu` 各补 `Task<IDictionary<string, object>> GetAllAsync()`；
+     `SniObject` 返回 10 个属性、`TrayMenu` 返回 `Version/TextDirection/Status/IconThemePath`；
+     另外把 `SniObject` 的 ContextMenu 回调从空 lambda 改成 `ShowMainWindow`，宿主真拿不到 dbusmenu 时至少能唤回窗口。
+   - 验证：`Properties.GetAll` 返回完整字典；总线抓包显示 plasmashell 随后调用了 `com.canonical.dbusmenu GetLayout`（DBusMenuImporter 建起来了）。
+2. **视频壁纸不随窗口状态暂停/恢复**
+   - 证据：`MainWindow.Hide()` 会发 `MainWindowStateChangedMessage{Hide=true}`，上游 `AppBackground.xaml.cs:591-608` 对视频 `Pause()/Play()`；
+     Linux 版从未注册这条消息 → 隐藏/锁屏时视频继续跑（耗电）。
+   - 修法：Linux 侧注册消息 → `VideoBackgroundPlayer.Pause()/Resume()`（`MediaPlayer.SetPause`）；
+     并且发现「`--show`/托盘唤回」后 `Window.Activated` 不触发（窗口是重新 map 而不是新获得焦点），
+     于是 `WindowEx.Show()` 在 map 成功后自行补发一条 `Activate` 消息（与 `MainWindow.OnWindowActivated` 语义一致）。
+   - 验证：隐藏→唤回后日志出现 `activate=True`，两次截图差异 5.03%（此前 0.00%）。
+3. **静态背景缺左上角标题文字**
+   - 证据：主题图（`Theme.Url`）实测 2560×1440、**99.1% 像素透明**，是纯文字层；上游静态分支是底图 + 主题图两次 `DrawImage` 合成
+     （`AppBackground.xaml.cs:419-437`），Linux 静态分支只贴底图。
+   - 修法：`LoadBackgroundImageAsync` → 6 秒超时下载主题图 → `ComposeBackgroundPng` 用 SkiaSharp 铺底图并整幅叠主题图 → PNG → `BitmapImage`；
+     失败退回单张底图（不黑屏）。自定义背景按上游语义不叠主题图。
+
+**代价**：静态背景多一次主题图下载与一次 Skia 合成（毫秒级）；`Properties.GetAll` 与 `GetAsync` 两套实现要一起维护。
+
+**未做**：托盘属性不发 `PropertiesChanged`（KDE 只在建项时取一次）；Wayland 原生会话托盘仍依赖 XWayland/StatusNotifier 宿主。
+
 ## 协作约定复核（2026-11-05，来源：聊天记录）
 
 用户要求「顺便整理一下聊天记录看看还有哪些需要计入文档的」。以下是从 m00001 起到 m11348 为止所有明确要求，标注当前落点（✅ 已入文档 / 🆕 本次补入）：

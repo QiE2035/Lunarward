@@ -40,7 +40,7 @@
 | 游玩时长 | ✅ | `wineserver -w` 判定会话结束，进程早退时回退最近 Start 事件；30s 心跳写 `Interruption=true`，启动器被杀也能留下时长 | — |
 | 启动器主界面 | ✅ | 1200×676 DIP、**系统标题栏**（交给窗口管理器，L-73）、真实公告/活动 | — |
 | 外部链接 | ✅ | `Helpers/OpenUrl.cs`：`xdg-open` → `gio open`，替换 8 类 `Launcher.LaunchUriAsync` 调用（后者在 Linux 静默失败，L-74） | `AppBackground` 里 3 处 apps.microsoft.com 保留（Windows 专属提示） |
-| 背景切换 / 视频壁纸 | 🟡 | 圆点切换器由代码生成（Uno PipsPager 不响应点击，L-69）；视频走 libvlc `--vout=vmem` + Skia 合成（`Video.Url`，非海报）；API 超时 6s | 无 vlc 或无视频文件时退回静态兜底图 |
+| 背景切换 / 视频壁纸 | 🟡 | 圆点切换器由代码生成（Uno PipsPager 不响应点击，L-69）；视频走 libvlc `--vout=vmem` + Skia 合成（`Video.Url`，非海报）；隐藏/锁屏暂停、唤回恢复（D48/L-86）；静态背景底图 + `Theme` 文字层合成（D48/L-87）；API 超时 6s | 无 vlc 或无视频文件时退回静态兜底图；不发 `PropertiesChanged` |
 | 背景图库窗口 | ✅ | `BackgroundViewWindow` code-behind 重新纳入编译；缩略图 `ListView + tk:WrapPanel`；本地绝对路径由 `CachedImage.Linux` 读字节解码 | 无 |
 | 单实例 / 陈旧锁 | ✅ | 文件锁 + UNIX socket；无人接时判定陈旧锁并接管；无 `DISPLAY`/`WAYLAND_DISPLAY` 明确报错退出（L-72）；`--new-instance` 跳过检查 | 无 |
 | 设置页 10 项 | ✅ | 上游 9 项 + 「运行环境」 | — |
@@ -48,7 +48,7 @@
 | 抽卡记录 | 🟡 | 页面与导出可用；真实数据未验证 | 待用户 |
 | 截图 | ✅ | Alt+D 捕获、图库、多选、批量转 JPG、查看器 | HDR 色彩管理 ⬜ M4 |
 | 壁纸 | ✅ | 静态图 + 视频（LibVLC，缺库自动回退静态） | — |
-| 托盘 | 🟡 | StatusNotifierItem 注册与唤回可用；面板可见性待目视 | 待用户 |
+| 托盘 | 🟡 | StatusNotifierItem 注册、`Properties.GetAll`、DBusMenu 菜单、点击唤回均可用（D48/L-85）；面板图标观感待目视 | 托盘属性不发 `PropertiesChanged` |
 | 全局热键 | 🟡 | X11 轮询；Wayland 原生不可用；唤回依赖 `xdotool` | M4 |
 | URL 协议 / 单实例 | ✅ | `lunarward://` + socket 转发（show/exit/startgame） | — |
 | 自更新 | 🟡 | 查 AUR 版本；不下载替换 | M4 |
@@ -225,3 +225,4 @@
 | 2026-11-03 | **全表校准**：按代码实测重写（33 个 `*.Linux.cs`、8 个 `*.LinuxAuto.cs`、55 条排除）；修正过时状态（视频壁纸、URL 协议、截图图库/查看器、更新检查、AssemblyVersion）；新增总览表、新增模块表、XAML 差异表（7 处）、CLI 清单；去掉重复的「更新：…」附录，合并到对应功能域 |
 | 2026-11-05 | D44 加固：原子写（`JsonFile`）、预检只读 + key 统一、安装目录/空间校验、前缀清理挂 wine 会话、单实例回调回 UI 线程、playtime 按 pid 去重、CLI 失败退出码、日志与临时文件保留策略、截图设置页实装 |
 | 2026-11-05 | D45 CI 只验证 Linux 侧：删除上游 6 个 Windows 工作流，新增 `.github/workflows/linux.yml`（Release 需先 `restore -p:Configuration=Release`，见 L-82） |
+| 2026-11-05 | D48：托盘补 `Properties.GetAll`（KDE 菜单+图标）、视频随窗口隐藏暂停/唤回恢复、静态背景合成 `Theme` 文字层 |

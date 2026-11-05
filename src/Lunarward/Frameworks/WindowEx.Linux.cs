@@ -1,5 +1,6 @@
 // Lunarward：WindowEx 的 Linux 实现。上游 Frameworks/WindowEx.cs 依赖 Vanara/User32 子类化，保留但不编译。
 // 这里用 Uno 的 Window.AppWindow 完成窗口动作；Windows 专有的图标/拖拽区/标题栏配色降级为 no-op。
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using System;
@@ -25,11 +26,23 @@ public abstract partial class WindowEx : Window
         // Lunarward：Uno 的 AppWindow.Show() 只在首次调用时 map（内部 WasShown 之后就只 Activate），
         // 而 Activate() 只发 XRaiseWindow，恢复不了被隐藏/最小化的窗口（L-84）。
         // 这里用 Helpers.X11Window（libxcb）做 map + _NET_ACTIVE_WINDOW，失败再退回 Uno 的实现。
-        if (!Helpers.X11Window.Show(Title))
+        bool shown = Helpers.X11Window.Show(Title);
+        if (!shown)
         {
             AppWindow.Show();
         }
         Activate();
+        // X11 后端在「窗口已存在、只是被 unmap」的情况下不会触发 Window.Activated，
+        // 于是隐藏→唤回时没人发激活消息：视频壁纸停在暂停状态、其它依赖激活的动画也不恢复（实测）。
+        // 这里在真正 map 成功后补发一条，语义与 MainWindow.OnWindowActivated 一致。
+        if (shown)
+        {
+            WeakReferenceMessenger.Default.Send(new Features.ViewHost.MainWindowStateChangedMessage
+            {
+                Activate = true,
+                CurrentTime = DateTimeOffset.Now,
+            });
+        }
     }
 
     public virtual void Hide()
