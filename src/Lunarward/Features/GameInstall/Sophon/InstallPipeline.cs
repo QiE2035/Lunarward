@@ -74,6 +74,7 @@ public static class InstallPipeline
         CancellationToken cancellationToken = default)
     {
         long planned = 0;
+        bool limitHit = false;
         var assets = new List<SophonAsset>();
         foreach (string field in fields)
         {
@@ -91,6 +92,8 @@ public static class InstallPipeline
                 }
                 if (onlyFile is null && planned + asset.AssetSize > limitBytes)
                 {
+                    // 额度用尽：剩下的文件不再排队，并且要把「没装完」如实反映给调用方（L-66）。
+                    limitHit = true;
                     continue;
                 }
                 assets.Add(asset);
@@ -98,10 +101,16 @@ public static class InstallPipeline
             }
         }
 
+        if (limitBytes == long.MaxValue)
+        {
+            // 只有「真装」才拦空间；限量下载是调试入口，让它自己撞墙更有用。
+            UpdateOrchestrator.EnsureEnoughSpace(outputRoot, planned);
+        }
         var progress = new InstallProgress { TotalBytes = planned, TotalFiles = assets.Count };
         onProgress?.Invoke(progress);
 
         int ok = 0, skipped = 0, failed = 0;
+        long finishedBytes = 0;
         var errors = new List<string>();
         using var semaphore = new SemaphoreSlim(Math.Max(1, parallel));
         var tasks = new List<Task>();
@@ -125,11 +134,12 @@ public static class InstallPipeline
                         if (string.Equals(localMd5, asset.AssetHash, StringComparison.OrdinalIgnoreCase))
                         {
                             Interlocked.Increment(ref skipped);
+                            Interlocked.Add(ref finishedBytes, asset.AssetSize);
                             lock (progress)
                             {
                                 progress.SkippedFiles++;
                                 progress.FinishedFiles++;
-                                progress.FinishedBytes += asset.AssetSize;
+                                progress.FinishedBytes = Interlocked.Read(ref finishedBytes);
                             }
                             onProgress?.Invoke(progress);
                             return;
@@ -139,11 +149,26 @@ public static class InstallPipeline
                     {
                         progress.CurrentFile = asset.AssetName;
                     }
+                    // 库回调里的 downloaded 是「本资产的累计下载量」，直接 += 会把同一批字节反复计入，
+                    // 进度条提前冲到 100%（L-65）。这里按增量折算到全局已完成字节。
+                    object reportGate = new();
+                    long reported = 0;
                     await SophonLibrary.DownloadAssetAsync(httpClient, asset, outputRoot, (downloaded, _) =>
                     {
+                        long delta;
+                        lock (reportGate)
+                        {
+                            delta = downloaded - reported;
+                            if (delta <= 0)
+                            {
+                                return;
+                            }
+                            reported = downloaded;
+                        }
+                        Interlocked.Add(ref finishedBytes, delta);
                         lock (progress)
                         {
-                            progress.FinishedBytes += downloaded;
+                            progress.FinishedBytes = Interlocked.Read(ref finishedBytes);
                         }
                         onProgress?.Invoke(progress);
                     }, cancellationToken);
@@ -181,7 +206,7 @@ public static class InstallPipeline
             }, cancellationToken));
         }
         await Task.WhenAll(tasks);
-        return new InstallPipelineResult { Downloaded = ok, Skipped = skipped, Failed = failed, TotalBytes = planned, Errors = errors };
+        return new InstallPipelineResult { Downloaded = ok, Skipped = skipped, Failed = failed, TotalBytes = planned, Errors = errors, LimitReached = limitHit };
     }
 
     /// <summary>
@@ -261,6 +286,10 @@ public static class InstallPipeline
             }
         }
 
+        if (limitBytes == long.MaxValue)
+        {
+            UpdateOrchestrator.EnsureEnoughSpace(outputRoot, planned);
+        }
         var progress = new InstallProgress { TotalBytes = planned, TotalFiles = plannedFiles, SkippedFiles = skipped };
         onProgress?.Invoke(progress);
         long downloaded = 0, reused = 0;
@@ -274,8 +303,10 @@ public static class InstallPipeline
                 errors.Add($"{field}: 没有 chunk 下载前缀");
                 continue;
             }
+            // 把剩余额度交给下载器：文件级预算挡不住单个大文件冲破额度（L-62/L-66）。
+            long budgetLeft = limitBytes == long.MaxValue ? long.MaxValue : Math.Max(0, limitBytes - (downloaded + reused));
             ChunkReuseResult part = await ChunkReuseDownloader.RunAsync(
-                httpClient, files, noReuse, outputRoot, outputRoot, prefix, long.MaxValue,
+                httpClient, files, noReuse, outputRoot, outputRoot, prefix, budgetLeft,
                 (chunkBytes, chunkTotal) =>
                 {
                     lock (progress)
@@ -288,6 +319,10 @@ public static class InstallPipeline
                 cancellationToken, isPaused);
             downloaded += part.DownloadedBytes;
             reused += part.ReusedBytes + part.ResumedBytes;
+            if (part.LimitReached)
+            {
+                limitHit = true;
+            }
             ok += part.Files;
             failed += part.FailedFiles;
             lock (progress)
@@ -300,6 +335,10 @@ public static class InstallPipeline
                 errors.Add($"{file}: {error}");
             }
             onProgress?.Invoke(progress);
+            if (limitHit)
+            {
+                break;
+            }
         }
         lock (progress)
         {

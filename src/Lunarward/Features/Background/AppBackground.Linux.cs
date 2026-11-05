@@ -249,7 +249,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             }
             _lastBackgroundFile = filePath;
             CurrentGameBackground = background;
-            BackgroundImageSource = string.IsNullOrWhiteSpace(filePath) ? null : new BitmapImage(new Uri(filePath));
+            BackgroundImageSource = ToBitmap(filePath);
         }
         catch (Exception ex)
         {
@@ -393,6 +393,34 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     }
 
 
+    /// <summary>
+    /// 把本地文件名/路径变成 BitmapImage。上游直接把字符串塞进 new Uri，
+    /// 传进来的若是「裸文件名」就成了相对 URI，Linux 下必然解码失败、背景一片黑（L-74）。
+    /// </summary>
+    private static BitmapImage? ToBitmap(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+        try
+        {
+            string full = Path.GetFullPath(path);
+            if (!File.Exists(full))
+            {
+                Serilog.Log.Warning("[background] file not found: {file}", path);
+                return null;
+            }
+            return new BitmapImage(new Uri(full));
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "[background] cannot load background {file}", path);
+            return null;
+        }
+    }
+
+
     /// <summary>设置自定义背景文件（上游同签名；UI 里换壁纸用）。</summary>
     public async Task ChangeCustomBackgroundAsync(XamlRoot xamlRoot)
     {
@@ -402,7 +430,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             return;
         }
         _lastBackgroundFile = null;
-        BackgroundImageSource = new BitmapImage(new Uri(file));
+        BackgroundImageSource = ToBitmap(file);
     }
 
 }

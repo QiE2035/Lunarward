@@ -97,20 +97,37 @@ public static class LaunchPreflight
 
         // 3) 前缀
         string? prefix = null;
+        // 预检必须和启动用同一个 key：启动走的是 exe 文件名（GameLauncherService.Linux 里 key = 去掉扩展名的 exe），
+        // 这里以前用 biz.Value，template/ephemeral 模式会算成另一个前缀，预检报告的和实际用的不是同一个（L-62）。
+        string gameKey = Path.GetFileNameWithoutExtension(exePath).ToLowerInvariant();
         try
         {
+            // 预检只「看」不「建」：以前这里直接 EnsurePrefix，点一次「预检」就会 wineboot/clone 出前缀，
+            // external 前缀还会被塞进 .lunarward/（L-62）。没准备好就如实说「启动时会准备」。
             prefix = profile is not null
-                ? PrefixManager.EnsurePrefix(profile, biz.Value, logger)
-                : GameLauncherService.ResolvePrefix(Path.GetFileNameWithoutExtension(exePath).ToLowerInvariant());
-            result.Items.Add(prefix is null
-                ? new PreflightItem
-                {
-                    Name = "Wine 前缀",
-                    Status = PreflightStatus.Failed,
-                    Detail = "解析不到可用的前缀",
-                    Fix = "在「运行环境」里配置前缀路径，或设置 LUNARWARD_WINEPREFIX",
-                }
-                : new PreflightItem { Name = "Wine 前缀", Status = PreflightStatus.Ok, Detail = prefix });
+                ? PrefixManager.TryGetExistingPrefix(profile, gameKey)
+                : GameLauncherService.ResolvePrefix(gameKey);
+            if (prefix is null)
+            {
+                result.Items.Add(profile is { PrefixMode: "dedicated" or "shared" or "template" or "ephemeral" }
+                    ? new PreflightItem
+                    {
+                        Name = "Wine 前缀",
+                        Status = PreflightStatus.Ok,
+                        Detail = "尚未准备，启动时按配置创建/克隆",
+                    }
+                    : new PreflightItem
+                    {
+                        Name = "Wine 前缀",
+                        Status = PreflightStatus.Failed,
+                        Detail = "解析不到可用的前缀",
+                        Fix = "在「运行环境」里配置前缀路径，或设置 LUNARWARD_WINEPREFIX",
+                    });
+            }
+            else
+            {
+                result.Items.Add(new PreflightItem { Name = "Wine 前缀", Status = PreflightStatus.Ok, Detail = prefix });
+            }
         }
         catch (Exception ex)
         {
@@ -144,21 +161,9 @@ public static class LaunchPreflight
                 });
             }
 
-            string lockFile = Path.Combine(prefix, ".lunarward", "lock");
-            bool locked = false;
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(lockFile)!);
-                using FileStream stream = new(lockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            }
-            catch (IOException)
-            {
-                locked = true;
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // 只读前缀也会走到这里，交给上面的「可写」项判断
-            }
+            // 只读检查占用：以前这里会 Directory.CreateDirectory(prefix/.lunarward) 再建锁文件，
+            // 结果「点一下预检」就往 external 前缀（例如 ~/.wine）里塞了 .lunarward/（L-62）。
+            bool locked = PrefixManager.IsPrefixLocked(prefix);
             result.Items.Add(locked
                 ? new PreflightItem
                 {

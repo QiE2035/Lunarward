@@ -6,6 +6,7 @@
 //   shared    —— 多个游戏共用一个长期前缀
 //   template  —— 从一个「模板前缀」克隆出本游戏专用前缀（reflink，秒级）
 //   ephemeral —— 每次启动克隆一份，退出即丢弃（用于测试组合，不污染既有前缀）
+using Starward.Helpers;
 using Microsoft.Extensions.Logging;
 using Starward.Features.GameLauncher;
 using System;
@@ -34,6 +35,38 @@ public sealed class PrefixMetadata
 
 public static class PrefixManager
 {
+    /// <summary>
+    /// 展开 Profile 里手写的路径：支持 `~/xxx`、`$HOME/xxx` 和 `${HOME}/xxx`。
+    /// 上游的 Path 文本框里用户很自然会写 `~`，不展开就会在 CWD 下建出名字叫 "~" 的目录（L-62）。
+    /// </summary>
+    public static string? ExpandPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+        string expanded = path.Trim();
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (expanded == "~")
+        {
+            return home;
+        }
+        if (expanded.StartsWith("~/", StringComparison.Ordinal))
+        {
+            expanded = Path.Combine(home, expanded[2..]);
+        }
+        else if (expanded.StartsWith("$HOME/", StringComparison.Ordinal))
+        {
+            expanded = Path.Combine(home, expanded[6..]);
+        }
+        else if (expanded.StartsWith("${HOME}/", StringComparison.Ordinal))
+        {
+            expanded = Path.Combine(home, expanded[8..]);
+        }
+        return Environment.ExpandEnvironmentVariables(expanded);
+    }
+
+
 
     private const string MetadataRelativePath = ".lunarward/prefix.json";
 
@@ -90,9 +123,9 @@ public static class PrefixManager
         {
             case "external":
             {
-                string path = string.IsNullOrWhiteSpace(profile.PrefixPath)
+                string path = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
                     ? throw new DirectoryNotFoundException("external 前缀模式需要指定前缀路径。")
-                    : profile.PrefixPath!;
+                    : ExpandPath(profile.PrefixPath)!;
                 if (!Directory.Exists(path))
                 {
                     throw new DirectoryNotFoundException($"前缀不存在：{path}");
@@ -101,9 +134,9 @@ public static class PrefixManager
             }
             case "dedicated":
             {
-                string path = string.IsNullOrWhiteSpace(profile.PrefixPath)
+                string path = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
                     ? Path.Combine(PrefixRoot, key)
-                    : profile.PrefixPath!;
+                    : ExpandPath(profile.PrefixPath)!;
                 if (!Directory.Exists(path))
                 {
                     CreateWithWineboot(profile, path, logger);
@@ -113,9 +146,9 @@ public static class PrefixManager
             }
             case "shared":
             {
-                string path = string.IsNullOrWhiteSpace(profile.PrefixPath)
+                string path = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
                     ? Path.Combine(PrefixRoot, "shared")
-                    : profile.PrefixPath!;
+                    : ExpandPath(profile.PrefixPath)!;
                 if (!Directory.Exists(path))
                 {
                     CreateWithWineboot(profile, path, logger);
@@ -125,9 +158,9 @@ public static class PrefixManager
             }
             case "template":
             {
-                string template = string.IsNullOrWhiteSpace(profile.PrefixPath)
+                string template = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
                     ? throw new DirectoryNotFoundException("template 前缀模式需要指定模板前缀路径。")
-                    : profile.PrefixPath!;
+                    : ExpandPath(profile.PrefixPath)!;
                 if (!Directory.Exists(template))
                 {
                     throw new DirectoryNotFoundException($"模板前缀不存在：{template}");
@@ -142,14 +175,16 @@ public static class PrefixManager
             }
             case "ephemeral":
             {
-                string template = string.IsNullOrWhiteSpace(profile.PrefixPath)
+                string template = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
                     ? throw new DirectoryNotFoundException("ephemeral 前缀模式需要指定模板前缀路径。")
-                    : profile.PrefixPath!;
+                    : ExpandPath(profile.PrefixPath)!;
                 if (!Directory.Exists(template))
                 {
                     throw new DirectoryNotFoundException($"模板前缀不存在：{template}");
                 }
-                string path = Path.Combine(PrefixRoot, $".ephemeral-{key}-{profile.Id}-{DateTime.Now:HHmmss}");
+                // 精确到秒会在同一秒内连点两次时撞名（克隆到一半被第二个实例当成已存在）；
+                // 用「时间戳 + pid + 短随机」保证唯一，同时仍可看出是哪次会话。
+                string path = Path.Combine(PrefixRoot, $".ephemeral-{key}-{profile.Id}-{DateTime.Now:yyyyMMddHHmmss}-{Environment.ProcessId}");
                 ClonePrefix(template, path, logger);
                 WriteMetadata(path, key, profile, "ephemeral", template);
                 return path;
@@ -160,12 +195,55 @@ public static class PrefixManager
     }
 
 
+    /// <summary>
+    /// 只解析「已经存在」的前缀，不创建、不克隆、不写元数据。
+    /// 设置类操作（例如写 HDR 注册表）用它，避免为了改一个开关就凭空造出一个前缀（L-62）。
+    /// </summary>
+    public static string? TryGetExistingPrefix(RuntimeProfile profile, string gameKey)
+    {
+        string key = gameKey.ToLowerInvariant();
+        switch (profile.PrefixMode)
+        {
+            case "external":
+            {
+                string? external = ExpandPath(profile.PrefixPath);
+                return external is not null && Directory.Exists(external) ? external : null;
+            }
+            case "dedicated":
+            {
+                string path = string.IsNullOrWhiteSpace(profile.PrefixPath) ? Path.Combine(PrefixRoot, key) : ExpandPath(profile.PrefixPath)!;
+                return Directory.Exists(path) ? path : null;
+            }
+            case "shared":
+            {
+                string path = string.IsNullOrWhiteSpace(profile.PrefixPath) ? Path.Combine(PrefixRoot, "shared") : ExpandPath(profile.PrefixPath)!;
+                return Directory.Exists(path) ? path : null;
+            }
+            case "template":
+            {
+                string path = Path.Combine(PrefixRoot, $"{key}-{profile.Id}");
+                return Directory.Exists(path) ? path : null;
+            }
+            case "ephemeral":
+                // 临时前缀按会话创建，设置阶段没有可写的目标。
+                return null;
+            default:
+                return null;
+        }
+    }
+
+
     /// <summary>用 reflink 克隆前缀（同卷时几乎瞬时、几乎不占空间）。</summary>
     public static void ClonePrefix(string source, string destination, ILogger? logger = null)
     {
         if (!Directory.Exists(source))
         {
             throw new DirectoryNotFoundException($"源前缀不存在：{source}");
+        }
+        if (Directory.Exists(destination) && Directory.EnumerateFileSystemEntries(destination).Any())
+        {
+            // cp -a 的语义是「拷进目标目录」，目标已存在时会得到 dst/src，前缀直接不可用。宁可直接报错（L-62）。
+            throw new IOException($"目标前缀已存在且非空，拒绝覆盖：{destination}");
         }
         Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
         var sw = Stopwatch.StartNew();
@@ -302,14 +380,14 @@ public static class PrefixManager
             }
             string path = Path.Combine(prefix, MetadataRelativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllText(path, JsonSerializer.Serialize(new PrefixMetadata
+            JsonFile.WriteAtomic(path, new PrefixMetadata
             {
                 GameKey = gameKey,
                 ProfileId = profile.Id,
                 Mode = mode,
                 TemplatePath = template,
                 CreatedAt = existing?.CreatedAt ?? DateTime.Now,
-            }, new JsonSerializerOptions { WriteIndented = true }));
+            }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch
         {

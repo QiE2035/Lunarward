@@ -7,16 +7,38 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace Starward.Features.GameAccount;
 
 internal static class WineRegistry
 {
-    /// <summary>当前 wine 前缀。后续由运行环境（Profile）注入，暂时支持环境变量与默认 ~/.wine。</summary>
+    /// <summary>作用域内的前缀覆盖：让「写设置页」这类调用能明确指定目标前缀，而不是永远落到 ~/.wine（L-62）。</summary>
+    [ThreadStatic]
+    private static string? _scopedPrefix;
+
+    /// <summary>临时把读写指向指定前缀；传 null 表示不覆盖。</summary>
+    public static IDisposable UsePrefix(string? prefix)
+    {
+        string? previous = _scopedPrefix;
+        _scopedPrefix = string.IsNullOrWhiteSpace(prefix) ? null : prefix;
+        return new PrefixScope(previous);
+    }
+
+    private sealed class PrefixScope(string? previous) : IDisposable
+    {
+        public void Dispose() => _scopedPrefix = previous;
+    }
+
+    /// <summary>当前 wine 前缀。作用域覆盖 &gt; 环境变量 &gt; 默认 ~/.wine。</summary>
     public static string WinePrefix
     {
         get
         {
+            if (!string.IsNullOrWhiteSpace(_scopedPrefix))
+            {
+                return _scopedPrefix!;
+            }
             var env = Environment.GetEnvironmentVariable("LUNARWARD_WINEPREFIX");
             if (!string.IsNullOrWhiteSpace(env))
             {
@@ -153,8 +175,21 @@ internal static class WineRegistry
         {
             return null;
         }
-        var stdout = process.StandardOutput.ReadToEnd();
-        process.WaitForExit(15000);
+        // stderr 必须一起排空：wine 出错时会写不少内容，管道满了子进程就卡住写、读端又等退出，两边互等。
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(15000))
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch { }
+            Debug.WriteLine($"[WineRegistry] wine reg timed out after 15s: {string.Join(' ', args)}");
+            return null;
+        }
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        _ = stderrTask.GetAwaiter().GetResult();
         return process.ExitCode == 0 ? stdout : null;
     }
 }

@@ -248,4 +248,21 @@
 | 2026-11-04 | 新增 D42「修复 = 按本地版本校验」 | 实测修复会把目录标成新版本、且拿最新清单等于顺手升级 | `00` D42、`13` L-68 |
 | 2026-11-04 | D41 扩展：断点续传 + UI 联调 + 开发期限量 | `ChunkResume`、`InstallPipelineResult.LimitReached`、`--dev-install-probe`；修 NaN% 进度环与进度倒退（L-65/L-66/L-67） |
 | 2026-11-03 | 新增 D41 chunk 级复用（增量更新主力机制） | 实测差分只覆盖 101 文件，需把剩余变更压到官方量级（m08787「要」） | `00` D41、`src/Lunarward/Features/GameInstall/Sophon/ChunkReuse*.cs`、`InstallPipeline.RunChunkReuseAsync` |
+| 2026-11-05 | 新增 D44 全量审查后的健壮性加固（原子写、只读预检、空间/目录校验、前缀清理挂 wine 会话、单实例回调回 UI 线程、CLI 失败退出码、日志保留） | 用户 m10479「能修的就都修了吧」；审查清单见 m10478 汇报 | `00` D44、`13` L-75–L-81、`12` |
 | 2026-11-04 | 新增 D43 主窗口 chrome 与背景切换的 Linux 形态 | 用户真机反馈 #1/#3/#5，Uno/X11 无对应系统行为 | `00` D43、`13` L-69–L-74、`12` |
+
+
+## D44 · 全量审查后的健壮性加固（2026-11-05）
+
+用户 m10479 授权「能修的就都修了吧」后，按 39 条审查清单（P0/P1/P2，文件:行号见 m10478 汇报）逐条处理。这一轮不改功能形态，只把「会悄悄损坏用户数据/静默失败」的地方补上，并统一下面几条原则：
+
+1. **用户数据一律原子写**：`Helpers/JsonFile.WriteAtomic`（临时文件 + fsync + 原子改名 + `.bak`）。配置文件、Profile、ProfileBinding、后启动条目、前缀元数据、图形组件记录全部改用；读坏了的 JSON 改名成 `*.corrupt-时间` 留证据，不再静默忽略。
+2. **预检只读**：`--preflight`/启动前检查不再 `EnsurePrefix`（会 wineboot/克隆前缀），也不再往 external 前缀里写 `.lunarward/lock`；前缀 key 统一用「exe 文件名」与真实启动一致。
+3. **动手前先验环境**：安装目录必须「空」或「含 config.ini」；下载前用 `DriveHelper.GetDriveAvailableSpace` 检查空间，不足直接给可读错误而不是下到 99% 才 ENOSPC。
+4. **前缀生命周期挂 wine 会话**：前缀锁释放、ephemeral 前缀删除、`on_game_exit` 后启动程序都在 `wineserver -w` 结束后执行，不跟 wine loader 进程的 `Exited` 走。
+5. **跨线程/跨进程边界显式化**：单实例 socket 回调统一 `DispatcherQueue` 回 UI 线程；playtime 去重按 pid（原来一把永不释放的全局 Mutex 导致第二个游戏时长为 0）。
+6. **CLI 失败要有退出码**：所有「未知游戏/拿不到清单/清单不可用/拒绝」等错误分支置 `Environment.ExitCode = 1`，脚本可以 `cmd && next`。
+7. **退出码之外的可见性**：ScreenshotSetting 从空桩改为可用（选/开文件夹、测试截图、清缓存）；截图目录读 `AppConfig.ScreenshotFolder`；托盘在进程退出时摘除 D-Bus 注册。
+8. **磁盘回收**：`Helpers/Housekeeping` 启动时清理 14 天前的日志/输出/启动报告，安装前清理 3 天前的 `*.lunarward-tmp`；移除两处 60 秒一次的 `GC.Collect()`。
+
+代价/未做：补丁阶段仍无块内续传（库无 API，见 D41 未做项）；`_tasks` 保留期之外的重复 toast 已修，但安装任务列表没有历史视图；`WineRegistry` 的 HDR 写入改为「设置页保存时写入」，启动期不再跑 `wine reg`（保住「游戏是 wine 第一个进程」）。

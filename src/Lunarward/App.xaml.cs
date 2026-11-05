@@ -22,7 +22,6 @@ public partial class App : Application
 
     private readonly DispatcherQueue _uiDispatcherQueue;
 
-    private readonly Timer _gcTimer = new(TimeSpan.FromSeconds(60));
 
     public static new App Current => (App)Application.Current;
 
@@ -33,7 +32,6 @@ public partial class App : Application
         RequestedTheme = ApplicationTheme.Dark;
         _uiDispatcherQueue = DispatcherQueue.GetForCurrentThread();
         UnhandledException += App_UnhandledException;
-        _gcTimer.Elapsed += (_, _) => GC.Collect();
     }
 
 
@@ -124,15 +122,39 @@ public partial class App : Application
             }
             Serilog.Log.Information("Took over stale single instance lock.");
         }
+        // socket 监听跑在线程池上，而这三个回调都要碰 UI（建窗口/激活/退出），
+        // 不切回 UI 线程会在随机时机崩在 X11 调用里（L-65）。
+        Microsoft.UI.Dispatching.DispatcherQueue uiDispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        void OnUi(Action action)
+        {
+            if (uiDispatcher is null || uiDispatcher.HasThreadAccess)
+            {
+                action();
+            }
+            else
+            {
+                uiDispatcher.TryEnqueue(() =>
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception ex)
+                    {
+                        Serilog.Log.Warning(ex, "Single instance callback failed");
+                    }
+                });
+            }
+        }
         Starward.Features.SingleInstance.SingleInstancePipe.StartListening(
-            onShow: () =>
+            onShow: () => OnUi(() =>
             {
                 Serilog.Log.Information("Second instance asked to show the main window.");
                 EnsureMainWindow();
                 m_MainWindow?.Activate();
-            },
-            onExit: () => Exit(),
-            onStartGame: bizName =>
+            }),
+            onExit: () => OnUi(Exit),
+            onStartGame: bizName => OnUi(() =>
             {
                 Serilog.Log.Information("Second instance asked to start game {biz}", bizName);
                 if (GameBiz.TryParse(bizName, out GameBiz biz) && GameId.FromGameBiz(biz) is GameId gameId)
@@ -140,13 +162,22 @@ public partial class App : Application
                     EnsureMainWindow();
                     Task ignoredLaunch = AppConfig.GetService<GameLauncherService>().StartGameAsync(gameId);
                 }
-            });
+            }));
         if (Environment.GetCommandLineArgs().Contains("--hide"))
         {
             // Lunarward：Linux 的托盘是 StatusNotifierItem，不需要（也不应该）创建上游的 SystemTrayWindow 占位控件。
             if (OperatingSystem.IsWindows())
             {
                 m_SystemTrayWindow = new SystemTrayWindow();
+            }
+            else
+            {
+                // Linux 的托盘和全局热键都挂在主窗口上（托盘在 MainWindow 构造里建，热键在 MainView.Loaded 里装），
+                // 只建不显示会变成「进程在跑、没有任何入口」，只能去任务管理器杀（L-75）。
+                // 所以还是把窗口建出来，等托盘/热键就绪后再藏起来。
+                m_MainWindow = new MainWindow();
+                m_MainWindow.Activate();
+                System.Threading.Tasks.Task ignoredHide = HideAfterShownAsync(m_MainWindow);
             }
         }
         else
@@ -157,12 +188,29 @@ public partial class App : Application
     }
 
 
+    /// <summary>启动参数 --hide 在 Linux 上的落地：先让窗口完成加载（托盘/热键），再隐藏。</summary>
+    private static async Task HideAfterShownAsync(MainWindow window)
+    {
+        try
+        {
+            await Task.Delay(800);
+            window.Hide();
+            Serilog.Log.Information("Started hidden (--hide); system tray and global hotkey are ready.");
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Hide after startup failed");
+        }
+    }
+
+
     private async Task<bool> HandleStartupAsync(string[] args)
     {
         // lunarward://startgame?biz=hk4e_cn → startgame --biz hk4e_cn
         // 桌面文件里写的是 `Exec="…" %u`，浏览器/其它程序点链接时传进来的就是这条 URL。
         args = ExpandUrlArgument(args);
         IConfiguration config = new ConfigurationBuilder().AddCommandLine(args).Build();
+        Helpers.Housekeeping.Run(AppConfig.CacheFolder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "lunarward"));
         if (args[0].ToLower() is "rpc")
         {
             // Lunarward: RPC 子进程（D6 待换成 Unix domain socket）暂不启用
@@ -257,6 +305,8 @@ public partial class App : Application
         if (!OperatingSystem.IsWindows())
         {
             _ = Features.Tray.StatusNotifierTray.StartAsync(AppConfig.GetLogger<App>());
+            // 退出时摘掉 D-Bus 注册，否则托盘区会留一个点不动的死图标（L-62）
+            AppDomain.CurrentDomain.ProcessExit += (_, _) => Features.Tray.StatusNotifierTray.Stop();
             return;
         }
         m_SystemTrayWindow ??= new SystemTrayWindow();

@@ -45,6 +45,27 @@ public static class WebLoginService
 
     public static string CookiesFile => Path.Combine(AppConfig.CacheFolder ?? Path.GetTempPath(), "login-cookies.json");
 
+
+    /// <summary>会话 cookie 只给自己读：默认 umask 下 0644 同机别的用户也能读（L-62）。</summary>
+    private static void RestrictCookiesFile()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        try
+        {
+            if (File.Exists(CookiesFile))
+            {
+                File.SetUnixFileMode(CookiesFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[WebLoginService] chmod cookies failed: {ex.Message}");
+        }
+    }
+
     /// <summary>打开登录窗并等待 cookie 落盘。返回 false 表示用户取消或超时。</summary>
     public static async Task<bool> LoginAsync(string url, TimeSpan timeout)
     {
@@ -98,6 +119,10 @@ public static class WebLoginService
         catch (OperationCanceledException)
         {
             try { process.Kill(entireProcessTree: true); } catch { }
+        }
+        finally
+        {
+            RestrictCookiesFile();
         }
         return await LoadAsync();
     }

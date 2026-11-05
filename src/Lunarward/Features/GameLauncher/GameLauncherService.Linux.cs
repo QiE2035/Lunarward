@@ -161,38 +161,35 @@ internal partial class GameLauncherService
     /// </summary>
     private static void AttachEphemeralPrefixCleanup(Process? process)
     {
-        string? prefix = Interlocked.Exchange(ref _ephemeralPrefix, null);
-        if (process is null)
+        string? ephemeral = Interlocked.Exchange(ref _ephemeralPrefix, null);
+        _ = Task.Run(async () =>
         {
-            ReleasePrefixLock();
-            return;
-        }
-        try
-        {
-            process.EnableRaisingEvents = true;
-            process.Exited += (_, _) =>
+            try
             {
-                if (prefix is not null)
+                // 不能用 process.Exited：wine 的 loader 常常在游戏真正退出前就先退了，
+                // 那样会导致「前缀锁提前释放、临时前缀被删掉"（L-62）。改用 wine 会话结束作为判据。
+                if (process is not null)
                 {
-                    Features.Runtime.PrefixManager.DiscardEphemeralPrefix(prefix);
+                    try
+                    {
+                        await Features.PlayTime.PlayTimeSession.WaitForSessionEndAsync(process.Id, Features.PlayTime.PlayTimeSession.ActivePrefix);
+                    }
+                    catch (Exception ex)
+                    {
+                        Serilog.Log.Warning(ex, "Wait for wine session end failed; cleaning up anyway");
+                    }
                 }
-                ReleasePrefixLock();
-                RunExitCompanions();
-            };
-            if (process.HasExited)
+            }
+            finally
             {
-                if (prefix is not null)
+                if (ephemeral is not null)
                 {
-                    Features.Runtime.PrefixManager.DiscardEphemeralPrefix(prefix);
+                    Features.Runtime.PrefixManager.DiscardEphemeralPrefix(ephemeral);
                 }
                 ReleasePrefixLock();
                 RunExitCompanions();
             }
-        }
-        catch
-        {
-            // 进程已经退出/无法挂事件时，交给启动时的残留清理（CleanupStaleEphemeralPrefixes）
-        }
+        });
     }
 
 

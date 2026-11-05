@@ -1,5 +1,6 @@
 // Lunarward：游戏 ↔ 运行配置（Profile）的绑定（D28）。
 // 单独存一份 JSON，不写进 AppConfig 的 SQLite 设置表（那份表是上游契约，尽量不改动）。
+using Starward.Helpers;
 using Starward.Core;
 using System;
 using System.Collections.Generic;
@@ -63,7 +64,7 @@ public static class ProfileBinding
             map[biz.Value] = profileId;
         }
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-        File.WriteAllText(FilePath, JsonSerializer.Serialize(map, JsonOptions));
+        JsonFile.WriteAtomic(FilePath, map, JsonOptions);
     }
 
 
@@ -82,6 +83,9 @@ public static class ProfileBinding
             {
                 return bound;
             }
+            // 绑定指向的配置被删了：以前会静默用「第一个配置」启动，等于换了个 wine/前缀还毫无察觉（L-62）。
+            Serilog.Log.Warning("Profile binding for {biz} points to missing profile {id}; falling back to {fallback}. "
+                                + "Re-bind it in the game settings.", b, id, all[0].Name);
         }
         return all[0];
     }

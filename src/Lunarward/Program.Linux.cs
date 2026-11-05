@@ -108,6 +108,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz biz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             var runner = new Features.Companion.CompanionRunner(Microsoft.Extensions.Logging.Abstractions.NullLogger<Features.Companion.CompanionRunner>.Instance);
@@ -128,6 +129,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz runBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             var runner = new Features.Companion.CompanionRunner(Microsoft.Extensions.Logging.Abstractions.NullLogger<Features.Companion.CompanionRunner>.Instance);
@@ -135,6 +137,7 @@ internal class LunarwardProgram
             if (entry is null)
             {
                 Console.WriteLine($"找不到条目：{args[2]}");
+                Environment.ExitCode = 1;
                 return;
             }
             try
@@ -147,6 +150,7 @@ internal class LunarwardProgram
             catch (Exception ex)
             {
                 Console.WriteLine($"启动失败：{ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
             }
             return;
         }
@@ -258,6 +262,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz dlBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             bool dlFetch = args[0] is "--install-fetch";
@@ -301,6 +306,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz probeBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             int limitIndex = Array.IndexOf(args, "--limit-mb");
@@ -379,6 +385,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz cpBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
@@ -396,6 +403,7 @@ internal class LunarwardProgram
             if (string.IsNullOrEmpty(cpLocal))
             {
                 Console.WriteLine("读不到本地版本（可用 --local 指定）");
+                Environment.ExitCode = 1;
                 return;
             }
             var cpHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
@@ -405,6 +413,7 @@ internal class LunarwardProgram
             if (cpNew is null || cpOld is null)
             {
                 Console.WriteLine($"拿不到清单：new={cpNew is not null} old={cpOld is not null}（本地版本 {cpLocal}）");
+                Environment.ExitCode = 1;
                 return;
             }
             var cpIndex = Starward.Features.GameInstall.Sophon.ChunkReusePlanner.BuildIndex(cpOld.Manifests.Values.SelectMany(x => x));
@@ -426,6 +435,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz crBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
@@ -449,6 +459,7 @@ internal class LunarwardProgram
             if (string.IsNullOrEmpty(crLocal))
             {
                 Console.WriteLine("读不到本地版本（可用 --local 指定）");
+                Environment.ExitCode = 1;
                 return;
             }
             var crHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
@@ -458,6 +469,7 @@ internal class LunarwardProgram
             if (crNew is null || crOld is null)
             {
                 Console.WriteLine($"拿不到清单：new={crNew is not null} old={crOld is not null}");
+                Environment.ExitCode = 1;
                 return;
             }
             var crIndex = Starward.Features.GameInstall.Sophon.ChunkReusePlanner.BuildIndex(crOld.Manifests.Values.SelectMany(x => x));
@@ -521,6 +533,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz upBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
@@ -538,6 +551,7 @@ internal class LunarwardProgram
             if (string.IsNullOrEmpty(upLocal))
             {
                 Console.WriteLine("读不到本地版本（可用 --local 指定）");
+                Environment.ExitCode = 1;
                 return;
             }
             var upHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
@@ -546,6 +560,7 @@ internal class LunarwardProgram
             if (upBranch is null || upPackage is null)
             {
                 Console.WriteLine("拿不到 branch/package");
+                Environment.ExitCode = 1;
                 return;
             }
             using var upHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(30) };
@@ -556,6 +571,7 @@ internal class LunarwardProgram
             if (upPlan is null)
             {
                 Console.WriteLine("清单不可用");
+                Environment.ExitCode = 1;
                 return;
             }
             Console.WriteLine($"本地 {upLocal} → 目标 {upPackage.Tag}；变更 {upPlan.ChangedFiles} 文件 / 整文件 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(upPlan.FullFileBytes)}");
@@ -571,6 +587,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz urBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
@@ -590,6 +607,7 @@ internal class LunarwardProgram
             if (string.IsNullOrEmpty(urLocal))
             {
                 Console.WriteLine("读不到本地版本（可用 --local 指定）");
+                Environment.ExitCode = 1;
                 return;
             }
             var urHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
@@ -598,6 +616,7 @@ internal class LunarwardProgram
             if (urBranch is null || urPackage is null)
             {
                 Console.WriteLine("拿不到 branch/package");
+                Environment.ExitCode = 1;
                 return;
             }
             using var urHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(30) };
@@ -615,6 +634,7 @@ internal class LunarwardProgram
             if (urResult is null)
             {
                 Console.WriteLine("清单不可用，需退回整文件下载");
+                Environment.ExitCode = 1;
                 return;
             }
             Console.WriteLine($"补丁 {urResult.PatchedFiles} 文件 / {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(urResult.PatchedBytes)}");
@@ -633,6 +653,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz pdsBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
@@ -662,6 +683,7 @@ internal class LunarwardProgram
             catch (Exception ex)
             {
                 Console.WriteLine($"失败（{swPds.ElapsedMilliseconds} ms）：{ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
             }
             return;
         }
@@ -672,6 +694,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz itBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             string itDir = args[2];
@@ -728,11 +751,13 @@ internal class LunarwardProgram
             if (!System.IO.File.Exists(vwConfig))
             {
                 Console.WriteLine($"拒绝：{vwConfig} 不存在（不是游戏安装目录？）");
+                Environment.ExitCode = 1;
                 return;
             }
             if (!System.Text.RegularExpressions.Regex.IsMatch(vwVersion, @"^\d+\.\d+\.\d+$"))
             {
                 Console.WriteLine($"拒绝：版本号 \"{vwVersion}\" 不是 x.y.z 形态");
+                Environment.ExitCode = 1;
                 return;
             }
             System.IO.File.Copy(vwConfig, vwConfig + ".bak", overwrite: true);
@@ -747,6 +772,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz ipBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             bool preDownload = args.Contains("--predownload");
@@ -758,6 +784,7 @@ internal class LunarwardProgram
             catch (Exception ex)
             {
                 Console.WriteLine($"初始化环境失败：{ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
             }
             string? configured = AppConfig.GetGameInstallPath(ipBiz);
             string installPath = configured ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", ipBiz.Value);
@@ -770,6 +797,7 @@ internal class LunarwardProgram
             if (Starward.Core.HoYoPlay.GameId.FromGameBiz(ipBiz) is not Starward.Core.HoYoPlay.GameId ipGameId)
             {
                 Console.WriteLine($"无法映射到 GameId：{ipBiz.Value}");
+                Environment.ExitCode = 1;
                 return;
             }
             var audio = Starward.Features.GameInstall.Sophon.SophonClient.DetectInstalledAudioFields(installPath);
@@ -794,6 +822,7 @@ internal class LunarwardProgram
             catch (Exception ex)
             {
                 Console.WriteLine($"规划失败：{ex}");
+                Environment.ExitCode = 1;
             }
             return;
         }
@@ -804,6 +833,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz spBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             try
@@ -813,10 +843,12 @@ internal class LunarwardProgram
             catch (Exception ex)
             {
                 Console.WriteLine($"初始化环境失败：{ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
             }
             if (Starward.Core.HoYoPlay.GameId.FromGameBiz(spBiz) is not Starward.Core.HoYoPlay.GameId spGameId)
             {
                 Console.WriteLine($"无法映射到 GameId：{spBiz.Value}");
+                Environment.ExitCode = 1;
                 return;
             }
             string? spConfigured = AppConfig.GetGameInstallPath(spBiz);
@@ -862,6 +894,7 @@ internal class LunarwardProgram
             catch (Exception ex)
             {
                 Console.WriteLine($"探针失败：{ex}");
+                Environment.ExitCode = 1;
             }
             return;
         }
@@ -873,6 +906,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz vsBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             string? vsConfigured = AppConfig.GetGameInstallPath(vsBiz);
@@ -898,6 +932,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz ptBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             try
@@ -907,6 +942,7 @@ internal class LunarwardProgram
             catch (Exception ex)
             {
                 Console.WriteLine($"初始化环境失败：{ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
             }
             string? ptConfigured = AppConfig.GetGameInstallPath(ptBiz);
             string ptInstall = ptConfigured ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", ptBiz.Value);
@@ -929,11 +965,13 @@ internal class LunarwardProgram
             if (string.IsNullOrEmpty(ptLocal))
             {
                 Console.WriteLine("读不到本地版本（可用 --local 指定）");
+                Environment.ExitCode = 1;
                 return;
             }
             if (Starward.Core.HoYoPlay.GameId.FromGameBiz(ptBiz) is not Starward.Core.HoYoPlay.GameId ptGameId)
             {
                 Console.WriteLine($"无法映射到 GameId：{ptBiz.Value}");
+                Environment.ExitCode = 1;
                 return;
             }
             try
@@ -1039,6 +1077,7 @@ internal class LunarwardProgram
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz pfBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
+                Environment.ExitCode = 1;
                 return;
             }
             // CLI 下也要先读配置（安装路径存在 SQLite 设置表里）

@@ -1,5 +1,6 @@
 // Lunarward：Profile 的落盘与默认值（D28：设置 → 运行环境（全局））。
 // 位置：$XDG_CONFIG_HOME|~/.config/lunarward/profiles/<id>.json
+using Starward.Helpers;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -65,7 +66,16 @@ public static class RuntimeProfileStore
             }
             catch (Exception ex)
             {
-                logger?.LogWarning(ex, "Load runtime profile failed: {file}", file);
+                // 静默跳过会让人以为「我建的配置丢了」，但目录里其实躺着半截 JSON。
+                // 改名留证据，再记一条警告（L-62）。
+                logger?.LogWarning(ex, "Load runtime profile failed, moving aside: {file}", file);
+                try
+                {
+                    File.Move(file, $"{file}.corrupt-{DateTime.Now:yyyyMMddHHmmss}", overwrite: true);
+                }
+                catch
+                {
+                }
             }
         }
         if (profiles.Count == 0)
@@ -84,7 +94,7 @@ public static class RuntimeProfileStore
         {
             Directory.CreateDirectory(ProfilesFolder);
             string file = Path.Combine(ProfilesFolder, profile.Id + ".json");
-            File.WriteAllText(file, JsonSerializer.Serialize(profile, JsonOptions));
+            JsonFile.WriteAtomic(file, profile, JsonOptions);
         }
         catch (Exception ex)
         {

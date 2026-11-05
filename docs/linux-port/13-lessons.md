@@ -615,3 +615,53 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 - **根因**：`Windows.System.Launcher.LaunchUriAsync` 在 Uno/Linux 上没有后端（翻遍 Uno dll 没有 `xdg-open`/`gio` 痕迹），调用不抛异常也不做事；上游还把调用包在 `catch { }` 里，失败完全不可见。
 - **修法**：新增 `Helpers/OpenUrl.cs`（`xdg-open` → 失败退 `gio open`，`UseShellExecute=false` + `ArgumentList`，Debug 日志 + 返回 bool），替换 8 类调用点；`AppBackground` 里 3 处 apps.microsoft.com 保留原样（Windows 专属提示，Linux 上本来就没意义）。
 - **教训**：WinRT 里「打开外部程序」的 API 在非 Windows 后端基本都是空实现，必须逐个换成本机命令，并且**别用空 catch 把它盖住**。
+
+
+### L-75 · 用户数据用 `File.WriteAllText` 写 = 断电即丢配置
+
+- **症状**：设置保存后 UI 显示成功，重启后回到默认；Profile 偶尔整个消失，目录里没有任何线索。
+- **根因**：`LinuxConfig.Save`、`RuntimeProfileStore.Save`、`ProfileBinding`、`CompanionStore`、前缀元数据全是 `File.WriteAllText`——进程被杀/磁盘满会在目标文件上留半截 JSON；读取侧 `catch { LogWarning }` 把它当「没有配置」，损坏文件既不备份也不改名。
+- **修法**：`Helpers/JsonFile.WriteAtomic(string, string)`（临时文件 → `Flush(flushToDisk:true)` → 覆盖前留 `.bak` → `File.Move(overwrite)`）+ 泛型重载；损坏读取改名 `*.corrupt-时间` 并记 Warning。
+- **教训**：凡是「用户的设置/绑定/条目」，写入都要原子化；**读失败也必须留下证据**，否则用户只能得出「这软件会自己丢配置」的结论。
+
+### L-76 · 预检有副作用：点一下「预检」就造前缀
+
+- **症状**：只是点「预检」看能不能启动，`~/.wine` 里多出 `.lunarward/`，dedicated/template 模式甚至直接开始 clone/`wineboot`。
+- **根因**：`LaunchPreflight` 直接调 `PrefixManager.EnsurePrefix`（本来就带创建语义），锁检查还 `Directory.CreateDirectory(prefix/.lunarward)` 后建锁文件。
+- **修法**：预检改用 `TryGetExistingPrefix`（只解析已存在前缀），未准备就报告「启动时按配置创建/克隆」；占用检查改用 `PrefixManager.IsPrefixLocked`（只读打开）。
+- **教训**：**预检/试运行必须只读**。任何「顺便建一下」的调用都会在用户只想看结果时改变系统状态。
+
+### L-77 · 预检 key 与启动 key 不一致，预检的和你用的不是同一个前缀
+
+- **症状**：预检报告前缀 A 一切正常，真启动却用了前缀 B（template/ephemeral 下尤其明显）。
+- **根因**：`LaunchPreflight` 用 `biz.Value`（如 `hk4e_cn`）当 gameKey，`GameLauncherService.Linux` 用 exe 文件名（如 `yuanshen`）。
+- **修法**：预检也走 `Path.GetFileNameWithoutExtension(exePath).ToLowerInvariant()`，与启动完全同源。
+- **教训**：同一份「key → 资源」映射必须只有一个计算入口，任何复制的推导都会漂移。
+
+### L-78 · 前缀锁/临时前缀不能挂 wine loader 的 `Exited`
+
+- **症状**：游戏还在跑，第二个启动器实例已经能拿同一前缀；ephemeral 模式甚至会在游戏中途把前缀删掉。
+- **根因**：`process.Exited` 监听的是 `wine` 启动器进程，它在游戏真正退出前常常先退出（L-55 同一现象）。
+- **修法**：`AttachEphemeralPrefixCleanup` 改为后台 `Task` 里 `await PlayTimeSession.WaitForSessionEndAsync(pid, ActivePrefix)`，之后才 `DiscardEphemeralPrefix` / `ReleasePrefixLock` / `RunExitCompanions`。
+- **教训**：Linux 上「wine 会话结束」才是游戏结束，任何资源回收都要以 `wineserver -w` 为准。
+
+### L-79 · 一把永不释放的全局互斥量 = 第二个游戏时长恒为 0
+
+- **症状**：打完一个游戏再开另一个，游玩时长一直不涨。
+- **根因**：`PlayTimeRecordService` 用 `Mutex("lunarward_playtime").WaitOne(0)` 去重，且**从不 `ReleaseMutex`**；第一个会话结束后锁仍然挂着，第二个 pid 直接 `return`。
+- **修法**：删掉 Mutex，改用已有的 `_recordingPids.TryAdd(pid)` + `finally TryRemove`；pid 复用时若「上一次 Start」超过 12 小时则视为过期，用当前时间当起点。
+- **教训**：进程内去重优先用集合而不是系统级具名锁；命名锁一旦泄漏就只有重启能救。
+
+### L-80 · 空桩页面 = 按钮点了没反应，和「bug」无法区分
+
+- **症状**：截图设置页「更改文件夹/打开文件夹/测试截图/清缓存」全都没反应；改了截图目录也不生效。
+- **根因**：`ScreenshotSetting.Linux.cs` 是 M1 时期的空桩（四个 `[RelayCommand] private void X() { }`），而 `ScreenCaptureLinux.DefaultFolder` 写死 `~/Pictures/Lunarward`。
+- **修法**：设置页接 `FileDialogHelper.PickFolderAsync`、`OpenUrl`、`ScreenCaptureLinux.CaptureAsync`、缓存目录清理；`DefaultFolder` 优先读 `AppConfig.ScreenshotFolder`，`MyPictures` 为空时退 `~/Pictures`。
+- **教训**：移植期留的空桩要在 `12-shims-and-gaps.md` 里能被搜到，否则用户只会当成又一个「Linux 版不好用」。
+
+### L-81 · CLI 失败返回 0，脚本以为成功
+
+- **症状**：`lunarward --preflight hk4e_cn || echo fail` 永远不触发 fail；`--install-run` 抓不到清单也「成功」退出。
+- **根因**：`Program.Linux.cs` 的错误分支只 `Console.WriteLine` 后 `return`，只有陈旧锁/DISPLAY 两处 `Environment.Exit`。
+- **修法**：所有「未知游戏/找不到条目/读不到本地版本/拿不到清单/branch 不可用/清单不可用/拒绝/规划失败/探针失败/初始化环境失败」分支统一置 `Environment.ExitCode = 1`。
+- **教训**：命令行工具的错误路径要么抛、要么置退出码；只打印等于把「失败」伪装成「成功」。

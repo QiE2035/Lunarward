@@ -15,9 +15,34 @@ namespace Starward.Features.Screenshot;
 
 public static class ScreenCaptureLinux
 {
-    /// <summary>默认保存目录：~/Pictures/Lunarward（上游允许在设置里改，M3 再接 ScreenShotService 的目录设置）。</summary>
-    public static string DefaultFolder => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Lunarward");
+    /// <summary>
+    /// 保存目录：优先用设置页里配置的文件夹，否则 ~/Pictures/Lunarward。
+    /// 以前这里写死、设置页的「更改文件夹」是空桩，用户改了等于没改（L-62）。
+    /// </summary>
+    public static string DefaultFolder
+    {
+        get
+        {
+            string? configured = null;
+            try
+            {
+                configured = AppConfig.ScreenshotFolder;
+            }
+            catch
+            {
+            }
+            if (!string.IsNullOrWhiteSpace(configured))
+            {
+                return configured!;
+            }
+            string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            if (string.IsNullOrWhiteSpace(pictures))
+            {
+                pictures = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Pictures");
+            }
+            return Path.Combine(pictures, "Lunarward");
+        }
+    }
 
 
     public static async Task<string?> CaptureAsync(string? folder = null, CancellationToken cancellation = default)

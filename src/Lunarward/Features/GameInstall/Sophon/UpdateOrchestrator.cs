@@ -127,6 +127,9 @@ public static class UpdateOrchestrator
         Serilog.Log.Information("Update orchestrator: patches={patches} ({patchBytes} B), fields={fields}, planned={total} B",
                                 work.PatchAssets.Count, work.PatchBytes, work.Fields.Count, work.TotalDownloadBytes);
 
+        // 空间预检：140 GB 下到 90% 才 ENOSPC 是最难受的失败方式，宁可在动手前就说清楚。
+        EnsureEnoughSpace(installPath, work.TotalDownloadBytes);
+
         // 一次性把「补丁 + 块下载」的完整总量交给 UI，进度从 0 涨到 100%，不会倒退。
         var progress = new InstallProgress { TotalBytes = work.TotalDownloadBytes, TotalFiles = work.TotalFiles };
         onProgress?.Invoke(progress);
@@ -147,14 +150,23 @@ public static class UpdateOrchestrator
             string targetFile = asset.TargetFilePath;
             try
             {
-                Directory.CreateDirectory(patchWorkDir);
+                if (!Directory.Exists(patchWorkDir))
+                {
+                    Directory.CreateDirectory(patchWorkDir);
+                }
                 await asset.DownloadPatchAsync(httpClient, patchWorkDir, true, null, null, cancellationToken);
                 await asset.ApplyPatchUpdateAsync(httpClient, installPath, patchWorkDir, false, null, null, null, cancellationToken);
                 string full = Path.Combine(installPath, targetFile);
                 string expected = asset.MainAssetInfo?.AssetHash ?? "";
                 if (!string.IsNullOrEmpty(expected))
                 {
-                    string actual = File.Exists(full) ? Convert.ToHexString(await MD5.HashDataAsync(File.OpenRead(full), cancellationToken)) : "";
+                    string actual = "";
+                    if (File.Exists(full))
+                    {
+                        // 不开 using 会泄漏 fd：几千个补丁文件之后就是 Too many open files（L-62）。
+                        using FileStream checkStream = new(full, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, useAsync: true);
+                        actual = Convert.ToHexString(await MD5.HashDataAsync(checkStream, cancellationToken));
+                    }
                     if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase))
                     {
                         throw new InvalidDataException($"补丁应用后 MD5 不符：{targetFile}");
@@ -288,6 +300,22 @@ public static class UpdateOrchestrator
 
 
     /// <summary>一次性把补丁清单与每个类别的复用计划算出来，供执行和估算共用。</summary>
+    /// <summary>下载前确认目标卷至少有这么多可用空间（拿不到容量时跳过，不阻断）。</summary>
+    internal static void EnsureEnoughSpace(string path, long requiredBytes)
+    {
+        if (requiredBytes <= 0)
+        {
+            return;
+        }
+        long free = Helpers.DriveHelper.GetDriveAvailableSpace(path);
+        if (free > 0 && requiredBytes > free)
+        {
+            throw new IOException(
+                $"磁盘空间不足：这次需要下载 {InstallPlanner.FormatSize(requiredBytes)}，目标卷只剩 {InstallPlanner.FormatSize(free)}。请先腾出空间再继续。");
+        }
+    }
+
+
     private static async Task<UpdateWork?> BuildWorkAsync(
         HttpClient httpClient,
         GameBranch branch,

@@ -376,10 +376,8 @@ internal partial class GameLauncherService
                 arg += " -use-d3d12";
             }
 
-            if (gameId.GameBiz.Game is GameBiz.hk4e)
-            {
-                GameSettingService.SetGenshinEnableHDR(gameId.GameBiz, AppConfig.EnableGenshinHDR);
-            }
+            // Lunarward：上游在启动前用 winreg 写 HDR 开关，在 Linux 上等于「先跑一次 wine」，
+            // 会破坏「游戏必须是 wine 的第一个进程」这条铁律（L-62）。HDR 改由设置页保存时写入目标前缀。
             // Lunarward：`StartGameWithCMD` 是 Windows 上「经 cmd.exe 拉起以便提权」的技巧，
             // Linux 没有对应概念，且套一层 shell 会破坏「游戏是 wine 第一个进程」的前提，
             // 因此该开关在 Linux 上忽略（保留判断以免上游字段消失时编译失败）。

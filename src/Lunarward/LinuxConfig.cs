@@ -1,5 +1,6 @@
 // Lunarward：上游把少量配置存在 Windows 注册表（Software\Starward），Linux 侧改存
 // ~/.config/lunarward/config.json（D22 的 XDG 约定），键名保持一致以便导入导出。
+using Starward.Helpers;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -71,7 +72,7 @@ internal static class LinuxConfig
         try
         {
             Directory.CreateDirectory(ConfigDirectory);
-            File.WriteAllText(ConfigFile, JsonSerializer.Serialize(Values, new JsonSerializerOptions { WriteIndented = true }));
+            JsonFile.WriteAtomic(ConfigFile, Values, new JsonSerializerOptions { WriteIndented = true });
         }
         catch
         {

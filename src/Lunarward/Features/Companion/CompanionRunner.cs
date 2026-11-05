@@ -62,7 +62,7 @@ public sealed class CompanionRunner
         {
             throw new FileNotFoundException($"找不到后启动程序：{entry.Path}", entry.Path);
         }
-        ProcessStartInfo info = CreateStartInfo(entry);
+        ProcessStartInfo info = CreateStartInfo(entry, biz);
         // 手动启动前检查前缀占用：同一个 prefix 里再起一个 wine 会话，轻则互相干扰，重则把游戏带崩（D39）。
         string? targetPrefix = info.Environment.TryGetValue("WINEPREFIX", out string? lockedPrefix) ? lockedPrefix : null;
         if (Starward.Features.Runtime.PrefixManager.IsPrefixLocked(targetPrefix))
@@ -80,7 +80,7 @@ public sealed class CompanionRunner
         return process;
     }
 
-    public ProcessStartInfo CreateStartInfo(CompanionEntry entry)
+    public ProcessStartInfo CreateStartInfo(CompanionEntry entry, GameBiz? biz = null)
     {
         string workDir = string.IsNullOrWhiteSpace(entry.WorkingDirectory)
             ? System.IO.Path.GetDirectoryName(entry.Path) ?? System.Environment.CurrentDirectory
@@ -112,7 +112,7 @@ public sealed class CompanionRunner
         RuntimeProfile? profile = ResolveProfile(entry);
         if (profile is not null)
         {
-            foreach (KeyValuePair<string, string> pair in ProfileShellService.BuildEnvironment(profile))
+            foreach (KeyValuePair<string, string> pair in ProfileShellService.BuildEnvironment(profile, biz?.Value))
             {
                 info.Environment[pair.Key] = pair.Value;
             }

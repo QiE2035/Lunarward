@@ -45,7 +45,6 @@ public sealed partial class MainView : UserControl
     public MainView()
     {
         this.InitializeComponent();
-        System.IO.File.AppendAllText("/tmp/lw-acrylic.log", $"mask={Border_OverlayMask.Background} type={Border_OverlayMask.Background?.GetType().Name} appRes={(Application.Current.Resources.TryGetValue("CustomAcrylicBrush", out object? b) ? b : null)}\n");
         InitializeMainView();
         // Lunarward：Uno 的 TeachingTip 不会自动消失，切到非启动器页时手动收起引导浮层
         MainView_Frame.Navigated += (_, _) =>
@@ -139,7 +138,9 @@ public sealed partial class MainView : UserControl
                     try
                     {
                         var service = AppConfig.GetService<Starward.RPC.GameInstall.GameInstallService>();
-                        var task = await service.StartPredownloadAsync(CurrentGameId, "/tmp/lw-ui-progress", Starward.Core.AudioLanguage.Chinese);
+                        // 别写 /tmp：那里在不少机器上是 tmpfs，这种调试下载会直接把内存写满（L-63）。
+                        string devTarget = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", "lw-ui-progress");
+                        var task = await service.StartPredownloadAsync(CurrentGameId, devTarget, Starward.Core.AudioLanguage.Chinese);
                         Serilog.Log.Information("dev installprogress started: {state}", task?.State);
                         await Task.Delay(45000);
                         if (task is not null)

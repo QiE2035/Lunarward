@@ -125,7 +125,11 @@ public sealed partial class BackgroundViewPage : PageBase
             string folder = Path.Join(AppConfig.CacheFolder, "bg");
             if (Directory.Exists(folder))
             {
-                await Launcher.LaunchFolderPathAsync(folder);
+                // Lunarward：Uno 的 Launcher 在 Linux 上是空实现（L-74），统一走 xdg-open。
+                if (!Helpers.OpenUrl.Open(folder))
+                {
+                    _logger.LogWarning("No handler to open folder {Folder}", folder);
+                }
             }
         }
         catch (Exception ex)
@@ -304,10 +308,12 @@ public sealed partial class BackgroundViewPage : PageBase
             {
                 if (File.Exists(item.FilePath))
                 {
-                    var file = await StorageFile.GetFileFromPathAsync(item.FilePath);
-                    var options = new FolderLauncherOptions();
-                    options.ItemsToSelect.Add(file);
-                    await Launcher.LaunchFolderAsync(await file.GetParentAsync(), options);
+                    // Linux 没有「打开文件夹并选中某个文件」的通用接口，退一步打开所在目录。
+                    string? folder = Path.GetDirectoryName(item.FilePath);
+                    if (string.IsNullOrEmpty(folder) || !Helpers.OpenUrl.Open(folder))
+                    {
+                        _logger.LogWarning("No handler to open folder of {File}", item.FilePath);
+                    }
                 }
             }
         }
@@ -326,8 +332,10 @@ public sealed partial class BackgroundViewPage : PageBase
             {
                 if (File.Exists(item.FilePath))
                 {
-                    var file = await StorageFile.GetFileFromPathAsync(item.FilePath);
-                    await Launcher.LaunchFileAsync(file);
+                    if (!Helpers.OpenUrl.Open(item.FilePath))
+                    {
+                        _logger.LogWarning("No handler to open file {File}", item.FilePath);
+                    }
                 }
             }
         }
@@ -346,9 +354,11 @@ public sealed partial class BackgroundViewPage : PageBase
             {
                 if (File.Exists(item.FilePath))
                 {
-                    var file = await StorageFile.GetFileFromPathAsync(item.FilePath);
-                    var options = new LauncherOptions { DisplayApplicationPicker = true };
-                    await Launcher.LaunchFileAsync(file, options);
+                    // 「选择打开方式」的对话框在 Linux 上由文件管理器/桌面环境负责，这里只做默认打开。
+                    if (!Helpers.OpenUrl.Open(item.FilePath))
+                    {
+                        _logger.LogWarning("No handler to open file {File}", item.FilePath);
+                    }
                 }
             }
         }

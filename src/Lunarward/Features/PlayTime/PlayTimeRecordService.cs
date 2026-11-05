@@ -22,8 +22,6 @@ internal class PlayTimeRecordService
 
     private readonly PlayTimeStatsService _playTimeStatsService;
 
-    private Mutex? _playTimeMutex;
-
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, byte> _recordingPids = new();
 
     private static bool IsRecording(int pid) => _recordingPids.ContainsKey(pid);
@@ -44,9 +42,9 @@ internal class PlayTimeRecordService
         try
         {
             biz = biz.IsBilibili() ? $"{biz.Game}_cn" : biz;
-            // Lunarward：Linux 无 AppInstance，用命名互斥量保证同一游戏进程只被记录一次
-            _playTimeMutex ??= new Mutex(false, "lunarward_playtime");
-            if (!_playTimeMutex.WaitOne(0))
+            // Lunarward：按 pid 去重就够了。以前用的是一把全局命名互斥量，而且从不释放，
+            // 结果第二个游戏进去就被挡住、时长恒为 0（L-62）。
+            if (!_recordingPids.TryAdd(pid, 0))
             {
                 _logger.LogWarning("Game process ({biz}, {gamePid}) is already being recorded", biz, pid);
                 return;
@@ -65,7 +63,13 @@ internal class PlayTimeRecordService
             }
             catch (ArgumentException)
             {
-                startTime = GetLastStartTime(biz, pid) ?? DateTime.Now;
+                DateTime? lastStart = GetLastStartTime(biz, pid);
+                // pid 会被复用：拿到的 Start 可能是上一轮游戏的，直接当起点会把空闲时间算成游玩（L-62）。
+                if (lastStart is { } stale && DateTime.Now - stale > TimeSpan.FromHours(12))
+                {
+                    lastStart = null;
+                }
+                startTime = lastStart ?? DateTime.Now;
                 _logger.LogInformation("Playtime: process {pid} already gone, fall back to last start time {start} ({biz})", pid, startTime, biz);
                 Log(biz, pid, PlayTimeState.Start, new DateTimeOffset(startTime).ToUnixTimeMilliseconds(), "wine loader exited early");
             }
@@ -126,6 +130,10 @@ internal class PlayTimeRecordService
         {
             Log(biz, pid, PlayTimeState.Error, 0, ex.Message);
             _logger.LogError(ex, "Log play time: GameBiz {biz}, Pid {pid}", biz, pid);
+        }
+        finally
+        {
+            _recordingPids.TryRemove(pid, out _);
         }
     }
 

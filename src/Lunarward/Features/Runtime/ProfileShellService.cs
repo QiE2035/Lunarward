@@ -81,14 +81,24 @@ public static class ProfileShellService
 
 
     /// <summary>把 Profile 映射成一份环境变量，供调试 Shell 与后启动程序共用。</summary>
-    public static IReadOnlyDictionary<string, string> BuildEnvironment(RuntimeProfile profile)
+    /// <param name="gameKey">
+    /// 游戏 key。给了就按这个 Profile 的前缀模式解析出「这次真正会用的前缀」——
+    /// dedicated/template/ephemeral 的路径并不是 profile.PrefixPath（后者常为空），
+    /// 只认 PrefixPath 会让后启动工具跑进 ~/.wine，跟游戏完全不在一个前缀（L-62）。
+    /// </param>
+    public static IReadOnlyDictionary<string, string> BuildEnvironment(RuntimeProfile profile, string? gameKey = null)
     {
         Dictionary<string, string> env = new();
         if (!string.IsNullOrWhiteSpace(profile.RunnerPath))
         {
             env["LUNARWARD_WINE"] = profile.RunnerPath;
         }
-        string? prefix = profile.PrefixPath;
+        string? prefix = null;
+        if (!string.IsNullOrWhiteSpace(gameKey))
+        {
+            prefix = PrefixManager.TryGetExistingPrefix(profile, gameKey);
+        }
+        prefix ??= PrefixManager.ExpandPath(profile.PrefixPath);
         if (!string.IsNullOrWhiteSpace(prefix) && Directory.Exists(prefix))
         {
             env["WINEPREFIX"] = prefix;

@@ -1,5 +1,6 @@
 // Lunarward：把选定的 DXVK / VKD3D-PROTON 装进 Wine 前缀（M2 组件层）。
 // 只做「复制 + 记录」，不下载、不联网：组件来源由用户放在系统目录或 ~/.local/share/lunarward/components。
+using Starward.Helpers;
 using Microsoft.Extensions.Logging;
 using Starward.Features.GameLauncher;
 using System;
@@ -114,7 +115,7 @@ public static class GraphicsInstaller
             Files = written,
         };
         Directory.CreateDirectory(Path.GetDirectoryName(RecordPath(prefix))!);
-        File.WriteAllText(RecordPath(prefix), JsonSerializer.Serialize(record, JsonOptions));
+        JsonFile.WriteAtomic(RecordPath(prefix), record, JsonOptions);
         logger?.LogInformation("Installed {name} ({kind}) into {prefix}: {count} files", component.Name, component.KindText, prefix, written.Count);
         return true;
     }

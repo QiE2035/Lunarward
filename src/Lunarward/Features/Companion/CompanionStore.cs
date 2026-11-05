@@ -1,4 +1,5 @@
 // Lunarward：后启动程序的持久化。每个游戏一份 JSON，放在 XDG 配置目录下。
+using Starward.Helpers;
 using Starward.Core;
 using System;
 using System.Collections.Generic;
@@ -57,7 +58,7 @@ public static class CompanionStore
         List<CompanionEntry> list = new(entries);
         _cache[biz.Value] = list;
         Directory.CreateDirectory(Folder);
-        File.WriteAllText(FileOf(biz), JsonSerializer.Serialize(list, JsonOptions));
+        JsonFile.WriteAtomic(FileOf(biz), list, JsonOptions);
     }
 
     public static void Upsert(GameBiz biz, CompanionEntry entry)

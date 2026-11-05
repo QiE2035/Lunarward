@@ -246,12 +246,39 @@ internal static class GameSettingService
 
 
 
-    public static void SetGenshinEnableHDR(GameBiz biz, bool enableHDR)
+    public static void SetGenshinEnableHDR(GameBiz biz, bool enableHDR, string? winePrefix = null)
     {
-        if (biz.Game is GameBiz.hk4e)
+        if (biz.Game is not GameBiz.hk4e)
         {
-            string key = biz.GetGameRegistryKey();
+            return;
+        }
+        // 必须写进游戏真正使用的前缀，否则写的是 ~/.wine，游戏读不到（L-62）。
+        string? prefix = winePrefix ?? ResolveGamePrefix(biz);
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            Serilog.Log.Information("SetGenshinEnableHDR: 找不到游戏前缀，跳过（等下次启动或用设置页重写）");
+            return;
+        }
+        string key = biz.GetGameRegistryKey();
+        using (WineRegistry.UsePrefix(prefix))
+        {
             WineRegistry.SetValue(key, WINDOWS_HDR_ON_h3132281285, enableHDR ? 1 : 0);
+        }
+    }
+
+
+    /// <summary>按游戏绑定的 Profile 解析「已经存在」的前缀；不会为了写设置去创建/克隆前缀。</summary>
+    private static string? ResolveGamePrefix(GameBiz biz)
+    {
+        try
+        {
+            Features.Runtime.RuntimeProfile profile = Features.Runtime.ProfileBinding.Resolve(biz);
+            return Features.Runtime.PrefixManager.TryGetExistingPrefix(profile, biz.Value);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "ResolveGamePrefix failed for {biz}", biz.Value);
+            return null;
         }
     }
 

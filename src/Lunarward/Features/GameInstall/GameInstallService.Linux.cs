@@ -14,6 +14,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -65,6 +66,19 @@ public partial class GameInstallService
         {
             return false;
         }
+        // 先停掉正在跑的下载/更新：否则一边删、一边又被 CreateDirectory 建回来，还留一堆孤儿临时文件（L-65）。
+        if (_cancellations.TryRemove(gameId, out CancellationTokenSource? running))
+        {
+            try
+            {
+                running.Cancel();
+            }
+            catch { }
+        }
+        if (_tasks.TryRemove(gameId, out GameInstallContext? stopped))
+        {
+            stopped.State = GameInstallState.Stop;
+        }
         try
         {
             await Task.Run(() => Directory.Delete(path, recursive: true));
@@ -96,10 +110,18 @@ public partial class GameInstallService
 
     public Task StopTaskAsync(GameInstallContext context)
     {
-        if (_cancellations.TryRemove(context.GameId, out CancellationTokenSource? cts))
+        // 只发出取消信号，不在这里移除/Dispose：CTS 的所有权属于那次 RunAsync，
+        // 在这里抢着移除会让「停止后马上再更新」的新任务拿不到自己的 CTS（L-65）。
+        if (_cancellations.TryGetValue(context.GameId, out CancellationTokenSource? cts))
         {
-            cts.Cancel();
-            cts.Dispose();
+            try
+            {
+                cts.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // 任务已收尾，取消信号来得太晚，忽略。
+            }
         }
         _paused[context.GameId] = false;
         context.State = GameInstallState.Stop;
@@ -138,20 +160,103 @@ public partial class GameInstallService
         }
         _tasks[gameId] = context;
         _paused[gameId] = false;
-        _ = Task.Run(() => RunAsync(context, preDownload, cts.Token));
+        _ = Task.Run(() => RunAsync(context, preDownload, cts));
         await Task.CompletedTask;
         return context;
     }
 
 
-    private async Task RunAsync(GameInstallContext context, bool preDownload, CancellationToken cancellationToken)
+    /// <summary>核对本地文件是否齐（只看存在性和大小，不打哈希），返回不一致的数量。</summary>
+    private static async Task<int> CountLocalMismatchesAsync(HoYoPlayClient hoYoPlayClient, GameId gameId, GameBranchPackage package, IEnumerable<string> fields, string installPath, CancellationToken cancellationToken)
     {
+        try
+        {
+            SophonBuildInfo? build = await new SophonClient(hoYoPlayClient)
+                .GetBuildInfoAsync(gameId, preDownload: false, fields, cancellationToken, package.Tag);
+            if (build is null)
+            {
+                return 0;
+            }
+            int mismatched = 0;
+            foreach (SophonChunkFile file in build.Manifests.Values.SelectMany(x => x))
+            {
+                if (file.IsFolder)
+                {
+                    continue;
+                }
+                string target = Path.Combine(installPath, file.File.Replace('\\', '/'));
+                try
+                {
+                    var info = new FileInfo(target);
+                    if (!info.Exists || info.Length != file.Size)
+                    {
+                        mismatched++;
+                    }
+                }
+                catch
+                {
+                    mismatched++;
+                }
+            }
+            return mismatched;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Local file check failed");
+            return 0;
+        }
+    }
+
+
+    /// <summary>
+    /// 安装目标必须「空目录」或「看起来是游戏目录」。
+    /// 以前选错文件夹（例如 ~/games 根目录）会静默往里灌 140 GB，事后极难清理（L-66）。
+    /// </summary>
+    private static void EnsureInstallPathLooksSane(GameInstallContext context)
+    {
+        if (context.Operation is not GameInstallOperation.Install)
+        {
+            return;
+        }
+        string path = context.InstallPath;
+        try
+        {
+            if (!Directory.Exists(path))
+            {
+                return;
+            }
+            if (File.Exists(Path.Combine(path, "config.ini")))
+            {
+                return;
+            }
+            bool hasAnyEntry = Directory.EnumerateFileSystemEntries(path).Any();
+            if (hasAnyEntry)
+            {
+                throw new InvalidOperationException(
+                    $"安装目录不是空目录，也不像游戏目录（缺少 config.ini）：{path}。请换一个空目录，避免把游戏装进别的文件夹。");
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Install path sanity check failed: {path}", path);
+        }
+    }
+
+
+    private async Task RunAsync(GameInstallContext context, bool preDownload, CancellationTokenSource cts)
+    {
+        CancellationToken cancellationToken = cts.Token;
         var stopwatch = Stopwatch.StartNew();
         long lastBytes = 0;
         var lastTick = DateTime.UtcNow;
         try
         {
             context.State = GameInstallState.Waiting;
+            EnsureInstallPathLooksSane(context);
             Directory.CreateDirectory(context.InstallPath);
             GameId gameId = context.GameId;
             var hoYoPlayClient = AppConfig.GetService<HoYoPlayClient>();
@@ -213,6 +318,9 @@ public partial class GameInstallService
                 Serilog.Log.Information("Game install dev limit: {mb} MB", devLimitMb);
             }
 #endif
+
+            // 顺手回收这个目录里超期的断点续传临时文件（用户放弃的下载会留下几十 GB）
+            Helpers.Housekeeping.PruneStaleTempFiles(context.InstallPath);
 
             context.State = GameInstallState.Downloading;
 
@@ -368,7 +476,18 @@ public partial class GameInstallService
             // 版本标记：预下载不写（否则启动器会以为已经更新完）；修复保持原版本不动；更新/安装才写。
             if (!preDownload && context.Operation is not GameInstallOperation.Repair)
             {
-                GameVersionMarker.WriteAll(context.InstallPath, package.Tag);
+                List<string> written = GameVersionMarker.WriteAll(context.InstallPath, package.Tag);
+                if (written.Count == 0)
+                {
+                    Serilog.Log.Warning("Version marker not written: {path} has no config.ini", context.InstallPath);
+                }
+                // 更新只下「服务端认为变了」的文件；本地早就坏掉/删掉的旧文件不会被发现。
+                // 这里用「存在性 + 大小」做一次廉价核对（不哈希），有问题就提示去跑修复（L-65）。
+                int mismatched = await CountLocalMismatchesAsync(hoYoPlayClient, gameId, package, fields, context.InstallPath, cancellationToken);
+                if (mismatched > 0)
+                {
+                    Serilog.Log.Warning("Game install finished but {count} files are missing or have wrong size; run Repair to fix them", mismatched);
+                }
             }
             // 收尾对齐：修复不改版本，但进度条也要走满。
             context.Progress_DownloadFinishBytes = context.Progress_DownloadTotalBytes;
@@ -391,9 +510,19 @@ public partial class GameInstallService
         finally
         {
             _paused.TryRemove(context.GameId, out _);
-            if (_cancellations.TryRemove(context.GameId, out CancellationTokenSource? cts))
+            // 只清理「自己」占的位：停止后立刻重开的任务会占用同一个 key，误删会把新任务搞成不可停止。
+            if (_cancellations.TryGetValue(context.GameId, out CancellationTokenSource? registered)
+                && ReferenceEquals(registered, cts)
+                && _cancellations.TryRemove(context.GameId, out _))
             {
                 cts.Dispose();
+            }
+            // 任务结束后从 _tasks 移除：否则每次回主页都重复弹「下载完成」（L-65）。
+            if (_tasks.TryGetValue(context.GameId, out GameInstallContext? current)
+                && ReferenceEquals(current, context)
+                && _tasks.TryRemove(context.GameId, out _))
+            {
+                Serilog.Log.Debug("Game install task removed from registry: {game}", context.GameId.GameBiz);
             }
         }
     }

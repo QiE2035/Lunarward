@@ -27,6 +27,8 @@ public sealed class ChunkReuseResult
     public long ReusedBytes { get; set; }
     public long ResumedBytes { get; set; }
     public int FailedFiles { get; set; }
+    /// <summary>因额度用完而停下（不是失败，也不是装完）。</summary>
+    public bool LimitReached { get; set; }
     public List<(string File, string Error)> Errors { get; } = new();
 }
 
@@ -64,14 +66,27 @@ public static class ChunkReuseDownloader
             }
             if (limitBytes > 0 && total >= limitBytes)
             {
+                result.LimitReached = true;
                 break;
             }
-            string target = Path.Combine(outputRoot, file.File.Replace('\\', '/'));
+            // 清单里的路径来自服务器，先规范化再确认没跑出安装目录（防 ../ 逃逸写坏别处）。
+            string target = Path.GetFullPath(Path.Combine(outputRoot, file.File.Replace('\\', '/')));
+            string rootFull = Path.GetFullPath(outputRoot);
+            if (!target.StartsWith(rootFull + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                result.FailedFiles++;
+                if (result.Errors.Count < 10)
+                {
+                    result.Errors.Add((file.File, "清单路径超出安装目录"));
+                }
+                continue;
+            }
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             string temp = target + ".lunarward-tmp";
             try
             {
                 bool done = false;
+                bool limitHit = false;
                 for (int attempt = 0; attempt < 2 && !done; attempt++)
                 {
                     // 第一次优先续传；MD5 不过说明前缀不可信，第二次从零开始。
@@ -93,6 +108,7 @@ public static class ChunkReuseDownloader
                         TryDelete(temp);
                     }
                     long reusedHere = 0, downloadedHere = 0;
+                    bool limitStopped = false;
                     try
                     {
                         await using (var output = startIndex > 0
@@ -126,12 +142,30 @@ public static class ChunkReuseDownloader
                                     }
                                 }
                                 byte[] data = await tasks[i];
+                                tasks.TryRemove(i, out _);
+                                // 额度按块生效：文件粒度判断会让单个大文件轻易冲过额度（L-62 的教训）。
+                                if (limitBytes > 0 && total > limitBytes)
+                                {
+                                    limitStopped = true;
+                                    break;
+                                }
                                 output.Write(data);
                             }
                         }
+                        if (limitStopped)
+                        {
+                            // 额度用完：临时文件留在原地，下次续传接着写；既不算失败也不算完成。
+                            result.LimitReached = true;
+                            limitHit = true;
+                            break;
+                        }
                         result.ReusedBytes += reusedHere;
                         result.DownloadedBytes += downloadedHere;
-                        string actual = Convert.ToHexString(await MD5.HashDataAsync(File.OpenRead(temp), cancellationToken));
+                        string actual;
+                        using (FileStream verifyStream = new(temp, FileMode.Open, FileAccess.Read, FileShare.Read, 1 << 20, useAsync: true))
+                        {
+                            actual = Convert.ToHexString(await MD5.HashDataAsync(verifyStream, cancellationToken));
+                        }
                         if (!string.IsNullOrEmpty(file.MD5) && !string.Equals(actual, file.MD5, StringComparison.OrdinalIgnoreCase))
                         {
                             if (startIndex > 0)
@@ -159,6 +193,10 @@ public static class ChunkReuseDownloader
                     {
                         throw;
                     }
+                }
+                if (limitHit)
+                {
+                    break;
                 }
                 if (!done)
                 {

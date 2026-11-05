@@ -34,8 +34,8 @@
 | 运行环境（Profile） | ✅ | 运行器/前缀模式/图形组件/环境变量/调试 Shell | — |
 | 前缀生命周期 | ✅ | external / dedicated / shared / template / ephemeral 五模式 | — |
 | 组件管理 | ✅ | 扫描系统 / Steam / 自带组件；DXVK·VKD3D 导入并装入前缀 | 下载渠道 ⛔ 设计选择 |
-| 启动前预检 + 启动报告 | ✅ | 6 项检查、失败弹窗、JSON 报告、前缀互斥锁 | — |
-| 后启动程序（Companion） | ✅ | 条目 CRUD、三种触发时机、伴随启动、`--companion-plan/run` | 注入型只编排不实现（D24） |
+| 启动前预检 + 启动报告 | ✅ | 6 项检查（只读，不建前缀）、失败弹窗、JSON 报告、前缀互斥锁 | — |
+| 后启动程序（Companion） | ✅ | 条目 CRUD、三种触发时机、伴随启动、`--companion-plan/run`；`WINEPREFIX` 按游戏 key + 前缀模式解析（不再只认 `PrefixPath`） | 注入型只编排不实现（D24） |
 | 输出与诊断 | 🟡 | 输出捕获/落盘/脱敏、面板、「运行输出」对话框；**只有沉默/面板两级**（`terminal` 级按 D37 降级为 M4，`RuntimeProfile.GameOutput` 目前是未消费字段） | M4（terminal 级） |
 | 游玩时长 | ✅ | `wineserver -w` 判定会话结束，进程早退时回退最近 Start 事件；30s 心跳写 `Interruption=true`，启动器被杀也能留下时长 | — |
 | 启动器主界面 | ✅ | 1200×676 DIP、**系统标题栏**（交给窗口管理器，L-73）、真实公告/活动 | — |
@@ -223,3 +223,4 @@
 | 2026-11-03 | 新增单元测试工程 `tests/Lunarward.Tests`（链接纯逻辑源码，10 个用例：规划分类/MD5 判定/FormatSize/版本标记往返） | 
 | 2026-11-03 | i18n：新增 `Lang.Lunarward_*` 共 74 键（en/zh-CN/zh-TW/zh-HK/ja/ko），运行环境页、后启动程序、预检弹窗、输出面板、截图页、查看器、登录页已接线；`Lang.Designer.cs` 改 `partial` + `Lang.Lunarward.cs` |
 | 2026-11-03 | **全表校准**：按代码实测重写（33 个 `*.Linux.cs`、8 个 `*.LinuxAuto.cs`、55 条排除）；修正过时状态（视频壁纸、URL 协议、截图图库/查看器、更新检查、AssemblyVersion）；新增总览表、新增模块表、XAML 差异表（7 处）、CLI 清单；去掉重复的「更新：…」附录，合并到对应功能域 |
+| 2026-11-05 | D44 加固：原子写（`JsonFile`）、预检只读 + key 统一、安装目录/空间校验、前缀清理挂 wine 会话、单实例回调回 UI 线程、playtime 按 pid 去重、CLI 失败退出码、日志与临时文件保留策略、截图设置页实装 |

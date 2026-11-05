@@ -76,11 +76,23 @@ internal static class InstallDownloadRunner
             }
             int failed = result.Failed;
             bool inPlace =  string.Equals(Path.GetFullPath(outputRoot), Path.GetFullPath(installPath), StringComparison.Ordinal);
-            if (failed == 0 && onlyFile is null && (inPlace || writeVersion))
+            if (result.LimitReached)
+            {
+                // 限额只是「跑一段就停」，绝不能被当成装完（L-66）。
+                Console.WriteLine("版本标记未写入（已按 --limit-mb 停止，安装未完成）");
+            }
+            else if (failed == 0 && onlyFile is null && (inPlace || writeVersion))
             {
                 // 文件落齐之后才写版本标记：写着「最新」但文件没下全，会让修复流程误判。
                 List<string> written = GameVersionMarker.WriteAll(installPath, package.Tag);
-                Console.WriteLine($"版本标记：{string.Join("，", written)}");
+                if (written.Count == 0)
+                {
+                    Console.Error.WriteLine($"版本标记未写入：{installPath} 里没有 config.ini（目录可能不是游戏目录，或是全新安装）");
+                }
+                else
+                {
+                    Console.WriteLine($"版本标记：{string.Join("，", written)}");
+                }
             }
             else if (onlyFile is null)
             {
