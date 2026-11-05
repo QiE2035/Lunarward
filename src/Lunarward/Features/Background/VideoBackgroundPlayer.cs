@@ -20,8 +20,10 @@ namespace Starward.Features.Background;
 
 internal sealed class VideoBackgroundPlayer : IDisposable
 {
-    private const int VideoWidth = 960;
-    private const int VideoHeight = 540;
+    // 960x540 在 1500x845 DIP（1875x1056 物理像素）上被放大，实测看起来明显发虚；
+    // 提升到 1080p 让 VLC 直接输出接近显示尺寸的帧。
+    private const int VideoWidth = 1920;
+    private const int VideoHeight = 1080;
 
     private static readonly object InitLock = new();
     private static bool _initialized;

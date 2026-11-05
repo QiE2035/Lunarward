@@ -7,9 +7,11 @@
 // 因此这里保留「嵌入显示公告页」的主体验，去掉 JS 注入与消息回调；
 // 「打开系统浏览器」由用户在页面内自行点击链接完成（我们的 WebView2 会把它交给 WebKit 处理）。
 using System;
+using System.Threading.Tasks;
 using System.Timers;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Starward.Core;
 using Starward.Frameworks;
 
@@ -22,6 +24,8 @@ public sealed partial class GameNoticeWindow : WindowEx
     private Timer? _timer;
 
     private string? _noticeUrl;
+
+    private bool _noticeRendered;
 
     public GameBiz CurrentGameBiz { get; set; }
 
@@ -72,7 +76,9 @@ public sealed partial class GameNoticeWindow : WindowEx
         {
             AppWindow.Show();
             // Uno X11 不会把 XAML 里设的 Title 写到 WM_NAME，窗口尺寸也停在默认 1024x640（L-35 同族）。
-            AppWindow.Title = "游戏公告";
+            // Uno 的 X11 后端写 WM_NAME 时把 UTF-8 当 Latin-1，中文标题会显示成「æ...」乱码（真机截图）；
+            // 串行化窗口标题先用 ASCII，中文标题等能直接写 _NET_WM_NAME 再补。
+            AppWindow.Title = "Game Notice";
             double scale = Content?.XamlRoot?.RasterizationScale ?? 1d;
             var target = new Windows.Graphics.SizeInt32 { Width = (int)(900 * scale), Height = (int)(640 * scale) };
             AppWindow.Resize(target);
@@ -100,8 +106,31 @@ public sealed partial class GameNoticeWindow : WindowEx
             webview.Visibility = Visibility.Visible;
             // Uno 的 WebView2 事件支持不全（G0-3b）；这里只做「失败就交给浏览器」的兜底，
             // 真正的公告正文是否可见要等真机启动游戏后带 authkey 的 URL 才能验证。
+            // Uno 的 WebView2 在本机（Skia + WebKitGTK）实测只显示黑底转圈：页面既不渲染也不报错。
+            // 10 秒还没成功导航就把「不可用」说清楚，避免用户对着转圈干等。
+            _ = DispatcherQueue.TryEnqueue(async () =>
+            {
+                await Task.Delay(10000);
+                try
+                {
+                    if (!_noticeRendered)
+                    {
+                        TextBlock_Fallback.Text = "内置浏览器没能加载这条公告（当前 Linux 构建的 WebView 后端限制）。\n请点击右下角「在浏览器中打开」查看。";
+                        TextBlock_Fallback.Visibility = Visibility.Visible;
+                        webview.Visibility = Visibility.Collapsed;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Warning(ex, "notice window fallback failed");
+                }
+            });
             webview.NavigationCompleted += (_, args) =>
             {
+                if (args.IsSuccess)
+                {
+                    _noticeRendered = true;
+                }
                 if (!args.IsSuccess)
                 {
                     Serilog.Log.Warning("notice webview navigation failed, fallback to browser");

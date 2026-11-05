@@ -28,6 +28,15 @@
                 <SolidColorBrush x:Key="BrushForThemeBackgroundColor" Color="Transparent" />
             </WebView2.Resources>
         </WebView2>
+        <TextBlock x:Name="TextBlock_Fallback"
+                   MaxWidth="520"
+                   Margin="0,0,0,40"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Text="若窗口一直黑屏，说明当前 Linux 构建的内置浏览器没能加载页面，请点右下角「在浏览器中打开」。"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
         <Button x:Name="Button_OpenInBrowser"
                 Padding="12,6"
                 HorizontalAlignment="Right"

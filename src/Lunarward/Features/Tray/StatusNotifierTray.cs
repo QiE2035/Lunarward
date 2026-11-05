@@ -73,7 +73,13 @@ internal sealed class TrayMenu : IDBusMenu
     {
         IDictionary<string, object> Root() => new Dictionary<string, object> { ["children-display"] = "submenu" };
         (int, IDictionary<string, object>, object[]) Item(int id, string label, bool enabled = true)
-            => (id, new Dictionary<string, object> { ["label"] = label, ["enabled"] = enabled }, Array.Empty<object>());
+            => (id, new Dictionary<string, object>
+            {
+                ["label"] = label,
+                ["enabled"] = enabled,
+                ["visible"] = true,
+                ["type"] = "standard",
+            }, Array.Empty<object>());
 
         var children = new object[]
         {
@@ -87,6 +93,7 @@ internal sealed class TrayMenu : IDBusMenu
 
     public Task EventAsync(int id, string eventId, object data, uint timestamp)
     {
+        Serilog.Log.Information("[tray] menu Event id={id} event={event} data={data}", id, eventId, data);
         if (eventId is "clicked")
         {
             switch (id)
@@ -108,7 +115,11 @@ internal sealed class TrayMenu : IDBusMenu
         return Task.CompletedTask;
     }
 
-    public Task AboutToShowAsync(int id) => Task.CompletedTask;
+    public Task AboutToShowAsync(int id)
+    {
+        Serilog.Log.Information("[tray] menu AboutToShow id={id}", id);
+        return Task.CompletedTask;
+    }
 
     public Task<IDictionary<string, object>> GetAllAsync() => Task.FromResult<IDictionary<string, object>>(new Dictionary<string, object>
     {
@@ -155,7 +166,9 @@ internal sealed class SniObject : IStatusNotifierItem
         ["IconName"] = "lunarward",
         ["IconPixmap"] = TrayIconPixmap.Load(),
         ["IconThemePath"] = "",
-        ["ItemIsMenu"] = true,
+        // ItemIsMenu=true 时左键也走菜单；KDE 下菜单打不开就变成「左右键都没反应」。
+        // 改成 false：左键 = Activate（显示主窗口），右键 = 菜单。
+        ["ItemIsMenu"] = false,
         ["Menu"] = new ObjectPath("/MenuBar"),
         ["WindowId"] = 0,
     });
@@ -170,7 +183,7 @@ internal sealed class SniObject : IStatusNotifierItem
         "IconName" => "lunarward",
         "IconPixmap" => TrayIconPixmap.Load(),
         "IconThemePath" => "",
-        "ItemIsMenu" => true,
+        "ItemIsMenu" => false,
         "Menu" => new ObjectPath("/MenuBar"),
         "WindowId" => 0,
         _ => (object)"",
