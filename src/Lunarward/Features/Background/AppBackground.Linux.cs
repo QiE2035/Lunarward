@@ -24,6 +24,12 @@ namespace Starward.Features.Background;
 
 public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 {
+    private static readonly int _videoFrameIntervalMs = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_FPS"), out int fps) && fps > 0 ? Math.Max(1000 / fps, 1) : 1000 / 30;
+
+    private long _lastVideoInvalidate;
+
+    private static readonly bool _skipVideoPaint = Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_NOPAINT") is "1";
+
 
     private static AppBackground? _current;
 
@@ -500,7 +506,17 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
                 return;
             }
             System.Runtime.InteropServices.Marshal.Copy(pixels, 0, target, Math.Min(pixels.Length, _videoSurface.ByteCount));
-            _videoCanvas.Invalidate();
+            // 每次 Invalidate 都会触发一次整窗合成（不是只重画这块 Skia 画布），实测占 ~1 个核。
+            // 按目标帧率节流，避免把 UI 线程压满导致整体「很卡」。
+            if (!_skipVideoPaint)
+            {
+                long now = Environment.TickCount64;
+                if (now - _lastVideoInvalidate >= _videoFrameIntervalMs)
+                {
+                    _lastVideoInvalidate = now;
+                    _videoCanvas.Invalidate();
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -513,7 +529,6 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     private void VideoCanvas_PaintSurface(object? sender, SkiaSharp.Views.Windows.SKPaintSurfaceEventArgs e)
     {
         SkiaSharp.SKCanvas canvas = e.Surface.Canvas;
-        canvas.Clear(SkiaSharp.SKColors.Black);
         SkiaSharp.SKBitmap? bitmap = _videoSurface;
         if (bitmap is null || bitmap.Width <= 0 || bitmap.Height <= 0)
         {
@@ -527,10 +542,11 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         // 帧是 1920x1080，画布约 1875x1056：几乎 1:1，但仍有缩放。
         // SkiaSharp 的 DrawBitmap 不带 paint 时用最近邻采样，缩放后就是「锯齿感很强」；
         // 这里显式给双线性 + 线性 mipmap。
+        // High = 双三次，2MP/帧在 CPU 上很贵；Low = 双线性，1920→1875 这种 2% 缩放肉眼看不出差别。
         using var paint = new SkiaSharp.SKPaint
         {
-            IsAntialias = true,
-            FilterQuality = SkiaSharp.SKFilterQuality.High,
+            IsAntialias = false,
+            FilterQuality = SkiaSharp.SKFilterQuality.Low,
         };
         canvas.DrawBitmap(bitmap, new SkiaSharp.SKRect(0, 0, bitmap.Width, bitmap.Height), destination, paint);
     }

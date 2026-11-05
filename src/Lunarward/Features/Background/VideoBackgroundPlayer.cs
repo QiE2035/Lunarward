@@ -104,6 +104,8 @@ internal sealed class VideoBackgroundPlayer : IDisposable
         {
             Stop();
             _pin = GCHandle.Alloc(_frame, GCHandleType.Pinned);
+            // 试过 --avcodec-hw=vaapi：本机 vainfo 有 VAProfileVP9Profile0，但 VLC 3 + vmem 输出
+            // 拿不到硬件帧，实测 CPU 没降（1.05 → 1.05 核），所以不加这个参数，免得误以为在硬解。
             _libvlc = new LibVLC("--no-audio", "--quiet", "--vout=vmem", "--input-repeat=65535");
             _player = new MediaPlayer(_libvlc);
             _player.SetVideoFormat("RV32", VideoWidth, VideoHeight, VideoWidth * 4);
@@ -187,20 +189,25 @@ internal sealed class VideoBackgroundPlayer : IDisposable
             }
             try
             {
-                _composed ??= new SKBitmap(VideoWidth, VideoHeight, SKColorType.Bgra8888, SKAlphaType.Opaque);
                 _pixels ??= new byte[VideoWidth * VideoHeight * 4];
-                var info = new SKImageInfo(VideoWidth, VideoHeight, SKColorType.Bgra8888, SKAlphaType.Opaque);
-                using var video = SKImage.FromPixels(info, _pin.AddrOfPinnedObject(), VideoWidth * 4);
-                using (var canvas = new SKCanvas(_composed))
+                if (_overlay is null)
                 {
-                    canvas.DrawImage(video, new SKRect(0, 0, VideoWidth, VideoHeight));
-                    if (_overlay is not null)
+                    // 没有主题图时不需要走 Skia：直接把解码缓冲拷成托管数组，省掉 2MP 的 drawImage + 一次整帧拷贝。
+                    Marshal.Copy(_pin.AddrOfPinnedObject(), _pixels, 0, _pixels.Length);
+                }
+                else
+                {
+                    _composed ??= new SKBitmap(VideoWidth, VideoHeight, SKColorType.Bgra8888, SKAlphaType.Opaque);
+                    var info = new SKImageInfo(VideoWidth, VideoHeight, SKColorType.Bgra8888, SKAlphaType.Opaque);
+                    using var video = SKImage.FromPixels(info, _pin.AddrOfPinnedObject(), VideoWidth * 4);
+                    using (var canvas = new SKCanvas(_composed))
                     {
+                        canvas.DrawImage(video, new SKRect(0, 0, VideoWidth, VideoHeight));
                         // 上游就是把主题图整幅拉伸到视频帧上（标题文字就在这张图里）。
                         canvas.DrawBitmap(_overlay, new SKRect(0, 0, VideoWidth, VideoHeight));
                     }
+                    Marshal.Copy(_composed.GetPixels(), _pixels, 0, _pixels.Length);
                 }
-                Marshal.Copy(_composed.GetPixels(), _pixels, 0, _pixels.Length);
                 FrameReady?.Invoke(_pixels, VideoWidth, VideoHeight);
             }
             finally
