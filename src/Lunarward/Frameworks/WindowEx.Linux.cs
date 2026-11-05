@@ -22,13 +22,23 @@ public abstract partial class WindowEx : Window
 
     public virtual void Show()
     {
-        AppWindow.Show();
+        // Lunarward：Uno 的 AppWindow.Show() 在 X11 上对「被 unmap 过的窗口」不一定重新 map，
+        // 先让 xdotool 把它 map 回来（见 Helpers/X11Window.cs 与 L-84），失败再退回 Uno 的实现。
+        if (!Helpers.X11Window.Show(Title))
+        {
+            AppWindow.Show();
+        }
         Activate();
     }
 
     public virtual void Hide()
     {
-        AppWindow.Hide();
+        // Lunarward：AppWindow.Hide() 与 Window.Hide() 在 Uno 6.7.135 的 X11 后端上都是空操作
+        // （实测调用后 Map State 仍是 IsViewable，L-84）。真正生效的是对 X11 窗口 unmap。
+        if (!Helpers.X11Window.Hide(Title))
+        {
+            AppWindow.Hide();
+        }
     }
 
     public virtual void Minimize()
@@ -48,7 +58,10 @@ public abstract partial class WindowEx : Window
     {
         try
         {
-            AppWindow.Show();
+            if (!Helpers.X11Window.Show(Title))
+            {
+                AppWindow.Show();
+            }
             Activate();
         }
         catch (Exception ex)

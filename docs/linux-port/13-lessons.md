@@ -676,3 +676,36 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
   于是它自己的「优化构建不许用 DevServer」校验直接报错。
 - **修法**：Release 前先 `dotnet restore -p:Configuration=Release`，再 `dotnet build -c Release --no-restore`。
 - **教训**：Uno.Sdk 的隐式包集合依赖 `Optimize`，**restore 的配置必须和 build 的配置一致**；`--no-restore` 只有在这个前提下才安全。
+
+### L-83 · 用「可见」推断「属性没生效」是错的；间距要用像素测
+
+- **背景**：真机反馈「左上角三个游戏图标挤在一起」。我当时的推理是「图标条在 y≈0 可见 → 它本该被 `Translation=(0,-100,0)` 移出视野 → 所以 Uno 不应用 `Translation`」。
+- **错在哪**：用户设置 `IsGameBizSelectorPinned=True`，`GameSelector.xaml.cs` 的 `Pin()` 在固定态把 `GameIconsAreaVisible` 置真，setter 里就是 `Translation = Vector3.Zero`（`:263-268`）。也就是说「可见」是固定态的正常结果，无法推出任何关于 `Translation` 支持的结论。结论已撤回，规则见 D46。
+- **正确的证据获取方式**（本次实测，可复用）：`spectacle -b` 截全屏 → 按窗口原点 `(360, 220)`（含 35px 系统标题栏）裁出内容区 → 对图标条做逐列采样，再用自相关找「条目间距」：
+  ```python
+  # 每列取图标带内的像素签名，找使两列最相似的 lag 即条目节距
+  sig[x] = [sum(px(x, y)) for y in range(oy+4, oy+44)]
+  for lag in range(30, 80): 计算 sum((sig[x]-sig[x+lag])**2)
+  ```
+  结果：最相似 lag = **50 物理像素**（= 40 DIP × 1.25）。而容器样式 `GameSelector.xaml:441` 写的是 `Padding="6,8,6,8"`（`ListViewItemPresenter.ContentMargin="{TemplateBinding Padding}"`），如果生效，节距应是 52 DIP ≈ 65 物理像素。实测节距 = 图标宽度本身 → **`ListViewItem` 的 `Padding/ContentMargin` 在这条 Uno 渲染路径上没生效**，所以三张 40px 图标是紧贴的（放大 8 倍的截图也能直接看到边缘相接、徽标压到隔壁）。
+- **修法方向**（待批准后实施）：不依赖 `ListViewItemPresenter.ContentMargin`，在条目根元素上加 `Margin="0,0,8,0"`（或给 `ItemsStackPanel` 换成带间距的容器），改完用同一套像素方法复测节距应变成 ≈ 62–65 物理像素。
+- **教训**：涉及「间距/尺寸/对齐/颜色」的结论，先截图再做像素测量，用数字说话；不要用某个像素现象去反推某个 API 是否被实现，除非有对照实验（例如同一属性在另一处生效/失效的对比）。
+
+### L-84 · X11 上 `Hide()` 是空操作，而「关闭按钮」其实能进托管代码
+
+- **症状**：点窗口管理器标题栏的 X 没有任何反应（窗口不消失、进程也不退出）。
+- **实测结论（三条，都有对照）**：
+  1. `Window.Hide()`、`AppWindow.Hide()` 在 Uno 6.7.135 的 X11 后端上都是空操作：调用后 `xwininfo` 仍是 `Map State: IsViewable`。
+     对照实验：`AppWindow.Presenter` 的 `Minimize()` 有效（同一窗口立刻变 `IsUnMapped`）。
+  2. **真正的 `WM_DELETE_WINDOW` 客户端消息能进托管代码**：用自编的 `XSendEvent` 小程序发 `WM_DELETE_WINDOW`，
+     `AppWindow.Closing` 立即触发（`[diag] AppWindow.Closing fired`）。
+     对照组：`xdotool windowclose` 走的是 `_NET_CLOSE_WINDOW`，KDE 下窗口被直接销毁、托管层收不到任何事件——
+     **所以「用 xdotool 模拟关闭」不能用来验证关闭逻辑**，我先前据此得出的「关闭事件进不来」是错的。
+  3. 程序化 `Close()` 不会触发 `AppWindow.Closing`（Uno 源码 `BaseWindowImplementation.OnNativeClosing` 里
+     `if (!_isClosing)` 显式跳过），只会触发 `Window.Closed`——排查时不要把它当反例。
+- **修法**：新增 `Helpers/X11Window.cs`，用 `xdotool windowunmap` / `windowmap` + `windowactivate` 实现真正的隐藏/唤回
+  （外部进程执行，避免在 Uno 进程内开第二个 Xlib 连接，L-45）；`WindowEx.Hide()/Show()/ShowFromMinimized()` 与服务端
+  托盘菜单、全局热键的「显示主窗口」统一改走它。
+- **附带修掉的 bug**：托盘菜单与热键里唤回窗口时写的是 `ActivateWindowWithXdotool("Starward")`，
+  而窗口标题是 `"Lunarward"` → 永远找不到窗口。改成 `X11Window.Show(window.Title)`。
+- **教训**：`xdotool windowclose` ≠ 用户点 X；验证窗口事件要用真正的 `WM_DELETE_WINDOW` 客户端消息。

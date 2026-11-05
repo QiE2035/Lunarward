@@ -43,7 +43,6 @@ public sealed partial class MainWindow : WindowEx
     }
 
 
-
     private void InitializeMainWindow()
     {
         Title = "Lunarward";

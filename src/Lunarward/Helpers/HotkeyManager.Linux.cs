@@ -215,11 +215,11 @@ internal static class HotkeyManager
                         {
                             presenter.Restore();
                         }
-                        // Uno 的 Restore/Show 在 X11 上不生效，兜底直接 XMapRaised（见 X11KeyState.MapWindowByTitle）
-                        // Uno 的 Restore/Show 在 X11 后端都是空操作，真正生效的是 EWMH 的激活请求。
-                        if (!X11KeyState.ActivateWindowWithXdotool("Starward"))
+                        // Uno 的 Restore/Show 在 X11 后端都是空操作（L-84），真正生效的是
+                        // xdotool 的 windowmap + windowactivate。
+                        if (!Helpers.X11Window.Show(window.Title))
                         {
-                            Serilog.Log.Information("hotkey: EWMH activate found no window");
+                            Serilog.Log.Information("hotkey: x11 window not found ({title})", window.Title);
                         }
                         window.Activate();
                     }

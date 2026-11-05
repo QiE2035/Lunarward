@@ -490,6 +490,7 @@
                         <Grid x:Name="Grid_GameIcon"
                               Width="40"
                               Height="40"
+                              Margin="0,0,8,0"
                               sh:PointerCursor.CursorShape="Hand"
                               CornerRadius="8"
                               DoubleTapped="Grid_GameIcon_DoubleTapped"
