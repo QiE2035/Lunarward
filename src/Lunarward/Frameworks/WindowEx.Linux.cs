@@ -22,21 +22,29 @@ public abstract partial class WindowEx : Window
 
     public virtual void Show()
     {
-        AppWindow.Show();
+        // Lunarward：Uno 的 AppWindow.Show() 只在首次调用时 map（内部 WasShown 之后就只 Activate），
+        // 而 Activate() 只发 XRaiseWindow，恢复不了被隐藏/最小化的窗口（L-84）。
+        // 这里用 Helpers.X11Window（libxcb）做 map + _NET_ACTIVE_WINDOW，失败再退回 Uno 的实现。
+        if (!Helpers.X11Window.Show(Title))
+        {
+            AppWindow.Show();
+        }
         Activate();
     }
 
     public virtual void Hide()
     {
-        AppWindow.Hide();
+        // AppWindow.Hide() 在 Uno 6.7.135 的 X11 后端上是空操作（D47）。
+        if (!Helpers.X11Window.Hide(Title))
+        {
+            AppWindow.Hide();
+        }
     }
 
     public virtual void Minimize()
     {
-        // 用 AppWindow.Hide() 而不是 presenter.Minimize()：Uno 6.7.135 的 OverlappedPresenter.Restore()
-        // 不会把 X11 窗口重新 map 回来（实测 Map State 一直是 IsUnMapped），配合 Hide/Show 才能来回。
-        // AppWindow.Hide() 在 Uno 6.7.135 的 X11 后端上是空操作（实测窗口仍 IsViewable），
-        // 所以最小化仍用 presenter.Minimize()；唤回走 X11KeyState.MapWindowByTitle（见 L-45）。
+        // 最小化本身用 presenter.Minimize()（实测有效，窗口立刻 IsUnMapped）；
+        // 注意 presenter.Restore() 并不能把它 map 回来（实测），唤回统一走 Show() → X11Window。
         if (AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
         {
             presenter.Minimize();
@@ -48,8 +56,7 @@ public abstract partial class WindowEx : Window
     {
         try
         {
-            AppWindow.Show();
-            Activate();
+            Show();
         }
         catch (Exception ex)
         {

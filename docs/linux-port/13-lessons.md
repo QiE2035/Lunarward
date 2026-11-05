@@ -690,3 +690,21 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
   结果：最相似 lag = **50 物理像素**（= 40 DIP × 1.25）。而容器样式 `GameSelector.xaml:441` 写的是 `Padding="6,8,6,8"`（`ListViewItemPresenter.ContentMargin="{TemplateBinding Padding}"`），如果生效，节距应是 52 DIP ≈ 65 物理像素。实测节距 = 图标宽度本身 → **`ListViewItem` 的 `Padding/ContentMargin` 在这条 Uno 渲染路径上没生效**，所以三张 40px 图标是紧贴的（放大 8 倍的截图也能直接看到边缘相接、徽标压到隔壁）。
 - **修法（已实施）**：不依赖 `ListViewItemPresenter.ContentMargin`，在条目根元素 `Grid_GameIcon` 上加 `Margin="0,0,8,0"`。改后用同一套像素方法复测：节距 50 → **60 物理像素**，图标之间出现 **9–10 像素纯背景列**（存证 `screenshots/m3-game-icons-spacing.png`）。
 - **教训**：涉及「间距/尺寸/对齐/颜色」的结论，先截图再做像素测量，用数字说话；不要用某个像素现象去反推某个 API 是否被实现，除非有对照实验（例如同一属性在另一处生效/失效的对比）。
+
+### L-84 · Uno X11 后端没有「隐藏」，而「唤回」要发 `_NET_ACTIVE_WINDOW`
+
+- **症状**：点窗口管理器标题栏的 X 没有任何反应；用 `xdotool windowclose` 验证时窗口直接消失、进程还活着，看起来像「事件进不来」。
+- **实测（三条，都有对照）**：
+  1. `Window.Hide()`、`AppWindow.Hide()` 在 Uno 6.7.135 的 X11 后端上是空操作：调用后 `xwininfo` 仍是 `Map State: IsViewable`。
+     对照：`OverlappedPresenter.Minimize()` 有效（立刻 `IsUnMapped`）。
+  2. 真正的 `WM_DELETE_WINDOW` 客户端消息**能**进托管代码（`AppWindow.Closing` 触发）。`xdotool windowclose` 走的是 `_NET_CLOSE_WINDOW`，
+     KDE 下窗口被直接销毁、托管层收不到任何事件——**不能用它验证关闭逻辑**。
+  3. 最小化后 `presenter.Restore()` 回不来（`Map State` 仍 `IsUnMapped`）；`AppWindow.Show()` 也回不来。
+     上游源码：`NativeWindowWrapperBase.Show(bool)` 只在 `!WasShown` 时 `ShowCore()`，之后只 `Activate()`；
+     `X11WindowWrapper.Activate()` 只发 `XRaiseWindow`，`_NET_ACTIVE_WINDOW` 那段被注释掉了。
+- **修法**：进程内 `libxcb`（`Helpers/X11Window.cs`，见 D47）：`xcb_unmap_window` 隐藏、`xcb_map_window` + `_NET_ACTIVE_WINDOW` 唤回。
+- **三个容易再踩的坑**：
+  1. 窗口 unmap 后会被窗口管理器从 `_NET_CLIENT_LIST` 摘掉 → **必须缓存窗口 id**，否则「隐藏成功、唤回失败」。
+  2. Uno 的顶层窗口在 KDE 下**没有** `_NET_WM_PID` → 匹配窗口要按 `WM_NAME`/`WM_CLASS` 兜底。
+  3. 手写 xcb 结构体偏移：`xcb_setup_t` 的 `vendor_len=24`、`roots_len=28`、`pixmap_formats_len=29`（header 40 字节），
+     `xcb_get_property_reply_t` 的 `value_len` 在偏移 **16**（不是 24）。这两处错一次，症状都是「读不到 root / 列表为空」，与 X 服务器无关。

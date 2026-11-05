@@ -242,9 +242,9 @@ public static class StatusNotifierTray
             }
             window.DispatcherQueue.TryEnqueue(() =>
             {
-                // Uno 的 Show/Activate 对「已被最小化（unmap）」的窗口是空操作（L-45），
-                // 先请窗口管理器把窗口激活回来，再走常规激活。
-                if (!Helpers.X11KeyState.ActivateWindowWithXdotool("Starward"))
+                // Uno 的 Show/Activate 对「已隐藏/最小化（unmap）」的窗口不生效（L-84/D47），
+                // 用 Helpers.X11Window（libxcb map + _NET_ACTIVE_WINDOW）真正把它叫回来。
+                if (!Helpers.X11Window.Show(window.Title))
                 {
                     window.AppWindow.Show();
                 }

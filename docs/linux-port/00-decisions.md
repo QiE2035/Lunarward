@@ -253,6 +253,7 @@
 | 2026-11-05 | 新增 D45 CI 只验证 Linux 侧（移除上游 Windows 流水线） | 用户问「github ci 报错，为什么」，定位为上游 `build.yml` 构建 `src/Starward` 且上游该提交本身红；用户选方案 A | `.github/workflows/linux.yml`、`00` D45、`13` L-82、`12` |
 | 2026-11-05 | 新增 D46「结论必须有论据」（禁止臆测）+ 协作约定复核 | 用户 m11348：「严禁再臆测，你任何的结论都要有论据，这条计入文档规则」；当次触犯项见 `13` L-83 | `00` D46、`13` L-83 |
 | 2026-11-05 | D46 补第 6 条「批准范围不得扩大」；回滚 `ffadf28` 越权的窗口显隐改动 | 用户 m11675：「你怎么又没经过我审批方案就擅自执行了」 | `00` D46、提交 `000304e` |
+| 2026-11-05 | 新增 D47：窗口显隐用进程内 libxcb 补齐（点 X 隐藏/唤回可用） | 用户报「X 关闭不了窗口」；实测 Uno X11 无 `HideCore`、`Activate()` 只发 `XRaiseWindow` | `00` D47、`13` L-84、`Helpers/X11Window.cs` |
 
 
 ## D44 · 全量审查后的健壮性加固（2026-11-05）
@@ -298,6 +299,46 @@
 6. **批准范围不得扩大**：用户批准哪几步就只做哪几步。需要额外改动时先停下来说明「还差什么、为什么必须要」，等再次确认；
    不得以「顺手一起修」「反正要改同一个文件」为由自行扩张（本条来自 2026-11-05 的实际教训：只批准了加 Margin 与临时日志，
    却把窗口显隐方案实现、提交并推送了，已按用户要求回滚 `ffadf28` 的窗口部分）。
+
+## D47 · 窗口显隐用进程内 libxcb 补齐（2026-11-05）
+
+**背景**：用户报「右上角的 X 关闭不了窗口，只能任务管理器强制关闭」。按 D46 逐条实测：
+
+1. `Window.Hide()` / `AppWindow.Hide()` 在 Uno 6.7.135 的 X11 后端上都是**空操作**（调用后 `xwininfo` 仍 `Map State: IsViewable`）。
+   上游源码 `src/Uno.UI.Runtime.X11/UI/Xaml/Window/X11WindowWrapper.cs` 只实现了 `ShowCore()`，没有 `HideCore`。
+2. 关闭链路本身是通的：真正的 `WM_DELETE_WINDOW` 客户端消息能触发 `AppWindow.Closing`（用自编 `XSendEvent` 程序验证）；
+   而 `xdotool windowclose` 走 `_NET_CLOSE_WINDOW`，KDE 下窗口被直接销毁、托管层收不到事件——**它不能用来验证关闭逻辑**。
+3. 最小化后 `presenter.Restore()` 也回不来（实测 `Map State` 仍 `IsUnMapped`）。原因同样在上游：`NativeWindowWrapperBase.Show(bool)`
+   只在首次调用时 map（`if (!WasShown) ShowCore()`），之后只 `Activate()`；而 `X11WindowWrapper.Activate()` 只发 `XRaiseWindow`，
+   源码里那段 `_NET_ACTIVE_WINDOW` 恰好被注释掉，KDE 恢复最小化窗口靠的正是这条 EWMH 消息。
+
+**方案对比**（用户否掉了外部命令方案，理由：新增 `xdotool` 运行时依赖、每操作一次子进程、失败只能吞、Wayland 原生会话下全部作废）：
+
+| 方案 | 结论 |
+|---|---|
+| 外部命令 `xdotool`（曾实现并回滚，`ffadf28`→`000304e`） | 否掉，理由同上 |
+| 只做 `presenter.Minimize()` | 隐藏可用，但托盘/热键/再次启动的唤回全部失效，等于半残 |
+| **进程内 `libxcb`（采用）** | 无外部进程、无新依赖（`libxcb.so.1` 是 X11 桌面必备） |
+
+**决策**：新增 `src/Lunarward/Helpers/X11Window.cs`，P/Invoke `libxcb`：
+
+1. 自建连接（`xcb_connect`）、从 `xcb_setup_t` 里取 root；`xcb_intern_atom` 拿 `_NET_ACTIVE_WINDOW` / `_NET_CLIENT_LIST` / `_NET_WM_PID`。
+2. 找窗口：遍历 root 的 `_NET_CLIENT_LIST`，先按 `_NET_WM_PID == 本进程` 匹配；Uno 的顶层窗口在 KDE 下**没有**这个属性，
+   再按 `WM_NAME` / `WM_CLASS` 兜底。**找到后必须缓存窗口 id**——窗口被 unmap 后会被窗口管理器从 `_NET_CLIENT_LIST` 摘掉，
+   下次再扫就找不到了（这是实测踩到的第二个坑）。
+3. `Hide()` = `xcb_unmap_window`；`Show()` = `xcb_map_window` + 向 root 发 `_NET_ACTIVE_WINDOW`（source=2 pager、timestamp=CurrentTime，
+   mask = `SubstructureRedirect|SubstructureNotify`）。
+4. 选 xcb 而不是 Xlib：xcb 的错误按连接异步返回，不需要装进程级 `XSetErrorHandler`（Xlib 默认处理器会直接退出进程），
+   也避开 L-45 的多线程 `Display` 问题——连接只在窗口显隐这一处用，所有调用加锁串行。
+5. 接入点：`WindowEx.Hide()/Show()/ShowFromMinimized()`、托盘菜单「显示主窗口」、全局热键「显示主窗口」；失败时回退 Uno 的原实现并记日志。
+
+**验证**（两条链路都跑过）：正常启动 → 发 `WM_DELETE_WINDOW` → `IsUnMapped` → 再次启动应用 → `IsViewable` 且成为活动窗口；
+`--hide` 启动 → `IsUnMapped` → `--show` → `IsViewable`。
+
+**代价**：多一层手写 XCB 互操作（结构体偏移容易错，踩过 `xcb_setup_t` 的 `vendor_len/roots_len/pixmap_formats_len` 偏移与
+`xcb_get_property_reply_t` 的 `value_len` 偏移）；Wayland 原生会话下仍走 XWayland。
+
+**未做**：托盘图标在 KDE 上显示为占位（用户指示暂缓）；没有做隐藏后的托盘气泡提示。
 
 ## 协作约定复核（2026-11-05，来源：聊天记录）
 

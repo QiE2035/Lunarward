@@ -67,12 +67,12 @@
 | 文件 | 替代的 Windows 机制 | 状态 | 里程碑 | 说明 |
 |---|---|---|---|---|
 | `Program.Linux.cs` | WinUI 生成入口 | ✅ | M1 | Uno `UnoPlatformHostBuilder`；CLI 子命令（见 §8） |
-| `Frameworks/WindowEx.Linux.cs` | `WindowEx` 标题栏/PInvoke | ✅ | M1 | 基于 `Window.AppWindow`；`CenterInScreen` 先 `Resize` 再 `MoveAndResize`（后者在 X11 空操作）；`SetDragRectangles` 空实现 → Windows 上「自绘标题栏」方案在 Linux 不可用，改用系统标题栏 |
+| `Frameworks/WindowEx.Linux.cs` | `WindowEx` 标题栏/PInvoke | ✅ | M1 | 基于 `Window.AppWindow`；`CenterInScreen` 先 `Resize` 再 `MoveAndResize`（后者在 X11 空操作）；`SetDragRectangles` 空实现 → Windows 上「自绘标题栏」方案在 Linux 不可用，改用系统标题栏。`Hide()/Show()/ShowFromMinimized()` 走 `Helpers/X11Window`（libxcb unmap/map + `_NET_ACTIVE_WINDOW`），因为 Uno X11 既没有 `HideCore`、`Activate()` 也只发 `XRaiseWindow`（D47、L-84） |
 | `Controls/CachedImage.Linux.cs` | `Scighost.WinUI.CachedImage` | 🟡 | M1 | ms-appx/网络/本地（本地读字节 + `SetSourceAsync`）；`CornerRadius` 为矩形裁剪 |
 | `Helpers/FileDialogHelper.Linux.cs` | `FileOpenPicker`/`FileSavePicker` | 🟡 | M1 | kdialog → zenity；未接 portal，沙箱内不可用 |
 | `Helpers/ClipboardHelper.Linux.cs` | WinRT Clipboard | 🟡 | M1 | wl-copy → xclip → xsel |
 | `Helpers/DriveHelper.Linux.cs` | `DriveInfo`/`GetDriveType` | ✅ | M1 | 解析 `/proc/mounts` |
-| `Helpers/HotkeyManager.Linux.cs` | `RegisterHotKey` + 消息循环 | 🟡 | M2 | `XQueryKeymap` 25ms 轮询；Alt+S 唤回、Alt+D 截图；最小化窗口靠 `xdotool` 唤回（L-45） |
+| `Helpers/HotkeyManager.Linux.cs` | `RegisterHotKey` + 消息循环 | 🟡 | M2 | `XQueryKeymap` 25ms 轮询；Alt+S 唤回、Alt+D 截图；唤回走 `Helpers/X11Window.Show`（原先按标题 `"Starward"` 查找、而实际标题是 `Lunarward`，唤回永远失败，已修） |
 | `Helpers/X11KeyState.cs` | 无 | 🟡 | M2 | 只做只读查询与 keysym→keycode；窗口操作走子进程，本进程不碰 Xlib 分配/错误处理器（L-45） |
 | `Helpers/XamlRootExtension.Linux.cs` | `GetWindowHandle`/拖动区 | 🟡 | M1 | 句柄恒 0；`GetAppWindow()` 经 `ContentIslandEnvironment` 反查并兜底 `MainWindow.Current`（L-31） |
 | `Helpers/SystemBackdropHelper.Linux.cs` | Mica/Acrylic | 🟡 | M3 | 半透明画刷近似（`#D01C1C20`/`#A8101012`），无真模糊 |
