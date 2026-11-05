@@ -356,13 +356,17 @@ public sealed partial class GameBannerAndPost : UserControl
     {
         try
         {
+            // L-31：Uno 没有实现 XamlRoot.ContentIslandEnvironment，原来这里取值会抛异常，
+            // 又被 catch 吞掉，表现就是「点小喇叭没反应」。Linux 版窗口不需要父窗口句柄。
             new GameNoticeWindow
             {
                 CurrentGameBiz = CurrentGameId.GameBiz,
-                ParentWindowHandle = (nint)this.XamlRoot.ContentIslandEnvironment.AppWindowId.Value
             }.Activate();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "open game notice window failed");
+        }
     }
 
 

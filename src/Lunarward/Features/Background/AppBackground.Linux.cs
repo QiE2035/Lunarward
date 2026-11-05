@@ -373,6 +373,10 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 
     private WriteableBitmap? _videoBitmap;
 
+    private WriteableBitmap? _videoBitmapBack;   // 双缓冲：交替赋值不同实例才会触发重绘
+
+    private bool _videoBitmapFlip;
+
     private byte[]? _videoPixels;
 
 
@@ -437,6 +441,8 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             int width = _videoPlayer.Width;
             int height = _videoPlayer.Height;
             _videoBitmap = new WriteableBitmap(width, height);
+            _videoBitmapBack = new WriteableBitmap(width, height);
+            _videoBitmapFlip = false;
             _videoPixels = new byte[width * height * 4];
             _videoPlayer.FrameReady += (pixels, w, h) =>
             {
@@ -465,19 +471,20 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     {
         try
         {
-            if (_videoBitmap is null || _disposed)
+            if (_videoBitmap is null || _videoBitmapBack is null || _disposed)
             {
                 return;
             }
             System.Buffer.BlockCopy(pixels, 0, _videoPixels!, 0, pixels.Length);
-            using (Stream stream = _videoBitmap.PixelBuffer.AsStream())
+            // Uno/Skia 下对同一个 WriteableBitmap 反复赋给 Source 不会重绘（引用没变，L-71）。
+            // 「置空再赋同一实例」也不够，这里改成双缓冲交替：每次赋的是另一个实例，强制重新采样。
+            _videoBitmapFlip = !_videoBitmapFlip;
+            WriteableBitmap target = _videoBitmapFlip ? _videoBitmap : _videoBitmapBack;
+            using (Stream stream = target.PixelBuffer.AsStream())
             {
                 stream.Write(_videoPixels!, 0, _videoPixels!.Length);
             }
-            // Uno/Skia 下把同一个 WriteableBitmap 再赋给 Source 不会触发重绘（引用没变），
-            // 先置空再赋值才能让合成器重新采样（L-71）。
-            _image.Source = null;
-            _image.Source = _videoBitmap;
+            _image.Source = target;
         }
         catch (Exception ex)
         {
@@ -493,6 +500,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         _videoPlayer = null;
         _currentVideoPath = null;
         _videoBitmap = null;
+        _videoBitmapBack = null;
         _videoPixels = null;
         _image.Opacity = 0.42;
     }

@@ -66,6 +66,21 @@ public sealed partial class GameNoticeWindow : WindowEx
     public new void Activate()
     {
         // 上游按父窗口把公告窗内嵌成一条横幅（Windows 才能拿 HWND）；Linux 先独立弹出，位置交给合成器。
+        // Uno X11 的 Window.Activate() 只做 raise，不会把尚未 map 的窗口显示出来（实测点小喇叭无任何窗口），
+        // 所以这里先显式 AppWindow.Show()，再 activate 拿焦点。
+        try
+        {
+            AppWindow.Show();
+            // Uno X11 不会把 XAML 里设的 Title 写到 WM_NAME，窗口尺寸也停在默认 1024x640（L-35 同族）。
+            AppWindow.Title = "游戏公告";
+            double scale = Content?.XamlRoot?.RasterizationScale ?? 1d;
+            var target = new Windows.Graphics.SizeInt32 { Width = (int)(900 * scale), Height = (int)(640 * scale) };
+            AppWindow.Resize(target);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "show notice window failed");
+        }
         base.Activate();
     }
 

@@ -110,10 +110,10 @@
                 <Pivot.ItemTemplate>
                     <DataTemplate x:DataType="local:GamePostGroup">
                         <PivotItem Margin="12,0,12,0">
-                            <ScrollViewer Margin="0,0,-12,0"
+                            <ScrollViewer Margin="0"
                                           HorizontalScrollBarVisibility="Disabled"
                                           VerticalScrollBarVisibility="Auto">
-                                <ItemsRepeater Margin="0,0,16,8" ItemsSource="{x:Bind List}">
+                                <ItemsRepeater Margin="0,0,16,8" HorizontalAlignment="Stretch" ItemsSource="{x:Bind List}">
                                     <ItemsRepeater.Layout>
                                         <StackLayout Spacing="8" />
                                     </ItemsRepeater.Layout>
@@ -124,7 +124,11 @@
                                                     <ColumnDefinition />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock VerticalAlignment="Center" TextTrimming="WordEllipsis">
+                                                <TextBlock VerticalAlignment="Center"
+                                                           HorizontalAlignment="Stretch"
+                                                           MaxLines="1"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           TextWrapping="NoWrap">
                                                     <Hyperlink Foreground="{ThemeResource TextFillColorPrimaryBrush}"
                                                                NavigateUri="{x:Bind Link}"
                                                                UnderlineStyle="None">

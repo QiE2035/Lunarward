@@ -173,6 +173,7 @@ internal sealed class VideoBackgroundPlayer : IDisposable
 
     private void Unlock(IntPtr opaque, IntPtr picture, IntPtr planes) { }
 
+
     private void Display(IntPtr opaque, IntPtr picture)
     {
         // 跨原生边界：任何托管异常都不能漏出去，否则进程直接 abort。
