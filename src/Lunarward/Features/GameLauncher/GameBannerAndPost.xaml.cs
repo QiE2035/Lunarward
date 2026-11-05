@@ -373,16 +373,19 @@ public sealed partial class GameBannerAndPost : UserControl
     {
         try
         {
-            // L-31：Uno 没有实现 XamlRoot.ContentIslandEnvironment，原来这里取值会抛异常，
-            // 又被 catch 吞掉，表现就是「点小喇叭没反应」。Linux 版窗口不需要父窗口句柄。
-            new GameNoticeWindow
+            // 公告页是米哈游的网页，需要登录态与 JS SDK；Uno 的 WebView2 在本机只显示黑底（真机截图），
+            // 窗口里给不出内容。这里按方案 A 直接交给系统浏览器打开（D40 的延续）：
+            // 内嵌窗口留待以后换成外部 WebKitGTK 再启用。
+            var service = AppConfig.GetService<GameNoticeService>();
+            string url = service.GetGameNoticeUrl(CurrentGameId.GameBiz);
+            if (!Helpers.OpenUrl.Open(url))
             {
-                CurrentGameBiz = CurrentGameId.GameBiz,
-            }.Activate();
+                Helpers.InAppToast.MainWindow?.Warning("没能打开公告：系统里没有可用的浏览器？", null, 6000);
+            }
         }
         catch (Exception ex)
         {
-            Serilog.Log.Warning(ex, "open game notice window failed");
+            Serilog.Log.Warning(ex, "open game notice failed");
         }
     }
 

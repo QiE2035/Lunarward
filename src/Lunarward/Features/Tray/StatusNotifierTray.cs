@@ -38,7 +38,9 @@ public interface IStatusNotifierItem : IDBusObject
 [DBusInterface("com.canonical.dbusmenu")]
 public interface IDBusMenu : IDBusObject
 {
-    Task<(uint revision, (int id, IDictionary<string, object> properties, object[] children) layout)> GetLayoutAsync(uint parentId, int recursionDepth, string[] propertyNames);
+    // D-Bus 签名是 GetLayout(i i as)：parentId 必须是 int。
+    // 之前写成 uint，序列化出来是 "uias"，plasmashell 匹配不到 → 从不调用，菜单永远为空。
+    Task<(uint revision, (int id, IDictionary<string, object> properties, object[] children) layout)> GetLayoutAsync(int parentId, int recursionDepth, string[] propertyNames);
     Task EventAsync(int id, string eventId, object data, uint timestamp);
     Task AboutToShowAsync(int id);
     Task<object> GetAsync(string prop);
@@ -69,8 +71,10 @@ internal sealed class TrayMenu : IDBusMenu
 
     public ObjectPath ObjectPath => new("/MenuBar");
 
-    public Task<(uint, (int, IDictionary<string, object>, object[]))> GetLayoutAsync(uint parentId, int recursionDepth, string[] propertyNames)
+    public Task<(uint, (int, IDictionary<string, object>, object[]))> GetLayoutAsync(int parentId, int recursionDepth, string[] propertyNames)
     {
+        Serilog.Log.Information("[tray] GetLayout parent={parent} depth={depth}", parentId, recursionDepth);
+
         IDictionary<string, object> Root() => new Dictionary<string, object> { ["children-display"] = "submenu" };
         (int, IDictionary<string, object>, object[]) Item(int id, string label, bool enabled = true)
             => (id, new Dictionary<string, object>
@@ -163,7 +167,9 @@ internal sealed class SniObject : IStatusNotifierItem
         ["Id"] = "lunarward",
         ["Title"] = "Lunarward",
         ["Status"] = "Active",
-        ["IconName"] = "lunarward",
+        // IconName 留空：开发运行没把图标装进 XDG icon theme，KDE 解析不到名字就显示成占位方块；
+        // 参考微信托盘（IconName 为空 + 只给 IconPixmap），这里同样只依赖 pixmap。
+        ["IconName"] = "",
         ["IconPixmap"] = TrayIconPixmap.Load(),
         ["IconThemePath"] = "",
         // ItemIsMenu=true 时左键也走菜单；KDE 下菜单打不开就变成「左右键都没反应」。
@@ -180,7 +186,7 @@ internal sealed class SniObject : IStatusNotifierItem
         "Id" => "lunarward",
         "Title" => "Lunarward",
         "Status" => "Active",
-        "IconName" => "lunarward",
+        "IconName" => "",
         "IconPixmap" => TrayIconPixmap.Load(),
         "IconThemePath" => "",
         "ItemIsMenu" => false,
@@ -191,13 +197,24 @@ internal sealed class SniObject : IStatusNotifierItem
 
     public Task SetAsync(string prop, object val) => Task.CompletedTask;
     public Task<IDisposable> WatchPropertiesAsync(Action<PropertyChanges> handler) => Task.FromResult<IDisposable>(NullDisposable.Instance);
-    public Task ActivateAsync(int x, int y) { _activate(); return Task.CompletedTask; }
-    public Task SecondaryActivateAsync(int x, int y) { _activate(); return Task.CompletedTask; }
+    public Task ActivateAsync(int x, int y)
+    {
+        Serilog.Log.Information("[tray] Activate ({x},{y})", x, y);
+        _activate();
+        return Task.CompletedTask;
+    }
+    public Task SecondaryActivateAsync(int x, int y)
+    {
+        Serilog.Log.Information("[tray] SecondaryActivate ({x},{y})", x, y);
+        _activate();
+        return Task.CompletedTask;
+    }
     public Task ContextMenuAsync(int x, int y)
     {
         // 宿主找不到 dbusmenu 时会退化成调这个方法（plasmashell：
         // "Could not find DBusMenu interface, falling back to calling ContextMenu()"）。
         // 宿主里画不了我们自己的菜单，至少把主窗口叫出来，别让右键彻底没反应。
+        Serilog.Log.Information("[tray] ContextMenu ({x},{y})", x, y);
         _menu();
         return Task.CompletedTask;
     }

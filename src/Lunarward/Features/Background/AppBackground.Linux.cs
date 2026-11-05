@@ -524,7 +524,15 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         float drawWidth = bitmap.Width * scale;
         float drawHeight = bitmap.Height * scale;
         var destination = new SkiaSharp.SKRect((e.Info.Width - drawWidth) / 2f, (e.Info.Height - drawHeight) / 2f, (e.Info.Width + drawWidth) / 2f, (e.Info.Height + drawHeight) / 2f);
-        canvas.DrawBitmap(bitmap, destination);
+        // 帧是 1920x1080，画布约 1875x1056：几乎 1:1，但仍有缩放。
+        // SkiaSharp 的 DrawBitmap 不带 paint 时用最近邻采样，缩放后就是「锯齿感很强」；
+        // 这里显式给双线性 + 线性 mipmap。
+        using var paint = new SkiaSharp.SKPaint
+        {
+            IsAntialias = true,
+            FilterQuality = SkiaSharp.SKFilterQuality.High,
+        };
+        canvas.DrawBitmap(bitmap, new SkiaSharp.SKRect(0, 0, bitmap.Width, bitmap.Height), destination, paint);
     }
 
 
