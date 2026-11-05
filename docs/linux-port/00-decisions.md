@@ -251,7 +251,6 @@
 | 2026-11-05 | 新增 D44 全量审查后的健壮性加固（原子写、只读预检、空间/目录校验、前缀清理挂 wine 会话、单实例回调回 UI 线程、CLI 失败退出码、日志保留） | 用户 m10479「能修的就都修了吧」；审查清单见 m10478 汇报 | `00` D44、`13` L-75–L-81、`12` |
 | 2026-11-04 | 新增 D43 主窗口 chrome 与背景切换的 Linux 形态 | 用户真机反馈 #1/#3/#5，Uno/X11 无对应系统行为 | `00` D43、`13` L-69–L-74、`12` |
 | 2026-11-05 | 新增 D45 CI 只验证 Linux 侧（移除上游 Windows 流水线） | 用户问「github ci 报错，为什么」，定位为上游 `build.yml` 构建 `src/Starward` 且上游该提交本身红；用户选方案 A | `.github/workflows/linux.yml`、`00` D45、`13` L-82、`12` |
-| 2026-11-05 | 新增 D47 窗口显隐用 xdotool unmap/map（修 X 关闭无反应 + 唤回找不到窗口） | 用户报「右上角 X 关闭不了窗口」；实测 `Window.Hide()/AppWindow.Hide()` 在 Uno X11 上为空操作（`13` L-84） | `Helpers/X11Window.cs`、`Frameworks/WindowEx.Linux.cs`、`13` L-84、`00` D47 |
 | 2026-11-05 | 新增 D46「结论必须有论据」（禁止臆测）+ 协作约定复核 | 用户 m11348：「严禁再臆测，你任何的结论都要有论据，这条计入文档规则」；当次触犯项见 `13` L-83 | `00` D46、`13` L-83 |
 
 
@@ -295,22 +294,6 @@
 3. **用户描述优先**：用户报告的现象是一手数据。被纠正时先复核自己的前提，而不是换一套说法继续解释。
 4. **可视化问题量化**：间距/尺寸/颜色/对齐一律用截图 + 脚本给数字（本项实测见 `13` L-83 的像素方法），不靠肉眼判断。
 5. **猜错的要撤回**：明确写出「这条结论作废」，并在 `13` 记录教训，避免同一错误反复出现。
-
-## D47 · 窗口显隐用 xdotool 做 unmap/map（2026-11-05）
-
-**背景**：用户报「右上角的 X 关闭不了窗口，只能任务管理器强制关闭」。按 D46 用证据定位出三条事实（详见 `13` L-84）：
-
-1. `Window.Hide()` 与 `AppWindow.Hide()` 在 Uno 6.7.135 的 X11 后端上都是空操作：调用后 `xwininfo` 仍是 `Map State: IsViewable`（对照：`Presenter.Minimize()` 立刻变 `IsUnMapped`）。
-2. 真正的 `WM_DELETE_WINDOW` 客户端消息**能**进托管代码：用 `XSendEvent` 发送后 `AppWindow.Closing` 立即触发。而 `xdotool windowclose` 走 `_NET_CLOSE_WINDOW`，KDE 下窗口被直接销毁、托管层收不到事件——所以它不是「点 X」的等价物。
-3. 因此 `CloseWindowOption = Hide` 的执行链（`Closing` → `args.Cancel = true` → `Hide()`）里，前两步正常，只有最后一步因为 `Hide()` 是空操作而表现为「点了没反应」。
-
-**决策**：新增 `src/Lunarward/Helpers/X11Window.cs`，用外部进程 `xdotool windowunmap` / `windowmap` + `windowactivate` 实现真正的隐藏与唤回；`WindowEx.Hide()/Show()/ShowFromMinimized()`、托盘菜单「显示主窗口」、全局热键「显示主窗口」统一改走它。唤回不依赖托盘图标是否可见——`lunarward --show`、以及再次启动应用（单实例转发 show）都能把窗口叫回来。
-
-**顺带修掉的 bug**：托盘菜单与热键里原本写的是 `ActivateWindowWithXdotool("Starward")`，而主窗口标题是 `"Lunarward"`，导致「显示主窗口」永远找不到窗口（原来看起来像「唤回不生效」）。
-
-**代价**：运行时依赖 `xdotool`（已在 `ATTRIBUTIONS.md` 的运行时外部命令里列出；缺失时回退到「Uno 的空操作 + 日志」，不会崩）。Wayland 原生会话下同样走 XWayland 的 xdotool，实测可用。
-
-**未做**：托盘图标在 KDE 上显示为占位（用户指示暂缓，L-80 相关）；没有做「隐藏后在托盘气泡提示」之类的引导。
 
 ## 协作约定复核（2026-11-05，来源：聊天记录）
 
