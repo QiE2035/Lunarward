@@ -665,3 +665,14 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 - **根因**：`Program.Linux.cs` 的错误分支只 `Console.WriteLine` 后 `return`，只有陈旧锁/DISPLAY 两处 `Environment.Exit`。
 - **修法**：所有「未知游戏/找不到条目/读不到本地版本/拿不到清单/branch 不可用/清单不可用/拒绝/规划失败/探针失败/初始化环境失败」分支统一置 `Environment.ExitCode = 1`。
 - **教训**：命令行工具的错误路径要么抛、要么置退出码；只打印等于把「失败」伪装成「成功」。
+
+### L-82 · CI 拿 Debug 的 assets 编 Release，撞上 Uno DevServer 门禁
+
+- **症状**：本地/CI 执行 `dotnet build -c Release --no-restore`（前面只跑过不带配置的 `dotnet restore`）报
+  `error UNOB0019: The DevServer package is intended for development builds only and should not be used with optimized/release builds.`
+- **根因**：`Uno.Implicit.Packages.ProjectSystem.targets` 按 `$(Optimize)` 决定是否把 `Uno.WinUI.DevServer` 完整引入
+  （`Optimize != 'true'` 时完整引用，`== 'true'` 时 `Exclude="all" IncludeAssets="None"`）。不带 `-p:Configuration=Release`
+  的 `dotnet restore` 生成的是 Debug 口径的 `project.assets.json`，Release 编译时 DevServer 的 `buildTransitive` 目标照样被导入，
+  于是它自己的「优化构建不许用 DevServer」校验直接报错。
+- **修法**：Release 前先 `dotnet restore -p:Configuration=Release`，再 `dotnet build -c Release --no-restore`。
+- **教训**：Uno.Sdk 的隐式包集合依赖 `Optimize`，**restore 的配置必须和 build 的配置一致**；`--no-restore` 只有在这个前提下才安全。

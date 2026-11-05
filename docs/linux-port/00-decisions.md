@@ -250,6 +250,7 @@
 | 2026-11-03 | 新增 D41 chunk 级复用（增量更新主力机制） | 实测差分只覆盖 101 文件，需把剩余变更压到官方量级（m08787「要」） | `00` D41、`src/Lunarward/Features/GameInstall/Sophon/ChunkReuse*.cs`、`InstallPipeline.RunChunkReuseAsync` |
 | 2026-11-05 | 新增 D44 全量审查后的健壮性加固（原子写、只读预检、空间/目录校验、前缀清理挂 wine 会话、单实例回调回 UI 线程、CLI 失败退出码、日志保留） | 用户 m10479「能修的就都修了吧」；审查清单见 m10478 汇报 | `00` D44、`13` L-75–L-81、`12` |
 | 2026-11-04 | 新增 D43 主窗口 chrome 与背景切换的 Linux 形态 | 用户真机反馈 #1/#3/#5，Uno/X11 无对应系统行为 | `00` D43、`13` L-69–L-74、`12` |
+| 2026-11-05 | 新增 D45 CI 只验证 Linux 侧（移除上游 Windows 流水线） | 用户问「github ci 报错，为什么」，定位为上游 `build.yml` 构建 `src/Starward` 且上游该提交本身红；用户选方案 A | `.github/workflows/linux.yml`、`00` D45、`13` L-82、`12` |
 
 
 ## D44 · 全量审查后的健壮性加固（2026-11-05）
@@ -266,3 +267,17 @@
 8. **磁盘回收**：`Helpers/Housekeeping` 启动时清理 14 天前的日志/输出/启动报告，安装前清理 3 天前的 `*.lunarward-tmp`；移除两处 60 秒一次的 `GC.Collect()`。
 
 代价/未做：补丁阶段仍无块内续传（库无 API，见 D41 未做项）；`_tasks` 保留期之外的重复 toast 已修，但安装任务列表没有历史视图；`WineRegistry` 的 HDR 写入改为「设置页保存时写入」，启动期不再跑 `wine reg`（保住「游戏是 wine 第一个进程」）。
+
+## D45 · CI 只验证 Linux 侧（2026-11-05）
+
+**背景**：用户问「github ci 报错，为什么」。定位结论——失败的是继承自上游的 `.github/workflows/build.yml`，它在 `windows-2025-vs2026` 上 `dotnet publish src/Starward`，而移植基线提交 `df8ae07 filecache powered by fusioncache` 里 `src/Starward/Helpers/FileCache.cs` 已经 `using ZiggyCreatures.Caching.Fusion`，但 `src/Starward/Starward.csproj` 没有对应 `PackageReference`。上游同提交的 CI（Scighost/Starward `38165058728`）报的是同一批 `error CS0246`，即**上游自己就红**，与移植无关；后续 `WMC0001/WMC9999` 全是连锁反应。
+
+**决策**：本仓不构建 Windows 侧（D1/D2 单头 Linux），也不该为了让它变绿去改 `src/Starward/`（0 改动铁律）。因此：
+
+1. 删除上游 6 个 Windows 工作流（`build.yml`、`publish_preview*.yml`、`publish_res_signpath.yml`、`convert_preview_to_stable.yml`）。发布链路本来就按 D38 推迟，这些文件保留下来只会每次 push 都红。
+2. 新增 `.github/workflows/linux.yml`：`ubuntu-latest` + `setup-dotnet`（`global-json-file: src/Lunarward/global.json`）→ `dotnet restore -p:Configuration=Release` → `dotnet build -c Release --no-restore` → `dotnet test tests/Lunarward.Tests`。只验证「能编译 + 纯逻辑单测绿」，不跑游戏、不下载资源、不产出发行物。
+3. 所有 dotnet 命令都在子目录（`src/Lunarward`、`tests/Lunarward.Tests`）执行：仓库根 `global.json` 钉的是上游 Windows SDK 10.0.400，本机与 runner 都没有。
+
+**代价**：Windows 侧从此没有任何自动验证（本来也没跑过）；Release 构建依赖「先 `-p:Configuration=Release` 还原」这一约束（Uno.Sdk 按 `Optimize` 决定是否引用 `Uno.WinUI.DevServer`，拿 Debug 的 assets 编 Release 会命中 `UNOB0019`），已在工作流注释与 L-82 记录。
+
+**未做**：不加 `act` 级别的本地回归；不缓存 NuGet（仓库内 `src/Lunarward/NuGet.config` 固定华为云镜像，CI 沿用同一份配置）；不做 AOT/裁剪验证。

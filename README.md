@@ -7,6 +7,11 @@
 >
 > 本项目是**非官方**移植：与米哈游 / HoYoverse 无关，也与 Starward 作者无关；上游与第三方依赖的
 > 引用情况见 [`ATTRIBUTIONS.md`](./ATTRIBUTIONS.md)。
+>
+> CI 只验证 Linux 侧（`dotnet build src/Lunarward` + `tests/Lunarward.Tests`，见
+> [`.github/workflows/linux.yml`](./.github/workflows/linux.yml)）。继承自上游的 Windows 打包与发布流水线已移除：
+> 本仓不构建 Windows 侧，且被移植的上游提交本身在 GitHub 上就是红的（原因与代价见
+> [`docs/linux-port/00-decisions.md`](./docs/linux-port/00-decisions.md) D45）。
 
 米哈游 / HoYoverse 游戏的 Linux 综合启动器，基于 [Starward](https://github.com/Scighost/Starward)（MIT）的
 UI 与业务代码移植而来。目标是把 Starward 的完整功能与观感带到 Linux，同时补上 Linux 特有的

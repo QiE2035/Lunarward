@@ -224,3 +224,4 @@
 | 2026-11-03 | i18n：新增 `Lang.Lunarward_*` 共 74 键（en/zh-CN/zh-TW/zh-HK/ja/ko），运行环境页、后启动程序、预检弹窗、输出面板、截图页、查看器、登录页已接线；`Lang.Designer.cs` 改 `partial` + `Lang.Lunarward.cs` |
 | 2026-11-03 | **全表校准**：按代码实测重写（33 个 `*.Linux.cs`、8 个 `*.LinuxAuto.cs`、55 条排除）；修正过时状态（视频壁纸、URL 协议、截图图库/查看器、更新检查、AssemblyVersion）；新增总览表、新增模块表、XAML 差异表（7 处）、CLI 清单；去掉重复的「更新：…」附录，合并到对应功能域 |
 | 2026-11-05 | D44 加固：原子写（`JsonFile`）、预检只读 + key 统一、安装目录/空间校验、前缀清理挂 wine 会话、单实例回调回 UI 线程、playtime 按 pid 去重、CLI 失败退出码、日志与临时文件保留策略、截图设置页实装 |
+| 2026-11-05 | D45 CI 只验证 Linux 侧：删除上游 6 个 Windows 工作流，新增 `.github/workflows/linux.yml`（Release 需先 `restore -p:Configuration=Release`，见 L-82） |
