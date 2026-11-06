@@ -735,3 +735,15 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 - **证据**：下载的 `0eefc26b…webp` 2560×1440，**99.1% 像素 alpha=0**，只有标题文字不透明；上游静态分支 `DrawImage(底图)` + `DrawImage(Theme)` 两次合成。
 - **修法**：`AppBackground.Linux.LoadBackgroundImageAsync` 下主题图（6 秒超时）→ SkiaSharp 合成 → PNG → `BitmapImage`；失败退回底图。
 - **教训**：上游把「底图」和「文字层」拆成两张资源，只看其中一张会以为「素材缺了文字」；移植时先对齐上游的**绘制顺序**，再谈差异。
+
+### L-88 · 图标「豆腐块」的真凶是 Uno 自带 Symbols 字体缺码位，随包字体在这套后端上不可靠
+
+- **现象**：视频播放/暂停按钮等少数图标显示成方框或串字形，而网络/齿轮等多数图标正常。
+- **取证**：`strace -f -e trace=openat ./Lunarward` → 全程没有 `Assets/Font/*`；`Uno.Fonts.Fluent/Fonts/uno-fluentui-assets.ttf`（family `Symbols`，1394 字形）被加载；
+  用 fontTools 比对项目 104 个码位，`E62E E733 F012 F08F F413 F4A5` 不在该字体里。
+- **为什么不能直接用上游字体**：`ms-appx:///Assets/Font/Segoe Fluent Icons.ttf`（文件名带空格）与 `%20` 编码、以及复制成无空格别名 `FluentIcons.ttf`，
+  三种写法都从未触发 openat；而 `PhotosIcons.ttf`（无空格、显式 FontFamily）能正常加载 → 结论只能落在「改用 Uno 自带字体 + 替换码位」。
+- **修法**：`E62E→E769`、`E917→E823`、`E733→F140`、`F012→E896`、`F08F→E768`、`F413→E74E`、`F4A5→E734`。
+- **教训**：①「图标显示错」先别猜主题/字体族，直接 strace 看**实际加载了哪个 ttf**；②fontTools 可以离线渲染任意码位确认形状，比在 UI 里逐个撞快得多；
+  ③Uno 的字体加载对含空格路径静默失败，没有任何日志——这类失败只能靠系统调用层取证。
+

@@ -30,7 +30,6 @@ public sealed partial class BackgroundViewWindow : WindowEx
     {
         Title = "Starward - Background Viewer";
         AppWindow.Title = "Starward - Background Viewer";
-        AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
         AppWindow.TitleBar.IconShowOptions = IconShowOptions.ShowIconAndSystemMenu;
         SystemBackdrop = new DesktopAcrylicBackdrop();
         Content.KeyDown += Content_KeyDown;
@@ -54,30 +53,15 @@ public sealed partial class BackgroundViewWindow : WindowEx
 
 
 
+    protected override (int Width, int Height)? DefaultWindowSizeInDips => (1200, 676);
+
+
+
     public override void Show()
     {
+        // 尺寸与「超出屏幕就缩回并居中」由 WindowEx.Show() 统一处理（D49），这里不再自己 Resize，
+        // 否则两次 Resize 会互相打架（真机表现为窗口突然变大、右/下边被推到屏幕外）。
         base.Show();
-        _ = ResizeAfterShownAsync();
-    }
-
-
-    /// <summary>Lunarward：X11 后端在 map 之后才应用默认尺寸，map 完再补一次（L-35）。</summary>
-    private async System.Threading.Tasks.Task ResizeAfterShownAsync()
-    {
-        try
-        {
-            await System.Threading.Tasks.Task.Delay(300);
-            double scale = Content?.XamlRoot?.RasterizationScale ?? 1;
-            if (scale <= 0)
-            {
-                scale = 1;
-            }
-            AppWindow.Resize(new Windows.Graphics.SizeInt32 { Width = (int)Math.Round(1200 * scale), Height = (int)Math.Round(676 * scale) });
-        }
-        catch (Exception ex)
-        {
-            Serilog.Log.Warning(ex, "[bgwin] resize failed");
-        }
     }
 
 

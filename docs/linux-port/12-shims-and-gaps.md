@@ -41,7 +41,7 @@
 | 启动器主界面 | ✅ | 1200×676 DIP、**系统标题栏**（交给窗口管理器，L-73）、真实公告/活动 | — |
 | 外部链接 | ✅ | `Helpers/OpenUrl.cs`：`xdg-open` → `gio open`，替换 8 类 `Launcher.LaunchUriAsync` 调用（后者在 Linux 静默失败，L-74） | `AppBackground` 里 3 处 apps.microsoft.com 保留（Windows 专属提示） |
 | 背景切换 / 视频壁纸 | 🟡 | 圆点切换器由代码生成（Uno PipsPager 不响应点击，L-69）；视频走 libvlc `--vout=vmem` + Skia 合成（`Video.Url`，非海报）；隐藏/锁屏暂停、唤回恢复（D48/L-86）；静态背景底图 + `Theme` 文字层合成（D48/L-87）；API 超时 6s | 无 vlc 或无视频文件时退回静态兜底图；不发 `PropertiesChanged` |
-| 背景图库窗口 | ✅ | `BackgroundViewWindow` code-behind 重新纳入编译；缩略图 `ListView + tk:WrapPanel`；本地绝对路径由 `CachedImage.Linux` 读字节解码 | 无 |
+| 背景图库窗口 | ✅ | `BackgroundViewWindow` code-behind 重新纳入编译；缩略图 `ListView + tk:WrapPanel`；本地绝对路径由 `CachedImage.Linux` 读字节解码；窗口交还系统标题栏并按 `DefaultWindowSizeInDips` 设 1200×676、夹到 90% 屏幕内（D49） | 无 |
 | 单实例 / 陈旧锁 | ✅ | 文件锁 + UNIX socket；无人接时判定陈旧锁并接管；无 `DISPLAY`/`WAYLAND_DISPLAY` 明确报错退出（L-72）；`--new-instance` 跳过检查 | 无 |
 | 设置页 10 项 | ✅ | 上游 9 项 + 「运行环境」 | — |
 | 登录 / 账号 | 🟡 | WebKitGTK 独立窗取 cookie；**未真实登录验证** | 待用户 |
@@ -67,7 +67,7 @@
 | 文件 | 替代的 Windows 机制 | 状态 | 里程碑 | 说明 |
 |---|---|---|---|---|
 | `Program.Linux.cs` | WinUI 生成入口 | ✅ | M1 | Uno `UnoPlatformHostBuilder`；CLI 子命令（见 §8） |
-| `Frameworks/WindowEx.Linux.cs` | `WindowEx` 标题栏/PInvoke | ✅ | M1 | 基于 `Window.AppWindow`；`CenterInScreen` 先 `Resize` 再 `MoveAndResize`（后者在 X11 空操作）；`SetDragRectangles` 空实现 → Windows 上「自绘标题栏」方案在 Linux 不可用，改用系统标题栏。`Hide()/Show()/ShowFromMinimized()` 走 `Helpers/X11Window`（libxcb unmap/map + `_NET_ACTIVE_WINDOW`），因为 Uno X11 既没有 `HideCore`、`Activate()` 也只发 `XRaiseWindow`（D47、L-84） |
+| `Frameworks/WindowEx.Linux.cs` | `WindowEx` 标题栏/PInvoke | ✅ | M1 | 基于 `Window.AppWindow`；`CenterInScreen` 先 `Resize` 再 `MoveAndResize`（后者在 X11 空操作）；`SetDragRectangles` 空实现 → Windows 上「自绘标题栏」方案在 Linux 不可用，改用系统标题栏。`Hide()/Show()/ShowFromMinimized()` 走 `Helpers/X11Window`（libxcb unmap/map + `_NET_ACTIVE_WINDOW`），因为 Uno X11 既没有 `HideCore`、`Activate()` 也只发 `XRaiseWindow`（D47、L-84）；`Show()` 统一关掉 `ExtendsContentIntoTitleBar` 并按 `DefaultWindowSizeInDips` + 屏幕钳制摆位（D49） |
 | `Controls/CachedImage.Linux.cs` | `Scighost.WinUI.CachedImage` | 🟡 | M1 | ms-appx/网络/本地（本地读字节 + `SetSourceAsync`）；`CornerRadius` 为矩形裁剪 |
 | `Helpers/FileDialogHelper.Linux.cs` | `FileOpenPicker`/`FileSavePicker` | 🟡 | M1 | kdialog → zenity；未接 portal，沙箱内不可用 |
 | `Helpers/ClipboardHelper.Linux.cs` | WinRT Clipboard | 🟡 | M1 | wl-copy → xclip → xsel |
@@ -226,3 +226,8 @@
 | 2026-11-05 | D44 加固：原子写（`JsonFile`）、预检只读 + key 统一、安装目录/空间校验、前缀清理挂 wine 会话、单实例回调回 UI 线程、playtime 按 pid 去重、CLI 失败退出码、日志与临时文件保留策略、截图设置页实装 |
 | 2026-11-05 | D45 CI 只验证 Linux 侧：删除上游 6 个 Windows 工作流，新增 `.github/workflows/linux.yml`（Release 需先 `restore -p:Configuration=Release`，见 L-82） |
 | 2026-11-05 | D48：托盘补 `Properties.GetAll`（KDE 菜单+图标）、视频随窗口隐藏暂停/唤回恢复、静态背景合成 `Theme` 文字层 |
+
+## 变更记录
+
+- 2026-11-06：`#1` 图标码位替换（E62E→E769 等 7 处，L-88）、`#2` 暂停静态图预加载、`#3` 窗口底座统一（D49）；图库窗口 1500×845 且有系统标题栏（真机几何 + `_NET_FRAME_EXTENTS` 验证）。
+

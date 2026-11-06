@@ -97,7 +97,7 @@
                                 Visibility="{x:Bind InGame}">
                             <FontIcon FontSize="16"
                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                      Glyph="&#xF413;" />
+                                      Glyph="&#xE74E;" />
                         </Button>
                     </Grid>
                 </DataTemplate>

@@ -984,7 +984,7 @@ public sealed partial class GameLauncherPage : PageBase
 
     private const string PlayIcon = "\uF5B0";
 
-    private const string PauseIcon = "\uE62E";
+    private const string PauseIcon = "\uE769";
 
 
     public List<GameBackground> BackgroundImages { get; set => SetProperty(ref field, value); }

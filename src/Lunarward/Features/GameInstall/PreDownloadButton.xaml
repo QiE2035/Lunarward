@@ -154,7 +154,7 @@
                                 Visibility="{x:Bind DownloadBytesText, Converter={StaticResource ObjectToVisibilityConverter}}">
                         <FontIcon FontSize="14"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  Glyph="&#xF012;" />
+                                  Glyph="&#xE896;" />
                         <TextBlock FontSize="12"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    Text="{x:Bind DownloadBytesText}" />
@@ -178,7 +178,7 @@
                                 Visibility="{x:Bind RemainTimeText, Converter={StaticResource ObjectToVisibilityConverter}}">
                         <FontIcon FontSize="14"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  Glyph="&#xE917;" />
+                                  Glyph="&#xE823;" />
                         <TextBlock FontSize="12"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    Text="{x:Bind RemainTimeText}" />

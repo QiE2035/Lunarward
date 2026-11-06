@@ -46,7 +46,15 @@ public static class X11Window
     [DllImport(LibXcb)] private static extern uint xcb_send_event(IntPtr connection, byte propagate, uint destination, uint eventMask, byte[] eventData);
     [DllImport(LibXcb)] private static extern IntPtr xcb_get_window_attributes(IntPtr connection, uint window);
     [DllImport(LibXcb)] private static extern IntPtr xcb_get_window_attributes_reply(IntPtr connection, IntPtr cookie, out IntPtr error);
+    [DllImport(LibXcb)] private static extern IntPtr xcb_get_geometry(IntPtr connection, uint drawable);
+    [DllImport(LibXcb)] private static extern IntPtr xcb_get_geometry_reply(IntPtr connection, IntPtr cookie, out IntPtr error);
+    [DllImport(LibXcb)] private static extern int xcb_configure_window(IntPtr connection, uint window, ushort valueMask, int[] valueList);
     [DllImport("libc")] private static extern void free(IntPtr pointer);
+
+    private const ushort XCB_CONFIG_WINDOW_X = 1 << 0;
+    private const ushort XCB_CONFIG_WINDOW_Y = 1 << 1;
+    private const ushort XCB_CONFIG_WINDOW_WIDTH = 1 << 2;
+    private const ushort XCB_CONFIG_WINDOW_HEIGHT = 1 << 3;
 
     /// <summary>连接是否可用（没有 DISPLAY 或 libxcb 缺失时为 false，调用方应回退到 Uno 的实现）。</summary>
     public static bool IsAvailable
@@ -121,6 +129,81 @@ public static class X11Window
                 Log.Warning(ex, "X11Window.Show failed");
                 return false;
             }
+        }
+    }
+
+    /// <summary>取 X 屏幕（root window）的像素尺寸；失败返回 false。</summary>
+    public static bool TryGetScreenSize(out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        lock (Gate)
+        {
+            uint root = GetRootWindow();
+            if (root == 0)
+            {
+                return false;
+            }
+            try
+            {
+                IntPtr cookie = xcb_get_geometry(_connection, root);
+                IntPtr reply = xcb_get_geometry_reply(_connection, cookie, out IntPtr error);
+                if (reply == IntPtr.Zero || error != IntPtr.Zero)
+                {
+                    if (reply != IntPtr.Zero)
+                    {
+                        free(reply);
+                    }
+                    return false;
+                }
+                // xcb_get_geometry_reply_t：response_type(1) depth(1) sequence(2) length(4) root(4)@8
+                // x(2)@12 y(2)@14 width(2)@16 height(2)@18
+                width = Marshal.ReadInt16(reply, 16);
+                height = Marshal.ReadInt16(reply, 18);
+                free(reply);
+                return width > 0 && height > 0;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "X11Window.TryGetScreenSize failed");
+                return false;
+            }
+        }
+    }
+
+    /// <summary>直接改窗口的位置与大小（Uno 的 AppWindow.MoveAndResize 在 X11 上是空操作）。</summary>
+    public static bool SetBounds(string? title, int x, int y, int width, int height)
+    {
+        lock (Gate)
+        {
+            uint window = FindWindow(title);
+            if (window == 0)
+            {
+                return false;
+            }
+            try
+            {
+                ushort mask = (ushort)(XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT);
+                xcb_configure_window(_connection, window, mask, new[] { x, y, width, height });
+                xcb_flush(_connection);
+                Log.Information("X11Window: bounds 0x{Window:X} {X},{Y} {W}x{H}", window, x, y, width, height);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "X11Window.SetBounds failed");
+                return false;
+            }
+        }
+    }
+
+    /// <summary>root window（懒初始化；不可用时返回 0）。</summary>
+    public static uint GetRootWindow()
+    {
+        lock (Gate)
+        {
+            EnsureInitialized();
+            return _available ? _root : 0;
         }
     }
 

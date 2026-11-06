@@ -199,7 +199,7 @@
                                   Grid.Column="0"
                                   FontSize="12"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  Glyph="&#xE917;"
+                                  Glyph="&#xE823;"
                                   IsTextScaleFactorEnabled="False" />
                         <TextBlock Grid.Row="1"
                                    Grid.Column="1"
@@ -297,7 +297,7 @@
                                   VerticalAlignment="Bottom"
                                   FontSize="14"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  Glyph="&#xE917;"
+                                  Glyph="&#xE823;"
                                   IsTextScaleFactorEnabled="False"
                                   Visibility="{x:Bind RemainTimeText, Converter={StaticResource ObjectToVisibilityConverter}}" />
                         <TextBlock Margin="4,0,0,0"
@@ -347,7 +347,7 @@
                                 Visibility="{x:Bind InstallBytesText, Converter={StaticResource ObjectToVisibilityConverter}}">
                         <FontIcon FontSize="12"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  Glyph="&#xF012;"
+                                  Glyph="&#xE896;"
                                   IsTextScaleFactorEnabled="False" />
                         <TextBlock FontSize="12"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"

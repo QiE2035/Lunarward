@@ -61,7 +61,7 @@
                                             Spacing="8">
                                     <FontIcon FontSize="12"
                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                              Glyph="&#xF012;" />
+                                              Glyph="&#xE896;" />
                                     <TextBlock Width="80"
                                                FontSize="12"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"

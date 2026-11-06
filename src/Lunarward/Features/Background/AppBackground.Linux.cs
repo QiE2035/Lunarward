@@ -335,6 +335,9 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
                         // 主题图（海报，带游戏标题文字）按上游语义整幅拉伸画在帧上。
                         if (await TryStartVideoBackgroundAsync(background, token))
                         {
+                            // 视频在播时先把「暂停后要看到的那张静态图（海报+主题文字层）」在后台准备好：
+                            // 否则点暂停要先等海报下载（≤3s）+ 主题图下载（≤6s）+ Skia 合成，好几秒才出图（真机复现）。
+                            _ = PreloadPausedBackgroundAsync(background, token);
                             return;
                         }
                         // 没有 libvlc / 拿不到视频文件时退回静态兜底图，不黑屏
@@ -549,6 +552,43 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             FilterQuality = SkiaSharp.SKFilterQuality.Low,
         };
         canvas.DrawBitmap(bitmap, new SkiaSharp.SKRect(0, 0, bitmap.Width, bitmap.Height), destination, paint);
+    }
+
+
+    /// <summary>
+    /// 预加载「暂停视频后要显示的那张静态图」：海报底图 + 主题文字层合成结果写进隐藏的 <see cref="_image"/>，
+    /// 这样点暂停时 <see cref="StopVideoBackground"/> 一显示就是最终画面（D49）。
+    /// </summary>
+    private async System.Threading.Tasks.Task PreloadPausedBackgroundAsync(GameBackground background, CancellationToken token)
+    {
+        try
+        {
+            using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(3));
+            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, timeout.Token);
+            string? filePath = await _backgroundService.GetBackgroundFileAsync(background.Background.Url, linked.Token);
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                return;
+            }
+            ImageSource source = await LoadBackgroundImageAsync(filePath, background, linked.Token);
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+            // 视频已经起来了才会走到这里；此时 _image 是 Collapsed，只更新内容不显示。
+            _backgroundImageSource = source;
+            _image.Source = source;
+            _lastBackgroundFile = filePath;
+            Serilog.Log.Information("[background] paused image preloaded: {file}", filePath);
+        }
+        catch (OperationCanceledException)
+        {
+            // 正常：切走了或超时
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "[background] preload paused image failed");
+        }
     }
 
 

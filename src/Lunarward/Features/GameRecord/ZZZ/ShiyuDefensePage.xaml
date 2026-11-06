@@ -296,7 +296,7 @@
                                                        VerticalAlignment="Center"
                                                        FontFamily="{ThemeResource SegoeFluentIcons}"
                                                        FontSize="10"
-                                                       Text="&#xF08F;" />
+                                                       Text="&#xE768;" />
                                         </StackPanel>
                                         <!--  buff 详情  -->
                                         <Button.Flyout>
@@ -367,7 +367,7 @@
                                                        VerticalAlignment="Center"
                                                        FontFamily="{ThemeResource SegoeFluentIcons}"
                                                        FontSize="10"
-                                                       Text="&#xF08F;" />
+                                                       Text="&#xE768;" />
                                         </StackPanel>
                                         <Button.Flyout>
                                             <Flyout>
@@ -624,7 +624,7 @@
                                                        VerticalAlignment="Center"
                                                        FontFamily="{ThemeResource SegoeFluentIcons}"
                                                        FontSize="10"
-                                                       Text="&#xF08F;" />
+                                                       Text="&#xE768;" />
                                         </StackPanel>
                                         <Button.Flyout>
                                             <Flyout>
@@ -992,7 +992,7 @@
                                                            VerticalAlignment="Center"
                                                            FontFamily="{ThemeResource SegoeFluentIcons}"
                                                            FontSize="10"
-                                                           Text="&#xF08F;" />
+                                                           Text="&#xE768;" />
                                             </StackPanel>
                                             <!--  buff 详情  -->
                                             <Button.Flyout>
@@ -1194,7 +1194,7 @@
                                                VerticalAlignment="Center"
                                                FontFamily="{ThemeResource SegoeFluentIcons}"
                                                FontSize="10"
-                                               Text="&#xF08F;" />
+                                               Text="&#xE768;" />
                                 </StackPanel>
                                 <!--  buff 详情  -->
                                 <Button.Flyout>

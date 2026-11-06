@@ -57,7 +57,7 @@ public sealed partial class PreDownloadButton : UserControl
         else if (PointerOver && State is GameInstallState.Downloading)
         {
             // Pause Icon
-            return "\uE62E";
+            return "\uE769";
         }
         else
         {

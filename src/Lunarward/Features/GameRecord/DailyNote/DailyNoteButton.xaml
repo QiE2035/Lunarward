@@ -307,7 +307,7 @@
                                                       VerticalAlignment="Center"
                                                       FontSize="12"
                                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                      Glyph="&#xE733;"
+                                                      Glyph="&#xF140;"
                                                       Visibility="{x:Bind IsForbid}" />
                                             <ProgressRing Width="20"
                                                           Height="20"

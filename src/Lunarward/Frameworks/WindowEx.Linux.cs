@@ -26,12 +26,24 @@ public abstract partial class WindowEx : Window
         // Lunarward：Uno 的 AppWindow.Show() 只在首次调用时 map（内部 WasShown 之后就只 Activate），
         // 而 Activate() 只发 XRaiseWindow，恢复不了被隐藏/最小化的窗口（L-84）。
         // 这里用 Helpers.X11Window（libxcb）做 map + _NET_ACTIVE_WINDOW，失败再退回 Uno 的实现。
+        // Lunarward：上游各个窗口都在 InitializeWindow 里打开 ExtendsContentIntoTitleBar，指望自绘标题栏
+        // 提供拖动/关闭；Uno 的 X11 后端没有这套实现，结果是既没有 WM 装饰也没有自绘按钮 → 窗口
+        // 拖不动、也关不掉（真机复现）。这里统一交还系统标题栏（D49）。
+        try
+        {
+            AppWindow.TitleBar.ExtendsContentIntoTitleBar = false;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "disable content-into-titlebar failed");
+        }
         bool shown = Helpers.X11Window.Show(Title);
         if (!shown)
         {
             AppWindow.Show();
         }
         Activate();
+        ClampToScreenInBackground();
         // X11 后端在「窗口已存在、只是被 unmap」的情况下不会触发 Window.Activated，
         // 于是隐藏→唤回时没人发激活消息：视频壁纸停在暂停状态、其它依赖激活的动画也不恢复（实测）。
         // 这里在真正 map 成功后补发一条，语义与 MainWindow.OnWindowActivated 一致。
@@ -44,6 +56,59 @@ public abstract partial class WindowEx : Window
             });
         }
     }
+
+    /// <summary>
+    /// Lunarward：X11 下窗口可能被摆到屏幕外（Uno 的 MoveAndResize 是空操作，resize 之后没人重新摆位），
+    /// 这里在 map 之后把「大于屏幕 90% 的窗口」缩回来并居中（D49）。
+    /// </summary>
+    private void ClampToScreenInBackground()
+    {
+        _ = ClampToScreenAsync();
+    }
+
+
+    /// <summary>
+    /// Lunarward：窗口想要的初始尺寸（DIP）。上游各窗口靠 InitializeWindow/CenterInScreen 自己设尺寸，
+    /// 而 Uno 的 X11 后端在 map 之后才应用默认尺寸，这里在 map 后按 DIP×缩放补一次（L-35、D49）。
+    /// </summary>
+    protected virtual (int Width, int Height)? DefaultWindowSizeInDips => null;
+
+
+    private async System.Threading.Tasks.Task ClampToScreenAsync()
+    {
+        try
+        {
+            await System.Threading.Tasks.Task.Delay(350);
+            if (!Helpers.X11Window.TryGetScreenSize(out int screenWidth, out int screenHeight))
+            {
+                Serilog.Log.Warning("clamp: xcb_get_geometry(root) failed");
+                return;
+            }
+            if (DefaultWindowSizeInDips is (int dipWidth, int dipHeight))
+            {
+                double scale = UIScale <= 0 ? 1 : UIScale;
+                AppWindow.Resize(new SizeInt32 { Width = (int)Math.Round(dipWidth * scale), Height = (int)Math.Round(dipHeight * scale) });
+                await System.Threading.Tasks.Task.Delay(120);
+            }
+            SizeInt32 size = AppWindow.Size;
+            int maxWidth = Math.Max(400, (int)(screenWidth * 0.9));
+            int maxHeight = Math.Max(300, (int)(screenHeight * 0.9));
+            int width = Math.Min(size.Width, maxWidth);
+            int height = Math.Min(size.Height, maxHeight);
+            if (width == size.Width && height == size.Height)
+            {
+                Serilog.Log.Information("clamp: size {Width}x{Height} fits screen {ScreenWidth}x{ScreenHeight}", size.Width, size.Height, screenWidth, screenHeight);
+                return;
+            }
+            AppWindow.Resize(new SizeInt32 { Width = width, Height = height });
+            Helpers.X11Window.SetBounds(Title, Math.Max(0, (screenWidth - width) / 2), Math.Max(0, (screenHeight - height) / 2), width, height);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "clamp window to screen failed");
+        }
+    }
+
 
     public virtual void Hide()
     {

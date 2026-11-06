@@ -372,6 +372,36 @@
 
 **未做**：托盘属性不发 `PropertiesChanged`（KDE 只在建项时取一次）；Wayland 原生会话托盘仍依赖 XWayland/StatusNotifier 宿主。
 
+## D49 · 图标码位、暂停静态图与窗口底座（2026-11-06）
+
+**背景**：用户 m13072 报三个问题——「有些图标不正确（如视频背景的播放/暂停）」「暂停视频背景要等几秒才出静态图」「背景图库窗口会变大到超出屏幕、不能拖动也没有关闭按钮」，并明确要求先给原因与方案。用户 m13110：「按你建议的来」，批准 #1 走「替换码位」、#2 预加载、#3 统一窗口底座。
+
+1. **图标豆腐块（根因与 Windows 假设完全不同）**
+   - 取证：`strace -f -e trace=openat` 跑应用，启动全程**没有任何** `Assets/Font/*` 打开；Uno 实际加载的是自带的
+     `Uno.Fonts.Fluent/Fonts/uno-fluentui-assets.ttf`（family `Symbols`，1394 字形）。用它做 cmap 比对：项目 104 个图标码位里
+     `E62E E733 F012 F08F F413 F4A5` 缺失（`E62E` 正是暂停），另有 11 个是手柄页且显式用 `XboxFluent2`（可正常加载）。
+   - 为什么没走上游字体：`ms-appx:///Assets/Font/Segoe Fluent Icons.ttf`（含空格）无论原名还是 `%20` 编码都从未被打开；
+     复制成无空格别名 `FluentIcons.ttf` 后仍不加载，而同样机制下 `PhotosIcons.ttf`（无空格、显式 `FontFamily`）能加载
+     → 判定「随包字体这条路在 Uno 6.7 上不可靠」，改用 Uno 自带 Symbols 字体。
+   - 修法：把 6 个缺失码位替换成 Symbols 内的等价字形——`E62E→E769`（暂停两竖条）、`E917→E823`（时钟）、`E733→F140`（禁止符）、
+     `F012→E896`（下载箭头）、`F08F→E768`（描边播放）、`F413→E74E`（保存）、`F4A5→E734`（星形），共 10 个文件。
+   - 验证（D46）：用 fontTools 按 110px 渲染候选字形逐个目视确认形状语义，再对照 Symbols 的 cmap 确认全部存在；改后导航栏「抽卡记录」已显示星形而非方框。
+2. **暂停视频背景要等几秒**
+   - 原因：暂停只是发 `BackgroundChangedMessage`，Linux 侧 `UpdateBackgroundAsync` 先 `StopVideoBackground()` 再走静态分支：
+     海报下载（≤3s）+ 主题图下载（≤6s）+ Skia 合成，于是「等几秒才出图」。
+   - 修法：视频起播后 `PreloadPausedBackgroundAsync` 在后台预取并合成「暂停后要显示的那张图」，写入隐藏的 `_image` 与 `_lastBackgroundFile`；
+     暂停时静态分支命中 `filePath == _lastBackgroundFile` 直接返回 → 立即显示。
+3. **窗口底座（图库超屏/不能拖动/无关闭按钮）**
+   - 原因：上游 18 个窗口都开 `ExtendsContentIntoTitleBar = true` 靠自绘标题栏，Uno X11 不实现这套（L-73），结果既无 WM 装饰也无自绘按钮；
+     同时 `MoveAndResize` 是空操作，resize 后没人重新摆位。
+   - 修法：`WindowEx.Show()` 统一 `ExtendsContentIntoTitleBar = false`（交还系统标题栏）；新增 `protected virtual (int,int)? DefaultWindowSizeInDips`，
+     map 后 350ms 按 `RasterizationScale` 应用默认尺寸，再夹到「≤90% 屏幕」并居中（`X11Window.SetBounds`）；图库窗口声明 `(1200, 676)` 并删掉自带的第二次 Resize。
+   - 验证：图库窗口 `1500x845+420+185`、`_NET_FRAME_EXTENTS = 0,0,35,0`（有系统标题栏）；日志 `clamp: size 1500x845 fits screen 1920x1080`。
+
+**代价**：顶部多一条 35px 系统标题栏（D3 软差异）；图标字形与 Windows 版存在细微差别（D36 的开源字体方案仍是正式解）。
+
+**未做**：其余窗口的默认尺寸尚未逐个声明（目前只有图库）；`_NET_CLIENT_LIST` 里找不到窗口时 `X11Window.Show` 会退回 `AppWindow.Show()`（首帧创建阶段）。
+
 ## 协作约定复核（2026-11-05，来源：聊天记录）
 
 用户要求「顺便整理一下聊天记录看看还有哪些需要计入文档的」。以下是从 m00001 起到 m11348 为止所有明确要求，标注当前落点（✅ 已入文档 / 🆕 本次补入）：
