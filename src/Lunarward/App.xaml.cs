@@ -185,7 +185,41 @@ public partial class App : Application
             m_MainWindow = new MainWindow();
             m_MainWindow.Activate();
         }
+
+#if DEBUG
+        // 开发期验证强调色：LUNARWARD_DEV_ACCENT=#RRGGBB 会在启动后覆盖一次 Accent 色，
+        // 用来确认 ThemeResource 的刷新链路是否生效（发行版不含）。
+        await ApplyDevAccentAsync();
+#endif
     }
+
+
+#if DEBUG
+    private static async Task ApplyDevAccentAsync()
+    {
+        string? devAccent = Environment.GetEnvironmentVariable("LUNARWARD_DEV_ACCENT");
+        if (string.IsNullOrWhiteSpace(devAccent))
+        {
+            return;
+        }
+        try
+        {
+            await Task.Delay(1500);
+            string hex = devAccent.TrimStart('#');
+            if (hex.Length == 6 &&
+                byte.TryParse(hex[..2], System.Globalization.NumberStyles.HexNumber, null, out byte r) &&
+                byte.TryParse(hex[2..4], System.Globalization.NumberStyles.HexNumber, null, out byte g) &&
+                byte.TryParse(hex[4..], System.Globalization.NumberStyles.HexNumber, null, out byte b))
+            {
+                Starward.Helpers.AccentColorHelper.ChangeAppAccentColor(Windows.UI.Color.FromArgb(255, r, g, b));
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "apply dev accent");
+        }
+    }
+#endif
 
 
     /// <summary>启动参数 --hide 在 Linux 上的落地：先让窗口完成加载（托盘/热键），再隐藏。</summary>
@@ -297,6 +331,33 @@ public partial class App : Application
     }
 
 
+    /// <summary>
+    /// 启动 Linux 托盘，并在失败时明确告知用户「关闭窗口 = 退出」（C1）。
+    /// 没有托盘宿主的会话（例如某些纯净的 Wayland 合成器）里，把窗口藏起来就再也叫不回来。
+    /// </summary>
+    private static async Task StartTrayAsync()
+    {
+        bool available = await Features.Tray.StatusNotifierTray.StartAsync(AppConfig.GetLogger<App>());
+        if (available)
+        {
+            return;
+        }
+        Serilog.Log.Warning("系统托盘不可用：后续关闭窗口将直接退出应用");
+        for (int i = 0; i < 40; i++)
+        {
+            await Task.Delay(250);
+            MainWindow? window = Features.ViewHost.MainWindow.Current;
+            if (window is not null)
+            {
+                window.DispatcherQueue.TryEnqueue(() =>
+                    Helpers.InAppToast.MainWindow?.Warning(
+                        "当前桌面没有系统托盘，关闭窗口会直接退出应用。", null, 8000));
+                return;
+            }
+        }
+    }
+
+
     public void EnsureSystemTray()
     {
         // Lunarward：Linux 托盘走 org.kde.StatusNotifierItem（StatusNotifierTray），
@@ -304,7 +365,7 @@ public partial class App : Application
         // 会卡住主窗口初始化，见 docs/linux-port/12-shims-and-gaps.md）。
         if (!OperatingSystem.IsWindows())
         {
-            _ = Features.Tray.StatusNotifierTray.StartAsync(AppConfig.GetLogger<App>());
+            _ = StartTrayAsync();
             // 退出时摘掉 D-Bus 注册，否则托盘区会留一个点不动的死图标（L-62）
             AppDomain.CurrentDomain.ProcessExit += (_, _) => Features.Tray.StatusNotifierTray.Stop();
             return;

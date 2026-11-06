@@ -229,12 +229,15 @@ public static class StatusNotifierTray
 
     public static bool IsRunning => _connection is not null;
 
-    /// <summary>启动托盘。失败只记录日志，不影响主窗口（托盘是增强项）。</summary>
-    public static async Task StartAsync(ILogger? logger = null)
+    /// <summary>托盘是否真的注册成功（决定了「关闭窗口」能不能安全地降级成隐藏到托盘）。</summary>
+    public static bool Available { get; private set; }
+
+    /// <summary>启动托盘。失败只记录日志并返回 false，不影响主窗口（托盘是增强项）。</summary>
+    public static async Task<bool> StartAsync(ILogger? logger = null)
     {
         if (_connection is not null)
         {
-            return;
+            return Available;
         }
         try
         {
@@ -250,11 +253,15 @@ public static class StatusNotifierTray
             await watcher.RegisterStatusNotifierItemAsync(serviceName);
             _connection = connection;
             _serviceName = serviceName;
+            Available = true;
             logger?.LogInformation("托盘已注册：{Service}", serviceName);
+            return true;
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "托盘注册失败（非致命）");
+            Available = false;
+            logger?.LogWarning(ex, "托盘注册失败（非致命）：没有 StatusNotifierHost 时关闭窗口将直接退出");
+            return false;
         }
     }
 
@@ -272,6 +279,7 @@ public static class StatusNotifierTray
         catch { }
         _connection = null;
         _serviceName = null;
+        Available = false;
     }
 
 

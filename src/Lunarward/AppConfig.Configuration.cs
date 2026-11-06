@@ -175,19 +175,25 @@ public static partial class AppConfig
     {
         try
         {
+            CultureInfo culture;
             if (!string.IsNullOrWhiteSpace(lang))
             {
-                var info = new CultureInfo(lang);
-                CultureInfo.CurrentUICulture = info;
-                CultureInfo.DefaultThreadCurrentUICulture = info;
+                culture = new CultureInfo(lang);
                 Language = lang;
             }
             else
             {
-                CultureInfo.CurrentUICulture = CultureInfo.InstalledUICulture;
-                CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InstalledUICulture;
+                culture = CultureInfo.InstalledUICulture;
                 Language = null;
             }
+            CultureInfo.CurrentUICulture = culture;
+            CultureInfo.DefaultThreadCurrentUICulture = culture;
+            // Uno 的界面线程在 SetLanguage 之前就已创建，只改 CurrentUICulture 不会影响它
+            // （实测：config.json 里写 de-DE 仍是中文，改用 LANG=de_DE 才变德文）。
+            // Lang 的属性显式传入 resourceCulture，给它一个固定 culture 就能跨线程生效。
+            Starward.Language.Lang.Culture = culture;
+            Starward.Core.Localization.CoreLang.Culture = culture;
+            Serilog.Log.Information("UI language: {culture} (setting: {setting})", culture.Name, Language ?? "(system)");
         }
         catch { }
     }

@@ -171,8 +171,15 @@ public sealed partial class MainWindow : WindowEx
     {
         try
         {
-            args.Cancel = true;
             MainWindowCloseOption option = AppConfig.CloseWindowOption;
+            // C1：配置是「隐藏到托盘」但没有可用的托盘宿主时，隐藏就等于把自己关进笼子
+            //（只能靠 `lunarward --show` 捞回来）。这种情况下让窗口正常关闭、进程随之退出。
+            if (option is MainWindowCloseOption.Hide && !Features.Tray.StatusNotifierTray.Available)
+            {
+                Serilog.Log.Warning("关闭窗口：托盘不可用，隐藏会无法唤回，改为直接退出");
+                return;
+            }
+            args.Cancel = true;
             if (option is not MainWindowCloseOption.Hide and not MainWindowCloseOption.Exit)
             {
                 var dialog = new MainWindowCloseDialog

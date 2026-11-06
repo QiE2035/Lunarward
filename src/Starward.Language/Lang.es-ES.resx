@@ -2792,4 +2792,265 @@ Puede enviar los datos exportados al siguiente repositorio:</value>
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>Las estadísticas se basan en el tiempo de ejecución del juego, no en el tiempo de juego real, y solo sirven como referencia.</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_Title" xml:space="preserve">
+    <value>Entorno de ejecución</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
+    <value>Un perfil es un ejecutor, un prefix de Wine y los componentes gráficos. Cada juego puede asociarse a un perfil.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
+    <value>Nuevo perfil</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
+    <value>Abrir consola de depuración</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
+    <value>Clonar</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Components" xml:space="preserve">
+    <value>Componentes detectados</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ImportGraphics" xml:space="preserve">
+    <value>Importar gráficos…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
+    <value>Instalar en el prefix…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
+    <value>Plantillas de prefix</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
+    <value>Aún no hay plantillas. Puedes crear una al editar un perfil.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
+    <value>Instalado</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
+    <value>No instalado</value>
+  </data>
+  <data name="Lunarward_Editor_Title" xml:space="preserve">
+    <value>Perfil</value>
+  </data>
+  <data name="Lunarward_Editor_UseDetectedRunner" xml:space="preserve">
+    <value>Elegir entre los ejecutores detectados</value>
+  </data>
+  <data name="Lunarward_Editor_PrefixMode" xml:space="preserve">
+    <value>Modo de prefix</value>
+  </data>
+  <data name="Lunarward_Editor_Shell" xml:space="preserve">
+    <value>Consola de depuración</value>
+  </data>
+  <data name="Lunarward_Editor_Env" xml:space="preserve">
+    <value>Variables de entorno adicionales (una KEY=VALUE por línea)</value>
+  </data>
+  <data name="Lunarward_Editor_Graphics" xml:space="preserve">
+    <value>Gráficos</value>
+  </data>
+  <data name="Lunarward_Editor_KeepPrefixGraphics" xml:space="preserve">
+    <value>Mantener lo que ya tiene el prefix</value>
+  </data>
+  <data name="Lunarward_Editor_EnsureGraphics" xml:space="preserve">
+    <value>Asegurar los componentes antes de iniciar</value>
+  </data>
+  <data name="Lunarward_Companion_Section" xml:space="preserve">
+    <value>Programas posteriores al inicio</value>
+  </data>
+  <data name="Lunarward_Companion_Description" xml:space="preserve">
+    <value>Utilidades que se inician después de que el juego arranque o termine. El inicio acompañado está desactivado por defecto y pide confirmación.</value>
+  </data>
+  <data name="Lunarward_Companion_Add" xml:space="preserve">
+    <value>Añadir</value>
+  </data>
+  <data name="Lunarward_Companion_OpenFolder" xml:space="preserve">
+    <value>Abrir carpeta de configuración</value>
+  </data>
+  <data name="Lunarward_Companion_Empty" xml:space="preserve">
+    <value>Aún no hay programas posteriores al inicio.</value>
+  </data>
+  <data name="Lunarward_Companion_LaunchNow" xml:space="preserve">
+    <value>Iniciar ahora</value>
+  </data>
+  <data name="Lunarward_Companion_Trigger" xml:space="preserve">
+    <value>Disparador</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterStart" xml:space="preserve">
+    <value>Después de iniciar el juego</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterDelay" xml:space="preserve">
+    <value>Tras un retardo</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerOnExit" xml:space="preserve">
+    <value>Después de cerrar el juego</value>
+  </data>
+  <data name="Lunarward_Companion_Delay" xml:space="preserve">
+    <value>Retardo (ms)</value>
+  </data>
+  <data name="Lunarward_Preflight_Title" xml:space="preserve">
+    <value>No se puede iniciar: algunas comprobaciones fallaron</value>
+  </data>
+  <data name="Lunarward_Preflight_OK" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Lunarward_Output_Title" xml:space="preserve">
+    <value>Salida de ejecución</value>
+  </data>
+  <data name="Lunarward_Output_OpenFolder" xml:space="preserve">
+    <value>Abrir carpeta de registros</value>
+  </data>
+  <data name="Lunarward_Screenshot_Selected" xml:space="preserve">
+    <value>Seleccionadas</value>
+  </data>
+  <data name="Lunarward_Screenshot_Total" xml:space="preserve">
+    <value>Total</value>
+  </data>
+  <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
+    <value>Mostrar en la carpeta</value>
+  </data>
+  <data name="Lunarward_Login_Title" xml:space="preserve">
+    <value>Iniciar sesión en una ventana aparte</value>
+  </data>
+  <data name="Lunarward_Login_Description" xml:space="preserve">
+    <value>Lunarward abre la página de inicio de sesión de miHoYo o HoYoLAB con WebKit del sistema y luego recupera las cookies.</value>
+  </data>
+  <data name="Lunarward_Login_Open" xml:space="preserve">
+    <value>Abrir ventana de inicio de sesión</value>
+  </data>
+  <data name="Lunarward_Profiles_Empty" xml:space="preserve">
+    <value>Aún no hay perfiles.</value>
+  </data>
+  <data name="Lunarward_Components_Empty" xml:space="preserve">
+    <value>No se detectaron ejecutores ni componentes gráficos.</value>
+  </data>
+  <data name="Lunarward_Template_Create" xml:space="preserve">
+    <value>Guardar este prefix como plantilla…</value>
+  </data>
+  <data name="Lunarward_Template_Use" xml:space="preserve">
+    <value>Crear perfil a partir de ella</value>
+  </data>
+  <data name="Lunarward_Clone_Result" xml:space="preserve">
+    <value>Clonado como «{0}».</value>
+  </data>
+  <data name="Lunarward_Delete_Result" xml:space="preserve">
+    <value>«{0}» eliminado.</value>
+  </data>
+  <data name="Lunarward_Shell_Opened" xml:space="preserve">
+    <value>Consola de depuración abierta para «{0}».</value>
+  </data>
+  <data name="Lunarward_Shell_NoTerminal" xml:space="preserve">
+    <value>No se encontró ningún emulador de terminal (konsole/kitty/alacritty/wezterm/gnome-terminal/xterm).</value>
+  </data>
+  <data name="Lunarward_Filter_AllFiles" xml:space="preserve">
+    <value>Todos los archivos</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Template" xml:space="preserve">
+    <value>Clon de plantilla (predeterminado)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Dedicated" xml:space="preserve">
+    <value>Dedicado</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Shared" xml:space="preserve">
+    <value>Compartido</value>
+  </data>
+  <data name="Lunarward_PrefixMode_External" xml:space="preserve">
+    <value>Externo (usar tal cual)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Ephemeral" xml:space="preserve">
+    <value>Efímero (se rehace cada vez)</value>
+  </data>
+  <data name="Lunarward_Graphics_KeepExisting" xml:space="preserve">
+    <value>Mantener lo que ya tiene el prefix</value>
+  </data>
+  <data name="Lunarward_Toast_Imported" xml:space="preserve">
+    <value>{0} «{1}» importado.</value>
+  </data>
+  <data name="Lunarward_Field_Name" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="Lunarward_Field_Path" xml:space="preserve">
+    <value>Ruta</value>
+  </data>
+  <data name="Lunarward_Field_Arguments" xml:space="preserve">
+    <value>Argumentos</value>
+  </data>
+  <data name="Lunarward_Companion_On" xml:space="preserve">
+    <value>Inicio acompañado</value>
+  </data>
+  <data name="Lunarward_Companion_OnText" xml:space="preserve">
+    <value>Inicio acompañado: activado</value>
+  </data>
+  <data name="Lunarward_Companion_OffText" xml:space="preserve">
+    <value>Inicio acompañado: desactivado</value>
+  </data>
+  <data name="Lunarward_Companion_DisabledText" xml:space="preserve">
+    <value>Deshabilitado</value>
+  </data>
+  <data name="Lunarward_Launch_Failed" xml:space="preserve">
+    <value>Error al iniciar:</value>
+  </data>
+  <data name="Lunarward_Output_View" xml:space="preserve">
+    <value>Ver la salida reciente…</value>
+  </data>
+  <data name="Lunarward_Output_Empty" xml:space="preserve">
+    <value>Aún no hay salida.</value>
+  </data>
+  <data name="Lunarward_Screenshot_Count" xml:space="preserve">
+    <value>Total {0}</value>
+  </data>
+  <data name="Lunarward_Screenshot_SelectedCount" xml:space="preserve">
+    <value>{0} de {1} seleccionadas</value>
+  </data>
+  <data name="Lunarward_Viewer_Prev" xml:space="preserve">
+    <value>Anterior</value>
+  </data>
+  <data name="Lunarward_Viewer_Next" xml:space="preserve">
+    <value>Siguiente</value>
+  </data>
+  <data name="Lunarward_Viewer_Close" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="Lunarward_Companion_EditNew" xml:space="preserve">
+    <value>Nuevo programa posterior al inicio</value>
+  </data>
+  <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
+    <value>Editar programa posterior al inicio</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
+    <value>Plantillas de prefix</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
+    <value>Los ejecutores y los gráficos (DXVK / VKD3D) se buscan en las carpetas del sistema, en Steam y en ~/.local/share/lunarward/components. El lanzador no descarga nada automáticamente.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
+    <value>Aún no hay plantillas. En cualquier perfil usa «Guardar este prefix como plantilla…» para guardar un prefix preparado.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
+    <value>template / ephemeral clonan el prefix (reflink en el mismo volumen, 650 MB en menos de 0,2 s); external usa la carpeta indicada tal cual.</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
+    <value>Predeterminado ({0})</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultNameNoWine" xml:space="preserve">
+    <value>Predeterminado (no se detectó Wine)</value>
+  </data>
+  <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
+    <value>No se pudo obtener la información de versión (error de red o de la API).</value>
+  </data>
+  <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
+    <value>Manifiesto no disponible: </value>
+  </data>
+  <data name="Lunarward_Error_InstallFailed" xml:space="preserve">
+    <value>Error de descarga: </value>
+  </data>
+  <data name="Lunarward_Error_LaunchFailed" xml:space="preserve">
+    <value>Error al iniciar: </value>
+  </data>
+  <data name="Lunarward_Error_InstallDirInvalid" xml:space="preserve">
+    <value>La carpeta de instalación no es válida.</value>
+  </data>
+  <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
+    <value>Este prefix está en uso: </value>
+  </data>
+  <data name="PlayTimeStatsDialog_Total" xml:space="preserve">
+    <value>Total</value>
+  </data>
 </root>

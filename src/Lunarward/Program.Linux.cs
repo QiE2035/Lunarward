@@ -40,7 +40,7 @@ internal class LunarwardProgram
         // 截图捕获自检（D31）：`lunarward --capture-test`，打印落盘路径。
         if (args.Length >= 1 && args[0] is "--capture-test")
         {
-            string? file = Features.Screenshot.ScreenCaptureLinux.CaptureAsync().GetAwaiter().GetResult();
+            string? file = Features.Screenshot.ScreenCaptureLinux.CaptureAsync(notify: false).GetAwaiter().GetResult();
             Console.WriteLine(file is null ? "截图失败：没有可用的截图工具" : file);
             return;
         }

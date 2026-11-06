@@ -496,6 +496,14 @@ public partial class GameInstallService
             context.State = GameInstallState.Finish;
             Serilog.Log.Information("Game install finished: {game} {op} files={downloaded} skipped={skipped} bytes={bytes} in {ms} ms",
                                     context.GameId.GameBiz, context.Operation, result.Downloaded, result.Skipped, result.TotalBytes, stopwatch.ElapsedMilliseconds);
+            // C4：窗口可能被收进托盘或在后台，桌面通知让用户知道跑完了。
+            Helpers.DesktopNotification.Show(context.Operation switch
+            {
+                GameInstallOperation.Install => "安装完成",
+                GameInstallOperation.Predownload => "预下载完成",
+                GameInstallOperation.Repair => "修复完成",
+                _ => "更新完成",
+            }, $"{context.GameId.GameBiz} 已处理完成");
         }
         catch (OperationCanceledException)
         {
@@ -506,6 +514,7 @@ public partial class GameInstallService
             context.State = GameInstallState.Error;
             context.ErrorMessage = $"{ex.GetType().Name}: {ex.Message}";
             Serilog.Log.Error(ex, "Game install failed: {game}", context.GameId.GameBiz);
+            Helpers.DesktopNotification.Show("安装/更新失败", $"{context.GameId.GameBiz}：{ex.Message}");
         }
         finally
         {

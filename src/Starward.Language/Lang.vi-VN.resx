@@ -2792,4 +2792,262 @@ Bạn có chấp nhận rủi ro và tiếp tục?</value>
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>Thống kê dựa trên thời gian chạy của trò chơi, không phải thời gian chơi thực tế, và chỉ mang tính chất tham khảo.</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_Title" xml:space="preserve">
+    <value>Môi trường chạy</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
+    <value>Một profile gồm trình chạy, prefix Wine và các thành phần đồ họa. Mỗi game có thể gắn với một profile.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
+    <value>Profile mới</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
+    <value>Mở shell gỡ lỗi</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
+    <value>Nhân bản</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Components" xml:space="preserve">
+    <value>Thành phần phát hiện được</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ImportGraphics" xml:space="preserve">
+    <value>Nhập đồ họa…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
+    <value>Cài vào prefix…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
+    <value>Mẫu prefix</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
+    <value>Chưa có mẫu nào. Có thể tạo khi sửa một profile.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
+    <value>Đã cài</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
+    <value>Chưa cài</value>
+  </data>
+  <data name="Lunarward_Editor_Title" xml:space="preserve">
+    <value>Profile</value>
+  </data>
+  <data name="Lunarward_Editor_UseDetectedRunner" xml:space="preserve">
+    <value>Chọn từ các trình chạy đã phát hiện</value>
+  </data>
+  <data name="Lunarward_Editor_PrefixMode" xml:space="preserve">
+    <value>Chế độ prefix</value>
+  </data>
+  <data name="Lunarward_Editor_Shell" xml:space="preserve">
+    <value>Shell gỡ lỗi</value>
+  </data>
+  <data name="Lunarward_Editor_Env" xml:space="preserve">
+    <value>Biến môi trường bổ sung (mỗi dòng một KEY=VALUE)</value>
+  </data>
+  <data name="Lunarward_Editor_Graphics" xml:space="preserve">
+    <value>Đồ họa</value>
+  </data>
+  <data name="Lunarward_Editor_KeepPrefixGraphics" xml:space="preserve">
+    <value>Giữ nguyên những gì prefix đã có</value>
+  </data>
+  <data name="Lunarward_Editor_EnsureGraphics" xml:space="preserve">
+    <value>Bảo đảm thành phần trước khi khởi chạy</value>
+  </data>
+  <data name="Lunarward_Companion_Section" xml:space="preserve">
+    <value>Chương trình sau khi khởi chạy</value>
+  </data>
+  <data name="Lunarward_Companion_Description" xml:space="preserve">
+    <value>Công cụ được khởi chạy sau khi game bắt đầu hoặc kết thúc. Khởi chạy đồng hành mặc định tắt và sẽ hỏi xác nhận.</value>
+  </data>
+  <data name="Lunarward_Companion_Add" xml:space="preserve">
+    <value>Thêm</value>
+  </data>
+  <data name="Lunarward_Companion_OpenFolder" xml:space="preserve">
+    <value>Mở thư mục cấu hình</value>
+  </data>
+  <data name="Lunarward_Companion_Empty" xml:space="preserve">
+    <value>Chưa có chương trình sau khi khởi chạy.</value>
+  </data>
+  <data name="Lunarward_Companion_LaunchNow" xml:space="preserve">
+    <value>Chạy ngay</value>
+  </data>
+  <data name="Lunarward_Companion_Trigger" xml:space="preserve">
+    <value>Kích hoạt</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterStart" xml:space="preserve">
+    <value>Sau khi game bắt đầu</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterDelay" xml:space="preserve">
+    <value>Sau một khoảng trễ</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerOnExit" xml:space="preserve">
+    <value>Sau khi game kết thúc</value>
+  </data>
+  <data name="Lunarward_Companion_Delay" xml:space="preserve">
+    <value>Độ trễ (ms)</value>
+  </data>
+  <data name="Lunarward_Preflight_Title" xml:space="preserve">
+    <value>Không thể khởi chạy: một số bước kiểm tra không đạt</value>
+  </data>
+  <data name="Lunarward_Preflight_OK" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Lunarward_Output_Title" xml:space="preserve">
+    <value>Đầu ra khi chạy</value>
+  </data>
+  <data name="Lunarward_Output_OpenFolder" xml:space="preserve">
+    <value>Mở thư mục nhật ký</value>
+  </data>
+  <data name="Lunarward_Screenshot_Selected" xml:space="preserve">
+    <value>Đã chọn</value>
+  </data>
+  <data name="Lunarward_Screenshot_Total" xml:space="preserve">
+    <value>Tổng</value>
+  </data>
+  <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
+    <value>Hiện trong thư mục</value>
+  </data>
+  <data name="Lunarward_Login_Title" xml:space="preserve">
+    <value>Đăng nhập qua cửa sổ riêng</value>
+  </data>
+  <data name="Lunarward_Login_Description" xml:space="preserve">
+    <value>Lunarward mở trang đăng nhập miHoYo hoặc HoYoLAB bằng WebKit hệ thống, sau đó lấy lại cookie.</value>
+  </data>
+  <data name="Lunarward_Login_Open" xml:space="preserve">
+    <value>Mở cửa sổ đăng nhập</value>
+  </data>
+  <data name="Lunarward_Profiles_Empty" xml:space="preserve">
+    <value>Chưa có profile nào.</value>
+  </data>
+  <data name="Lunarward_Components_Empty" xml:space="preserve">
+    <value>Không phát hiện trình chạy hay thành phần đồ họa nào.</value>
+  </data>
+  <data name="Lunarward_Template_Create" xml:space="preserve">
+    <value>Lưu prefix này làm mẫu…</value>
+  </data>
+  <data name="Lunarward_Template_Use" xml:space="preserve">
+    <value>Tạo profile từ mẫu này</value>
+  </data>
+  <data name="Lunarward_Clone_Result" xml:space="preserve">
+    <value>Đã nhân bản thành “{0}”.</value>
+  </data>
+  <data name="Lunarward_Delete_Result" xml:space="preserve">
+    <value>Đã xóa “{0}”.</value>
+  </data>
+  <data name="Lunarward_Shell_Opened" xml:space="preserve">
+    <value>Đã mở shell gỡ lỗi cho “{0}”.</value>
+  </data>
+  <data name="Lunarward_Shell_NoTerminal" xml:space="preserve">
+    <value>Không tìm thấy trình giả lập terminal (konsole/kitty/alacritty/wezterm/gnome-terminal/xterm).</value>
+  </data>
+  <data name="Lunarward_Filter_AllFiles" xml:space="preserve">
+    <value>Tất cả tệp</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Template" xml:space="preserve">
+    <value>Bản sao từ mẫu (mặc định)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Dedicated" xml:space="preserve">
+    <value>Riêng</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Shared" xml:space="preserve">
+    <value>Dùng chung</value>
+  </data>
+  <data name="Lunarward_PrefixMode_External" xml:space="preserve">
+    <value>Bên ngoài (dùng nguyên trạng)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Ephemeral" xml:space="preserve">
+    <value>Tạm thời (tạo lại mỗi lần)</value>
+  </data>
+  <data name="Lunarward_Graphics_KeepExisting" xml:space="preserve">
+    <value>Giữ nguyên những gì prefix đã có</value>
+  </data>
+  <data name="Lunarward_Toast_Imported" xml:space="preserve">
+    <value>Đã nhập {0} “{1}”.</value>
+  </data>
+  <data name="Lunarward_Field_Name" xml:space="preserve">
+    <value>Tên</value>
+  </data>
+  <data name="Lunarward_Field_Path" xml:space="preserve">
+    <value>Đường dẫn</value>
+  </data>
+  <data name="Lunarward_Field_Arguments" xml:space="preserve">
+    <value>Đối số</value>
+  </data>
+  <data name="Lunarward_Companion_On" xml:space="preserve">
+    <value>Khởi chạy đồng hành</value>
+  </data>
+  <data name="Lunarward_Companion_OnText" xml:space="preserve">
+    <value>Khởi chạy đồng hành: bật</value>
+  </data>
+  <data name="Lunarward_Companion_OffText" xml:space="preserve">
+    <value>Khởi chạy đồng hành: tắt</value>
+  </data>
+  <data name="Lunarward_Companion_DisabledText" xml:space="preserve">
+    <value>Đã tắt</value>
+  </data>
+  <data name="Lunarward_Launch_Failed" xml:space="preserve">
+    <value>Khởi chạy thất bại:</value>
+  </data>
+  <data name="Lunarward_Output_View" xml:space="preserve">
+    <value>Xem đầu ra gần đây…</value>
+  </data>
+  <data name="Lunarward_Output_Empty" xml:space="preserve">
+    <value>Chưa có đầu ra.</value>
+  </data>
+  <data name="Lunarward_Screenshot_Count" xml:space="preserve">
+    <value>Tổng {0}</value>
+  </data>
+  <data name="Lunarward_Screenshot_SelectedCount" xml:space="preserve">
+    <value>Đã chọn {0} / {1}</value>
+  </data>
+  <data name="Lunarward_Viewer_Prev" xml:space="preserve">
+    <value>Trước</value>
+  </data>
+  <data name="Lunarward_Viewer_Next" xml:space="preserve">
+    <value>Tiếp</value>
+  </data>
+  <data name="Lunarward_Viewer_Close" xml:space="preserve">
+    <value>Đóng</value>
+  </data>
+  <data name="Lunarward_Companion_EditNew" xml:space="preserve">
+    <value>Chương trình sau khi khởi chạy mới</value>
+  </data>
+  <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
+    <value>Sửa chương trình sau khi khởi chạy</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
+    <value>Mẫu prefix</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
+    <value>Trình chạy và đồ họa (DXVK / VKD3D) được tìm trong thư mục hệ thống, Steam và ~/.local/share/lunarward/components. Trình khởi chạy không tự tải xuống bất cứ thứ gì.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
+    <value>Chưa có mẫu nào. Trong bất kỳ profile nào, dùng “Lưu prefix này làm mẫu…” để lưu một prefix đã chuẩn bị.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
+    <value>template / ephemeral sẽ nhân bản prefix (reflink trên cùng ổ đĩa, 650 MB trong dưới 0,2 giây); external dùng nguyên thư mục được chỉ định.</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
+    <value>Mặc định ({0})</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultNameNoWine" xml:space="preserve">
+    <value>Mặc định (không phát hiện Wine)</value>
+  </data>
+  <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
+    <value>Không lấy được thông tin phiên bản (lỗi mạng hoặc API).</value>
+  </data>
+  <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
+    <value>Không có manifest: </value>
+  </data>
+  <data name="Lunarward_Error_InstallFailed" xml:space="preserve">
+    <value>Tải xuống thất bại: </value>
+  </data>
+  <data name="Lunarward_Error_LaunchFailed" xml:space="preserve">
+    <value>Khởi chạy thất bại: </value>
+  </data>
+  <data name="Lunarward_Error_InstallDirInvalid" xml:space="preserve">
+    <value>Thư mục cài đặt không hợp lệ.</value>
+  </data>
+  <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
+    <value>Prefix này đang được dùng: </value>
+  </data>
 </root>

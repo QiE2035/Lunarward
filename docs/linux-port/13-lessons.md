@@ -747,3 +747,33 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 - **教训**：①「图标显示错」先别猜主题/字体族，直接 strace 看**实际加载了哪个 ttf**；②fontTools 可以离线渲染任意码位确认形状，比在 UI 里逐个撞快得多；
   ③Uno 的字体加载对含空格路径静默失败，没有任何日志——这类失败只能靠系统调用层取证。
 
+
+### L-89 · 强调色写在 ThemeDictionary 里，只改 `Application.Resources` 不生效
+
+- **现象**：切换游戏后界面配色不变，右下主按钮一直是 `#CBAD8E`；日志显示取色成功、写资源也没报错。
+- **证据**：`App.xaml` 的 `SystemAccentColor*` 放在 `<ResourceDictionary.ThemeDictionaries>` 的 `Light`/`Dark` 里；
+  主题字典的查找优先级高于应用级 `Resources`，所以 `Application.Current.Resources["SystemAccentColor"] = color` 对任何
+  `{ThemeResource SystemAccentColor}` 都不起作用。
+- **修法**：同时写应用级 `Resources` 与四个主题字典（`Light`/`Dark`/`Default`/`HighContrast`），再发消息让主窗口翻转 `RequestedTheme` 重刷。
+- **附带坑**：取色跑在线程池，但写资源必须在 UI 线程；在 `Task.Run` 里调 `DispatcherQueue.GetForCurrentThread()` 得到的是 null，
+  结果在后台线程改 Resources——资源变了、界面不重绘。正确做法是**在调用方（UI 线程）先取好 dispatcher**再传进去。
+- **教训**：Uno/WinUI 的 `ThemeResource` 解析有明确的优先级链，改资源前先确认「这个名字到底在哪一层定义」。
+
+### L-90 · 语言设置不生效：`CurrentUICulture` 改不到已经建好的界面线程
+
+- **现象**：`config.json` 里 `Language=de-DE` 重启后界面仍是中文；把系统 `LANG` 改成 `de_DE.UTF-8` 启动却是德文。
+- **原因**：`AppConfig.SetLanguage` 只设了 `CultureInfo.CurrentUICulture` 与 `DefaultThreadCurrentUICulture`；
+  `DefaultThreadCurrentUICulture` 只影响**之后新建**的线程，而 Uno 的界面线程早已创建。
+  `Lang` 的属性调 `ResourceManager.GetString(name, resourceCulture)`，`resourceCulture` 为 null 时读的是当前线程的 culture。
+- **修法**：给 `Starward.Language.Lang.Culture` 与 `Starward.Core.Localization.CoreLang.Culture` 显式赋值（跨线程生效），
+  两个资源类都要设，否则界面文案变了、`CoreLang` 里的活动/公告/资讯标题还是旧语言。
+- **教训**：i18n 的两条链路（UI 资源类 + Core 资源类）都要覆盖；验证时用「改配置 + 系统语言保持 zh_CN」这种最贴近用户的组合，
+  只测 `LANG=de_DE` 会把问题掩盖掉。
+
+### L-91 · 托盘不可用时「关闭 = 隐藏」= 关不掉的窗口
+
+- **现象**：没有 StatusNotifierHost 的桌面上，点 X 窗口消失、进程还在，用户只能去任务管理器杀。
+- **原因**：`CloseWindowOption` 默认 `Hide`，而 `StatusNotifierTray.StartAsync` 的失败被 `_ =` 丢弃，没人知道托盘没起来。
+- **修法**：`StartAsync` 返回 bool + `Available` 静态属性；启动失败弹一次提示；`AppWindow_Closing` 在「要隐藏但托盘不可用」时
+  不拦截关闭，让进程跟着窗口退出。
+- **教训**：任何「隐藏到托盘」的语义都必须有「托盘不可用」的降级路径，否则在精简桌面（无托盘 host）上就是死锁体验。

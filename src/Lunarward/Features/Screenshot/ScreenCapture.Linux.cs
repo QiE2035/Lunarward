@@ -45,7 +45,7 @@ public static class ScreenCaptureLinux
     }
 
 
-    public static async Task<string?> CaptureAsync(string? folder = null, CancellationToken cancellation = default)
+    public static async Task<string?> CaptureAsync(string? folder = null, bool notify = true, CancellationToken cancellation = default)
     {
         folder = string.IsNullOrWhiteSpace(folder) ? DefaultFolder : folder;
         try
@@ -71,6 +71,11 @@ public static class ScreenCaptureLinux
             if (await TryRunAsync(exe, args, cancellation) && File.Exists(file) && new FileInfo(file).Length > 0)
             {
                 Serilog.Log.Information("截图完成：{file}", file);
+                if (notify)
+                {
+                    // C4：热键截图时窗口通常被游戏盖住，桌面通知是唯一能确认「截到了」的反馈。
+                    Helpers.DesktopNotification.Show("截图已保存", Path.GetFileName(file), "lunarward", 4000);
+                }
                 return file;
             }
             TryDelete(file);

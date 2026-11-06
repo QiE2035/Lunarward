@@ -48,7 +48,7 @@
 | 抽卡记录 | 🟡 | 页面与导出可用；真实数据未验证 | 待用户 |
 | 截图 | ✅ | Alt+D 捕获、图库、多选、批量转 JPG、查看器 | HDR 色彩管理 ⬜ M4 |
 | 壁纸 | ✅ | 静态图 + 视频（LibVLC，缺库自动回退静态） | — |
-| 托盘 | 🟡 | StatusNotifierItem 注册、`Properties.GetAll`、DBusMenu 菜单、点击唤回均可用（D48/L-85）；面板图标观感待目视 | 托盘属性不发 `PropertiesChanged` |
+| 托盘 | ✅ | StatusNotifierItem 注册、`Properties.GetAll`、DBusMenu 菜单（用户已确认右键可用）、点击唤回、托盘不可用时关闭=退出（D48/D50、L-85/L-91） | 托盘属性不发 `PropertiesChanged` |
 | 全局热键 | 🟡 | X11 轮询；Wayland 原生不可用；唤回依赖 `xdotool` | M4 |
 | URL 协议 / 单实例 | ✅ | `lunarward://` + socket 转发（show/exit/startgame） | — |
 | 自更新 | 🟡 | 查 AUR 版本；不下载替换 | M4 |
@@ -58,7 +58,7 @@
 | RPC 服务 | ⬜ | 恒「未运行」 | M4 |
 | 云游戏 / 战绩 / BBS 桥 | ⬜ | 占位 | M4 |
 | 打包分发 | ✅ / 🟡 | `PKGBUILD` 出包并跑通；AppImage 脚本就绪缺 `appimagetool` | — |
-| i18n | 🟡 | 新增文案已进 resx（`Lang.Lunarward_*`，74 键）；已译 **en / zh-CN / zh-TW / zh-HK / ja / ko**，de/es/it/ru/th/vi 回退英文 | 其余 6 语言待译 |
+| i18n | 🟢 | 11 个语言文件与 `Lang.resx` 的 965 键完全一致（86 条 Lunarward 文案已译 de/es/it/ru/th/vi）；语言设置现真正生效（D50/L-90） | `--preflight` 等 CLI 输出仍为中文硬编码 |
 
 ---
 
@@ -115,6 +115,8 @@
 | 文件 | 覆盖的类型 | 状态 | 说明 |
 |---|---|---|---|
 | `Compat/VanaraHotkeyCompat.cs` | `Win32Error` / `HotKeyModifiers` / `VK` | 🟡 | 只补常量与 `Succeeded/Failed`；真正注册在 `HotkeyManager.Linux.cs` |
+| 桌面通知 | ✅ | `Helpers/DesktopNotification.cs`（`notify-send` → `gdbus Notify` 兜底）；安装/预下载/修复/更新、截图保存各发一条（D50） | 无通知服务时静默跳过 |
+| 强调色 | 🟡 | 按背景/海报取主色写主题字典并刷新（D50/L-89） | Windows 上还染标题栏/边框（DWM），Linux 交给 WM（D47） |
 | `Compat/NotifyIcon/TaskbarIconCompat.cs` | `H.NotifyIcon.TaskbarIcon` | ⬜ | 占位；真实托盘是 `Features/Tray/StatusNotifierTray.cs` |
 | `Controls/ImageExCompat.cs` | `Scighost.WinUI.ImageEx.ImageEx` | 🟡 | 写成 `Control`（上游有 ControlTemplate），按状态切 `Loading/Loaded/Failed/Unloaded` |
 | `Controls/Win2DCompat.cs` | `CanvasSwapChainPanel` | ⬜ | 空 `Panel`，不画任何内容 |
@@ -225,6 +227,7 @@
 | 2026-11-03 | **全表校准**：按代码实测重写（33 个 `*.Linux.cs`、8 个 `*.LinuxAuto.cs`、55 条排除）；修正过时状态（视频壁纸、URL 协议、截图图库/查看器、更新检查、AssemblyVersion）；新增总览表、新增模块表、XAML 差异表（7 处）、CLI 清单；去掉重复的「更新：…」附录，合并到对应功能域 |
 | 2026-11-05 | D44 加固：原子写（`JsonFile`）、预检只读 + key 统一、安装目录/空间校验、前缀清理挂 wine 会话、单实例回调回 UI 线程、playtime 按 pid 去重、CLI 失败退出码、日志与临时文件保留策略、截图设置页实装 |
 | 2026-11-05 | D45 CI 只验证 Linux 侧：删除上游 6 个 Windows 工作流，新增 `.github/workflows/linux.yml`（Release 需先 `restore -p:Configuration=Release`，见 L-82） |
+| 2026-11-06 | D50：托盘不可用时关闭=退出、桌面通知、6 语言补齐与语言设置生效、强调色按背景取色 | 缺口清单第一批（m13555） |
 | 2026-11-05 | D48：托盘补 `Properties.GetAll`（KDE 菜单+图标）、视频随窗口隐藏暂停/唤回恢复、静态背景合成 `Theme` 文字层 |
 
 ## 变更记录

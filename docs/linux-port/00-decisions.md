@@ -229,6 +229,31 @@
 - **视频壁纸**：取 `GameBackground.Video.Url`（webm）而不是 `Background.Url`（海报 webp），并尊重 `StopVideo`；`WriteableBitmap` 赋值前先置 `null` 强制重采样（L-71）。「建议背景」API 超时从 1s 放宽到 6s（`LUNARWARD_BG_TIMEOUT_MS` 可覆盖）。
 - **代价**：主窗口失去 Windows 那套「无边框沉浸」观感，顶部多一条系统标题栏——这是 D3「硬/软差异」里明确接受的软差异；换来的是窗口可拖动、可最小化、可关闭。
 
+## D50 · 缺口第一批（托盘退路 / 桌面通知 / 语言 / 强调色）（2026-11-06）
+
+**背景**：用户 m13555「按你的建议推进吧」，批准按 C1 托盘退路 → C4 桌面通知 → B7 六语言 → B3 强调色 的顺序补齐缺口清单。
+
+1. **C1 托盘不可用时「关闭 = 隐藏」没有退路**
+   - 现象：`CloseWindowOption` 默认 `Hide`，托盘注册失败（无 StatusNotifierHost）时点 X 只会把窗口藏起来，进程留在后台、没有任何入口唤回。
+   - 修法：`StatusNotifierTray.StartAsync` 返回 bool 并暴露 `Available`；`App.StartTrayAsync` 失败时启动提示「当前桌面没有系统托盘，关闭窗口会直接退出应用」；`MainWindow.AppWindow_Closing` 在 `Hide` + 托盘不可用时**不拦截关闭**（进程随窗口退出）。
+   - 验证：`DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/nonexistent-bus` 启动 → 日志两条警告；`WM_DELETE_WINDOW` 关窗 → 进程退出。正常会话里同样操作 → 窗口 `IsUnMapped`、进程存活（其实是隐藏）。
+2. **C4 桌面通知**：新增 `Helpers/DesktopNotification.cs`（`notify-send` → `gdbus Notify` 兜底，PATH 自行扫描，不经过 shell）。安装/预下载/修复/更新完成与失败、截图保存各发一条。验证：`dbus-monitor` 抓到 `Notify` 调用，参数为「Lunarward / 截图已保存 / 文件名」。
+3. **B7 六语言**：`src/Starward.Language` 的 de-DE / es-ES / it-IT / ru-RU / th-TH / vi-VN 原本各缺 86 条 `Lunarward_*` 文案，已全部补齐（含占位符），并补上 es-ES 缺的上游键 `PlayTimeStatsDialog_Total`；现 11 个语言文件与 `Lang.resx` 的 965 键完全一致。
+4. **B7 附带修掉的真 bug：语言设置不生效**
+   - 现象：`config.json` 写 `Language=de-DE`、重启后界面仍是中文；改用 `LANG=de_DE.UTF-8` 启动才是德文。
+   - 根因：`AppConfig.SetLanguage` 只改 `CultureInfo.CurrentUICulture` / `DefaultThreadCurrentUICulture`，而 Uno 的界面线程在它之前就建好了；`Lang` 的属性用的是 `ResourceManager.GetString(name, resourceCulture)`，`resourceCulture` 为 null 时读的是**当前线程**的 culture → 界面线程仍是 zh-CN。
+   - 修法：`SetLanguage` 同时给 `Starward.Language.Lang.Culture` 与 `Starward.Core.Localization.CoreLang.Culture` 赋同一个 culture（跨线程生效），并记一条 `UI language: …` 日志。
+   - 验证：`config.json` 里 `Language=de-DE` + 系统 `LANG=zh_CN` 启动 → 顶栏与活动/公告/资讯变德文（`Ereignisse / Mitteilungen / Informationen`、`Spiel aktualisieren`）。
+5. **B3 强调色（此前完全没实现）**
+   - 现象：切换游戏后配色不变，右下按钮恒为 `#CBAD8E`。
+   - 根因有两层：①上游 `AccentColorHelper` 的两个文件都被 csproj 排除编译，`AppBackground.Linux.cs` 从未调用 `ChangeAppAccentColor`；②即便写了 `Application.Current.Resources["SystemAccentColor"]` 也不生效——App.xaml 把强调色放在 `ThemeDictionaries`（Light/Dark）里，主题字典查找优先级高于应用级 Resources。
+   - 修法：新增 `Helpers/AccentColorHelper.Linux.cs`（SkiaSharp 读图，按「饱和度×明度」加权统计 10° 色相桶取主色，再收敛到 S∈[0.30,0.55]、V∈[0.65,0.90]），同时写入应用级 Resources 与四个主题字典，然后发 `AccentColorChangedMessage` 让主窗口重刷；静态背景按底图取色、视频背景按海报取色。取色跑在线程池，写资源回 UI 线程（必须先取 `DispatcherQueue`，在 `Task.Run` 里取到的是 null）。
+   - 验证：`LUNARWARD_DEV_ACCENT=#3B82F6` → 按钮变蓝；无覆盖、真实壁纸时日志 `Accent color applied: #4A78A5`，按钮变成对应的蓝灰调。
+   - 未做：Windows 上强调色还染标题栏/边框（DWM），Linux 交给 WM（D47），因此只影响应用内控件。
+6. **仍属中文硬编码**：`--preflight` 等 CLI 输出没有走 `Lang`，目前只有中文；已登记为后续 i18n 尾巴。
+
+**代价/未做**：桌面通知依赖 `notify-send` 或会话总线上的 `org.freedesktop.Notifications`，两者都没有时静默跳过；主题字典里 `AccentTextFillColor*Brush` 是引用 `ThemeResource` 的 SolidColorBrush，颜色刷新依赖主窗口的 `RequestedTheme` 翻转，个别页面可能要等下一次重绘。
+
 ## 变更记录
 
 | 日期 | 变更 | 原因 | 影响文档 |
@@ -247,6 +272,7 @@
 | 2026-11-03 | D41 扩展：组合编排（补丁+复用）落地 | `UpdateOrchestrator`、实测 23.81 GB / 0 失败 |
 | 2026-11-04 | 新增 D42「修复 = 按本地版本校验」 | 实测修复会把目录标成新版本、且拿最新清单等于顺手升级 | `00` D42、`13` L-68 |
 | 2026-11-04 | D41 扩展：断点续传 + UI 联调 + 开发期限量 | `ChunkResume`、`InstallPipelineResult.LimitReached`、`--dev-install-probe`；修 NaN% 进度环与进度倒退（L-65/L-66/L-67） |
+| 2026-11-06 | 新增 D50（托盘退路/桌面通知/语言生效/强调色） | 缺口清单第一批，用户 m13555「按你的建议推进吧」 | `00` D50、`13` L-89–L-91、`12` |
 | 2026-11-03 | 新增 D41 chunk 级复用（增量更新主力机制） | 实测差分只覆盖 101 文件，需把剩余变更压到官方量级（m08787「要」） | `00` D41、`src/Lunarward/Features/GameInstall/Sophon/ChunkReuse*.cs`、`InstallPipeline.RunChunkReuseAsync` |
 | 2026-11-05 | 新增 D44 全量审查后的健壮性加固（原子写、只读预检、空间/目录校验、前缀清理挂 wine 会话、单实例回调回 UI 线程、CLI 失败退出码、日志保留） | 用户 m10479「能修的就都修了吧」；审查清单见 m10478 汇报 | `00` D44、`13` L-75–L-81、`12` |
 | 2026-11-04 | 新增 D43 主窗口 chrome 与背景切换的 Linux 形态 | 用户真机反馈 #1/#3/#5，Uno/X11 无对应系统行为 | `00` D43、`13` L-69–L-74、`12` |

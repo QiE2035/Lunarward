@@ -2789,4 +2789,262 @@
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>สถิติอ้างอิงจากเวลาที่เกมทำงาน ไม่ใช่เวลาเล่นจริง และใช้เพื่อการอ้างอิงเท่านั้น</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_Title" xml:space="preserve">
+    <value>สภาพแวดล้อมการทำงาน</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
+    <value>โปรไฟล์คือตัวรัน พรีฟิกซ์ Wine และคอมโพเนนต์กราฟิก เกมแต่ละเกมผูกกับโปรไฟล์ได้หนึ่งโปรไฟล์</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
+    <value>โปรไฟล์ใหม่</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
+    <value>เปิดเชลล์สำหรับดีบัก</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
+    <value>โคลน</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Components" xml:space="preserve">
+    <value>คอมโพเนนต์ที่ตรวจพบ</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ImportGraphics" xml:space="preserve">
+    <value>นำเข้ากราฟิก…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
+    <value>ติดตั้งลงพรีฟิกซ์…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
+    <value>เทมเพลตพรีฟิกซ์</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
+    <value>ยังไม่มีเทมเพลต สร้างได้ขณะแก้ไขโปรไฟล์</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
+    <value>ติดตั้งแล้ว</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
+    <value>ยังไม่ติดตั้ง</value>
+  </data>
+  <data name="Lunarward_Editor_Title" xml:space="preserve">
+    <value>โปรไฟล์</value>
+  </data>
+  <data name="Lunarward_Editor_UseDetectedRunner" xml:space="preserve">
+    <value>เลือกจากตัวรันที่ตรวจพบ</value>
+  </data>
+  <data name="Lunarward_Editor_PrefixMode" xml:space="preserve">
+    <value>โหมดพรีฟิกซ์</value>
+  </data>
+  <data name="Lunarward_Editor_Shell" xml:space="preserve">
+    <value>เชลล์สำหรับดีบัก</value>
+  </data>
+  <data name="Lunarward_Editor_Env" xml:space="preserve">
+    <value>ตัวแปรสภาพแวดล้อมเพิ่มเติม (หนึ่ง KEY=VALUE ต่อบรรทัด)</value>
+  </data>
+  <data name="Lunarward_Editor_Graphics" xml:space="preserve">
+    <value>กราฟิก</value>
+  </data>
+  <data name="Lunarward_Editor_KeepPrefixGraphics" xml:space="preserve">
+    <value>คงของเดิมที่มีอยู่ในพรีฟิกซ์</value>
+  </data>
+  <data name="Lunarward_Editor_EnsureGraphics" xml:space="preserve">
+    <value>ตรวจสอบคอมโพเนนต์ก่อนเริ่ม</value>
+  </data>
+  <data name="Lunarward_Companion_Section" xml:space="preserve">
+    <value>โปรแกรมหลังเริ่มเกม</value>
+  </data>
+  <data name="Lunarward_Companion_Description" xml:space="preserve">
+    <value>เครื่องมือที่เริ่มหลังเกมเปิดหรือปิด การเริ่มพร้อมเกมปิดไว้โดยค่าเริ่มต้นและจะถามยืนยัน</value>
+  </data>
+  <data name="Lunarward_Companion_Add" xml:space="preserve">
+    <value>เพิ่ม</value>
+  </data>
+  <data name="Lunarward_Companion_OpenFolder" xml:space="preserve">
+    <value>เปิดโฟลเดอร์การตั้งค่า</value>
+  </data>
+  <data name="Lunarward_Companion_Empty" xml:space="preserve">
+    <value>ยังไม่มีโปรแกรมหลังเริ่มเกม</value>
+  </data>
+  <data name="Lunarward_Companion_LaunchNow" xml:space="preserve">
+    <value>เริ่มทันที</value>
+  </data>
+  <data name="Lunarward_Companion_Trigger" xml:space="preserve">
+    <value>ตัวกระตุ้น</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterStart" xml:space="preserve">
+    <value>หลังเกมเริ่ม</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterDelay" xml:space="preserve">
+    <value>หลังหน่วงเวลา</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerOnExit" xml:space="preserve">
+    <value>หลังเกมปิด</value>
+  </data>
+  <data name="Lunarward_Companion_Delay" xml:space="preserve">
+    <value>หน่วงเวลา (มิลลิวินาที)</value>
+  </data>
+  <data name="Lunarward_Preflight_Title" xml:space="preserve">
+    <value>เริ่มไม่ได้: การตรวจสอบบางรายการไม่ผ่าน</value>
+  </data>
+  <data name="Lunarward_Preflight_OK" xml:space="preserve">
+    <value>ตกลง</value>
+  </data>
+  <data name="Lunarward_Output_Title" xml:space="preserve">
+    <value>เอาต์พุตการทำงาน</value>
+  </data>
+  <data name="Lunarward_Output_OpenFolder" xml:space="preserve">
+    <value>เปิดโฟลเดอร์บันทึก</value>
+  </data>
+  <data name="Lunarward_Screenshot_Selected" xml:space="preserve">
+    <value>เลือกแล้ว</value>
+  </data>
+  <data name="Lunarward_Screenshot_Total" xml:space="preserve">
+    <value>ทั้งหมด</value>
+  </data>
+  <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
+    <value>แสดงในโฟลเดอร์</value>
+  </data>
+  <data name="Lunarward_Login_Title" xml:space="preserve">
+    <value>ลงชื่อเข้าใช้ผ่านหน้าต่างแยก</value>
+  </data>
+  <data name="Lunarward_Login_Description" xml:space="preserve">
+    <value>Lunarward เปิดหน้าเข้าสู่ระบบของ miHoYo หรือ HoYoLAB ด้วย WebKit ของระบบ แล้วดึงคุกกี้กลับมา</value>
+  </data>
+  <data name="Lunarward_Login_Open" xml:space="preserve">
+    <value>เปิดหน้าต่างลงชื่อเข้าใช้</value>
+  </data>
+  <data name="Lunarward_Profiles_Empty" xml:space="preserve">
+    <value>ยังไม่มีโปรไฟล์</value>
+  </data>
+  <data name="Lunarward_Components_Empty" xml:space="preserve">
+    <value>ไม่พบตัวรันหรือคอมโพเนนต์กราฟิก</value>
+  </data>
+  <data name="Lunarward_Template_Create" xml:space="preserve">
+    <value>บันทึกพรีฟิกซ์นี้เป็นเทมเพลต…</value>
+  </data>
+  <data name="Lunarward_Template_Use" xml:space="preserve">
+    <value>สร้างโปรไฟล์จากเทมเพลตนี้</value>
+  </data>
+  <data name="Lunarward_Clone_Result" xml:space="preserve">
+    <value>โคลนเป็น “{0}” แล้ว</value>
+  </data>
+  <data name="Lunarward_Delete_Result" xml:space="preserve">
+    <value>ลบ “{0}” แล้ว</value>
+  </data>
+  <data name="Lunarward_Shell_Opened" xml:space="preserve">
+    <value>เปิดเชลล์ดีบักสำหรับ “{0}” แล้ว</value>
+  </data>
+  <data name="Lunarward_Shell_NoTerminal" xml:space="preserve">
+    <value>ไม่พบโปรแกรมจำลองเทอร์มินัล (konsole/kitty/alacritty/wezterm/gnome-terminal/xterm)</value>
+  </data>
+  <data name="Lunarward_Filter_AllFiles" xml:space="preserve">
+    <value>ไฟล์ทั้งหมด</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Template" xml:space="preserve">
+    <value>โคลนเทมเพลต (ค่าเริ่มต้น)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Dedicated" xml:space="preserve">
+    <value>แยกเฉพาะ</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Shared" xml:space="preserve">
+    <value>ใช้ร่วมกัน</value>
+  </data>
+  <data name="Lunarward_PrefixMode_External" xml:space="preserve">
+    <value>ภายนอก (ใช้ตามเดิม)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Ephemeral" xml:space="preserve">
+    <value>ชั่วคราว (สร้างใหม่ทุกครั้ง)</value>
+  </data>
+  <data name="Lunarward_Graphics_KeepExisting" xml:space="preserve">
+    <value>คงของเดิมที่มีอยู่ในพรีฟิกซ์</value>
+  </data>
+  <data name="Lunarward_Toast_Imported" xml:space="preserve">
+    <value>นำเข้า {0} “{1}” แล้ว</value>
+  </data>
+  <data name="Lunarward_Field_Name" xml:space="preserve">
+    <value>ชื่อ</value>
+  </data>
+  <data name="Lunarward_Field_Path" xml:space="preserve">
+    <value>พาธ</value>
+  </data>
+  <data name="Lunarward_Field_Arguments" xml:space="preserve">
+    <value>อาร์กิวเมนต์</value>
+  </data>
+  <data name="Lunarward_Companion_On" xml:space="preserve">
+    <value>เริ่มพร้อมเกม</value>
+  </data>
+  <data name="Lunarward_Companion_OnText" xml:space="preserve">
+    <value>เริ่มพร้อมเกม: เปิด</value>
+  </data>
+  <data name="Lunarward_Companion_OffText" xml:space="preserve">
+    <value>เริ่มพร้อมเกม: ปิด</value>
+  </data>
+  <data name="Lunarward_Companion_DisabledText" xml:space="preserve">
+    <value>ปิดใช้งาน</value>
+  </data>
+  <data name="Lunarward_Launch_Failed" xml:space="preserve">
+    <value>เริ่มไม่สำเร็จ:</value>
+  </data>
+  <data name="Lunarward_Output_View" xml:space="preserve">
+    <value>ดูเอาต์พุตล่าสุด…</value>
+  </data>
+  <data name="Lunarward_Output_Empty" xml:space="preserve">
+    <value>ยังไม่มีเอาต์พุต</value>
+  </data>
+  <data name="Lunarward_Screenshot_Count" xml:space="preserve">
+    <value>ทั้งหมด {0}</value>
+  </data>
+  <data name="Lunarward_Screenshot_SelectedCount" xml:space="preserve">
+    <value>เลือก {0} จาก {1}</value>
+  </data>
+  <data name="Lunarward_Viewer_Prev" xml:space="preserve">
+    <value>ก่อนหน้า</value>
+  </data>
+  <data name="Lunarward_Viewer_Next" xml:space="preserve">
+    <value>ถัดไป</value>
+  </data>
+  <data name="Lunarward_Viewer_Close" xml:space="preserve">
+    <value>ปิด</value>
+  </data>
+  <data name="Lunarward_Companion_EditNew" xml:space="preserve">
+    <value>โปรแกรมหลังเริ่มเกมใหม่</value>
+  </data>
+  <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
+    <value>แก้ไขโปรแกรมหลังเริ่มเกม</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
+    <value>เทมเพลตพรีฟิกซ์</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
+    <value>ตัวรันและกราฟิก (DXVK / VKD3D) จะถูกค้นหาในโฟลเดอร์ระบบ, Steam และ ~/.local/share/lunarward/components ตัวเปิดเกมจะไม่ดาวน์โหลดสิ่งใดอัตโนมัติ</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
+    <value>ยังไม่มีเทมเพลต ในโปรไฟล์ใดก็ได้ ใช้ “บันทึกพรีฟิกซ์นี้เป็นเทมเพลต…” เพื่อเก็บพรีฟิกซ์ที่เตรียมไว้</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
+    <value>template / ephemeral จะโคลนพรีฟิกซ์ (reflink บนโวลุ่มเดียวกัน 650 MB ใช้เวลาไม่ถึง 0.2 วินาที); external ใช้โฟลเดอร์ที่ระบุตามเดิม</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
+    <value>ค่าเริ่มต้น ({0})</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultNameNoWine" xml:space="preserve">
+    <value>ค่าเริ่มต้น (ไม่พบ Wine)</value>
+  </data>
+  <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
+    <value>ไม่สามารถรับข้อมูลเวอร์ชันได้ (เครือข่ายหรือ API ผิดพลาด)</value>
+  </data>
+  <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
+    <value>ไม่พบแมนนิเฟส: </value>
+  </data>
+  <data name="Lunarward_Error_InstallFailed" xml:space="preserve">
+    <value>ดาวน์โหลดล้มเหลว: </value>
+  </data>
+  <data name="Lunarward_Error_LaunchFailed" xml:space="preserve">
+    <value>เริ่มไม่สำเร็จ: </value>
+  </data>
+  <data name="Lunarward_Error_InstallDirInvalid" xml:space="preserve">
+    <value>โฟลเดอร์ติดตั้งไม่ถูกต้อง</value>
+  </data>
+  <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
+    <value>พรีฟิกซ์นี้ถูกใช้งานอยู่: </value>
+  </data>
 </root>

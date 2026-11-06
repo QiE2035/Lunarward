@@ -338,6 +338,8 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
                             // 视频在播时先把「暂停后要看到的那张静态图（海报+主题文字层）」在后台准备好：
                             // 否则点暂停要先等海报下载（≤3s）+ 主题图下载（≤6s）+ Skia 合成，好几秒才出图（真机复现）。
                             _ = PreloadPausedBackgroundAsync(background, token);
+                            // 视频壁纸同样要按海报取强调色（上游只在静态分支取色；D50 统一成取海报）。
+                            _ = ApplyAccentFromPosterAsync(background, token);
                             return;
                         }
                         // 没有 libvlc / 拿不到视频文件时退回静态兜底图，不黑屏
@@ -381,6 +383,9 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             // 上游静态背景也会把 Theme 图（透明底的标题文字层）叠在底图上（AppBackground.xaml.cs:419-437）；
             // 之前只贴底图，所以暂停/静态时左上角没有标题文字（实测主题图 99.1% 像素透明，是纯文字层）。
             BackgroundImageSource = await LoadBackgroundImageAsync(filePath, background, token);
+            // 上游在静态背景分支调用 AccentColorHelper.ChangeAppAccentColor（AppBackground.xaml.cs:551），
+            // Linux 侧从未实现过（D50）：这里按图取主色写回主题字典。
+            Starward.Helpers.AccentColorHelper.ApplyFromFile(filePath);
         }
         catch (Exception ex)
         {
@@ -559,6 +564,31 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     /// 预加载「暂停视频后要显示的那张静态图」：海报底图 + 主题文字层合成结果写进隐藏的 <see cref="_image"/>，
     /// 这样点暂停时 <see cref="StopVideoBackground"/> 一显示就是最终画面（D49）。
     /// </summary>
+    /// <summary>视频壁纸时按海报图（Background.Url）取强调色。</summary>
+    private async Task ApplyAccentFromPosterAsync(GameBackground background, CancellationToken token)
+    {
+        try
+        {
+            string? url = background.Background?.Url;
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return;
+            }
+            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(3));
+            string file = await _backgroundService.GetBackgroundFileAsync(url, timeout.Token);
+            if (!string.IsNullOrWhiteSpace(file))
+            {
+                Starward.Helpers.AccentColorHelper.ApplyFromFile(file);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "[background] accent from poster failed");
+        }
+    }
+
+
     private async System.Threading.Tasks.Task PreloadPausedBackgroundAsync(GameBackground background, CancellationToken token)
     {
         try
