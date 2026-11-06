@@ -72,7 +72,15 @@ public static class WebLoginService
         string? helper = ResolveHelper();
         if (helper is null)
         {
-            System.Diagnostics.Debug.WriteLine("[WebLoginService] login-helper 缺失（Assets/login-helper/login.py）");
+            Serilog.Log.Warning("login helper missing: Assets/login-helper/login.py");
+            Helpers.InAppToast.MainWindow?.Warning("登录助手缺失：安装包不完整？", null, 8000);
+            return false;
+        }
+        string? missingDependency = await CheckHelperDependenciesAsync();
+        if (missingDependency is not null)
+        {
+            Serilog.Log.Warning("login helper dependencies missing: {detail}", missingDependency);
+            Helpers.InAppToast.MainWindow?.Warning(missingDependency, null, 12000);
             return false;
         }
         try
@@ -125,6 +133,55 @@ public static class WebLoginService
             RestrictCookiesFile();
         }
         return await LoadAsync();
+    }
+
+    /// <summary>
+    /// 登录助手依赖 python3 + PyGObject + WebKitGTK 4.1。缺失时给出可操作的提示，
+    /// 而不是让 python 把 ImportError 打到看不见的 stderr 里（用户只会看到「登录没反应」）。
+    /// 返回 null 表示依赖齐全，否则返回一句中文建议。
+    /// </summary>
+    private static async Task<string?> CheckHelperDependenciesAsync()
+    {
+        const string NeedGtk = "import gi; gi.require_version('Gtk', '3.0'); gi.require_version('WebKit2', '4.1'); from gi.repository import Gtk, WebKit2";
+        try
+        {
+            var psi = new ProcessStartInfo("python3")
+            {
+                ArgumentList = { "-c", NeedGtk },
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+            };
+            using var process = Process.Start(psi);
+            if (process is null)
+            {
+                return "没找到 python3：登录需要 python3 + python-gobject + webkit2gtk-4.1。";
+            }
+            Task<string> stderr = process.StandardError.ReadToEndAsync();
+            process.StandardOutput.ReadToEnd();
+            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(8));
+            try
+            {
+                await process.WaitForExitAsync(cts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                return "检查登录依赖超时：请确认 python3 与本机 D-Bus 会话正常。";
+            }
+            if (process.ExitCode == 0)
+            {
+                return null;
+            }
+            string detail = (await stderr).Trim();
+            Serilog.Log.Debug("login dependency check failed: {detail}", detail);
+            return "登录需要 python3 + python-gobject + webkit2gtk-4.1（Arch: python-gobject webkit2gtk-4.1）。";
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "login dependency check crashed");
+            return "无法检查登录依赖（python3 是否可用？）。";
+        }
     }
 
     private static async Task<bool> HasCookiesFileAsync()

@@ -674,7 +674,15 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             return;
         }
         _lastBackgroundFile = null;
-        BackgroundImageSource = ToBitmap(file);
+        BitmapImage? image = ToBitmap(file);
+        if (image is null)
+        {
+            // SkiaSharp 没有 AVIF/JXL 解码器，遇到这类文件时给一句人话，而不是「选了没反应」（D51）
+            Serilog.Log.Warning("custom background decode failed: {file}", file);
+            Helpers.InAppToast.MainWindow?.Warning("这张图片读不了：支持 png / jpg / webp / gif。", null, 8000);
+            return;
+        }
+        BackgroundImageSource = image;
     }
 
 }

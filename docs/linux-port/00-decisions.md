@@ -428,6 +428,28 @@
 
 **未做**：其余窗口的默认尺寸尚未逐个声明（目前只有图库）；`_NET_CLIENT_LIST` 里找不到窗口时 `X11Window.Show` 会退回 `AppWindow.Show()`（首帧创建阶段）。
 
+## D51 · 非 M4 收尾：缺口逐条定论（2026-11-06）
+
+用户要求「M4 之前的全部做干净」。M4 占位功能（悬浮窗、手柄、RPC、云游戏/战绩/BBS 桥）按指示**不做**；其余每一项都必须有结论：已实现 / 已论证不适用 / 待用户真机验证。本决议是逐条结论表，后续新增缺口先加一行再动手。
+
+| 缺口 | 结论 | 证据 / 理由 | 后续 |
+| --- | --- | --- | --- |
+| 官方补丁 8.34 GB vs 我们 23.81 GB | 语义不同，不是算错 | `UpdateOrchestrator.BuildWorkAsync` 的 1211 个「变更文件」是 **7.1.0 清单 vs 7.2.0 清单**的 MD5 差异；官方 `getPatchBuild` 的 8.34 GB 只是 101 个补丁文件的压缩体积，其余 1110 个变更文件官方同样要下。我们的 23.81 GB = 补丁 7.76 GB + 剩余文件块下载 16.04 GB（复用 18.2 GB 已扣除） | 不额外改显示；界面已按「补丁增量」与「预计总量」分开显示 |
+| CLI 输出中文硬编码（`--preflight` 等 142 处） | 接受，不参与 i18n | CLI 是诊断/脚本接口，输出稳定比跟随界面语言更重要；跟随语言会让脚本解析随设置漂移 | 需要时再加 `--json`（结构化输出优先于翻译） |
+| 托盘属性不发 `PropertiesChanged` | 不需要 | KDE 在注册时就调 `Properties.GetAll` 一次取全量（D48 已验证）；我们的图标/菜单/状态在运行期不变，没有变化可通知 | 若将来加动态图标（如下载进度角标）再补信号 |
+| HDR 预览 / 截图色彩管理 | 不适用 | Linux 侧无 HDR 合成通路（X11 + Skia 8-bit）；但**游戏内 HDR 开关已支持**——`GameSettingService.SetGenshinEnableHDR` 按 `GamePrefixResolver` 定位前缀后写 `WINDOWS_HDR_ON_h3132281285` 注册表项 | 无 |
+| AVIF / JXL 解码 | 受限，登记 | 上游靠 Windows WIC；SkiaSharp 3 的编解码器里没有 AVIF/JXL。影响：把 avif/jxl 当自定义背景或截图查看器打开会失败 | 需要时接 libavif/libjxl 或先转码 |
+| 自更新只查 AUR | 按 D5 实现 | `Features/Update/UpdateService.Linux.cs:25` 查 `https://aur.archlinux.org/rpc/v5/info`，只报告不自我替换；网络失败当「无更新」（D33） | 随 AUR 包发布即可 |
+| 登录依赖 python3 + PyGObject + WebKitGTK | 已实装前置检查 | 新增 `WebLoginService.CheckHelperDependenciesAsync`：先跑 `python3 -c "import gi; gi.require_version('Gtk','3.0'); … WebKit2 '4.1'"`，失败时 `InAppToast` 给可操作提示（Arch: `python-gobject webkit2gtk-4.1`），不再静默失败 | M2 换 GirCore 后可去掉 python 依赖 |
+| 热键仅 X11 | 已说明并给替代 | `X11KeyState` 25ms 轮询；Wayland 会话下 `X11KeyState.Available == false` 时启动提示「把 `lunarward --show` 绑到系统快捷键」（`ShowHotkeyUnavailableHintOnce`） | 无（纯 Wayland 无全局热键标准） |
+| 纯 Wayland 原生会话 | 不支持，已给明确错误 | Uno 的 Linux 后端是 X11/XWayland；`Program.Linux.cs` 在无 `DISPLAY` 时打印「没有 DISPLAY / WAYLAND_DISPLAY，无法创建窗口…」并 `exit 3` | 等 Uno 支持后重评 |
+| `GameNoticeWindow` 是否死代码 | 保留（仅 DEBUG 入口） | `MainView.xaml.cs:198` 的 `--page notice` 调试入口可达；正常路径走浏览器（D40）。保留是为了将来换 WebKitGTK 时直接复用 XAML | M4 之后再决定删除或启用 |
+| CI 不出安装包 | 按 D38 推迟 | `.github/workflows/linux.yml` 只构建 + 测试；发布链路（AppImage/AUR 自动发布）单独立项 | D38 |
+| 上游同步流程未定（Q-003） | 已写入文档 | `upstream` 远程指向 Scighost/Starward，`upstream-base` 记录移植基线 `df8ae07`；同步时 `git fetch upstream && git merge upstream/main`（冲突只在 `src/Starward/`，`src/Lunarward/` 不受影响），随后按 `12-shims-and-gaps.md` 复核 55 条排除与 7 处 XAML 差异 | 每次上游发版时执行 |
+| 无 CHANGELOG | 已补 | 仓库根新增 `CHANGELOG.md`，按日期记录 M1–M3 的关键变更 | 随提交维护 |
+| D36 图标字体（开源字体方案） | 结项为「码位替换」 | D49 把缺字形的码位换成 Uno 自带 Symbols 字体里存在的等价字形，`strace` 证明随包 Segoe 字体在本后端不被加载（L-88）；不再需要打包字体 | 若将来要视觉完全一致，再评估打包 Fluent System Icons |
+| 真机启动 / 真实登录 / 游玩时长 / 真实目录更新 / 从零安装 | 待用户验证 | 需要用户账号与真机操作（m05423/m05843 明确推迟） | 用户择期，我按结果修 |
+
 ## 协作约定复核（2026-11-05，来源：聊天记录）
 
 用户要求「顺便整理一下聊天记录看看还有哪些需要计入文档的」。以下是从 m00001 起到 m11348 为止所有明确要求，标注当前落点（✅ 已入文档 / 🆕 本次补入）：
