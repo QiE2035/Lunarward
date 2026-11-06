@@ -40,7 +40,7 @@
 | 游玩时长 | ✅ | `wineserver -w` 判定会话结束，进程早退时回退最近 Start 事件；30s 心跳写 `Interruption=true`，启动器被杀也能留下时长 | — |
 | 启动器主界面 | ✅ | 1200×676 DIP、**系统标题栏**（交给窗口管理器，L-73）、真实公告/活动 | — |
 | 外部链接 | ✅ | `Helpers/OpenUrl.cs`：`xdg-open` → `gio open`，替换 8 类 `Launcher.LaunchUriAsync` 调用（后者在 Linux 静默失败，L-74） | `AppBackground` 里 3 处 apps.microsoft.com 保留（Windows 专属提示） |
-| 背景切换 / 视频壁纸 | 🟡 | 圆点切换器由代码生成（Uno PipsPager 不响应点击，L-69）；视频走 libvlc `--vout=vmem` + Skia 合成（`Video.Url`，非海报）；隐藏/锁屏暂停、唤回恢复（D48/L-86）；静态背景底图 + `Theme` 文字层合成（D48/L-87）；API 超时 6s | 无 vlc 或无视频文件时退回静态兜底图；不发 `PropertiesChanged` |
+| 背景切换 / 视频壁纸 | ✅ | 圆点切换器由代码生成（Uno PipsPager 不响应点击，L-69）；视频走 libvlc `--vout=vmem` + Skia 合成（`Video.Url`，非海报）；隐藏/锁屏暂停、唤回恢复（D48/L-86）；静态背景底图 + `Theme` 文字层合成（D48/L-87）；暂停静态图预加载（D49）；CPU 1.66 → ~0.95 核；强调色按底图/海报取色（D50） | 无 vlc 或无视频文件时退回静态兜底图；`PropertiesChanged` 不需要（D51） |
 | 背景图库窗口 | ✅ | `BackgroundViewWindow` code-behind 重新纳入编译；缩略图 `ListView + tk:WrapPanel`；本地绝对路径由 `CachedImage.Linux` 读字节解码；窗口交还系统标题栏并按 `DefaultWindowSizeInDips` 设 1200×676、夹到 90% 屏幕内（D49） | 无 |
 | 单实例 / 陈旧锁 | ✅ | 文件锁 + UNIX socket；无人接时判定陈旧锁并接管；无 `DISPLAY`/`WAYLAND_DISPLAY` 明确报错退出（L-72）；`--new-instance` 跳过检查 | 无 |
 | 设置页 10 项 | ✅ | 上游 9 项 + 「运行环境」 | — |
@@ -49,16 +49,16 @@
 | 截图 | ✅ | Alt+D 捕获、图库、多选、批量转 JPG、查看器 | HDR 色彩管理 ⬜ M4 |
 | 壁纸 | ✅ | 静态图 + 视频（LibVLC，缺库自动回退静态） | — |
 | 托盘 | ✅ | StatusNotifierItem 注册、`Properties.GetAll`、DBusMenu 菜单（用户已确认右键可用）、点击唤回、托盘不可用时关闭=退出（D48/D50、L-85/L-91） | 托盘属性不发 `PropertiesChanged` |
-| 全局热键 | 🟡 | X11 轮询；Wayland 原生不可用；唤回依赖 `xdotool` | M4 |
+| 全局热键 | 🟡 | X11 轮询（25ms）；唤回走进程内 libxcb（D47，不再依赖 xdotool）；Wayland 会话下给「绑定 `lunarward --show`」提示（D51） | 平台限制：纯 Wayland 无全局热键标准 |
 | URL 协议 / 单实例 | ✅ | `lunarward://` + socket 转发（show/exit/startgame） | — |
-| 自更新 | 🟡 | 查 AUR 版本；不下载替换 | M4 |
-| 游戏安装 / 预下载 / 增量更新 / 修复 | 🟡 | 真实流程（`GameInstallService.Linux.cs`）：Waiting→Downloading→Finish/Error，Pause/Continue/Stop/Uninstall，进度写入 `GameInstallContext`（含 `Progress_Write*`，见 L-65）。增量 = 补丁 + chunk 复用组合编排（`UpdateOrchestrator`，实测 7.1.0→7.2.0 估算 23.81 GB / 省 47%，差分 101 文件全应用且逐文件 MD5 一致）；块级断点续传（`ChunkResume`，临时文件长度=块进度）；修复按**本地版本**清单逐文件校验（D42，实测破坏一个 dll 后被修回、版本不变）。CLI：`--install-plan/-fetch/-run`、`--patch-plan/-run`、`--install-chunk-plan/-run`、`--update-plan/-run`、`--version-status/-write`，Debug 另有 `--dev-install-probe`。**已知偏差**：官方 `stats` 8.34 GB 与我们算的 23.81 GB 未查清；补丁阶段无块内续传（库不支持 Range，暂缓）；修复要全量读 140 GB（约 210 s） | M3 收尾 |
+| 自更新 | ✅ | 查 AUR RPC 版本并报告；不下载替换、网络失败当无更新（D5/D33；D51 定论） | — |
+| 游戏安装 / 预下载 / 增量更新 / 修复 | 🟡 | 真实流程（`GameInstallService.Linux.cs`）：Waiting→Downloading→Finish/Error，Pause/Continue/Stop/Uninstall，进度写入 `GameInstallContext`（含 `Progress_Write*`，见 L-65）。增量 = 补丁 + chunk 复用组合编排（`UpdateOrchestrator`，实测 7.1.0→7.2.0 估算 23.81 GB / 省 47%，差分 101 文件全应用且逐文件 MD5 一致）；块级断点续传（`ChunkResume`，临时文件长度=块进度）；修复按**本地版本**清单逐文件校验（D42，实测破坏一个 dll 后被修回、版本不变）。CLI：`--install-plan/-fetch/-run`、`--patch-plan/-run`、`--install-chunk-plan/-run`、`--update-plan/-run`、`--version-status/-write`，Debug 另有 `--dev-install-probe`。**已知偏差**：官方 `stats` 8.34 GB 只是 101 个补丁文件体积，我们 23.81 GB = 补丁 + 其余 1110 文件块下载，语义不同非算错（D51）；补丁阶段无块内续传（`Hi3Helper.Sophon` 无 Range API，D51 接受）；修复要全量读 140 GB（约 210 s） | — |
 | 悬浮窗（时钟/帧率） | ⬜ | `OpenOverlayWindow()` 恒 false | M4 |
 | 手柄控制 | ⬜ | 空实现 | M4 |
 | RPC 服务 | ⬜ | 恒「未运行」 | M4 |
 | 云游戏 / 战绩 / BBS 桥 | ⬜ | 占位 | M4 |
 | 打包分发 | ✅ / 🟡 | `PKGBUILD` 出包并跑通；AppImage 脚本就绪缺 `appimagetool` | — |
-| i18n | 🟢 | 11 个语言文件与 `Lang.resx` 的 965 键完全一致（86 条 Lunarward 文案已译 de/es/it/ru/th/vi）；语言设置现真正生效（D50/L-90） | `--preflight` 等 CLI 输出仍为中文硬编码 |
+| i18n | ✅ | 11 个语言文件与 `Lang.resx` 的 965 键完全一致（86 条 Lunarward 文案已译 de/es/it/ru/th/vi）；语言设置现真正生效（D50/L-90） | CLI 输出固定中文（诊断接口，D51 定论） |
 
 ---
 
