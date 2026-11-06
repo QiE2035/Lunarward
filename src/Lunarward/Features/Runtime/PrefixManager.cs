@@ -63,7 +63,15 @@ public static class PrefixManager
         {
             expanded = Path.Combine(home, expanded[8..]);
         }
-        return Environment.ExpandEnvironmentVariables(expanded);
+        expanded = Environment.ExpandEnvironmentVariables(expanded);
+        // wine 对 WINEPREFIX 的字符串做前缀比较：带尾斜杠会被当成「另一个前缀」，
+        // 表现为直接打印 `wine: launching from steam.exe stub!` 并退出（实测）。
+        // 这里统一去掉尾部分隔符（保留根目录 "/"）。
+        if (expanded.Length > 1)
+        {
+            expanded = expanded.TrimEnd('/');
+        }
+        return expanded;
     }
 
 

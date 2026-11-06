@@ -92,6 +92,9 @@ public static class RuntimeProfileStore
     {
         try
         {
+            // 存盘前规范化前缀路径：带尾斜杠的 WINEPREFIX 会让 wine 认为「不是同一个前缀」
+            // 而直接退出（实测 `wine: launching from steam.exe stub!`）。
+            profile.PrefixPath = PrefixManager.ExpandPath(profile.PrefixPath);
             Directory.CreateDirectory(ProfilesFolder);
             string file = Path.Combine(ProfilesFolder, profile.Id + ".json");
             JsonFile.WriteAtomic(file, profile, JsonOptions);

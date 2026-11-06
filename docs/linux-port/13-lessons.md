@@ -777,3 +777,35 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 - **修法**：`StartAsync` 返回 bool + `Available` 静态属性；启动失败弹一次提示；`AppWindow_Closing` 在「要隐藏但托盘不可用」时
   不拦截关闭，让进程跟着窗口退出。
 - **教训**：任何「隐藏到托盘」的语义都必须有「托盘不可用」的降级路径，否则在精简桌面（无托盘 host）上就是死锁体验。
+
+## L-92 · `WINEPREFIX` 带尾斜杠会让某些 wine 构建直接退出（2026-11-06）
+
+**症状**：绝区零「完全启动不了」——点开始游戏后 1–2 秒内进程退出，没有窗口，日志里只有一行
+`wine: launching from steam.exe stub!`。
+
+**取证**：同一套命令，唯一差别是 `WINEPREFIX` 是否带尾斜杠：
+
+```bash
+WINEPREFIX=/home/…/prefix/ wine ./ZenlessZoneZero.exe   # 打印 stub 消息，立即退出
+WINEPREFIX=/home/…/prefix  wine ./ZenlessZoneZero.exe   # 正常起窗口
+```
+
+spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把 `WINEPREFIX` 当字符串做前缀比较，
+尾斜杠让它认为「不是同一个前缀」，于是走 stub 分支退出。**修法**：所有前缀路径统一过
+`PrefixManager.ExpandPath`（顺带展开 `~`/`$HOME` 并去掉尾分隔符），profile 存盘时也规范化。
+
+## L-93 · 游玩时长子进程盯错前缀（2026-11-06）
+
+**症状**：游戏窗口还在，游玩时长 0–30 秒就结束，前缀锁也被提前释放。
+
+**根因两层**：
+1. `playtime` 记录子进程是新进程，`PlayTimeSession.ActivePrefix` 是空的，`ResolvePrefix` 回落到 `~/.wine`；
+2. 子进程里 `ResolveWine()` 走 PATH/Proton 回落，拿到的 `wineserver` 与自定义运行器的不是同一个，
+   `wineserver -w` 立刻返回。
+
+**修法**：启动记录子进程时用环境变量把「本次真正的前缀 / wine / wineserver」传下去
+（`LUNARWARD_WINEPREFIX` / `LUNARWARD_WINE` / `LUNARWARD_WINESERVER`），`ResolveWineserver` 优先读显式值。
+
+同一个链路上还有一处竞态：运行器先起 `steam.exe` 存根、真正的游戏是孙进程，此刻 `wineserver -w`
+因为「前缀里还没有 wine 进程」会瞬间返回。修法是先等 `/proc/*/environ` 里出现 `WINEPREFIX=<prefix>`
+的进程（最多 30 秒，启动进程已退出则再宽限 3 秒），再进入阻塞等待。

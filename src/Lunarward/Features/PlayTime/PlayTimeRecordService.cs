@@ -8,6 +8,7 @@ using Starward.Features.HoYoPlay;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -256,6 +257,37 @@ internal class PlayTimeRecordService
 
 
 
+    /// <summary>
+    /// 记录子进程要继承「这次启动真正用的前缀与 wine 运行器」：否则它自己 ResolvePrefix 会回落到
+    /// ~/.wine，`wineserver -w` 盯错前缀，游戏还开着就把会话判成结束（实测绝区零游玩时长 0 秒）。
+    /// </summary>
+    private static ProcessStartInfo CreatePlaytimeStartInfo(GameBiz biz, int pid)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = AppConfig.StarwardExecutePath,
+            Arguments = $"playtime --biz {biz} --pid {pid}",
+            CreateNoWindow = true,
+        };
+        string? prefix = PlayTimeSession.ActivePrefix ?? GameLauncherService.ResolvePrefix(biz.Value);
+        if (!string.IsNullOrWhiteSpace(prefix))
+        {
+            psi.Environment["LUNARWARD_WINEPREFIX"] = prefix;
+        }
+        string? wine = PlayTimeSession.ActiveWine ?? GameLauncherService.ResolveWine();
+        if (!string.IsNullOrWhiteSpace(wine))
+        {
+            psi.Environment["LUNARWARD_WINE"] = wine;
+            string? wineserver = Path.Combine(Path.GetDirectoryName(wine)!, "wineserver");
+            if (File.Exists(wineserver))
+            {
+                psi.Environment["LUNARWARD_WINESERVER"] = wineserver;
+            }
+        }
+        return psi;
+    }
+
+
     #region Start process to log playtime
 
 
@@ -299,12 +331,7 @@ internal class PlayTimeRecordService
                         continue;
                     }
                     _logger.LogInformation("Start to log playtime ({biz}, {pid})", biz, process.Id);
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = AppConfig.StarwardExecutePath,
-                        Arguments = $"playtime --biz {biz} --pid {process.Id}",
-                        CreateNoWindow = true,
-                    });
+                    Process.Start(CreatePlaytimeStartInfo(biz, process.Id));
                     return process;
                 }
             }
@@ -347,12 +374,7 @@ internal class PlayTimeRecordService
                 return;
             }
 
-            Process? p = Process.Start(new ProcessStartInfo
-            {
-                FileName = AppConfig.StarwardExecutePath,
-                Arguments = $"playtime --biz {biz} --pid {process.Id}",
-                CreateNoWindow = true,
-            });
+            Process? p = Process.Start(CreatePlaytimeStartInfo(biz, process.Id));
             _logger.LogInformation("Start process to log play time: GameBiz {biz}, Pid {pid}, ProcessId {processId}", biz, pid, p?.Id);
         }
         catch (Exception ex)

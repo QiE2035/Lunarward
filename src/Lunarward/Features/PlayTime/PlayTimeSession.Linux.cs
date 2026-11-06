@@ -22,6 +22,10 @@ internal static class PlayTimeSession
     public static string? ActivePrefix { get; set; }
 
 
+    /// <summary>当前这次启动真正用的 wine 可执行文件（可能是自定义运行器，不是 PATH/PATH 里的 Proton）。</summary>
+    public static string? ActiveWine { get; set; }
+
+
     /// <summary>
     /// 等待游戏会话结束。直到 <paramref name="pid"/> 对应的 wine 会话（或该进程及其子孙）全部退出。
     /// </summary>
@@ -30,6 +34,16 @@ internal static class PlayTimeSession
         string? wineserver = ResolveWineserver();
         if (wineserver is not null && !string.IsNullOrWhiteSpace(prefix) && Directory.Exists(prefix))
         {
+            // 有的运行器（spritz-wine / Proton 变体）拿到 exe 后先起一个 steam.exe 存根，存根退出、
+            // 真正的游戏是孙进程。此刻若立刻跑 `wineserver -w`，会因为「前缀里还没有 wine 进程」
+            // 而瞬间返回，把会话误判成已结束（实测绝区零：窗口还在，游玩时长 0 秒、前缀锁被提前释放）。
+            // 先等这一步确实把 wine 进程拉起来，再进入阻塞等待。
+            bool spawned = await WaitForWineProcessAsync(prefix, pid, TimeSpan.FromSeconds(30), cancellationToken);
+            if (!spawned)
+            {
+                await WaitForProcessTreeEndAsync(pid, cancellationToken);
+                return;
+            }
             try
             {
                 using var process = new System.Diagnostics.Process
@@ -60,6 +74,77 @@ internal static class PlayTimeSession
             }
         }
         await WaitForProcessTreeEndAsync(pid, cancellationToken);
+    }
+
+
+    /// <summary>
+    /// 等这次启动真正产生挂在该前缀上的 wine 进程（最多 <paramref name="timeout"/>）。
+    /// 启动进程已经退出且仍没有 wine 进程时，视为「没起来」并提前返回。
+    /// </summary>
+    private static async Task<bool> WaitForWineProcessAsync(string prefix, int pid, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        DateTime deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (HasWineProcessForPrefix(prefix))
+            {
+                return true;
+            }
+            if (!IsProcessAlive(pid))
+            {
+                // 存根先退出、wine 进程稍后才挂上前缀：再给 3 秒宽限。
+                await Task.Delay(3000, cancellationToken);
+                return HasWineProcessForPrefix(prefix);
+            }
+            await Task.Delay(500, cancellationToken);
+        }
+        return HasWineProcessForPrefix(prefix);
+    }
+
+
+    /// <summary>是否有进程带着 WINEPREFIX=&lt;prefix&gt; 在这个前缀里跑（读 /proc/*/environ）。</summary>
+    private static bool HasWineProcessForPrefix(string prefix)
+    {
+        string needle = "WINEPREFIX=" + prefix;
+        try
+        {
+            foreach (string dir in Directory.EnumerateDirectories("/proc"))
+            {
+                if (!int.TryParse(Path.GetFileName(dir), out _))
+                {
+                    continue;
+                }
+                try
+                {
+                    string env = File.ReadAllText(Path.Combine(dir, "environ"));
+                    if (env.Contains(needle + '\0', StringComparison.Ordinal) || env.EndsWith(needle, StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // 进程刚退出 / 权限不足：跳过。
+                }
+            }
+        }
+        catch
+        {
+        }
+        return false;
+    }
+
+
+    private static bool IsProcessAlive(int pid)
+    {
+        try
+        {
+            return Directory.Exists($"/proc/{pid}");
+        }
+        catch
+        {
+            return false;
+        }
     }
 
 
@@ -167,6 +252,13 @@ internal static class PlayTimeSession
 
     private static string? ResolveWineserver()
     {
+        // 优先用父进程显式传下来的 wineserver：子进程里 ResolveWine 可能回落到别的 Proton/wine，
+        // 版本不同会让 `-w` 立刻返回（L-92）。
+        string? explicitServer = Environment.GetEnvironmentVariable("LUNARWARD_WINESERVER");
+        if (!string.IsNullOrWhiteSpace(explicitServer) && File.Exists(explicitServer))
+        {
+            return explicitServer;
+        }
         string? wine = Features.GameLauncher.GameLauncherService.ResolveWine();
         if (wine is not null)
         {

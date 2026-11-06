@@ -37,12 +37,13 @@ internal static class WineRegistry
         {
             if (!string.IsNullOrWhiteSpace(_scopedPrefix))
             {
-                return _scopedPrefix!;
+                return Features.Runtime.PrefixManager.ExpandPath(_scopedPrefix) ?? _scopedPrefix!;
             }
-            var env = Environment.GetEnvironmentVariable("LUNARWARD_WINEPREFIX");
+            // 统一走 ExpandPath 去掉尾斜杠：带尾斜杠的 WINEPREFIX 会让 wine 直接退出（实测绝区零起不来）。
+            string? env = Features.Runtime.PrefixManager.ExpandPath(Environment.GetEnvironmentVariable("LUNARWARD_WINEPREFIX"));
             if (!string.IsNullOrWhiteSpace(env))
             {
-                return env;
+                return env!;
             }
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".wine");
         }

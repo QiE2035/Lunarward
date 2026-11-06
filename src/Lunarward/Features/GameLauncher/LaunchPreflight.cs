@@ -140,6 +140,24 @@ public static class LaunchPreflight
             });
         }
 
+        // 3.5) 前缀结构：external 模式很容易指到「前缀根目录」或普通文件夹，
+        // 那样 wine 会安静地在里面新建一个空前缀，游戏随后因缺运行库/图形组件起不来（实测绝区零）。
+        if (prefix is not null && Directory.Exists(prefix))
+        {
+            bool hasDriveC = Directory.Exists(Path.Combine(prefix, "drive_c"));
+            bool hasRegistry = File.Exists(Path.Combine(prefix, "system.reg")) || File.Exists(Path.Combine(prefix, "user.reg"));
+            if (!hasDriveC || !hasRegistry)
+            {
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "前缀结构",
+                    Status = PreflightStatus.Warning,
+                    Detail = hasDriveC ? "缺少 system.reg/user.reg（不像已初始化的 wine 前缀）" : "缺少 drive_c（不像 wine 前缀）",
+                    Fix = "确认选的是真正的前缀目录，而不是存放前缀的上级目录；wine 会在给定路径里新建空前缀",
+                });
+            }
+        }
+
         // 4) 前缀可写 + 未被占用
         if (prefix is not null && Directory.Exists(prefix))
         {

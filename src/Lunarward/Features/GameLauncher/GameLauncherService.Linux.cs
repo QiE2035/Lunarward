@@ -81,7 +81,7 @@ internal partial class GameLauncherService
     /// <summary>解析本次启动要用的 WINEPREFIX；返回 null 表示没有可用的前缀。</summary>
     internal static string? ResolvePrefix(string gameKey)
     {
-        string? env = Environment.GetEnvironmentVariable("LUNARWARD_WINEPREFIX");
+        string? env = Features.Runtime.PrefixManager.ExpandPath(Environment.GetEnvironmentVariable("LUNARWARD_WINEPREFIX"));
         if (!string.IsNullOrWhiteSpace(env) && Directory.Exists(env))
         {
             return env;
@@ -324,6 +324,8 @@ internal partial class GameLauncherService
             }
         }
         info.Environment["WINEPREFIX"] = prefix;
+        // 记录本次真正用的运行器：记录子进程靠它挑对的 wineserver（自定义运行器 + 系统 wineserver 混用会让 -w 立刻返回）。
+        Features.PlayTime.PlayTimeSession.ActiveWine = wine;
         // 不接管 wine 的输出：游戏日志独立，避免阻塞 GUI 线程（D27 输出可见性模型）。
         info.Environment["WINEDEBUG"] = info.Environment.TryGetValue("WINEDEBUG", out var dbg) ? dbg : "-all";
         ApplyWineRuntimeEnvironment(info, wine);
