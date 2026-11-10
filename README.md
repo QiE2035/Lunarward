@@ -8,7 +8,7 @@
 > 本项目是**非官方**移植：与米哈游 / HoYoverse 无关，也与 Starward 作者无关；上游与第三方依赖的
 > 引用情况见 [`ATTRIBUTIONS.md`](./ATTRIBUTIONS.md)。
 >
-> CI 只验证 Linux 侧（`dotnet build src/Lunarward` + `tests/Lunarward.Tests`，见
+> CI 只验证 Linux 侧（仓库根 `dotnet build` → 根 [Starward.slnx](./Starward.slnx) 只含 Linux 项目，见
 > [`.github/workflows/linux.yml`](./.github/workflows/linux.yml)）。继承自上游的 Windows 打包与发布流水线已移除：
 > 本仓不构建 Windows 侧，且被移植的上游提交本身在 GitHub 上就是红的（原因与代价见
 > [`docs/linux-port/00-decisions.md`](./docs/linux-port/00-decisions.md) D45）。
@@ -21,6 +21,19 @@ UI 与业务代码移植而来。目标是把 Starward 的完整功能与观感�
 > [`docs/README.starward.md`](./docs/README.starward.md)。
 
 ![启动器](./docs/linux-port/screenshots/m3-launcher-hero.png)
+
+## 构建
+
+从仓库根直接构建即可（根 `Starward.slnx` 只含 Linux 项目；上游的 Windows 解决方案不参与构建，见 D53）：
+
+```bash
+dotnet build            # 或 dotnet build Starward.slnx
+dotnet test             # 24 个单元测试
+dotnet run --project src/Lunarward
+```
+
+依赖：.NET SDK 10（根 `global.json` 钉 `10.0.300` + `rollForward: latestMinor`，并把 `Uno.Sdk` 钉在 `6.7.30`）、
+NuGet 源见 `src/Lunarward/NuGet.config`。运行还需要 `wine`/Proton 或自定义运行器（见 `docs/user/faq.md`）。
 
 ## 现在能做什么
 

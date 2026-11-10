@@ -3,8 +3,8 @@ name: Linux
 # 只验证 Lunarward 能编译、纯逻辑单测能过。
 # 不跑游戏、不下载游戏资源、不产出发行物（发布链路见 D38：推迟）。
 #
-# 注意：仓库根 global.json 钉的是上游 Windows 侧 SDK（10.0.400），本机/CI 都没有；
-# 所有 dotnet 命令都在子目录里执行，命中 src/ 或 tests/ 下各自的 global.json。
+# 仓库根的 Starward.slnx 只含 Linux 项目（D53），且有 global.json 钉 Uno.Sdk；
+# 所以在仓库根直接 restore/build/test 整个解决方案即可。
 
 on:
   push:
@@ -28,18 +28,15 @@ jobs:
     - name: Install .NET
       uses: actions/setup-dotnet@v5
       with:
-        global-json-file: src/Lunarward/global.json
+        dotnet-version: '10.0.x'
 
     # Restore 要带 Configuration=Release：Uno.Sdk 按 Optimize 决定是否引用 DevServer 包，
     # 用 Debug 的还原结果去编译 Release 会命中 UNOB0019（DevServer 不允许优化构建）。
     - name: Restore
-      working-directory: src/Lunarward
-      run: dotnet restore Lunarward.csproj -p:Configuration=Release
+      run: dotnet restore Starward.slnx -p:Configuration=Release
 
     - name: Build
-      working-directory: src/Lunarward
-      run: dotnet build Lunarward.csproj -c Release --no-restore
+      run: dotnet build Starward.slnx -c Release --no-restore
 
     - name: Test
-      working-directory: tests/Lunarward.Tests
-      run: dotnet test Lunarward.Tests.csproj -c Release
+      run: dotnet test Starward.slnx -c Release --no-build

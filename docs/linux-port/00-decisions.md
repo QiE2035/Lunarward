@@ -466,6 +466,28 @@
 
 **代价**：external 前缀若与其他启动器共用，`wineserver -w` 仍会等其他 wine 进程退出（已知限制，沿用 D7）。
 
+## D53 · 根解决方案改为 Linux-only（2026-11-05 起，2026-11-10 落地）
+
+**问题**：仓库根原来只有上游的 `Starward.slnx`，里面含 `src/Starward/`（WinUI，`net10.0-windows`）与
+`src/Starward.Launcher/*.vcxproj`（C++/Win32）。在 Linux 上打开或 `dotnet build` 它会直接失败：
+
+```
+error NETSDK1100: 若要在此操作系统上生成面向 Windows 的项目，请将 EnableWindowsTargeting 属性设置为 true
+warning NU1503: 正在跳过项目 Starward.Launcher.vcxproj 的还原操作
+```
+
+**做法**：把根 `Starward.slnx` 的内容替换为 Linux 侧四个项目（`Starward.Core`、`Starward.Language`、
+`Lunarward`、`Lunarward.Tests`）+ 文档文件夹。文件名保持不变，这样 IDE 自动发现与 `dotnet build` 都不用额外参数；
+上游 Windows 解决方案的内容留在上游仓库与本仓 git 历史里。
+
+**配套**：根 `global.json` 补 `"msbuild-sdks": { "Uno.Sdk": "6.7.30" }`。MSBuild 解析 `Uno.Sdk` 只读**调用目录**
+向上找到的 `global.json`，之前只有 `src/Lunarward/global.json` 里有钉版本，从仓库根构建就报
+`MSB4236 找不到指定的 SDK "Uno.Sdk"`。SDK 版本同时从 `10.0.400/latestMajor` 放宽成 `10.0.300/latestMinor`，
+让 10.0.302 与 10.0.403 都能用。
+
+**代价**：上游若改动 `Starward.slnx`，同步时会在这一处冲突；保留本仓版本即可（上游的 Windows 解决方案对本项目无意义）。
+CI 同步改为从根构建解决方案，少一层子目录 cd。
+
 ## 协作约定复核（2026-11-05，来源：聊天记录）
 
 用户要求「顺便整理一下聊天记录看看还有哪些需要计入文档的」。以下是从 m00001 起到 m11348 为止所有明确要求，标注当前落点（✅ 已入文档 / 🆕 本次补入）：

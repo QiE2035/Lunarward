@@ -1,23 +1,24 @@
 <Solution>
-  <Configurations>
-    <Platform Name="Any CPU" />
-    <Platform Name="ARM64" />
-    <Platform Name="x64" />
-    <Platform Name="x86" />
-  </Configurations>
+  <!-- Lunarward：Linux 侧解决方案。上游的 Windows 解决方案（含 vcxproj 与 WinUI 应用）已替换，
+       原因见 docs/linux-port/00-decisions.md 的 D53：在 Linux 上打开/构建它会直接失败。
+       上游同步时若与本文件冲突，保留本文件即可。 -->
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
+    <File Path="README.md" />
+    <File Path="CHANGELOG.md" />
+    <File Path="ATTRIBUTIONS.md" />
+    <File Path="global.json" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/user/faq.md" />
+    <File Path="docs/linux-port/00-decisions.md" />
+    <File Path="docs/linux-port/01-requirements.md" />
+    <File Path="docs/linux-port/02-architecture.md" />
+    <File Path="docs/linux-port/03-runtime-model.md" />
+    <File Path="docs/linux-port/13-lessons.md" />
   </Folder>
   <Project Path="src/Starward.Core/Starward.Core.csproj" />
   <Project Path="src/Starward.Language/Starward.Language.csproj" />
-  <Project Path="src/Starward.Launcher/Starward.Launcher.vcxproj" Id="bc2fb0e5-f79e-4ea0-8380-73f96ecb6f2e" />
-  <Project Path="src/Starward.RPC/Starward.RPC.csproj" />
-  <Project Path="src/Starward.Setup.Core/Starward.Setup.Core.csproj" />
-  <Project Path="src/Starward.Setup/Starward.Setup.csproj" />
-  <Project Path="src/Starward/Starward.csproj">
-    <Platform Solution="*|Any CPU" Project="x64" />
-    <Platform Solution="*|ARM64" Project="ARM64" />
-    <Platform Solution="*|x64" Project="x64" />
-    <Platform Solution="*|x86" Project="x86" />
-  </Project>
+  <Project Path="src/Lunarward/Lunarward.csproj" />
+  <Project Path="tests/Lunarward.Tests/Lunarward.Tests.csproj" />
 </Solution>

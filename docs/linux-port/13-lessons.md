@@ -809,3 +809,10 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 同一个链路上还有一处竞态：运行器先起 `steam.exe` 存根、真正的游戏是孙进程，此刻 `wineserver -w`
 因为「前缀里还没有 wine 进程」会瞬间返回。修法是先等 `/proc/*/environ` 里出现 `WINEPREFIX=<prefix>`
 的进程（最多 30 秒，启动进程已退出则再宽限 3 秒），再进入阻塞等待。
+
+## L-94 · MSBuild 只在「调用目录」的 global.json 里找 `msbuild-sdks`（2026-11-05）
+
+从仓库根构建时 `Uno.Sdk` 解析失败（`MSB4236` + `The NuGetSdkResolver did not resolve this SDK because there was no version specified in the project or global.json`），
+而进 `src/Lunarward` 单独构建正常——因为 `msbuild-sdks` 钉版本只写在子目录的 `global.json` 里。
+**结论**：要给某个 SDK 钉版本，就写在「你会在哪里敲 dotnet」的那层 `global.json`；子目录留一份给单独构建也合理。
+另外 `.slnx` 不含 `Configurations` 时 `-c Release` 依然生效，不必手写平台矩阵。
