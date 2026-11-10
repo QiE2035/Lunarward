@@ -31,6 +31,7 @@ public sealed partial class BackgroundViewPage : PageBase
     public BackgroundViewPage()
     {
         this.InitializeComponent();
+        SizeChanged += OnPageSizeChanged;
     }
 
 
@@ -55,6 +56,24 @@ public sealed partial class BackgroundViewPage : PageBase
 
 
 
+
+    /// <summary>
+    /// 窗口尺寸变化后让 WrapPanel 重新换行（L-97）：窗口先按 1200 DIP 创建、随后被
+    /// WindowEx.ClampToScreenAsync 撑大，ListView 的 WrapPanel 只在首次测量时算过列数，
+    /// 之后的放大不会重新 reflow，于是右侧留下几百 DIP 空白。
+    /// </summary>
+    private void OnPageSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        try
+        {
+            GridView_Images?.ItemsPanelRoot?.InvalidateMeasure();
+            GridView_Images?.InvalidateMeasure();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "background view reflow failed");
+        }
+    }
 
     protected override void OnLoaded()
     {

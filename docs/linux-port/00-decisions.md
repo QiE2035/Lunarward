@@ -501,6 +501,26 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **代价**：遇到极亮的过场 CG 时，左上角游戏名与版本号的对比度会比 Windows 侧略低（Windows 有模糊兜底）。
 若后续觉得个别壁纸糊，再加「壁纸压暗强度」设置项（0–100%），而不是回到写死的 0.42。
 
+## D55 · 图库重排、缩略图高质量降采样、游戏选择层横向滚动（2026-11-10）
+
+**图库右侧空白**：窗口先按 1200 DIP 创建、随后被 `WindowEx.ClampToScreenAsync` 撑到 1500 物理（1200 DIP→1500px），
+`ListView` 的 `tk:WrapPanel` 只在首次测量时算过列数，放大后不重新 reflow → 右侧留约 296 DIP 空白。
+修法：`BackgroundViewPage` 订阅 `SizeChanged`，对 `GridView_Images.ItemsPanelRoot` 调 `InvalidateMeasure()`。
+实测列数从 4 列（末列结束 x≈1282）变为 5 列（末列结束 x≈1500），空白消失。
+
+**缩略图降采样**：`bg/` 里 16 张全是 2560×1440，条目只有 216×122 DIP，`CachedImage` 之前把整张图解进内存
+（≈236 MB 位图 + UI 线程 `SetSourceAsync`），打开图库就是一次可感知的卡顿。新增 `DecodePixelWidth`
+依赖属性：走 SkiaSharp 解码 + `SKFilterQuality.High`（三次卷积 + mipmap）缩到目标宽度再交给 `BitmapImage`。
+图库条目设 `DecodePixelWidth="272"`（216 DIP × 1.25 缩放）。**不降帧、不牺牲清晰度**：3 倍放大目视无锯齿/糊；
+缩 10 倍以上时三次卷积比线性采样的摩尔纹明显更少。
+
+**游戏选择层横向滚动**：卡片 192 DIP + 间距 16，6 个游戏 = 1232 DIP > 可用宽度，默认 `ScrollViewer`
+横向禁用 → 最后一张被裁且滚不到。改为 `HorizontalScrollMode/BarVisibility=Enabled/Auto`，纵向禁用（页面本身够高）。
+代价：出现横向滚动条（用户选择 A 方案，不缩小卡片）。
+
+**未做**：图库虚拟化（`ItemsRepeater + UniformGridLayout`）——先靠降采样把解码量降两个数量级，实测已无明显卡顿；
+视频降帧被用户否掉（保持 30fps），如需省电可后续加「视频转 H.264 缓存」开关。
+
 ## 协作约定复核（2026-11-05，来源：聊天记录）
 
 用户要求「顺便整理一下聊天记录看看还有哪些需要计入文档的」。以下是从 m00001 起到 m11348 为止所有明确要求，标注当前落点（✅ 已入文档 / 🆕 本次补入）：

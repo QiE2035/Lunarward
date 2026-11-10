@@ -101,7 +101,11 @@
                 <ScalarTransition />
             </Border.OpacityTransition>
 
-            <ScrollViewer>
+            <!--  卡片总宽会超过窗口（6 个游戏 = 1232 DIP），开横向滚动作为兜底（D55）。  -->
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          HorizontalScrollMode="Enabled"
+                          VerticalScrollBarVisibility="Disabled"
+                          VerticalScrollMode="Disabled">
                 <StackPanel Margin="0,0,12,12" Spacing="40">
 
                     <!--  游戏展示和选择  -->

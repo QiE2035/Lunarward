@@ -822,3 +822,17 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 清理 `poc/uno-smoke/LunarwardPoc`（170 MB）时差点把 65 个**源文件**一起删掉——它的 `bin/obj` 占了大头，
 但目录本身是受版本控制的 PoC 项目。删任何"看起来像产物"的目录前，先 `git ls-files <dir> | wc -l` 核对；
 确认是产物就只删 `bin/`、`obj/`、发布输出这类子目录。删错了 `git checkout -- <dir>` 能立刻恢复。
+
+## L-96 · 壁纸缩略图别整张解码（2026-11-10）
+
+`bg/` 里 16 张背景全是 2560×1440，图库条目只显示 216×122 DIP。`BitmapImage.SetSourceAsync` 会把整张图解成
+位图（2560×1440×4 ≈ 14.7 MB/张），16 张 ≈ 236 MB，而且都在 UI 线程排队 → 打开图库明显顿。
+**做法**：解码前先用 SkiaSharp 缩到显示尺寸（`SKFilterQuality.High` = 三次卷积 + mipmap，缩 10 倍也不糊），
+再 `SetSourceAsync`。别用最近邻（锯齿）或纯线性（摩尔纹）。
+
+## L-97 · 程序化放大窗口后 WrapPanel 不会自己换行（2026-11-10）
+
+窗口先按 1200 DIP 创建、再由 `ClampToScreenAsync` 撑大，`ListView` 里的 `tk:WrapPanel` 仍是首次测量的列数，
+右侧留出几百 DIP 空白——**看起来像布局 bug，其实是没重新测量**。修法是订阅 `SizeChanged` 后
+`ItemsPanelRoot.InvalidateMeasure()` + `InvalidateMeasure()`。通用教训：凡是「运行时改窗口尺寸」的窗口，
+都要考虑布局面板是否需要显式失效。

@@ -79,6 +79,21 @@ public sealed partial class CachedImage : Image
     public static readonly DependencyProperty PngThumbnailProperty =
         DependencyProperty.Register(nameof(PngThumbnail), typeof(bool), typeof(CachedImage), new PropertyMetadata(false));
 
+    /// <summary>
+    /// 解码宽度上限（DIP 无关，单位=像素）。大于 0 时先用 SkiaSharp 按高质量插值缩到该宽度再交给
+    /// BitmapImage，避免「2560×1440 的壁纸按 216 DIP 显示」把整张位图解进内存（L-96）。
+    /// 用 Mitchell 三次卷积 + mipmap：缩 10 倍以上也不会出现最近邻锯齿或线性采样的摩尔纹。
+    /// </summary>
+    public int DecodePixelWidth
+    {
+        get => (int)GetValue(DecodePixelWidthProperty);
+        set => SetValue(DecodePixelWidthProperty, value);
+    }
+
+    public static readonly DependencyProperty DecodePixelWidthProperty =
+        DependencyProperty.Register(nameof(DecodePixelWidth), typeof(int), typeof(CachedImage),
+            new PropertyMetadata(0, (d, e) => ((CachedImage)d).OnSourceChanged(((CachedImage)d).Source)));
+
     /// <summary>图片加载完成后触发，供上游 ImageViewWindow 等使用。</summary>
     public event EventHandler? ImageOpened;
 
@@ -113,19 +128,13 @@ public sealed partial class CachedImage : Image
         }
     }
 
-    private static async Task<ImageSource?> LoadAsync(object value, CancellationToken token)
+    private async Task<ImageSource?> LoadAsync(object value, CancellationToken token)
     {
         // 纯路径（无 scheme）是最常见的用法：x:Bind 出来的绝对路径在 Linux 上不是绝对 URI，
         // 走 new BitmapImage(相对 uri) 会静默失败，所以这里先按文件系统路径处理。
         if (value is string direct && Path.IsPathRooted(direct) && File.Exists(direct))
         {
-            byte[] directData = await File.ReadAllBytesAsync(direct, token);
-            token.ThrowIfCancellationRequested();
-            using var directStream = new MemoryStream(directData);
-            using var directRas = directStream.AsRandomAccessStream();
-            var directBitmap = new BitmapImage();
-            await directBitmap.SetSourceAsync(directRas);
-            return directBitmap;
+            return await ReadFileAsync(direct, token);
         }
 
         var uri = value switch
@@ -139,13 +148,7 @@ public sealed partial class CachedImage : Image
         // 本地文件：Uno 的 file:// 支持不稳（实测绝对路径不显示），自己读字节最稳。
         if (uri.IsAbsoluteUri && uri.Scheme is "file" && File.Exists(uri.LocalPath))
         {
-            byte[] data = await File.ReadAllBytesAsync(uri.LocalPath, token);
-            token.ThrowIfCancellationRequested();
-            using var fs = new MemoryStream(data);
-            using var fsStream = fs.AsRandomAccessStream();
-            var local = new BitmapImage();
-            await local.SetSourceAsync(fsStream);
-            return local;
+            return await ReadFileAsync(uri.LocalPath, token);
         }
 
         // 应用内资源
@@ -166,6 +169,61 @@ public sealed partial class CachedImage : Image
         }
 
         return new BitmapImage(uri);
+    }
+
+    /// <summary>按 DecodePixelWidth 做高质量降采样；失败时返回 null（调用方退回原图）。</summary>
+    private static Stream? DownscaleToStream(byte[] data, int targetWidth)
+    {
+        try
+        {
+            using var src = SkiaSharp.SKBitmap.Decode(data);
+            if (src is null || src.Width <= targetWidth)
+            {
+                return null;
+            }
+            int targetHeight = Math.Max(1, (int)Math.Round((double)src.Height * targetWidth / src.Width));
+            var info = new SkiaSharp.SKImageInfo(targetWidth, targetHeight, SkiaSharp.SKColorType.Bgra8888,
+                                                 SkiaSharp.SKAlphaType.Premul);
+            using var surface = SkiaSharp.SKSurface.Create(info);
+            using var image = SkiaSharp.SKImage.FromBitmap(src);
+            // SKFilterQuality.High = 三次卷积 + mipmap：缩 10 倍也不会出现最近邻锯齿或线性采样的摩尔纹。
+            using var paint = new SkiaSharp.SKPaint { FilterQuality = SkiaSharp.SKFilterQuality.High };
+            surface.Canvas.DrawImage(image, new SkiaSharp.SKRect(0, 0, targetWidth, targetHeight), paint);
+            using var snapshot = surface.Snapshot();
+            using var encoded = snapshot.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            var ms = new MemoryStream();
+            encoded.SaveTo(ms);
+            ms.Position = 0;
+            return ms;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "downscale failed: target {Width}", targetWidth);
+            return null;
+        }
+    }
+
+    private async Task<ImageSource?> ReadFileAsync(string path, CancellationToken token)
+    {
+        byte[] data = await File.ReadAllBytesAsync(path, token);
+        token.ThrowIfCancellationRequested();
+        int target = DecodePixelWidth;
+        if (target > 0)
+        {
+            using Stream? scaled = DownscaleToStream(data, target);
+            if (scaled is not null)
+            {
+                using var scaledRas = scaled.AsRandomAccessStream();
+                var scaledBitmap = new BitmapImage();
+                await scaledBitmap.SetSourceAsync(scaledRas);
+                return scaledBitmap;
+            }
+        }
+        using var fs = new MemoryStream(data);
+        using var fsStream = fs.AsRandomAccessStream();
+        var bitmap = new BitmapImage();
+        await bitmap.SetSourceAsync(fsStream);
+        return bitmap;
     }
 
     private static class StreamExtensions

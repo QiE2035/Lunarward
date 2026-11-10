@@ -161,6 +161,7 @@
                         <sc:CachedImage Name="Image_Thumb"
                                         Width="216"
                                         Height="122"
+                                        DecodePixelWidth="272"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center"
                                         ui:VisualExtensions.NormalizedCenterPoint="0.5"
