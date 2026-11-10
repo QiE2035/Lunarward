@@ -64,7 +64,6 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     // 反复赋 Source、甚至双缓冲换实例都无效，实测两次截图差异 0.00%。
     private readonly SkiaSharp.Views.Windows.SKXamlCanvas _videoCanvas = new()
     {
-        Opacity = 0.6,
         Visibility = Visibility.Collapsed,
         HorizontalAlignment = HorizontalAlignment.Stretch,
         VerticalAlignment = VerticalAlignment.Stretch,
@@ -89,9 +88,10 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         // 上游 AppBackground.xaml 用 Win2D 画视频帧、用 ImageEx 贴静态图；这两个在这里都不可用，
         // 所以不走 InitializeComponent，直接放一个 Image 承担「贴壁纸」这件事（视频壁纸见 M3）。
         //
-        // 可读性：Windows 上壁纸会被系统亚克力模糊+压暗，这里没有模糊，只能靠「深色底 + 降低壁纸不透明度」近似，
-        // 否则亮色壁纸会让上层文字完全看不清（实测默认兜底图就是一张明亮的过场 CG）。
-        _image.Opacity = 0.42;
+        // 不再压暗壁纸（用户反馈「背景有点暗」）：Windows 上壁纸被系统亚克力模糊+压暗，
+        // 这里没有模糊，之前用 0.42 的不透明度近似，观感明显偏暗。改为原样显示，
+        // 文字可读性交给上层面板自身的半透明背景与四角渐变（D54）。
+        _image.Opacity = 1.0;
         _videoCanvas.PaintSurface += VideoCanvas_PaintSurface;
         Content = new Grid
         {
@@ -633,7 +633,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         _videoHeight = 0;
         _videoCanvas.Visibility = Visibility.Collapsed;
         _image.Visibility = Visibility.Visible;
-        _image.Opacity = 0.42;
+        _image.Opacity = 1.0;
     }
 
 

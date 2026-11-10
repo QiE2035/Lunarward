@@ -816,3 +816,9 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 而进 `src/Lunarward` 单独构建正常——因为 `msbuild-sdks` 钉版本只写在子目录的 `global.json` 里。
 **结论**：要给某个 SDK 钉版本，就写在「你会在哪里敲 dotnet」的那层 `global.json`；子目录留一份给单独构建也合理。
 另外 `.slnx` 不含 `Configurations` 时 `-c Release` 依然生效，不必手写平台矩阵。
+
+## L-95 · `du` 大的目录不一定是构建产物（2026-11-10）
+
+清理 `poc/uno-smoke/LunarwardPoc`（170 MB）时差点把 65 个**源文件**一起删掉——它的 `bin/obj` 占了大头，
+但目录本身是受版本控制的 PoC 项目。删任何"看起来像产物"的目录前，先 `git ls-files <dir> | wc -l` 核对；
+确认是产物就只删 `bin/`、`obj/`、发布输出这类子目录。删错了 `git checkout -- <dir>` 能立刻恢复。

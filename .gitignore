@@ -405,3 +405,9 @@ FodyWeavers.xsd
 packaging/lunarward/
 packaging/*.pkg.tar.zst
 packaging/*.src.tar.gz
+
+# JetBrains Junie（本地 AI 助手配置，不入库）
+.junie/
+poc/*/LunarwardPoc/
+packaging/pkg/
+packaging/lunarward/
