@@ -534,12 +534,60 @@ public sealed partial class GameSettingPage : PageBase
     private bool _profileSelectorReady;
 
 
+    /// <summary>绑定指向已删除的方案时为 true（D61）：UI 上必须说出来，不能只写日志。</summary>
+    public bool IsProfileBindingMissing { get; private set; }
+
+
+    /// <summary>绑定失效时的提示文案（含原来绑定的方案 id 与当前回退到的方案名）。</summary>
+    public string MissingProfileBindingMessage { get; private set; } = "";
+
+
+    private void RefreshBindingWarning()
+    {
+        try
+        {
+            Starward.Core.GameBiz biz = AppConfig.CurrentGameBiz;
+            string? boundId = Starward.Features.Runtime.ProfileBinding.Get(biz);
+            IReadOnlyList<Starward.Features.Runtime.RuntimeProfile> profiles = Starward.Features.Runtime.RuntimeProfileStore.LoadAll();
+            bool missing = !string.IsNullOrWhiteSpace(boundId) && profiles.All(p => p.Id != boundId);
+            string fallback = profiles.FirstOrDefault()?.Name ?? "（没有可用方案）";
+            IsProfileBindingMissing = missing;
+            MissingProfileBindingMessage = missing
+                ? $"原来绑定的运行环境「{boundId}」已经不存在，当前回退到「{fallback}」。重新选一次可以把绑定修好。"
+                : "";
+            OnPropertyChanged(nameof(IsProfileBindingMissing));
+            OnPropertyChanged(nameof(MissingProfileBindingMessage));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Refresh binding warning failed");
+        }
+    }
+
+
+    private async void Button_RebindProfile_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            RefreshProfileSelector();
+            ComboBox_Profile.Focus(FocusState.Programmatic);
+            Helpers.InAppToast.MainWindow?.Information((string?)null, "在下面的「运行环境」下拉框里选一个方案即可", 5000);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Rebind profile failed");
+        }
+        await Task.CompletedTask;
+    }
+
+
     private void RefreshProfileSelector()
     {
         _profileSelectorReady = false;
         IReadOnlyList<Starward.Features.Runtime.RuntimeProfile> profiles = Starward.Features.Runtime.RuntimeProfileStore.LoadAll();
         ComboBox_Profile.ItemsSource = profiles;
         Starward.Core.GameBiz biz = AppConfig.CurrentGameBiz;
+        RefreshBindingWarning();
         Starward.Features.Runtime.RuntimeProfile? current = Starward.Features.Runtime.ProfileBinding.Resolve(biz);
         ComboBox_Profile.SelectedItem = current is null ? null : profiles.FirstOrDefault(p => p.Id == current.Id);
         _profileSelectorReady = true;
@@ -555,6 +603,7 @@ public sealed partial class GameSettingPage : PageBase
         if (ComboBox_Profile.SelectedItem is Starward.Features.Runtime.RuntimeProfile profile)
         {
             Starward.Features.Runtime.ProfileBinding.Set(AppConfig.CurrentGameBiz, profile.Id);
+            RefreshBindingWarning();
             Helpers.InAppToast.MainWindow?.Success((string?)null, $"已切换为「{profile.Name}」", 3000);
         }
     }

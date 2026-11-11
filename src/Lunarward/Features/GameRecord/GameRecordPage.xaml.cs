@@ -268,12 +268,25 @@ public sealed partial class GameRecordPage : PageBase
             if (SetProperty(ref field, value))
             {
                 OnPropertyChanged(nameof(AvatarUrl));
+                OnPropertyChanged(nameof(ShowRecordEmptyState));
             }
         }
     }
 
 
-    public List<GameRecordRole> GameRoleList { get; set => SetProperty(ref field, value); }
+    public List<GameRecordRole> GameRoleList
+    {
+        get;
+        set
+        {
+            SetProperty(ref field, value);
+            OnPropertyChanged(nameof(ShowRecordEmptyState));
+        }
+    }
+
+
+    /// <summary>没有角色（未登录 / 未添加角色）时显示空态，避免内容区一片空白（D61）。</summary>
+    public bool ShowRecordEmptyState => CurrentRole is null || GameRoleList is null || GameRoleList.Count == 0;
 
 
     public string AvatarUrl => !string.IsNullOrWhiteSpace(CurrentRole?.HeadIcon) ? CurrentRole.HeadIcon : $"ms-appx:///Assets/Image/icon_{(CurrentGameBiz.IsGlobalServer() ? "hoyolab" : "hyperion")}.png";

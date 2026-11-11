@@ -18,12 +18,21 @@
     <ScrollViewer x:Name="scr" Background="{x:Null}">
         <StackPanel Padding="0,0,24,0">
 
+            <!--  Linux 版尚未实现手柄映射（M4 占位），整页置灰并说明，避免误以为可用（D61）。  -->
+            <InfoBar Margin="0,0,0,16"
+                     IsClosable="False"
+                     IsOpen="True"
+                     Message="Linux 版暂未实现手柄映射，这一页只是占位，下面的开关不会生效。"
+                     Severity="Informational"
+                     Title="暂不支持" />
+
             <!--  手柄增强  -->
             <StackPanel HorizontalAlignment="Left"
                         Orientation="Horizontal"
                         Spacing="20">
                 <TextBlock FontSize="20" Text="{x:Bind lang:Lang.SettingPage_ControllerEnhancement}" />
                 <ToggleSwitch Margin="0,-4,0,-4"
+                              IsEnabled="False"
                               IsOn="{x:Bind EnableGamepadController, Mode=TwoWay}"
                               OffContent="{x:Bind lang:Lang.Common_Disabled}"
                               OnContent="{x:Bind lang:Lang.Common_Enabled}" />

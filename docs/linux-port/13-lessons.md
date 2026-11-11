@@ -880,3 +880,15 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 ## L-107 「建议背景」失败也要缓存，否则每次切页都要等一轮超时
 
 `AppBackground.UpdateBackgroundAsync` 每次进启动器页都会被调用（页面 `Loaded` → 设 `CurrentGameId`）。它要请求「建议背景」接口，Linux 首包 + 弱网常 5–6 秒超时，失败后走 `GetFallbackBackgroundImage` + 重算强调色。不缓存就有两个后果：切一次页等 6 秒的超时链路重新跑一遍；每跑一次都重放「换背景 + 换强调色」，而 `ChangeAppAccentColor` 会触发整棵树主题重解析 → 用户看到的是「切回启动器时闪一下、卡一下」。处理：成功与失败结果都按游戏缓存 5 分钟；强调色按「文件路径」去重，同一张图只应用一次。
+
+## L-108 设置类页面必须给实底，否则游戏背景会毁掉可读性
+
+启动器页的壁纸层是全窗口最底层，页面根容器只要透明，壁纸上的大字（`万序衍盈 7.2`）就会直接叠在导航文字和表单标签后面。真机看是「字压字」，不是设计。移植时凡是「表单 / 设置 / 列表」类页面，根容器都应给 `ApplicationPageBackgroundThemeBrush` 实底；只有启动器这种「展示型」页面保留背景。
+
+## L-109 移植时要把 Windows 语义的文案和开关逐条挖出来
+
+上游文案里混着大量 Windows 专有语义：UAC 提权（「需要以管理员权限运行」）、`ms-settings:` 深链、服务/RPC、托盘行为。它们在 Linux 上要么无效要么误导。做法：按「用户可见文案 + Hyperlink + 开关」三类扫一遍，逐条判断「保留 / 改写 / 删除」，并在代码注释里写明为什么（本仓库用 `D61` 标记）。注意 XAML 注释里的旧说明也可能被误读成功能，别拿注释当证据。
+
+## L-110 `x:Bind` 的 bool → Visibility 在本项目可用，空态层不必写转换器
+
+给「空态覆盖层」绑 `Visibility="{x:Bind ShowRecordEmptyState}"`（bool）直接编译通过并生效（Uno 的隐式转换）。比引入 `BoolToVisibilityConverter` 干净，但要求属性变更时 `OnPropertyChanged` 通知到该属性本身——只通知数据源属性是不够的，本例在 `CurrentRole` 的 setter 里额外 `OnPropertyChanged(nameof(ShowRecordEmptyState))`。

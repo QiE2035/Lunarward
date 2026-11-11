@@ -43,7 +43,7 @@
                         Spacing="24">
                 <RadioButton Name="RadioButton_CloseWindowOption_Hide"
                              Checked="RadioButton_CloseWindowOption_Checked"
-                             Content="{x:Bind lang:Lang.ExperienceSettingPage_MinimizeToSystemTray}"
+                             Content="隐藏到系统托盘"
                              GroupName="CloseWindowOption"
                              Tag="{x:Bind sfv:MainWindowCloseOption.Hide}" />
                 <RadioButton Name="RadioButton_CloseWindowOption_Exit"
@@ -61,25 +61,7 @@
 
             <MenuFlyoutSeparator Margin="0,20,0,0" />
 
-            <!--  透明/动画效果  -->
-            <TextBlock Margin="0,20,0,0"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="{x:Bind lang:Lang.SettingPage_ForABetterExperiencePleaseEnableTheFollowingFeaturesInSystemSettings}"
-                       TextWrapping="Wrap" />
-            <TextBlock Margin="0,12,0,0" HorizontalAlignment="Left">
-                <Hyperlink Click="Hyperlink_VisualEffects_Click"
-                           NavigateUri="ms-settings:easeofaccess-visualeffects"
-                           UnderlineStyle="None">
-                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_TransparencyEffects}" />
-                </Hyperlink>
-                <Run Text="" />
-                <Run Text="" />
-                <Hyperlink Click="Hyperlink_VisualEffects_Click"
-                           NavigateUri="ms-settings:easeofaccess-visualeffects"
-                           UnderlineStyle="None">
-                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_AnimationEffects}" />
-                </Hyperlink>
-            </TextBlock>
+            <!--  Linux：透明/动画效果是 Windows 系统设置项，Linux 下无对应开关，整段移除（D61）。  -->
 
         </StackPanel>
     </ScrollViewer>

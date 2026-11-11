@@ -16,10 +16,10 @@
             <!--  快捷键  -->
             <TextBlock FontSize="20" Text="{x:Bind lang:Lang.SettingPage_KeyboardShortcuts}" />
 
-            <!--  如果注册单键快捷键 (F1-F12)，需要以管理员权限运行 Starward，否则在游戏中快捷键无法生效。  -->
+            <!--  Linux 口径（D61）：热键走 X11 轮询，不需要管理员权限；纯 Wayland 会话不可用。  -->
             <TextBlock Margin="0,12,0,0"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="{x:Bind lang:Lang.HotkeySetting_SingleKeyShortcutsTips}"
+                       Text="Linux 下全局热键通过轮询 X11 键盘状态实现，不需要管理员权限。X11 / XWayland 会话可直接使用；纯 Wayland 会话不可用，请把系统快捷键绑定到命令 lunarward --show。"
                        TextWrapping="Wrap" />
 
             <!--  显示主窗口  -->

@@ -10,13 +10,27 @@
              x:DefaultBindMode="OneWay"
              mc:Ignorable="d">
 
-    <Grid>
+    <!--  Linux：设置类页面给实底，避免游戏背景的大字透到表单文字后面（D61）。  -->
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.RowDefinitions>
             <RowDefinition />
             <RowDefinition Height="60" />
         </Grid.RowDefinitions>
 
         <ScrollViewer x:Name="ScrollViewer_Main">
+          <StackPanel>
+            <!--  绑定悬空提示（D61）：方案被删掉后这里会显示一条可点的提示，避免用户不知情地用错运行器  -->
+            <InfoBar Margin="24,20,24,0"
+                     IsClosable="False"
+                     IsOpen="{x:Bind IsProfileBindingMissing}"
+                     Severity="Warning"
+                     Title="运行环境绑定失效"
+                     Message="{x:Bind MissingProfileBindingMessage}"
+                     Visibility="{x:Bind IsProfileBindingMissing}">
+                <InfoBar.ActionButton>
+                    <Button Click="Button_RebindProfile_Click" Content="重新选择运行环境" />
+                </InfoBar.ActionButton>
+            </InfoBar>
             <Grid Margin="24,20,24,24" ColumnSpacing="24">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition />
@@ -194,6 +208,7 @@
                 </StackPanel>
 
             </Grid>
+          </StackPanel>
         </ScrollViewer>
 
         <!--  游戏未安装  -->

@@ -43,6 +43,13 @@
             <TextBlock Margin="0,20,0,0"
                        FontSize="20"
                        Text="{x:Bind lang:Lang.SettingPage_RPCService}" />
+            <!--  Linux 版没有 RPC 服务实现（M4 占位），先把入口说清楚，别让人点了没反应（D61）。  -->
+            <InfoBar Margin="0,8,0,0"
+                     IsClosable="False"
+                     IsOpen="True"
+                     Message="Linux 版暂未实现 RPC 服务，下面的开关与按钮不会生效。"
+                     Severity="Informational"
+                     Title="暂不支持" />
             <TextBlock Margin="0,8,0,0"
                        FontSize="14"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -118,6 +125,30 @@
                             Style="{ThemeResource TextBlockButtonStyle}" />
                 </StackPanel>
             </Grid>
+
+            <!--  诊断（D61）：替代 Windows 的「获得管理员权限」入口  -->
+            <TextBlock Margin="0,20,0,0" FontSize="20" Text="诊断" />
+            <TextBlock Margin="0,8,0,0"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap">
+                把运行器、运行方案、前缀状态、最近 3 份启动报告和日志尾部打成一个 zip，方便排查问题（不需要管理员权限）。
+            </TextBlock>
+            <StackPanel Margin="0,12,0,0" Orientation="Horizontal" Spacing="12">
+                <Button Height="40"
+                        Click="Button_CreateDiagnose_Click"
+                        Style="{ThemeResource AccentButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xF412;" />
+                        <TextBlock Text="生成诊断包" />
+                    </StackPanel>
+                </Button>
+                <Button Height="40" Click="Button_OpenDiagnoseFolder_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon FontSize="16" Glyph="&#xE838;" />
+                        <TextBlock Text="打开下载目录" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
 
             <!--  运行输出（Lunarward / D27）  -->
             <TextBlock Margin="0,20,0,0" FontSize="20" Text="{x:Bind lang:Lang.Lunarward_Output_Title}" />

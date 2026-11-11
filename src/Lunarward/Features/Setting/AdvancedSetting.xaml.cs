@@ -288,6 +288,37 @@ public sealed partial class AdvancedSetting : PageBase
     }
 
 
+    /// <summary>D61：Linux 上没有「获得管理员权限」这回事，用一个真能用的动作代替——生成诊断包。</summary>
+    private async void Button_CreateDiagnose_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string file = await Helpers.DiagnosticBundle.CreateAsync(logger: _logger);
+            Helpers.InAppToast.MainWindow?.Success((string?)null, $"诊断包已生成：{file}", 8000);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Create diagnostic bundle failed");
+            Helpers.InAppToast.MainWindow?.Error((string?)null, $"生成诊断包失败：{ex.Message}", 8000);
+        }
+    }
+
+
+    private void Button_OpenDiagnoseFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            Directory.CreateDirectory(downloads);
+            Helpers.OpenUrl.Open(downloads);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Open Downloads failed");
+        }
+    }
+
+
     private void Button_OpenOutputFolder_Click(object sender, RoutedEventArgs e) => OpenOutputFolder();
 
 

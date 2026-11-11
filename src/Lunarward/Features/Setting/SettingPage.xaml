@@ -15,7 +15,8 @@
         <FontFamily x:Key="XboxFluent2">ms-appx:///Assets/Font/XboxFluent2.ttf#Xbox Fluent v2</FontFamily>
     </Page.Resources>
 
-    <Grid>
+    <!--  Linux：设置页给实底，避免游戏背景的大字透到表单与导航文字后面（D61）。  -->
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
 
         <NavigationView x:Name="NavigationView_Setting"
                         IsBackButtonVisible="Collapsed"

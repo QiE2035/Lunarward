@@ -522,6 +522,23 @@
 
         </NavigationView>
 
+        <!--  未登录/没有角色时的空态（D61）：原来这里只有一片透出背景图的白，看起来像坏页  -->
+        <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+              Visibility="{x:Bind ShowRecordEmptyState}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+                <FontIcon FontSize="40" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE9D9;" />
+                <TextBlock FontSize="18" HorizontalAlignment="Center" Text="还没有登录或没有绑定角色" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           HorizontalAlignment="Center"
+                           Text="登录米游社通行证后，这里会显示战绩与抽卡记录。"
+                           TextWrapping="Wrap" />
+                <Button HorizontalAlignment="Center"
+                        Command="{x:Bind WebLoginCommand}"
+                        Content="登录"
+                        Style="{ThemeResource AccentButtonStyle}" />
+            </StackPanel>
+        </Grid>
+
 
     </Grid>
 

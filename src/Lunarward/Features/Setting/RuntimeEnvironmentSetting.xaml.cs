@@ -62,10 +62,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             StackPanel_Profiles.Children.Add(CreateProfileRow(profile));
         }
-        AppendTemplatesSection(StackPanel_Profiles);
         StackPanel_Profiles.Children.Add(new TextBlock
         {
-            Text = "组件的下载与版本管理（DXVK/VKD3D/运行器）、Profile 的完整校验在 M2 补齐；「伴随启动」在游戏设置页。",
+            Text = "组件只做「发现 + 选择」，不安装也不修改系统里的 wine / DXVK；换运行器后现有前缀会在下次启动时走一次 wine 更新。「伴随启动」在游戏设置页。",
             Opacity = 0.6,
             FontSize = 12,
             Margin = new Thickness(12, 8, 0, 0),
@@ -74,145 +73,6 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
-    /// <summary>前缀模板库：列出 prefix-templates 下的目录，可直接用来新建配置或删除（M2）。</summary>
-    private void AppendTemplatesSection(Panel host)
-    {
-        host.Children.Add(new TextBlock
-        {
-            Text = Lang.Lunarward_RuntimeEnv_Templates_Title,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(12, 16, 0, 4),
-        });
-        string folder = RuntimeProfileStore.TemplatesFolder;
-        string[] templates;
-        try
-        {
-            templates = Directory.Exists(folder)
-                ? Directory.GetDirectories(folder).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToArray()
-                : Array.Empty<string>();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "List prefix templates failed");
-            templates = Array.Empty<string>();
-        }
-        if (templates.Length == 0)
-        {
-            host.Children.Add(new TextBlock
-            {
-                Text = Lang.Lunarward_RuntimeEnv_TemplatesNote,
-                Opacity = 0.65,
-                FontSize = 12,
-                Margin = new Thickness(12, 0, 0, 0),
-                TextWrapping = TextWrapping.Wrap,
-            });
-            return;
-        }
-        foreach (string template in templates)
-        {
-            host.Children.Add(CreateTemplateRow(template));
-        }
-    }
-
-
-    private UIElement CreateTemplateRow(string templatePath)
-    {
-        var info = new DirectoryInfo(templatePath);
-        long size = 0;
-        try
-        {
-            size = info.EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length);
-        }
-        catch
-        {
-            // 权限或链接问题不该让整页崩掉。
-        }
-        var text = new TextBlock
-        {
-            Text = $"{info.Name}\n{size / 1024.0 / 1024.0:0} MB · 修改于 {info.LastWriteTime:yyyy-MM-dd HH:mm}",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12,
-            Opacity = 0.75,
-        };
-        ToolTipService.SetToolTip(text, templatePath);
-
-        var useButton = new Button { Content = Lang.Lunarward_Template_Use, Tag = templatePath };
-        useButton.Click += Button_UseTemplate_Click;
-        var deleteButton = new Button { Content = Lang.Common_Delete, Tag = templatePath };
-        deleteButton.Click += Button_DeleteTemplate_Click;
-
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        buttons.Children.Add(useButton);
-        buttons.Children.Add(deleteButton);
-
-        var panel = new StackPanel { Spacing = 6 };
-        panel.Children.Add(text);
-        panel.Children.Add(buttons);
-
-        return new Border
-        {
-            Margin = new Thickness(12, 0, 12, 8),
-            Padding = new Thickness(12),
-            CornerRadius = new CornerRadius(4),
-            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
-            Child = panel,
-        };
-    }
-
-
-    private async void Button_UseTemplate_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string templatePath })
-        {
-            return;
-        }
-        var profile = new RuntimeProfile
-        {
-            Name = Path.GetFileName(templatePath) + " 配置",
-            RunnerType = "wine",
-            RunnerPath = Features.GameLauncher.GameLauncherService.ResolveWine() ?? "",
-            PrefixMode = "template",
-            PrefixPath = templatePath,
-        };
-        await ShowProfileEditorAsync(profile, isNew: true);
-    }
-
-
-    private async void Button_DeleteTemplate_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string templatePath })
-        {
-            return;
-        }
-        var dialog = new ContentDialog
-        {
-            Title = "删除模板？",
-            Content = new TextBlock
-            {
-                Text = $"会删除目录：\n{templatePath}\n\n这不会影响任何已存在的游戏前缀，只删模板本身。",
-                TextWrapping = TextWrapping.Wrap,
-            },
-            PrimaryButtonText = "删除",
-            CloseButtonText = "取消",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = XamlRoot,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-        {
-            return;
-        }
-        try
-        {
-            Directory.Delete(templatePath, recursive: true);
-            Helpers.InAppToast.MainWindow?.Success((string?)null, "模板已删除", 4000);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Delete template failed");
-            Helpers.InAppToast.MainWindow?.Error((string?)null, $"删除失败：{ex.Message}", 6000);
-        }
-        LoadProfiles();
-    }
 
 
     /// <summary>这个配置最终会用哪个图形组件、现在装没装（M2 组件层的状态展示）。</summary>
@@ -773,20 +633,32 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             runnerPanel.Children.Add(lastGoodRow);
         }
 
-        ComboBox prefixModeBox = new() { Header = "前缀模式" };
-        string[] modes = { "template", "dedicated", "shared", "external", "ephemeral" };
-        string[] modeTexts = { "模板克隆（默认）", "独占", "共享", "外部（就地使用）", "临时（每次重建）" };
-        for (int i = 0; i < modes.Length; i++)
+        // D58 v3：对用户只说「前缀从哪来」，不再暴露 template/shared 这些内部名字。
+        // shared 只对旧配置保留，新建时不再提供（共用通过「多个游戏绑定同一个方案」表达）。
+        ComboBox prefixModeBox = new() { Header = "前缀来源" };
+        var modeEntries = new List<(string Mode, string Text)>
         {
-            prefixModeBox.Items.Add($"{modes[i]} — {modeTexts[i]}");
-            if (modes[i] == profile.PrefixMode)
+            ("dedicated", "新建一个专属前缀（默认）"),
+            ("template", "复制自现有前缀"),
+            ("external", "使用已有目录（就地使用，不复制）"),
+            ("ephemeral", "临时前缀（退出后丢弃）"),
+        };
+        if (string.Equals(profile.PrefixMode, "shared", StringComparison.OrdinalIgnoreCase))
+        {
+            modeEntries.Add(("shared", "共享前缀（旧配置）"));
+        }
+        string[] modes = modeEntries.Select(x => x.Mode).ToArray();
+        for (int i = 0; i < modeEntries.Count; i++)
+        {
+            prefixModeBox.Items.Add(modeEntries[i].Text);
+            if (string.Equals(modeEntries[i].Mode, profile.PrefixMode, StringComparison.OrdinalIgnoreCase))
             {
                 prefixModeBox.SelectedIndex = i;
             }
         }
         if (prefixModeBox.SelectedIndex < 0)
         {
-            prefixModeBox.SelectedIndex = 3;
+            prefixModeBox.SelectedIndex = 0;
         }
 
         TextBox prefixPathBox = new() { Header = "前缀路径", Text = profile.PrefixPath ?? "" };
@@ -806,9 +678,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         prefixGrid.Children.Add(prefixPathBox);
         prefixGrid.Children.Add(browsePrefix);
 
-        // 一键把现有前缀（如 ~/.wine 或某个启动器的 prefix）变成可复用的模板
-        Button makeTemplate = new() { Content = Lang.Lunarward_Template_Create, HorizontalAlignment = HorizontalAlignment.Left };
-        ToolTipService.SetToolTip(makeTemplate, "选择已有的 Wine 前缀目录，reflink 复制成模板；之后可用「模板克隆」模式秒级克隆出独立实例");
+        // 从现有前缀复制一份（reflink 克隆），用于「复制自现有前缀」这个来源
+        Button makeTemplate = new() { Content = "从现有前缀复制…", HorizontalAlignment = HorizontalAlignment.Left };
+        ToolTipService.SetToolTip(makeTemplate, "选一个已有的 Wine 前缀目录，reflink 复制到一个新目录并填入上面的路径；之后这个方案就从它起步");
         makeTemplate.Click += async (_, _) =>
         {
             string? source = await Helpers.FileDialogHelper.PickFolderAsync(XamlRoot);
@@ -828,12 +700,12 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 PrefixManager.ClonePrefix(source, destination, _logger);
                 prefixPathBox.Text = destination;
                 prefixModeBox.SelectedIndex = Array.IndexOf(modes, "template");
-                Helpers.InAppToast.MainWindow?.Success((string?)null, $"模板已创建：{destination}", 6000);
+                Helpers.InAppToast.MainWindow?.Success((string?)null, $"已复制到：{destination}", 6000);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Create prefix template failed: {source}", source);
-                Helpers.InAppToast.MainWindow?.Error((string?)null, "创建模板失败，详见日志");
+                Helpers.InAppToast.MainWindow?.Error((string?)null, "复制前缀失败，详见日志");
             }
         };
 

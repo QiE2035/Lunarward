@@ -77,10 +77,10 @@
                        FontSize="20"
                        Text="{x:Bind lang:Lang.ScreenshotSetting_ScreenshotShortcut}" />
 
-            <!--  如果注册单键快捷键 (F1-F12)，需要以管理员权限运行 Starward，否则在游戏中快捷键无法生效。  -->
+            <!--  Linux 口径（D61）：截图热键同为 X11 轮询实现，Wayland 会话请用系统快捷键调用 lunarward 截图命令。  -->
             <TextBlock Margin="0,8,0,0"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="{x:Bind lang:Lang.HotkeySetting_SingleKeyShortcutsTips}"
+                       Text="Linux 下截图热键通过轮询 X11 键盘状态实现，不需要管理员权限。纯 Wayland 会话不可用，可以把系统快捷键绑定到 lunarward --screenshot。"
                        TextWrapping="Wrap" />
 
             <!--  设置快捷键  -->
