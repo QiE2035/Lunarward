@@ -42,6 +42,7 @@ public sealed partial class GameSettingPage : PageBase
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
+        var swNav = System.Diagnostics.Stopwatch.StartNew();
         base.OnNavigatedTo(e);
         Image_Emoji.Source = CurrentGameBiz.ToGame().Value switch
         {
@@ -239,11 +240,13 @@ public sealed partial class GameSettingPage : PageBase
             {
                 IsLanguageSettingEnable = true;
             }
+            // Lunarward：读游戏设置要 spawn 一次 wine（`wine reg query`），同步调用会把 UI 线程卡住
+            // 1 秒以上（实测切到本页 1729 ms，其中 ctor 只有 132 ms）。这里统一挪到后台线程读一次。
+            GameBiz biz = CurrentGameBiz;
             if (CurrentGameBiz.Game is GameBiz.hkrpg)
             {
                 IsGraphicsSettingEnable = true;
                 StackPanel_StarRailFPS.Visibility = Visibility.Visible;
-                StarRailFpsIndex = GameSettingService.GetStarRailFPSIndex(CurrentGameBiz);
             }
             if (CurrentGameBiz.Game is GameBiz.hk4e)
             {
@@ -273,7 +276,15 @@ public sealed partial class GameSettingPage : PageBase
             }
             StartArgument = AppConfig.GetStartArgument(CurrentGameBiz);
             UsePopupWindow = AppConfig.GetUsePopupWindow(CurrentGameBiz);
-            var resolutionSetting = GameSettingService.GetGameResolutionSetting(CurrentGameBiz);
+            var registrySettings = await Task.Run(() => new GameSettingSnapshot(
+                Resolution: GameSettingService.GetGameResolutionSetting(biz),
+                StarRailFpsIndex: biz.Game is GameBiz.hkrpg ? GameSettingService.GetStarRailFPSIndex(biz) : null,
+                VoiceLanguageIndex: IsLanguageSettingEnable ? GameSettingService.GetGameVoiceLanguageSetting(biz) : null));
+            if (registrySettings.StarRailFpsIndex is int fpsIndex)
+            {
+                StarRailFpsIndex = fpsIndex;
+            }
+            var resolutionSetting = registrySettings.Resolution;
             if (resolutionSetting != null)
             {
                 EnableFullScreen = resolutionSetting.IsFullScreen;
@@ -292,13 +303,9 @@ public sealed partial class GameSettingPage : PageBase
             {
                 ComboBox_Resolution.SelectedIndex = 0;
             }
-            if (IsLanguageSettingEnable)
+            if (registrySettings.VoiceLanguageIndex is int langIndex)
             {
-                var langSetting = GameSettingService.GetGameVoiceLanguageSetting(CurrentGameBiz);
-                if (langSetting != null)
-                {
-                    LanguageIndex = langSetting.Value;
-                }
+                LanguageIndex = langIndex;
             }
         }
         catch (Exception ex)
@@ -311,6 +318,12 @@ public sealed partial class GameSettingPage : PageBase
         }
     }
 
+
+
+    private sealed record GameSettingSnapshot(
+        GraphicsSettings_PCResolution_h431323223? Resolution,
+        int? StarRailFpsIndex,
+        int? VoiceLanguageIndex);
 
 
     private void InitializeResolutionItem()

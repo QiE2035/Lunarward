@@ -550,6 +550,37 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **未做**：图库虚拟化（`ItemsRepeater + UniformGridLayout`）——先靠降采样把解码量降两个数量级，实测已无明显卡顿；
 视频降帧被用户否掉（保持 30fps），如需省电可后续加「视频转 H.264 缓存」开关。
 
+## D60 页面切换卡顿：缓存页面 + 注册表读取挪出 UI 线程
+
+**现象**：在「启动器 ↔ 游戏设置」之间切换，界面冻结 1–2 秒。
+
+**取证**（临时 `[nav-diag]` 日志，实测后已删）
+
+- 切到游戏设置：`Navigate` → `Frame.Navigated` 共 **1729 ms**，其中页面 ctor 只有 132 ms → 大头是布局/首次加载，而 `OnLoaded` 里的 `GameSettingService.GetGameResolutionSetting` / `GetStarRailFPSIndex` / `GetGameVoiceLanguageSetting` 都同步调 `WineRegistry`，每次 spawn 一个 `wine reg query`（首次前缀初始化时更久）。
+- 切回启动器：ctor **425 ms**（XAML 重新膨胀），因为 Uno 的 `Frame` 默认每次 `Navigate` 都重建页面（全项目没有任何 `NavigationCacheMode`）。
+
+**做法**
+
+1. 给 `GameLauncherPage`、`GameSettingPage`、`ScreenshotPage`、`GachaLogPage`、`GenshinBeyondGachaPage`、`SelfQueryPage`、`GameRecordPage`、`SettingPage` 加 `NavigationCacheMode="Required"`。
+2. `GameSettingPage.InitializeGameSettingAsync` 里三处注册表读取合并成一次 `await Task.Run(...)`（返回 `GameSettingSnapshot` record），回到 UI 线程只赋属性。
+
+**效果**（同一台机器，`LUNARWARD_NAV_LOOP` 连续切换 4 次实测）
+
+| 场景 | 改前 | 改后 |
+|---|---|---|
+| 首次进游戏设置 | 1729 ms | 216 ms |
+| 再进游戏设置 | 1729 ms | **33 ms** |
+| 回到启动器 | 425 ms+ | **24–46 ms** |
+
+**代价**
+
+- 缓存页面后 `OnLoaded/OnUnloaded` 仍每次触发，但**构造只做一次**；因此页面必须在 `OnLoaded` 里刷新游戏相关数据（现有代码已是这个结构）。
+- 注册表读取改为后台线程后，页面先显示默认值再填真实值（几十毫秒内完成，用户不可见）。
+
+**未做**：`InitializeResolutionItem` 仍会抛异常（Uno 无 `ContentIslandEnvironment`），靠 try/catch 顶上；页面 XAML 本身的体积没有精简（首次进页面仍有 ~200 ms 布局成本）。
+
+
+
 ## D59 可观测性与打包跟随代码
 
 **背景**：用户要求「预检只报告不给动作」「出问题要十条追问」「跑的是旧二进制」。三件事都在「用户能不能自己解决」这条线上。

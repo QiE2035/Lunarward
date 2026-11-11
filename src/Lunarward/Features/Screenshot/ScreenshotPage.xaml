@@ -1,4 +1,5 @@
-<sf:PageBase x:Class="Starward.Features.Screenshot.ScreenshotPage"
+<sf:PageBase
+             NavigationCacheMode="Required" x:Class="Starward.Features.Screenshot.ScreenshotPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"

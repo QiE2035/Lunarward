@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<sf:PageBase x:Class="Starward.Features.Gacha.GenshinBeyondGachaPage"
+<sf:PageBase
+             NavigationCacheMode="Required" x:Class="Starward.Features.Gacha.GenshinBeyondGachaPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cwc="using:CommunityToolkit.WinUI.Controls"

@@ -866,3 +866,9 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 ## L-104 前缀目录默认 0755 是个安全洞
 
 wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755，同机其他用户可以读。创建/克隆后立刻 `chmod 0700`（`File.SetUnixFileMode`）。另外 `WINEPREFIX` 结尾多一个 `/` 会让某些 wine 构建走进 `launching from steam.exe stub!` 然后静默退出（L-92），所以路径规范化要 `TrimEnd('/')` 且保留根 `/`。
+
+## L-105 页面「卡很久」通常是两件事叠加：每次重建 + 在 UI 线程起 wine
+
+- Uno 的 `Frame.Navigate` 默认不缓存页面，每次切换都重新膨胀 XAML（本机实测启动器页 ctor 289–425 ms）。给页面加 `NavigationCacheMode="Required"`，再进该页就降到 24–46 ms。
+- `WineRegistry.GetValue` 每次都会 spawn 一次 `wine reg query`（首次触碰前缀时还会等 wine 初始化），同步调用会把 UI 线程卡住 1 s 以上。页面初始化里的注册表读取必须整段 `await Task.Run(...)`，回来再赋属性。
+- 判断「卡在布局还是卡在 IO」的办法：分别给 ctor、`OnLoaded`、`Frame.Navigated` 打时间戳。本例 ctor 132 ms 而导航 1729 ms，立刻就能排除「页面构造慢」。
