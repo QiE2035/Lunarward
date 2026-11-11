@@ -8,6 +8,7 @@
 - 要点：组件强身份（哈希/来源/能力）、`profile.json`+`lock.json`、保留策略 `reference/hardlink/copy`（不假定 CoW）、
   前缀 manifest 与生命周期、`overlay` 注入默认、**可达性 GC（pnpm 式标记-清扫，不是计数器）**、`missing`/`broken` 一等状态、provider 多来源市场
 - §8 措辞校准：refcount → 可达性 GC；补 `--verify-store`（↔ `pnpm store status`）、删除显式触发（↔ `pnpm store prune`）、共享 inode 的三种空间口径
+- §2.4/§4/§7.2 范围校准：只管启动器自己造的（受管），外部组件（pacman/Steam/手动）只发现、只展示版本、只查存在；外部漂移视为预期行为，不告警不拦截；砍掉外部的哈希/校验/保留/配方/GC
 
 ## 2026-11-06
 
