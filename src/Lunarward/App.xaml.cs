@@ -40,7 +40,7 @@ public partial class App : Application
         string logFile = AppConfig.LogFile;
         if (string.IsNullOrWhiteSpace(logFile))
         {
-            string logFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Starward", "log");
+            string logFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), Starward.Helpers.DataFolder.AppFolderName, "log");
             Directory.CreateDirectory(logFolder);
             logFile = Path.Combine(logFolder, $"Starward_{DateTime.Now:yyMMdd}.log");
         }

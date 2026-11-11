@@ -116,7 +116,7 @@ public sealed partial class WelcomeWindow : WindowEx
             else
             {
 #if DEBUG
-                UserDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lunarward");
+                UserDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "lunarward");
 #else
                 UserDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Starward");
 #endif

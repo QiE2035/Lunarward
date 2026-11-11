@@ -101,15 +101,12 @@
                 <ScalarTransition />
             </Border.OpacityTransition>
 
-            <!--  卡片总宽会超过窗口（6 个游戏 = 1232 DIP），开横向滚动作为兜底（D55）。  -->
-            <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                          HorizontalScrollMode="Enabled"
-                          VerticalScrollBarVisibility="Disabled"
-                          VerticalScrollMode="Disabled">
+            <!--  卡片宽度由代码按可用宽度均分（D56），不依赖横向滚动（Uno 后端没有横向滚动条）。  -->
+            <ScrollViewer x:Name="ScrollViewer_GameBizs" SizeChanged="ScrollViewer_GameBizs_SizeChanged">
                 <StackPanel Margin="0,0,12,12" Spacing="40">
 
                     <!--  游戏展示和选择  -->
-                    <ItemsControl ItemsSource="{x:Bind GameBizDisplays}">
+                    <ItemsControl x:Name="ItemsControl_GameBizs" ItemsSource="{x:Bind GameBizDisplays}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" Spacing="16" />
@@ -118,8 +115,8 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="local:GameBizDisplay">
                                 <Grid Name="Grid_GameBizDisplay"
-                                      Width="192"
-                                      Height="108"
+                                      Width="{x:Bind CardWidth, Mode=OneWay}"
+                                      Height="{x:Bind CardHeight, Mode=OneWay}"
                                       Padding="0"
                                       sh:PointerCursor.CursorShape="Hand"
                                       Background="#40000000"

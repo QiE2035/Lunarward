@@ -1072,6 +1072,25 @@ internal class LunarwardProgram
         }
 
 
+        // 只读诊断：列出扫描到的运行器与图形组件（D56）
+        Starward.Helpers.DataFolder.Unify();
+        if (args.Length >= 1 && args[0] is "--list-components")
+        {
+            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            Console.WriteLine($"扫描根：{string.Join(", ", Starward.Features.Runtime.ComponentStore.ScanRoots)}");
+            Console.WriteLine("运行器：");
+            foreach (Starward.Features.Runtime.Component runner in Starward.Features.Runtime.ComponentStore.GetRunners(true))
+            {
+                Console.WriteLine($"  [{runner.KindText}] {runner.DisplayName}  {runner.Path}");
+            }
+            Console.WriteLine("图形组件：");
+            foreach (Starward.Features.Runtime.Component gfx in Starward.Features.Runtime.ComponentStore.GetGraphics(true))
+            {
+                Console.WriteLine($"  [{gfx.KindText}] {gfx.Name}  {gfx.Path}");
+            }
+            return;
+        }
+
         if (args.Length >= 2 && args[0] is "--preflight")
         {
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz pfBiz))

@@ -37,3 +37,10 @@
 - 安装 / 更新：Sophon 分块下载、差分补丁、chunk 级复用、断点续传、暂停/继续/停止
 - 运行环境：Profile（wine/Proton/umu/custom + 前缀 5 模式）、组件探测、伴随启动、输出捕获、游玩时长
 - 界面：主窗口、游戏页、截图图库与查看器、背景图库、设置页、单实例与深链
+
+## 2026-11-11
+
+- 图库与游戏选择层改为按可用宽度均分（D56），去掉无效的横向滚动；
+- 组件扫描改为特征探测 + 可配扫描根，覆盖 `/opt`、Steam `compatibilitytools.d`、Flatpak 与第三方启动器；新增 `--list-components`；
+- 游戏扫描支持配置根与 24 小时增量缓存；
+- `~/.local/share/Lunarward` 合并为指向 `lunarward` 的符号链接，`WelcomeWindow` 默认值改小写。

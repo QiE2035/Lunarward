@@ -137,6 +137,15 @@ public static class ComponentStore
             }
         }
 
+        // 4) 特征探测：扫描根下任何「像运行器」的目录（D56），覆盖第三方启动器
+        foreach (string root in ScanRoots)
+        {
+            foreach ((string wine, string name, bool proton) in DiscoverRunners(root))
+            {
+                AddRunner(wine, proton ? ComponentKind.Proton : ComponentKind.Wine, name, wine.StartsWith(ComponentsFolder, StringComparison.Ordinal));
+            }
+        }
+
         // 版本号：`wine --version` 结果按真实路径缓存（首次约 0.2–1 s，之后走缓存）
         foreach (Component runner in list)
         {
@@ -211,6 +220,17 @@ public static class ComponentStore
             foreach (string dir in SafeDirs(root))
             {
                 AddGraphics(dir, sub == "dxvk" ? ComponentKind.Dxvk : ComponentKind.Vkd3dProton);
+            }
+        }
+        // 特征探测：扫描根下任何含 x64/d3d11.dll（或 d3d12.dll）的目录（D56）
+        foreach (string root in ScanRoots)
+        {
+            foreach (string dir in DiscoverGraphicsDirs(root))
+            {
+                ComponentKind kind = File.Exists(Path.Combine(dir, "x64", "d3d12.dll"))
+                    ? ComponentKind.Vkd3dProton
+                    : ComponentKind.Dxvk;
+                AddGraphics(dir, kind);
             }
         }
         // Steam 兼容工具目录里可能自带 dxvk（Proton 自带，这里只做提示，不重复安装）
@@ -313,6 +333,176 @@ public static class ComponentStore
         yield return Path.Combine(home, ".local/share/Steam/steamapps/compatibilitytools.d");
         yield return Path.Combine(home, ".steam/steam/steamapps/compatibilitytools.d");
     }
+
+    /// <summary>默认扫描根（D56）：覆盖系统目录、Steam、Flatpak 与常见第三方启动器。</summary>
+    public static string[] DefaultScanRoots()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return new[]
+        {
+            "/opt",
+            "/usr/share/steam",
+            "/usr/lib",
+            "/usr/local/share",
+            Path.Combine(home, ".local/share"),
+            Path.Combine(home, ".local/share/Steam"),
+            Path.Combine(home, ".steam/steam"),
+            Path.Combine(home, ".var/app/com.valvesoftware.Steam"),
+        };
+    }
+
+
+    /// <summary>
+    /// 用户配置的扫描根（设置里可改，`:` 或换行分隔；空则用默认）。
+    /// </summary>
+    public static IReadOnlyList<string> ScanRoots
+    {
+        get
+        {
+            try
+            {
+                string? raw = AppConfig.GetValue<string>(null, "ComponentScanRoots");
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    string[] custom = raw.Split(new[] { ':', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                                         .Select(x => x.Trim())
+                                         .Select(ExpandHome)
+                                         .Where(Directory.Exists)
+                                         .ToArray();
+                    if (custom.Length > 0)
+                    {
+                        return custom;
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return DefaultScanRoots();
+        }
+    }
+
+
+    public static void SetScanRoots(IEnumerable<string> roots)
+    {
+        AppConfig.SetValue(string.Join(Environment.NewLine, roots.Where(x => !string.IsNullOrWhiteSpace(x))), "ComponentScanRoots");
+        Invalidate();
+    }
+
+
+    private static string ExpandHome(string path)
+    {
+        if (path == "~" || path.StartsWith("~/", StringComparison.Ordinal))
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + path[1..];
+        }
+        return path;
+    }
+
+
+    /// <summary>
+    /// 按「特征」在根下找运行器（D56）：不再按厂商目录硬编码，任何目录只要有
+    /// bin/wine、bin/wine64、files/bin/wine 或 proton 脚本就算一个运行器。
+    /// </summary>
+    /// <returns>(可执行文件路径, 名字, 是否 Proton 布局)</returns>
+    public static IEnumerable<(string Wine, string Name, bool Proton)> DiscoverRunners(string root, int maxDepth = 4)
+    {
+        if (!Directory.Exists(root))
+        {
+            yield break;
+        }
+        HashSet<string> skip = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "drive_c", "dosdevices", "node_modules", ".git", "shadercache", "steamapps", "dist", "__pycache__",
+        };
+        var pending = new Stack<(string Dir, int Depth)>();
+        pending.Push((root, 0));
+        int visited = 0;
+        while (pending.Count > 0)
+        {
+            (string dir, int depth) = pending.Pop();
+            if (++visited > 20000)
+            {
+                yield break;
+            }
+            // 本层特征
+            string wine = Path.Combine(dir, "bin", "wine");
+            if (!File.Exists(wine))
+            {
+                wine = Path.Combine(dir, "bin", "wine64");
+            }
+            if (!File.Exists(wine))
+            {
+                wine = Path.Combine(dir, "files", "bin", "wine");
+            }
+            if (File.Exists(wine))
+            {
+                bool proton = wine.Contains("/files/bin/wine", StringComparison.Ordinal);
+                yield return (wine, Path.GetFileName(dir.TrimEnd('/')), proton);
+                continue;
+            }
+            string protonScript = Path.Combine(dir, "proton");
+            if (File.Exists(protonScript))
+            {
+                string filesWine = Path.Combine(dir, "files", "bin", "wine");
+                yield return (File.Exists(filesWine) ? filesWine : protonScript, Path.GetFileName(dir.TrimEnd('/')), true);
+                continue;
+            }
+            if (depth >= maxDepth)
+            {
+                continue;
+            }
+            foreach (string child in SafeDirs(dir))
+            {
+                string name = Path.GetFileName(child);
+                if (skip.Contains(name) || name.StartsWith('.'))
+                {
+                    continue;
+                }
+                pending.Push((child, depth + 1));
+            }
+        }
+    }
+
+
+    /// <summary>在扫描根下找 DXVK/VKD3D 目录（含 x64/d3d11.dll 或 x64/d3d12.dll）。</summary>
+    public static IEnumerable<string> DiscoverGraphicsDirs(string root, int maxDepth = 4)
+    {
+        if (!Directory.Exists(root))
+        {
+            yield break;
+        }
+        var pending = new Stack<(string Dir, int Depth)>();
+        pending.Push((root, 0));
+        int visited = 0;
+        while (pending.Count > 0)
+        {
+            (string dir, int depth) = pending.Pop();
+            if (++visited > 20000)
+            {
+                yield break;
+            }
+            if (File.Exists(Path.Combine(dir, "x64", "d3d11.dll")) || File.Exists(Path.Combine(dir, "x64", "d3d12.dll")))
+            {
+                yield return dir;
+                continue;
+            }
+            if (depth >= maxDepth)
+            {
+                continue;
+            }
+            foreach (string child in SafeDirs(dir))
+            {
+                string name = Path.GetFileName(child);
+                if (name.StartsWith('.') || name is "drive_c" or "dosdevices" or "node_modules" or ".git")
+                {
+                    continue;
+                }
+                pending.Push((child, depth + 1));
+            }
+        }
+    }
+
 
     private static IEnumerable<string> SafeDirs(string root)
     {

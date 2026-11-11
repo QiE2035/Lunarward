@@ -35,12 +35,30 @@ internal static class GameInstallScanner
     private static List<string> _detected = new();
 
 
-    public static int ScanAndApply(ILogger? logger = null)
+    public static int ScanAndApply(ILogger? logger = null, bool force = false)
     {
         int count = 0;
         List<GameBiz> detected = new();
         try
         {
+            // 增量：24 小时内且已知安装都还在，就不重复扫盘（D56）。用户改了扫描根会 MarkDirty。
+            if (!force && IsCacheFresh())
+            {
+                bool allAlive = _knownGameBizs.All(b =>
+                {
+                    string? p = AppConfig.GetGameInstallPath(b);
+                    return string.IsNullOrWhiteSpace(p) || Directory.Exists(p);
+                });
+                if (allAlive)
+                {
+                    logger?.LogDebug("skip game scan: cache is fresh");
+                    KnownGames = _knownGameBizs
+                        .Where(b => { string? p = AppConfig.GetGameInstallPath(b); return !string.IsNullOrWhiteSpace(p) && Directory.Exists(p); })
+                        .ToArray();
+                    LastDetectedGames = Array.Empty<GameBiz>();
+                    return 0;
+                }
+            }
             List<string> roots = GetCandidateRoots();
             foreach (GameBiz biz in _knownGameBizs)
             {
@@ -114,24 +132,114 @@ internal static class GameInstallScanner
         }
         catch { }
 
+        TouchCache();
         return count;
+    }
+
+
+    /// <summary>默认的游戏扫描根（D56）：常见自建目录 + Steam/Flatpak 库。</summary>
+    public static string[] DefaultScanRoots()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return
+        [
+            Path.Combine(home, "games"),
+            Path.Combine(home, "Games"),
+            Path.Combine(home, "Games", "miHoYo"),
+            "/opt",
+            Path.Combine(home, ".local", "share", "Steam", "steamapps", "common"),
+            Path.Combine(home, ".steam", "steam", "steamapps", "common"),
+            Path.Combine(home, ".var", "app", "com.valvesoftware.Steam", ".local", "share", "Steam", "steamapps", "common"),
+        ];
+    }
+
+
+    /// <summary>用户配置的扫描根（设置里可改，换行或 `:` 分隔；空则用默认）。</summary>
+    public static IReadOnlyList<string> ScanRoots
+    {
+        get
+        {
+            try
+            {
+                string? raw = AppConfig.GetValue<string>(null, "GameScanRoots");
+                if (!string.IsNullOrWhiteSpace(raw))
+                {
+                    string[] custom = raw.Split(new[] { ':', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                         .Where(Directory.Exists)
+                                         .ToArray();
+                    if (custom.Length > 0)
+                    {
+                        return custom;
+                    }
+                }
+            }
+            catch
+            {
+            }
+            return DefaultScanRoots().Where(Directory.Exists).ToArray();
+        }
+    }
+
+
+    public static void SetScanRoots(IEnumerable<string> roots)
+    {
+        AppConfig.SetValue(string.Join(Environment.NewLine, roots.Where(x => !string.IsNullOrWhiteSpace(x))), "GameScanRoots");
+        MarkDirty();
+    }
+
+
+    /// <summary>下次启动强制重扫（用户增删扫描根、手动点「重新扫描」时用）。</summary>
+    public static void MarkDirty()
+    {
+        try
+        {
+            AppConfig.SetValue("", "GameScanLastUtc");
+        }
+        catch
+        {
+        }
+    }
+
+
+    private static bool IsCacheFresh()
+    {
+        try
+        {
+            string? raw = AppConfig.GetValue<string>(null, "GameScanLastUtc");
+            if (string.IsNullOrWhiteSpace(raw) || !DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime last))
+            {
+                return false;
+            }
+            return DateTime.UtcNow - last < TimeSpan.FromHours(24);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
+    private static void TouchCache()
+    {
+        try
+        {
+            AppConfig.SetValue(DateTime.UtcNow.ToString("O"), "GameScanLastUtc");
+        }
+        catch
+        {
+        }
     }
 
 
     private static List<string> GetCandidateRoots()
     {
         List<string> roots = [];
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         string? extra = Environment.GetEnvironmentVariable("LUNARWARD_GAME_ROOTS");
         if (!string.IsNullOrWhiteSpace(extra))
         {
             roots.AddRange(extra.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
         }
-        roots.Add(Path.Combine(home, "games"));
-        roots.Add(Path.Combine(home, "Games"));
-        roots.Add(Path.Combine(home, "Games", "miHoYo"));
-        roots.Add(Path.Combine(home, ".local", "share", "Steam", "steamapps", "common"));
-        roots.Add(Path.Combine(home, ".steam", "steam", "steamapps", "common"));
+        roots.AddRange(ScanRoots);
         return roots.Where(Directory.Exists).Distinct().ToList();
     }
 

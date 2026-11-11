@@ -448,6 +448,51 @@ public sealed partial class GameSelector : UserControl
 
 
 
+    private void ScrollViewer_GameBizs_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateGameCardSize();
+    }
+
+
+    /// <summary>
+    /// 按可用宽度均分卡片宽度（D56）：一张卡片 192 DIP 时 6 个游戏要 1232 DIP，
+    /// 超过窗口可用宽度就会被裁掉；Uno 后端又没有横向滚动条，只能把卡片压到刚好铺满。
+    /// </summary>
+    private void UpdateGameCardSize()
+    {
+        try
+        {
+            int count = GameBizDisplays?.Count ?? 0;
+            if (count == 0)
+            {
+                return;
+            }
+            double avail = ScrollViewer_GameBizs.ActualWidth - 12; // StackPanel 右侧留白
+            if (avail <= 0)
+            {
+                return;
+            }
+            const double spacing = 16;
+            double cardWidth = Math.Floor((avail - (spacing * (count - 1))) / count);
+            cardWidth = Math.Clamp(cardWidth, 140, 192);
+            double cardHeight = Math.Round(cardWidth * 108.0 / 192.0);
+            foreach (var display in GameBizDisplays)
+            {
+                if (Math.Abs(display.CardWidth - cardWidth) > 0.5)
+                {
+                    display.CardWidth = cardWidth;
+                    display.CardHeight = cardHeight;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "game selector card size failed");
+        }
+    }
+
+
+
     /// <summary>
     /// 固定游戏待选区
     /// </summary>
@@ -630,6 +675,16 @@ public sealed partial class GameSelector : UserControl
                 }
             }
             GameBizDisplays = new(list);
+            DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdateGameCardSize);
+            if (Features.Dev.DevSwitches.IsEnabled && Environment.GetEnvironmentVariable("LUNARWARD_DEV_SELECTOR") == "1")
+            {
+                // 验证用：Wayland 下合成点击不可靠（L-36），直接展开选择层截图。
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(1800);
+                    DispatcherQueue?.TryEnqueue(ShowFullBackground);
+                });
+            }
         }
         catch { }
     }

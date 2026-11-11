@@ -836,3 +836,11 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 右侧留出几百 DIP 空白——**看起来像布局 bug，其实是没重新测量**。修法是订阅 `SizeChanged` 后
 `ItemsPanelRoot.InvalidateMeasure()` + `InvalidateMeasure()`。通用教训：凡是「运行时改窗口尺寸」的窗口，
 都要考虑布局面板是否需要显式失效。
+
+### L-98 视频条目的缩略图在 Linux 上是黑的
+
+`Controls/CachedImage.Linux.cs` 里 `IsThumbnail`/`PngThumbnail` 只注册了依赖属性、没有任何实现（是给上游 API 留的形状），所以背景图库里的 `.webm` 条目走的是「直接解码 webm」路径：`SKBitmap.Decode` 抛异常 → 退回 `BitmapImage.SetSourceAsync` 也解不了 → 只剩容器底色 + 右下播放角标。修法要么在 `BackgroundFileItem` 侧用 `VideoBackgroundPlayer` 抓首帧生成 png，要么给 `CachedImage` 补 `PngThumbnail` 实现。
+
+### L-99 删掉卡片的显式 Width/Height 不会「自适应」，而是被内容撑开
+
+选择层为了「按宽度均分」把 `Grid` 的 `Width="192" Height="108"` 去掉，结果卡片宽度变成背景图原始尺寸（2560 px）——`CachedImage` 是 `Image`，`Stretch` 只影响绘制，测量时仍返回图片固有尺寸。正确做法是把尺寸做成**数据**：给条目模型加 `CardWidth/CardHeight`（`ObservableObject`），模板 `x:Bind` 到它们，由容器按可用宽度写值。

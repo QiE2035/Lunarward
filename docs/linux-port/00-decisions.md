@@ -254,6 +254,21 @@
 
 **代价/未做**：桌面通知依赖 `notify-send` 或会话总线上的 `org.freedesktop.Notifications`，两者都没有时静默跳过；主题字典里 `AccentTextFillColor*Brush` 是引用 `ThemeResource` 的 SolidColorBrush，颜色刷新依赖主窗口的 `RequestedTheme` 翻转，个别页面可能要等下一次重绘。
 
+### D56 按宽度均分 + 特征探测扫描 + 数据目录归一
+
+**问题**：①图库右侧固定空白（1200 DIP 下 4 列只占 960 DIP）；②选择层 6 张 192 DIP 卡片需要 1232 DIP，超出窗口且 Uno 后端没有横向滚动条；③组件扫描按厂商目录硬编码，漏掉 `/opt/spritz-wine-tkg`、`~/.local/share/sleepy-launcher`、`/usr/share/steam/compatibilitytools.d`；④每次启动同步扫盘、扫描根不可配；⑤`~/.local/share` 下同时有 `lunarward` 与 `Lunarward`。
+
+**做法**：
+1. 图库：`WrapPanel.ItemWidth/ItemHeight` 按「可用宽度 / 能放几列」反推（列数 = `floor((avail+gap)/(minTile+gap))`，minTile=216、gap=24），条目 `CachedImage` 改为 `Stretch` 填充容器；缩略图 `DecodePixelWidth=400`。
+2. 选择层：卡片尺寸从固定 192×108 改成 `GameBizDisplay.CardWidth/CardHeight`（`ObservableObject`），`GameSelector.UpdateGameCardSize()` 在 `ScrollViewer_GameBizs.SizeChanged` 时按「可用宽度 / 卡片数」均分（夹在 140–192 DIP）；撤掉无效的 `HorizontalScrollBarVisibility`。
+3. 组件：`ComponentStore.ScanRoots`（`/opt`、`/usr/share/steam`、`/usr/lib`、`~/.local/share`、Steam、Flatpak，可用 `AppConfig["ComponentScanRoots"]` 覆盖）+ `DiscoverRunners()`/`DiscoverGraphicsDirs()` 特征探测（`bin/wine`、`bin/wine64`、`files/bin/wine`、`proton` 脚本、`x64/d3d11.dll`），深度 ≤4、跳过 `drive_c`/`dosdevices`/`node_modules`，访问上限 20000 个目录；新增 `--list-components` 只读诊断。
+4. 游戏扫描：`GameInstallScanner.ScanRoots`（可配）+ 24 小时缓存（`GameScanLastUtc`；已知安装仍在则跳过扫盘）+ `MarkDirty()` 强制重扫。
+5. 数据目录：`Helpers/DataFolder.Unify()` 以小写 `~/.local/share/lunarward` 为准，把 Uno 的 `Lunarward`（`RemoteControlClient` 的 `Settings/Local.dat`）合并进来后换成符号链接；`WelcomeWindow` 的 DEBUG 默认值改小写。
+
+**实测**：图库 1200 DIP 下由 4×216 变为 4×273（铺满至窗口右缘）；选择层 6 张卡片一排放下、无裁切；`--list-components` 扫出 `/opt/spritz-wine-tkg`、`compatibilitytools.d/proton-cachyos-slr`、sleepy-launcher / anime-game-launcher 的 runners 与 dxvk 目录；`~/.local/share/Lunarward` 已变为指向小写目录的符号链接。
+
+**代价/未做**：特征探测在第一次扫描会多几百次 stat（已加 24h 缓存与上限）；图库仍未虚拟化；视频条目的缩略图仍为黑块（`CachedImage` 的 `IsThumbnail/PngThumbnail` 在 Linux 实现里是空属性，见 L-98）。
+
 ## 变更记录
 
 | 日期 | 变更 | 原因 | 影响文档 |
