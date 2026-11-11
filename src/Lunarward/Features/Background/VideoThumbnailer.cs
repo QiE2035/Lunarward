@@ -19,7 +19,7 @@ internal static class VideoThumbnailer
     private static readonly SemaphoreSlim _gate = new(2, 2);
 
 
-    public static string ThumbnailFolder => Path.Combine(AppConfig.CacheFolder, "bg-thumbs");
+    public static string ThumbnailFolder => Path.Combine(AppConfig.CacheDirectory, "bg-thumbs");
 
 
     public static string ThumbnailPath(string videoPath)

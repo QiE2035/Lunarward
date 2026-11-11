@@ -45,3 +45,7 @@
 - 游戏扫描支持配置根与 24 小时增量缓存；
 - `~/.local/share/Lunarward` 合并为指向 `lunarward` 的符号链接，`WelcomeWindow` 默认值改小写；
 - 背景图库的视频条目改用 libVLC 抽首帧做缩略图（不再黑块）。
+
+## 2026-11-11（二）
+
+- 纯缓存与数据分离（D57）：缩略图（`bg-thumbs`、`thumb`）迁到 `~/.cache/lunarward`，并纳入 14 天清理。

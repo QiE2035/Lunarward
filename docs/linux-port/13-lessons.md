@@ -844,3 +844,7 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 ### L-99 删掉卡片的显式 Width/Height 不会「自适应」，而是被内容撑开
 
 选择层为了「按宽度均分」把 `Grid` 的 `Width="192" Height="108"` 去掉，结果卡片宽度变成背景图原始尺寸（2560 px）——`CachedImage` 是 `Image`，`Stretch` 只影响绘制，测量时仍返回图片固有尺寸。正确做法是把尺寸做成**数据**：给条目模型加 `CardWidth/CardHeight`（`ObservableObject`），模板 `x:Bind` 到它们，由容器按可用宽度写值。
+
+### L-100 名字叫 Cache 的字段不一定是缓存
+
+`AppConfig.CacheFolder` 是从上游继承来的名字，实际指向用户数据目录（日志、SQLite 数据库、背景下载都在里面）。往它下面加「缩略图」这种可再生物时，先分清「删了会不会丢用户数据」：纯缓存应放 `AppConfig.CacheDirectory`（`~/.cache/lunarward`），并交给 `Housekeeping` 定期清理，否则数据目录会越来越杂、备份也会把几百 MB 缩略图一起打包。

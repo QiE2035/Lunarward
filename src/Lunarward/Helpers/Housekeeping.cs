@@ -27,6 +27,14 @@ internal static class Housekeeping
             PruneDirectory(Path.Combine(cacheFolder, "log"), "Starward_*.log", threshold);
             PruneDirectory(Path.Combine(cacheFolder, "logs", "output"), "*.log", threshold);
             PruneDirectory(Path.Combine(cacheFolder, "logs", "launch"), "*.json", threshold);
+            // 纯缓存（~/.cache/lunarward）：删了只会重新生成，不需要 14 天这么保守
+            string cacheDirectory = AppConfig.CacheDirectory;
+            if (!string.IsNullOrWhiteSpace(cacheDirectory))
+            {
+                DateTime cacheThreshold = DateTime.Now.AddDays(-RetentionDays);
+                PruneDirectory(Path.Combine(cacheDirectory, "bg-thumbs"), "*.png", cacheThreshold);
+                PruneDirectory(Path.Combine(cacheDirectory, "thumb"), "*", cacheThreshold);
+            }
         }
         catch (Exception ex)
         {

@@ -271,6 +271,18 @@
 
 **代价/未做**：特征探测在第一次扫描会多几百次 stat（已加 24h 缓存与上限）；图库仍未虚拟化；缩略图缓存目前不会自动清理（与 `ImageThumbnail` 的缓存分开管理）。
 
+### D57 纯缓存与数据分离（XDG_CACHE_HOME）
+
+**问题**：`AppConfig.CacheFolder` 名字叫 Cache，实际是「应用数据目录」（`~/.local/share/lunarward`：日志、数据库、背景下载都在这儿），与 D22 写的「缓存放 `~/.cache/lunarward`」对不上；新加的 `bg-thumbs`、以及上游的 `thumb`（截图缩略图）都属于「删掉也能重新生成」的纯缓存，混在数据目录里既不便于清理，也不便于备份时排除。
+
+**做法**：新增 `AppConfig.CacheDirectory`（`$XDG_CACHE_HOME/lunarward`，默认 `~/.cache/lunarward`，启动时创建）；把 `VideoThumbnailer`（`bg-thumbs/`）与 `ImageThumbnail`（`thumb/`）迁到该目录；`Helpers/Housekeeping.Run` 增加对这两个目录的 14 天清理（纯缓存可安全删除）。`CacheFolder` 保留原名与位置（日志、数据库、`bg/` 用户下载都依赖它），只补注释说明它是「数据」。
+
+**迁移**：旧位置的 `bg-thumbs/`、`thumb/` 直接删除（都是可再生缓存），不做搬迁；下次打开图库/截图页会自动在新的缓存目录里重建。
+
+**实测**：删除旧目录后打开图库，`~/.cache/lunarward/bg-thumbs/` 重新生成 png，`~/.local/share/lunarward/` 下不再出现 `bg-thumbs`。
+
+**代价**：备份工具默认会包含 `~/.local/share`、排除 `~/.cache`，因此缩略图不再随数据一起备份——这正是想要的（可重新生成）。
+
 ## 变更记录
 
 | 日期 | 变更 | 原因 | 影响文档 |

@@ -25,7 +25,15 @@ public static partial class AppConfig
 
     public static bool IsAppInRemovableStorage { get; private set; }
 
+    /// <summary>
+    /// 应用数据目录（名字沿用上游的 CacheFolder，实际是「数据」而非纯缓存）。
+    /// 纯缓存放 <see cref="CacheDirectory"/>（D57）。
+    /// </summary>
     public static string CacheFolder { get; private set; }
+
+
+    /// <summary>纯缓存目录：XDG_CACHE_HOME/lunarward（默认 ~/.cache/lunarward）。删掉不影响任何用户数据。</summary>
+    public static string CacheDirectory { get; private set; }
 
     public static string ConfigPath { get; private set; }
 
@@ -38,6 +46,19 @@ public static partial class AppConfig
     public static string LogFile { get; private set; }
 
     /// <summary>XDG 数据根目录（~/.local/share）。</summary>
+    /// <summary>XDG 缓存根目录（~/.cache）。</summary>
+    internal static string LinuxCacheHome
+    {
+        get
+        {
+            var xdg = Environment.GetEnvironmentVariable("XDG_CACHE_HOME");
+            return string.IsNullOrWhiteSpace(xdg)
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache")
+                : xdg;
+        }
+    }
+
+
     internal static string LinuxDataHome
     {
         get
@@ -106,6 +127,15 @@ public static partial class AppConfig
             else
             {
                 CacheFolder = Path.Combine(LinuxDataHome, "lunarward");
+            }
+
+            CacheDirectory = Path.Combine(LinuxCacheHome, "lunarward");
+            try
+            {
+                Directory.CreateDirectory(CacheDirectory);
+            }
+            catch
+            {
             }
 
             string? userDataFolder = null;

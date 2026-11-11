@@ -28,7 +28,7 @@ internal static class ImageThumbnail
 
 
 
-    private static readonly string CacheFolder = Path.Combine(AppConfig.CacheFolder, "thumb");
+    private static string CacheFolder => Path.Combine(AppConfig.CacheDirectory, "thumb");
 
 
     public static readonly bool AvifDecoderSupported;
