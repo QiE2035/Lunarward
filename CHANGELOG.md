@@ -6,7 +6,8 @@
 
 - 新增 `docs/linux-port/16-runtime-components.md`：运行组件与运行环境的目标形态（D58，设计稿，未实施）
 - 要点：组件强身份（哈希/来源/能力）、`profile.json`+`lock.json`、保留策略 `reference/hardlink/copy`（不假定 CoW）、
-  前缀 manifest 与生命周期、`overlay` 注入默认、refcount 回收（反对 LRU）、`missing` 一等状态、provider 多来源市场
+  前缀 manifest 与生命周期、`overlay` 注入默认、**可达性 GC（pnpm 式标记-清扫，不是计数器）**、`missing`/`broken` 一等状态、provider 多来源市场
+- §8 措辞校准：refcount → 可达性 GC；补 `--verify-store`（↔ `pnpm store status`）、删除显式触发（↔ `pnpm store prune`）、共享 inode 的三种空间口径
 
 ## 2026-11-06
 

@@ -569,7 +569,7 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - **前缀可重建**：`base` + `manifest(operations)` + 生命周期 `create/adopt/upgrade/snapshot/restore/clone/verify/discard`；快照三档降级 btrfs 子卷 → 硬链接树 → `tar.zst`（**都不假定 CoW**）。
 - **注入默认 overlay**：`WINEDLLPATH` + `WINEDLLOVERRIDES`，换 DXVK 不动前缀；`inprefix` 显式选择并记 manifest。
 - **预检 = 锁 vs 现实**：`missing` / `drift` / `version-mismatch` / `modified` / `locked` / `no-space` 六类结果统一呈现并写 `LaunchReport`。
-- **回收 = refcount**：引用来源为方案锁、前缀 manifest、运行租约（lease 文件带 pid）、显式 `keep`；**每次按事实重算，不落盘计数器**；`refcount > 0` 或 lease 或 keep → 永不自动删除；LRU 只用于纯缓存与候选排序。
+- **回收 = 可达性 GC（pnpm 式标记-清扫，不是计数器）**：根四类——方案锁、前缀 manifest、运行租约（lease 文件带 pid）、显式 `keep`（= Nix 的 gcroot）；**每次 GC 从根遍历，引用关系不落盘**（避免计数器漂移）；**可达或带 lease/keep → 永不自动删除**，删除只由 `--gc` 显式触发并需确认（默认不自动清理，学 `pnpm store prune`）；候选排序按「引用数 + 占用空间」，**不按时间**；LRU 仅用于纯缓存（缩略图/下载临时文件/合成壁纸）。补 `--verify-store`（对应 `pnpm store status`）与 `broken` 状态；空间报告按 `st_dev+st_ino` 去重、`st_nlink` 判断共享，区分「名义 / 实际 / 可回收」。
 - **`missing` 是一等状态**（不是异常）：启动前展示「被哪些方案引用 / 上次可用时间 / 配方重取 / 换用系统版本 / 解除引用」。
 - **市场 = provider + 标准索引**：`providers/*.json`（official + 多个自定义：https / 本地目录 / `file://`）；索引条目强制 `sha256`，多来源去重，`http` 警告，记录 provenance，支持离线镜像。
 
@@ -579,7 +579,9 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 
 **代价**：P1 起启动路径多一次解析与校验（L0/L1 毫秒级）；`reference` 策略会让 `missing` 变成常见状态，需要 UI 正面呈现；硬链接快照若被原地改写会污染（只用于回滚，回滚前 `verify`）。
 
-**待拍板**：Q1 默认保留策略（建议 `reference`）、Q2 游戏页是否允许临时覆盖（建议允许并标红）、Q3 `overlay` 默认（建议是）、Q4 provider 配置位置（建议独立 `providers/`）、Q5 `--print-env` 是否脱敏（建议默认脱敏）。见 `16-runtime-components.md` §14。
+**待拍板**：Q1 默认保留策略（建议 `reference`，且 `--gc` 可按缓存语义更激进）、Q2 游戏页是否允许临时覆盖（建议允许并标红）、Q3 `overlay` 默认（建议是）、Q4 provider 配置位置（建议独立 `providers/`）、Q5 `--print-env` 是否脱敏（建议默认脱敏）。见 `16-runtime-components.md` §14。
+
+**措辞校准（2026-11-11，用户指出）**：用户原话是「类似 pnpm 那种感觉」，不是想表达「维护一个 refcount 计数器」。据此把本节与 16 号文档 §8 的口径统一为 **可达性 GC（mark-and-sweep）**：引用关系是**图上的边**，由 GC 时从根遍历得出，而不是写入时加减的计数器；`refcount` 一词只留在 UI 展示（「被 3 个方案引用」）。同时补三处与 pnpm 对齐的细节：完整性校验 `--verify-store`（↔ `pnpm store status`）、删除必须显式触发（↔ `pnpm store prune`）、共享语义「删到最后一个 inode 才释放空间」。
 
 ---
 
