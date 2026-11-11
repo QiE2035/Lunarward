@@ -58,6 +58,32 @@ public sealed partial class BackgroundViewPage : PageBase
 
 
     /// <summary>
+    /// 视频条目没有可解码的静态帧（L-98），这里用 LibVLC 抽首帧落成 png 缓存后回填，
+    /// 让图库显示真实画面而不是黑块。切片并发由 VideoThumbnailer 自己的信号量控制。
+    /// </summary>
+    private async Task GenerateVideoThumbnailsAsync(IEnumerable<BackgroundFileItem> items)
+    {
+        try
+        {
+            Microsoft.UI.Dispatching.DispatcherQueue dispatcher = DispatcherQueue;
+            foreach (BackgroundFileItem item in items.Where(x => x.IsVideo && x.ThumbnailPath is null).ToList())
+            {
+                string? thumbnail = await VideoThumbnailer.EnsureAsync(item.FilePath);
+                if (thumbnail is not null)
+                {
+                    // PropertyChanged 必须在 UI 线程上发，否则绑定不会刷新（甚至抛跨线程异常）
+                    dispatcher?.TryEnqueue(() => item.ThumbnailPath = thumbnail);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "generate video thumbnails failed");
+        }
+    }
+
+
+    /// <summary>
     /// 窗口尺寸变化后重算条目宽度并让 WrapPanel 重新换行（D56 / L-97）。
     /// </summary>
     private void OnPageSizeChanged(object sender, SizeChangedEventArgs e)
@@ -162,6 +188,7 @@ public sealed partial class BackgroundViewPage : PageBase
                 }
                 BackgroundImages = new(result);
                 UpdateSelectCountText();
+                _ = GenerateVideoThumbnailsAsync(BackgroundImages);
                 DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdateTileSize);
             }
             else

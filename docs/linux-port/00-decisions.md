@@ -267,7 +267,9 @@
 
 **实测**：图库 1200 DIP 下由 4×216 变为 4×273（铺满至窗口右缘）；选择层 6 张卡片一排放下、无裁切；`--list-components` 扫出 `/opt/spritz-wine-tkg`、`compatibilitytools.d/proton-cachyos-slr`、sleepy-launcher / anime-game-launcher 的 runners 与 dxvk 目录；`~/.local/share/Lunarward` 已变为指向小写目录的符号链接。
 
-**代价/未做**：特征探测在第一次扫描会多几百次 stat（已加 24h 缓存与上限）；图库仍未虚拟化；视频条目的缩略图仍为黑块（`CachedImage` 的 `IsThumbnail/PngThumbnail` 在 Linux 实现里是空属性，见 L-98）。
+**视频缩略图**：`Features/Background/VideoThumbnailer.cs` 用 libVLC `TakeSnapshot` 抽首帧（480×270、`start-time=1`）落 `bg-thumbs/<hash>.png` 缓存，`BackgroundFileItem.DisplayPath` 对视频切到该 png（L-98）。
+
+**代价/未做**：特征探测在第一次扫描会多几百次 stat（已加 24h 缓存与上限）；图库仍未虚拟化；缩略图缓存目前不会自动清理（与 `ImageThumbnail` 的缓存分开管理）。
 
 ## 变更记录
 

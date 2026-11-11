@@ -1,9 +1,10 @@
+using CommunityToolkit.Mvvm.ComponentModel;
 using System;
 using System.IO;
 
 namespace Starward.Features.Background;
 
-public class BackgroundFileItem
+public partial class BackgroundFileItem : ObservableObject
 {
 
     public string FilePath { get; set; }
@@ -15,6 +16,23 @@ public class BackgroundFileItem
     public DateTime CreationTime { get; set; }
 
     public bool IsVideo { get; set; }
+
+
+    /// <summary>视频条目的首帧 png（由 VideoThumbnailer 生成，可能为空）。</summary>
+    public string? ThumbnailPath
+    {
+        get => field; set
+        {
+            if (SetProperty(ref field, value))
+            {
+                OnPropertyChanged(nameof(DisplayPath));
+            }
+        }
+    }
+
+
+    /// <summary>图库实际加载的地址：视频用首帧，其余用原文件。</summary>
+    public string DisplayPath => ThumbnailPath ?? FilePath;
 
 
     public BackgroundFileItem(string file)

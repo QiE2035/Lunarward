@@ -839,7 +839,7 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 
 ### L-98 视频条目的缩略图在 Linux 上是黑的
 
-`Controls/CachedImage.Linux.cs` 里 `IsThumbnail`/`PngThumbnail` 只注册了依赖属性、没有任何实现（是给上游 API 留的形状），所以背景图库里的 `.webm` 条目走的是「直接解码 webm」路径：`SKBitmap.Decode` 抛异常 → 退回 `BitmapImage.SetSourceAsync` 也解不了 → 只剩容器底色 + 右下播放角标。修法要么在 `BackgroundFileItem` 侧用 `VideoBackgroundPlayer` 抓首帧生成 png，要么给 `CachedImage` 补 `PngThumbnail` 实现。
+`Controls/CachedImage.Linux.cs` 里 `IsThumbnail`/`PngThumbnail` 只注册了依赖属性、没有任何实现（是给上游 API 留的形状），所以背景图库里的 `.webm` 条目走的是「直接解码 webm」路径：`SKBitmap.Decode` 抛异常 → 退回 `BitmapImage.SetSourceAsync` 也解不了 → 只剩容器底色 + 右下播放角标。修法（已实现，`Features/Background/VideoThumbnailer.cs`）：复用 libVLC 的 `MediaPlayer.TakeSnapshot` 抽首帧（`:start-time=1`、480×270），落成 `~/.local/share/lunarward/bg-thumbs/<hash>.png` 缓存，`BackgroundFileItem.ThumbnailPath` 填好后 `DisplayPath` 切到 png；信号量限制同时 2 个，`PropertyChanged` 回 UI 线程发。实测 16 张背景里的视频条目从黑块变成首帧画面。
 
 ### L-99 删掉卡片的显式 Width/Height 不会「自适应」，而是被内容撑开
 

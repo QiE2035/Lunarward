@@ -43,4 +43,5 @@
 - 图库与游戏选择层改为按可用宽度均分（D56），去掉无效的横向滚动；
 - 组件扫描改为特征探测 + 可配扫描根，覆盖 `/opt`、Steam `compatibilitytools.d`、Flatpak 与第三方启动器；新增 `--list-components`；
 - 游戏扫描支持配置根与 24 小时增量缓存；
-- `~/.local/share/Lunarward` 合并为指向 `lunarward` 的符号链接，`WelcomeWindow` 默认值改小写。
+- `~/.local/share/Lunarward` 合并为指向 `lunarward` 的符号链接，`WelcomeWindow` 默认值改小写；
+- 背景图库的视频条目改用 libVLC 抽首帧做缩略图（不再黑块）。
