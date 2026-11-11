@@ -856,3 +856,13 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 ### L-102 「上次可用」要记在启动成功之后
 
 记录「上次能用的组合」放在 `Process.Start` 之后、`process != null` 分支里，而不是预检通过时：预检只证明「看起来能跑」，真正的证据是进程起来了。这个顺序也保证「记录的一定是能用的」，用户按它切回去不会掉进另一个坏组合。
+
+## L-103 X11 上「窗口图标」与「窗口查找」的两个坑
+
+- Uno 的 X11 后端不写 `_NET_WM_ICON`，任务栏/Alt-Tab 只有占位方块；要自己用 `xcb_change_property` 写，数据格式 `[width, height, ...0xAARRGGBB]`、`type=XA_CARDINAL`、`format=32`。
+- 写图标的时机：`Show()` 里立刻写常常无效（窗口还没 map/还没有 WM 属性），放到首次 `Activated` 之后 300ms 更稳。
+- 找窗口不要只查 `_NET_CLIENT_LIST`：它只列「已被 WM 接管」的窗口，刚 map 的顶层窗口可能不在里面（本机实测：列表里只有 1 个窗口且 pid 不匹配）。兜底用 `xcb_query_tree(root)` 遍历子窗口，按 `WM_CLASS` 或 `WM_NAME` 匹配。
+
+## L-104 前缀目录默认 0755 是个安全洞
+
+wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755，同机其他用户可以读。创建/克隆后立刻 `chmod 0700`（`File.SetUnixFileMode`）。另外 `WINEPREFIX` 结尾多一个 `/` 会让某些 wine 构建走进 `launching from steam.exe stub!` 然后静默退出（L-92），所以路径规范化要 `TrimEnd('/')` 且保留根 `/`。

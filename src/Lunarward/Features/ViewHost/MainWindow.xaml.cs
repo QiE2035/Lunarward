@@ -36,10 +36,29 @@ public sealed partial class MainWindow : WindowEx
         this.Activated += OnWindowActivated;
         InitializeMainWindow();
         this.Activated += OnFirstActivated;
+        this.Activated += OnIconActivatedOnce;
         App.Current.EnsureSystemTray();
         RunDebugWindowAction();
         WeakReferenceMessenger.Default.Register<AccentColorChangedMessage>(this, OnAccentColorChanged);
         WeakReferenceMessenger.Default.Register<GameStartedMessage>(this, OnGameStarted);
+    }
+
+
+    private static bool _iconApplied;
+
+
+    /// <summary>
+    /// 第一次激活时给窗口补上 _NET_WM_ICON。Uno 的 X11 后端不做这件事，
+    /// 任务栏/Alt-Tab 里就只有通用占位方块（真机截图可见）。
+    /// </summary>
+    private void OnIconActivatedOnce(object? sender, Microsoft.UI.Xaml.WindowActivatedEventArgs args)
+    {
+        if (_iconApplied)
+        {
+            return;
+        }
+        _iconApplied = true;
+        _ = System.Threading.Tasks.Task.Delay(300).ContinueWith(_ => Helpers.AppIcon.Apply(Title), System.Threading.Tasks.TaskScheduler.Default);
     }
 
 
@@ -280,5 +299,17 @@ public sealed partial class MainWindow : WindowEx
 
     /// <summary>托盘菜单用：把主视图导航到设置页。</summary>
     public void OpenSettings() => MainContentHost?.NavigateToSettings();
+
+
+    /// <summary>打开设置并直达「运行环境」（预检修复按钮用）。</summary>
+    public void OpenRuntimeSettings()
+    {
+        Features.Setting.SettingNavigation.SetTarget(typeof(Features.Setting.RuntimeEnvironmentSetting));
+        MainContentHost?.NavigateToSettings();
+    }
+
+
+    /// <summary>打开当前游戏的设置页（预检修复按钮用）。</summary>
+    public void OpenGameSettings() => MainContentHost?.NavigateToGameSettings();
 
 }

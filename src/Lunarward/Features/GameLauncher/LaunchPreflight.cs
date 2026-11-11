@@ -13,6 +13,19 @@ using System.Linq;
 namespace Starward.Features.GameLauncher;
 
 
+/// <summary>预检项对应的「可点修复动作」。None 表示只能看文字提示。</summary>
+public enum PreflightAction
+{
+    None,
+    OpenGameSettings,
+    OpenRuntimeSettings,
+    OpenPrefixFolder,
+    RebuildPrefix,
+    InstallGraphics,
+    ShowPrefixProcesses,
+}
+
+
 public enum PreflightStatus
 {
     Ok,
@@ -30,6 +43,9 @@ public sealed class PreflightItem
     public string Detail { get; init; } = "";
 
     public string? Fix { get; init; }
+
+    /// <summary>能直接执行的动作；UI 据此放一个按钮，而不是只写「请去设置里改」。</summary>
+    public PreflightAction Action { get; init; }
 }
 
 
@@ -61,6 +77,7 @@ public static class LaunchPreflight
                 Status = PreflightStatus.Failed,
                 Detail = $"找不到 {exePath}",
                 Fix = "在「游戏设置」里确认安装路径",
+                Action = PreflightAction.OpenGameSettings,
             });
 
         // 2) 运行器
@@ -78,6 +95,7 @@ public static class LaunchPreflight
                     Status = PreflightStatus.Failed,
                     Detail = $"该配置指定的运行器不存在：{specified}",
                     Fix = "在「运行环境」里重新选择运行器，或把运行器路径清空以使用自动探测",
+                    Action = PreflightAction.OpenRuntimeSettings,
                 }
                 : new PreflightItem { Name = "Wine 运行器", Status = PreflightStatus.Ok, Detail = wine });
         }
@@ -91,6 +109,7 @@ public static class LaunchPreflight
                     Status = PreflightStatus.Failed,
                     Detail = "既没有指定运行器，也没在 Steam/PATH 里找到 wine",
                     Fix = "设置环境变量 LUNARWARD_WINE，或在「运行环境」里给配置指定运行器",
+                    Action = PreflightAction.OpenRuntimeSettings,
                 }
                 : new PreflightItem { Name = "Wine 运行器", Status = PreflightStatus.Ok, Detail = wine });
         }
@@ -122,6 +141,7 @@ public static class LaunchPreflight
                         Status = PreflightStatus.Failed,
                         Detail = "解析不到可用的前缀",
                         Fix = "在「运行环境」里配置前缀路径，或设置 LUNARWARD_WINEPREFIX",
+                        Action = PreflightAction.OpenRuntimeSettings,
                     });
             }
             else
@@ -137,6 +157,7 @@ public static class LaunchPreflight
                 Status = PreflightStatus.Failed,
                 Detail = ex.Message,
                 Fix = "在「运行环境」里检查该配置的前缀模式与路径",
+                Action = PreflightAction.OpenRuntimeSettings,
             });
         }
 
@@ -154,6 +175,7 @@ public static class LaunchPreflight
                     Status = PreflightStatus.Warning,
                     Detail = hasDriveC ? "缺少 system.reg/user.reg（不像已初始化的 wine 前缀）" : "缺少 drive_c（不像 wine 前缀）",
                     Fix = "确认选的是真正的前缀目录，而不是存放前缀的上级目录；wine 会在给定路径里新建空前缀",
+                    Action = PreflightAction.OpenPrefixFolder,
                 });
             }
         }
@@ -176,6 +198,7 @@ public static class LaunchPreflight
                     Status = PreflightStatus.Failed,
                     Detail = ex.Message,
                     Fix = "检查该目录的所有者与权限",
+                    Action = PreflightAction.OpenPrefixFolder,
                 });
             }
 
@@ -189,6 +212,7 @@ public static class LaunchPreflight
                     Status = PreflightStatus.Failed,
                     Detail = "这个前缀正被另一个实例使用",
                     Fix = "等它退出，或给该游戏换一个独占/模板前缀",
+                    Action = PreflightAction.ShowPrefixProcesses,
                 }
                 : new PreflightItem { Name = "前缀占用", Status = PreflightStatus.Ok, Detail = "未被占用" });
         }
@@ -204,6 +228,7 @@ public static class LaunchPreflight
                     Status = PreflightStatus.Warning,
                     Detail = "未选择 DXVK/VKD3D，将沿用前缀里已有的实现",
                     Fix = "在「运行环境」里选择组件（可选）",
+                    Action = PreflightAction.OpenRuntimeSettings,
                 });
             }
             else
@@ -216,6 +241,7 @@ public static class LaunchPreflight
                         Status = PreflightStatus.Failed,
                         Detail = $"配置里选的组件已找不到：{profile.GraphicsId}",
                         Fix = "重新选择图形组件",
+                        Action = PreflightAction.OpenRuntimeSettings,
                     }
                     : new PreflightItem { Name = "图形组件", Status = PreflightStatus.Ok, Detail = component.DisplayName });
             }

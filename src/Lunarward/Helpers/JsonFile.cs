@@ -68,7 +68,15 @@ internal static class JsonFile
         }
         catch (Exception ex)
         {
-            Serilog.Log.Warning(ex, "Corrupt json file, moving aside: {path}", path);
+            // 测试工程链接本文件时没有 Serilog；用 Debug 输出兜底，行为一致（坏文件照旧改名）
+            System.Diagnostics.Debug.WriteLine($"Corrupt json file, moving aside: {path} ({ex.Message})");
+            try
+            {
+                Serilog.Log.Warning(ex, "Corrupt json file, moving aside: {path}", path);
+            }
+            catch
+            {
+            }
             try
             {
                 File.Move(path, $"{path}.corrupt-{DateTime.Now:yyyyMMddHHmmss}", overwrite: true);

@@ -2,6 +2,20 @@
 
 本文件按日期记录实现层面的关键变更（对用户可见的行为变化为主）。版本号尚未发布，当前处于 WIP 阶段。
 
+## 2026-11-11（三）——可观测性与打包
+
+- 预检项不再只是文字：失败项直接给按钮（打开游戏设置 / 打开运行环境 / 打开前缀目录 / 重建前缀 / 安装图形组件 / 查看占用进程）。
+- 新增 `lunarward --diagnose --out DIR [--game BIZ]`：一键导出环境、运行器、方案、前缀状态、启动报告、日志尾部与预检结果（敏感变量打码）。
+- 窗口补上 `_NET_WM_ICON`（Uno 的 X11 后端不设，之前任务栏只有占位方块）。
+- 新建/克隆的前缀改为 `0700`。
+- 打包跟随代码：新增 `packaging/aur/lunarward-git`、`packaging/aur/lunarward` 与 `.github/workflows/appimage.yml`（tag 触发产出 AppImage）。
+- 单测 24 → 36（路径展开 `PrefixPath`、原子写 `JsonFile`）。
+- 新增用户向文档 `docs/user/runtime-environment.md`；README 注明只在 X11/XWayland 验证。
+
+## 2026-11-11（二）
+
+- 纯缓存与数据分离（D57）：缩略图（`bg-thumbs`、`thumb`）迁到 `~/.cache/lunarward`，并纳入 14 天清理。
+
 ## 2026-11-11（运行组件 v2 极简）
 
 - 运行组件模块按「极简版」重做（D58 v2）：只回答「有哪些运行器 / 这个游戏用哪个 / 怎么换回来」
@@ -62,7 +76,3 @@
 - 游戏扫描支持配置根与 24 小时增量缓存；
 - `~/.local/share/Lunarward` 合并为指向 `lunarward` 的符号链接，`WelcomeWindow` 默认值改小写；
 - 背景图库的视频条目改用 libVLC 抽首帧做缩略图（不再黑块）。
-
-## 2026-11-11（二）
-
-- 纯缓存与数据分离（D57）：缩略图（`bg-thumbs`、`thumb`）迁到 `~/.cache/lunarward`，并纳入 14 天清理。

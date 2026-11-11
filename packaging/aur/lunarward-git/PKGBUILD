@@ -1,0 +1,61 @@
+# Maintainer: Lunarward contributors
+# AUR 包：跟随 main 分支的最新提交（开发版）。
+# 与 packaging/PKGBUILD（按 tag 发版）的区别只是 source：这里直接取 git。
+
+pkgname=lunarward-git
+pkgver=0.1.0.r0.g0000000
+pkgrel=1
+pkgdesc="Linux launcher for miHoYo/HoYoverse games, ported from Starward (development snapshot)"
+arch=('x86_64')
+url="https://github.com/QiE2035/Lunarward"
+license=('MIT')
+depends=('dotnet-runtime' 'gtk3' 'libx11' 'fontconfig' 'zstd')
+makedepends=('dotnet-sdk>=10.0' 'git')
+optdepends=(
+  'wine: 使用系统 wine 作为运行器'
+  'libvlc: 视频壁纸（缺失时回退静态壁纸）'
+  'webkit2gtk-4.1: 米游社/HoYoLAB 登录窗口'
+  'python-gobject: 登录助手（WebKitGTK 的 Python 绑定）'
+  'kdialog: 文件选择对话框（或 zenity）'
+  'spectacle: 截图（KDE；也支持 grim / gnome-screenshot）'
+)
+provides=('lunarward')
+conflicts=('lunarward')
+source=("$pkgname::git+https://github.com/QiE2035/Lunarward.git#branch=main")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$pkgname"
+  local rev count
+  rev=$(git rev-parse --short HEAD)
+  count=$(git rev-list --count HEAD)
+  printf '0.1.0.r%s.g%s' "$count" "$rev"
+}
+
+prepare() {
+  cd "$pkgname"
+}
+
+build() {
+  cd "$pkgname/src/Lunarward"
+  export DOTNET_CLI_TELEMETRY_OPTOUT=1
+  # 子目录里的 global.json 钉了 Uno.Sdk 与 SDK 版本；不要在仓库根构建
+  dotnet publish Lunarward.csproj -c Release -r linux-x64 --self-contained false \
+    -p:Version="${pkgver%%+*}" -o "$srcdir/publish"
+}
+
+package() {
+  install -d "$pkgdir/usr/lib/lunarward" "$pkgdir/usr/bin" \
+             "$pkgdir/usr/share/applications" \
+             "$pkgdir/usr/share/icons/hicolor/256x256/apps" \
+             "$pkgdir/usr/share/licenses/$pkgname"
+
+  cp -a "$srcdir/publish/." "$pkgdir/usr/lib/lunarward/"
+
+  printf '#!/bin/sh\nexec /usr/lib/lunarward/Lunarward "$@"\n' > "$pkgdir/usr/bin/lunarward"
+  chmod 755 "$pkgdir/usr/bin/lunarward"
+
+  install -m 644 "$srcdir/$pkgname/packaging/lunarward.desktop" "$pkgdir/usr/share/applications/lunarward.desktop"
+  install -m 644 "$srcdir/$pkgname/packaging/lunarward.png" "$pkgdir/usr/share/icons/hicolor/256x256/apps/lunarward.png"
+  install -m 644 "$srcdir/$pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

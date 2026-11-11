@@ -36,6 +36,12 @@ public sealed partial class SettingPage : PageBase
 
     private static Type ResolveInitialPage()
     {
+        // 预检等入口请求「直达某个子页」时优先（一次性）。
+        Type? requested = SettingNavigation.TakeTarget();
+        if (requested is not null)
+        {
+            return requested;
+        }
         Type? type = Starward.Features.Dev.DevSwitches.SubPage switch
         {
             nameof(AboutSetting) => typeof(AboutSetting),

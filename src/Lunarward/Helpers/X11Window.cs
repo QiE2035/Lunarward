@@ -49,6 +49,9 @@ public static class X11Window
     [DllImport(LibXcb)] private static extern IntPtr xcb_get_geometry(IntPtr connection, uint drawable);
     [DllImport(LibXcb)] private static extern IntPtr xcb_get_geometry_reply(IntPtr connection, IntPtr cookie, out IntPtr error);
     [DllImport(LibXcb)] private static extern int xcb_configure_window(IntPtr connection, uint window, ushort valueMask, int[] valueList);
+    [DllImport(LibXcb)] private static extern IntPtr xcb_query_tree(IntPtr connection, uint window);
+    [DllImport(LibXcb)] private static extern IntPtr xcb_query_tree_reply(IntPtr connection, IntPtr cookie, out IntPtr error);
+    [DllImport(LibXcb)] private static extern IntPtr xcb_change_property(IntPtr connection, byte mode, uint window, uint property, uint type, byte format, uint dataLength, uint[] data);
     [DllImport("libc")] private static extern void free(IntPtr pointer);
 
     private const ushort XCB_CONFIG_WINDOW_X = 1 << 0;
@@ -197,6 +200,58 @@ public static class X11Window
         }
     }
 
+    /// <summary>
+    /// 设置窗口图标（_NET_WM_ICON）。Uno 的 X11 后端从不设置这个属性，
+    /// 结果任务栏/Alt-Tab 里显示成通用占位——用户第一眼就会觉得「这软件怪怪的」。
+    /// </summary>
+    /// <param name="title">窗口标题（用来定位窗口）</param>
+    /// <param name="width">图标宽度（像素）</param>
+    /// <param name="height">图标高度（像素）</param>
+    /// <param name="argb">按行优先排列的 0xAARRGGBB 像素，长度必须是 width*height</param>
+    public static bool SetIcon(string? title, int width, int height, uint[] argb)
+    {
+        if (width <= 0 || height <= 0 || argb.Length != width * height)
+        {
+            return false;
+        }
+        lock (Gate)
+        {
+            EnsureInitialized();
+            if (!_available)
+            {
+                return false;
+            }
+            try
+            {
+                uint window = FindWindow(title);
+                if (window == 0)
+                {
+                    return false;
+                }
+                uint atom = InternAtom("_NET_WM_ICON");
+                if (atom == 0)
+                {
+                    return false;
+                }
+                // 数据格式：[width, height, 像素...]（CARDINAL 数组，32 位）
+                uint[] data = new uint[argb.Length + 2];
+                data[0] = (uint)width;
+                data[1] = (uint)height;
+                Array.Copy(argb, 0, data, 2, argb.Length);
+                xcb_change_property(_connection, 0 /* Replace */, window, atom, XA_CARDINAL, 32, (uint)data.Length, data);
+                xcb_flush(_connection);
+                Log.Information("X11Window: 已设置窗口图标 {Width}x{Height}", width, height);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "X11Window.SetIcon failed");
+                return false;
+            }
+        }
+    }
+
+
     /// <summary>root window（懒初始化；不可用时返回 0）。</summary>
     public static uint GetRootWindow()
     {
@@ -308,12 +363,68 @@ public static class X11Window
             _cachedWindow = 0;
         }
         uint found = FindWindowFromClientList(title);
+        if (found == 0)
+        {
+            // _NET_CLIENT_LIST 只列「已被 WM 接管」的窗口，刚 map 出来的顶层窗口可能还不在里面；
+            // 直接遍历窗口树按 WM_CLASS / WM_NAME 找（xdotool search 用的也是这条路）。
+            found = FindWindowFromTree(title);
+        }
         if (found != 0)
         {
             _cachedWindow = found;
         }
         return found;
     }
+
+    private static uint FindWindowFromTree(string? title)
+    {
+        try
+        {
+            IntPtr cookie = xcb_query_tree(_connection, _root);
+            IntPtr reply = xcb_query_tree_reply(_connection, cookie, out IntPtr error);
+            if (reply == IntPtr.Zero || error != IntPtr.Zero)
+            {
+                if (reply != IntPtr.Zero)
+                {
+                    free(reply);
+                }
+                return 0;
+            }
+            int childrenLength = Marshal.ReadInt16(reply, 16);
+            IntPtr data = reply + 32;
+            uint fallback = 0;
+            for (int i = 0; i < childrenLength; i++)
+            {
+                uint window = (uint)Marshal.ReadInt32(data, i * 4);
+                if (!string.IsNullOrEmpty(title) && MatchesName(window, title))
+                {
+                    free(reply);
+                    return window;
+                }
+                // 标题可能是 "Lunarward" 而 WM_CLASS 是 ("Lunarward","Lunarward")；
+                // 有些窗口标题被上游改写（例如 "Starward - Background Viewer"），用类名兜底。
+                string? wmClass = ReadStringProperty(window, "WM_CLASS");
+                if (fallback == 0 && !string.IsNullOrEmpty(wmClass)
+                    && wmClass.Contains("Lunarward", StringComparison.Ordinal)
+                    && IsWindowValid(window))
+                {
+                    fallback = window;
+                }
+            }
+            free(reply);
+            if (fallback != 0)
+            {
+                Log.Information("X11Window: 按 WM_CLASS 找到窗口 0x{Window:X}", fallback);
+            }
+            return fallback;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "FindWindowFromTree failed");
+            return 0;
+        }
+    }
+
 
     private static bool IsWindowValid(uint window)
     {

@@ -85,6 +85,13 @@ public sealed partial class MainView : UserControl
 
 
     /// <summary>托盘菜单「打开设置」用。</summary>
+    /// <summary>导航到当前游戏的设置页（预检修复按钮用）。</summary>
+    public void NavigateToGameSettings()
+    {
+        MainView_Frame.Navigate(typeof(GameSettingPage), CurrentGameId, new Microsoft.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+    }
+
+
     public void NavigateToSettings()
     {
         MainView_Frame.Navigate(typeof(Features.Setting.SettingPage), CurrentGameId, new Microsoft.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());

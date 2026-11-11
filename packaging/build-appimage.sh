@@ -38,6 +38,9 @@ exec "$HERE/usr/lib/lunarward/Lunarward" "$@"
 SH
 chmod 755 "$appdir/AppRun"
 
+# appimagetool 会抱怨非可执行文件带 x 位、或数据文件权限过窄；统一放宽只读可执行位
+chmod -R a+rX "$appdir"
+
 echo "==> AppDir 完成：$appdir"
 
 if [[ "${SKIP_APPIMAGE:-0}" == "1" ]]; then

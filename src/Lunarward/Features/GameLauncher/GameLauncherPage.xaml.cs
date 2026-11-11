@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Starward.Language;
+using Starward.Features.Runtime;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
@@ -590,10 +591,10 @@ public sealed partial class GameLauncherPage : PageBase
     }
 
 
-    /// <summary>预检未通过时逐项说明「哪一项、为什么、怎么修」，而不是只弹一句失败。</summary>
+    /// <summary>预检未通过时逐项说明「哪一项、为什么、怎么修」，并且能直接点修复。</summary>
     private async Task ShowPreflightDialogAsync(PreflightResult result)
     {
-        var panel = new StackPanel { Spacing = 8, MinWidth = 460 };
+        var panel = new StackPanel { Spacing = 10, MinWidth = 460 };
         foreach (PreflightItem item in result.Items)
         {
             var row = new StackPanel { Spacing = 2 };
@@ -611,25 +612,230 @@ public sealed partial class GameLauncherPage : PageBase
             });
             if (!string.IsNullOrWhiteSpace(item.Fix))
             {
-                row.Children.Add(new TextBlock
+                var fixRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+                fixRow.Children.Add(new TextBlock
                 {
                     Text = "    " + item.Fix,
                     FontSize = 12,
                     Opacity = 0.7,
                     TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 380,
+                    VerticalAlignment = VerticalAlignment.Center,
                 });
+                if (item.Action != PreflightAction.None)
+                {
+                    var button = new Button
+                    {
+                        Content = GetPreflightActionText(item.Action),
+                        FontSize = 12,
+                        Padding = new Thickness(8, 2, 8, 2),
+                    };
+                    PreflightAction action = item.Action;
+                    button.Click += async (_, _) => await RunPreflightActionAsync(action);
+                    fixRow.Children.Add(button);
+                }
+                row.Children.Add(fixRow);
             }
             panel.Children.Add(row);
         }
         var dialog = new ContentDialog
         {
             Title = Lang.Lunarward_Preflight_Title,
-            Content = new ScrollViewer { Content = panel, MaxHeight = 420 },
+            Content = new ScrollViewer { Content = panel, MaxHeight = 440 },
             PrimaryButtonText = Lang.Lunarward_Preflight_OK,
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = this.XamlRoot,
         };
         await dialog.ShowAsync();
+    }
+
+
+    private static string GetPreflightActionText(PreflightAction action) => action switch
+    {
+        PreflightAction.OpenGameSettings => "打开游戏设置",
+        PreflightAction.OpenRuntimeSettings => "打开运行环境",
+        PreflightAction.OpenPrefixFolder => "打开前缀目录",
+        PreflightAction.RebuildPrefix => "重建前缀",
+        PreflightAction.InstallGraphics => "安装图形组件",
+        PreflightAction.ShowPrefixProcesses => "查看占用进程",
+        _ => "",
+    };
+
+
+    /// <summary>执行预检项上的修复动作。每个动作独立 try/catch：修不了也要说清楚，而不是静默。</summary>
+    private async Task RunPreflightActionAsync(PreflightAction action)
+    {
+        try
+        {
+            switch (action)
+            {
+                case PreflightAction.OpenGameSettings:
+                    MainWindow.Current?.OpenGameSettings();
+                    return;
+
+                case PreflightAction.OpenRuntimeSettings:
+                    MainWindow.Current?.OpenRuntimeSettings();
+                    return;
+
+                case PreflightAction.OpenPrefixFolder:
+                {
+                    string? prefix = await ResolveCurrentPrefixAsync();
+                    if (prefix is null || !Directory.Exists(prefix))
+                    {
+                        Helpers.InAppToast.MainWindow?.Warning("还没有前缀目录，启动一次游戏后会创建。", null, 4000);
+                        return;
+                    }
+                    Helpers.OpenUrl.Open(prefix);
+                    return;
+                }
+
+                case PreflightAction.RebuildPrefix:
+                {
+                    RuntimeProfile? profile = ProfileBinding.Resolve(CurrentGameBiz);
+                    string? prefix = await ResolveCurrentPrefixAsync();
+                    if (profile is null || prefix is null)
+                    {
+                        Helpers.InAppToast.MainWindow?.Warning("这个游戏还没有绑定运行配置。", null, 4000);
+                        return;
+                    }
+                    if (profile.PrefixMode == "external")
+                    {
+                        Helpers.InAppToast.MainWindow?.Warning("当前配置使用的是已有目录，启动器不会删除它。要重建请先在「运行环境」里改成新建。", null, 6000);
+                        return;
+                    }
+                    var confirm = new ContentDialog
+                    {
+                        Title = "重建前缀",
+                        Content = new TextBlock
+                        {
+                            Text = $"将删除并重新创建：\n{prefix}\n\n游戏本体与存档不受影响，但前缀里手工装过的补丁/组件会丢失。",
+                            TextWrapping = TextWrapping.Wrap,
+                        },
+                        PrimaryButtonText = "重建",
+                        CloseButtonText = "取消",
+                        DefaultButton = ContentDialogButton.Close,
+                        XamlRoot = this.XamlRoot,
+                    };
+                    if (await confirm.ShowAsync() != ContentDialogResult.Primary)
+                    {
+                        return;
+                    }
+                    string exePath = await ResolveCurrentExePathAsync() ?? "";
+                    string gameKey = Path.GetFileNameWithoutExtension(exePath).ToLowerInvariant();
+                    if (Directory.Exists(prefix))
+                    {
+                        Directory.Delete(prefix, true);
+                    }
+                    string created = PrefixManager.EnsurePrefix(profile, string.IsNullOrEmpty(gameKey) ? CurrentGameBiz.Value : gameKey, _logger);
+                    Helpers.InAppToast.MainWindow?.Success($"前缀已重建：{created}", null, 5000);
+                    return;
+                }
+
+                case PreflightAction.InstallGraphics:
+                {
+                    RuntimeProfile? profile = ProfileBinding.Resolve(CurrentGameBiz);
+                    string? prefix = await ResolveCurrentPrefixAsync() ?? (profile is null ? null : await TryEnsureForGraphicsAsync(profile));
+                    Component? component = profile is null ? null : ComponentStore.GetGraphics().FirstOrDefault(c => c.Id == profile.GraphicsId);
+                    if (prefix is null || component is null)
+                    {
+                        Helpers.InAppToast.MainWindow?.Warning("请先在「运行环境」里选择一个 DXVK/VKD3D 组件。", null, 5000);
+                        MainWindow.Current?.OpenRuntimeSettings();
+                        return;
+                    }
+                    bool ok = GraphicsInstaller.EnsureInstalled(prefix, component, _logger);
+                    if (ok)
+                    {
+                        Helpers.InAppToast.MainWindow?.Success($"{component.DisplayName} 已安装到前缀。", null, 4000);
+                    }
+                    else
+                    {
+                        Helpers.InAppToast.MainWindow?.Error((string?)null, "安装图形组件失败，详情见日志。", 5000);
+                    }
+                    return;
+                }
+
+                case PreflightAction.ShowPrefixProcesses:
+                {
+                    string? prefix = await ResolveCurrentPrefixAsync();
+                    string output = prefix is null ? "" : await Helpers.ProcessQuery.FindUsersAsync(prefix);
+                    await new ContentDialog
+                    {
+                        Title = "前缀占用",
+                        Content = new ScrollViewer
+                        {
+                            MaxHeight = 320,
+                            Content = new TextBlock
+                            {
+                                Text = string.IsNullOrWhiteSpace(output)
+                                    ? "没有找到占用该前缀的进程（可能只是上次异常退出残留的锁文件）。\n再启动一次会尝试接管。"
+                                    : output,
+                                TextWrapping = TextWrapping.Wrap,
+                                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("monospace"),
+                                FontSize = 12,
+                            },
+                        },
+                        PrimaryButtonText = "知道了",
+                        XamlRoot = this.XamlRoot,
+                    }.ShowAsync();
+                    return;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "preflight action {action}", action);
+            Helpers.InAppToast.MainWindow?.Error((string?)null, "修复动作失败：" + ex.Message, 6000);
+        }
+    }
+
+
+    private async Task<string?> ResolveCurrentPrefixAsync()
+    {
+        RuntimeProfile? profile = ProfileBinding.Resolve(CurrentGameBiz);
+        string? exe = await ResolveCurrentExePathAsync();
+        string gameKey = Path.GetFileNameWithoutExtension(exe ?? "").ToLowerInvariant();
+        if (profile is not null && !string.IsNullOrEmpty(gameKey))
+        {
+            return PrefixManager.TryGetExistingPrefix(profile, gameKey);
+        }
+        return string.IsNullOrEmpty(gameKey) ? null : GameLauncherService.ResolvePrefix(gameKey);
+    }
+
+
+    private async Task<string?> ResolveCurrentExePathAsync()
+    {
+        try
+        {
+            string? folder = GameLauncherService.GetGameInstallPath(CurrentGameBiz);
+            if (string.IsNullOrWhiteSpace(folder))
+            {
+                return null;
+            }
+            string name = await _gameLauncherService.GetGameExeNameAsync(CurrentGameId);
+            string exe = Path.Combine(folder, name);
+            return File.Exists(exe) ? exe : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "resolve game exe");
+            return null;
+        }
+    }
+
+
+    private async Task<string?> TryEnsureForGraphicsAsync(RuntimeProfile profile)
+    {
+        try
+        {
+            string? exe = await ResolveCurrentExePathAsync();
+            string gameKey = Path.GetFileNameWithoutExtension(exe ?? "").ToLowerInvariant();
+            return PrefixManager.EnsurePrefix(profile, string.IsNullOrEmpty(gameKey) ? CurrentGameBiz.Value : gameKey, _logger);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ensure prefix for graphics");
+            return null;
+        }
     }
 
 

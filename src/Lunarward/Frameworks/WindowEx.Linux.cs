@@ -90,6 +90,8 @@ public abstract partial class WindowEx : Window
                 AppWindow.Resize(new SizeInt32 { Width = (int)Math.Round(dipWidth * scale), Height = (int)Math.Round(dipHeight * scale) });
                 await System.Threading.Tasks.Task.Delay(120);
             }
+            // 窗口已经 map 出来：补上 _NET_WM_ICON（Uno 的 X11 后端不做这件事）
+            Helpers.AppIcon.Apply(Title);
             SizeInt32 size = AppWindow.Size;
             int maxWidth = Math.Max(400, (int)(screenWidth * 0.9));
             int maxHeight = Math.Max(300, (int)(screenHeight * 0.9));

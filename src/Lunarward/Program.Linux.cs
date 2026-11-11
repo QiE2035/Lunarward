@@ -1122,6 +1122,36 @@ internal class LunarwardProgram
             return;
         }
 
+        // 诊断包：`lunarward --diagnose [--out DIR] [--game BIZ]`
+        if (args.Contains("--diagnose"))
+        {
+            try
+            {
+                AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+                string? outDir = null;
+                int outIndex = Array.IndexOf(args, "--out");
+                if (outIndex >= 0 && outIndex + 1 < args.Length)
+                {
+                    outDir = args[outIndex + 1];
+                }
+                Starward.Core.GameBiz? diagBiz = null;
+                int gameIndex = Array.IndexOf(args, "--game");
+                if (gameIndex >= 0 && gameIndex + 1 < args.Length && Starward.Core.GameBiz.TryParse(args[gameIndex + 1], out Starward.Core.GameBiz parsedBiz))
+                {
+                    diagBiz = parsedBiz;
+                }
+                string zip = Starward.Helpers.DiagnosticBundle.CreateAsync(outDir, diagBiz, null).GetAwaiter().GetResult();
+                Console.WriteLine(zip);
+                return;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("导出诊断包失败：" + ex.Message);
+                Environment.ExitCode = 1;
+                return;
+            }
+        }
+
         if (args.Length >= 2 && args[0] is "--preflight")
         {
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz pfBiz))

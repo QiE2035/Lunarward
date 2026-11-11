@@ -21,6 +21,20 @@ public static class ProfileBinding
     };
 
 
+    /// <summary>诊断包用：把「游戏 → 方案 id」的绑定关系原样导出。</summary>
+    public static string Describe()
+    {
+        try
+        {
+            return JsonSerializer.Serialize(Load(), new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (Exception ex)
+        {
+            return "读取绑定失败：" + ex;
+        }
+    }
+
+
     private static string FilePath
     {
         get

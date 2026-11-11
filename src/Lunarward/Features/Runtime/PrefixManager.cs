@@ -39,40 +39,7 @@ public static class PrefixManager
     /// 展开 Profile 里手写的路径：支持 `~/xxx`、`$HOME/xxx` 和 `${HOME}/xxx`。
     /// 上游的 Path 文本框里用户很自然会写 `~`，不展开就会在 CWD 下建出名字叫 "~" 的目录（L-62）。
     /// </summary>
-    public static string? ExpandPath(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return null;
-        }
-        string expanded = path.Trim();
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (expanded == "~")
-        {
-            return home;
-        }
-        if (expanded.StartsWith("~/", StringComparison.Ordinal))
-        {
-            expanded = Path.Combine(home, expanded[2..]);
-        }
-        else if (expanded.StartsWith("$HOME/", StringComparison.Ordinal))
-        {
-            expanded = Path.Combine(home, expanded[6..]);
-        }
-        else if (expanded.StartsWith("${HOME}/", StringComparison.Ordinal))
-        {
-            expanded = Path.Combine(home, expanded[8..]);
-        }
-        expanded = Environment.ExpandEnvironmentVariables(expanded);
-        // wine 对 WINEPREFIX 的字符串做前缀比较：带尾斜杠会被当成「另一个前缀」，
-        // 表现为直接打印 `wine: launching from steam.exe stub!` 并退出（实测）。
-        // 这里统一去掉尾部分隔符（保留根目录 "/"）。
-        if (expanded.Length > 1)
-        {
-            expanded = expanded.TrimEnd('/');
-        }
-        return expanded;
-    }
+    public static string? ExpandPath(string? path) => PrefixPath.Expand(path);
 
 
 
@@ -148,6 +115,7 @@ public static class PrefixManager
                 if (!Directory.Exists(path))
                 {
                     CreateWithWineboot(profile, path, logger);
+                    TightenPermissions(path);
                 }
                 WriteMetadata(path, key, profile, "dedicated", null);
                 return path;
@@ -160,6 +128,7 @@ public static class PrefixManager
                 if (!Directory.Exists(path))
                 {
                     CreateWithWineboot(profile, path, logger);
+                    TightenPermissions(path);
                 }
                 WriteMetadata(path, key, profile, "shared", null);
                 return path;
@@ -177,6 +146,7 @@ public static class PrefixManager
                 if (!Directory.Exists(path))
                 {
                     ClonePrefix(template, path, logger);
+                    TightenPermissions(path);
                 }
                 WriteMetadata(path, key, profile, "template", template);
                 return path;
@@ -194,11 +164,33 @@ public static class PrefixManager
                 // 用「时间戳 + pid + 短随机」保证唯一，同时仍可看出是哪次会话。
                 string path = Path.Combine(PrefixRoot, $".ephemeral-{key}-{profile.Id}-{DateTime.Now:yyyyMMddHHmmss}-{Environment.ProcessId}");
                 ClonePrefix(template, path, logger);
+                TightenPermissions(path);
                 WriteMetadata(path, key, profile, "ephemeral", template);
                 return path;
             }
             default:
                 throw new NotSupportedException($"未知的前缀模式：{profile.PrefixMode}");
+        }
+    }
+
+
+    /// <summary>
+    /// 前缀目录收紧到 0700：里面是 wine 注册表、游戏账号 token、登录 cookie，
+    /// 默认 0755 会让同机其他用户读到。失败只记日志（不改外部目录的既有权限不是错误）。
+    /// </summary>
+    private static void TightenPermissions(string prefix)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        try
+        {
+            File.SetUnixFileMode(prefix, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "tighten prefix permissions failed: {Prefix}", prefix);
         }
     }
 
