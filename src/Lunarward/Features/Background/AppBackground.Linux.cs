@@ -4,6 +4,7 @@
 //   - 图片：BitmapImage 直接加载（file:// 与 ms-appx://）
 //   - 视频：暂时退化为该游戏的静态兜底图（视频解码要接 LibVLC/GStreamer，排在 M3）
 // 选图逻辑照抄上游 UpdateBackgroundAsync 的语义：优先「建议背景」→ 失败/超时用兜底图。
+using System.Collections.Generic;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -44,6 +45,13 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     private readonly BackgroundService _backgroundService = AppConfig.GetService<BackgroundService>();
 
     private CancellationTokenSource? _updateBackgroundCts;
+
+    // 「建议背景」接口在 Linux 上常要 5–6 秒（首包 TLS + 弱网），而 GameLauncherPage 每次 Loaded 都会
+    // 触发一次背景更新：不缓存的话每切一次页都要等一轮超时，并重放一次「回退图 + 换强调色」，
+    // 用户看到的就是「切回启动器卡一下、主题闪一下」。失败结果同样缓存，避免连续重试。
+    private static readonly TimeSpan SuggestedBackgroundTtl = TimeSpan.FromMinutes(5);
+    private readonly Dictionary<string, (GameBackground? Background, DateTime At)> _suggestedBackgroundCache = new();
+    private string? _lastAccentFile;
 
     private string? _lastBackgroundFile;
 
@@ -209,6 +217,44 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     }
 
 
+    /// <summary>
+    /// 取「建议背景」，成功与失败都缓存 <see cref="SuggestedBackgroundTtl"/>：
+    /// 失败时返回 null 由调用方走静态兜底图，但不再每次切页都重新等一轮超时。
+    /// </summary>
+    private async Task<GameBackground?> GetSuggestedBackgroundCachedAsync(GameId gameId, CancellationToken token)
+    {
+        string cacheKey = gameId.Id ?? string.Empty;
+        if (_suggestedBackgroundCache.TryGetValue(cacheKey, out (GameBackground? Background, DateTime At) cached)
+            && DateTime.UtcNow - cached.At < SuggestedBackgroundTtl)
+        {
+            return cached.Background;
+        }
+        // 上游给 1 秒 API 超时；Linux 首包要 TLS 握手，1 秒几乎必然超时（L-71），这里放宽到 6 秒。
+        int apiTimeoutMs = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_BG_TIMEOUT_MS"), out int dbgMs) && dbgMs > 0 ? dbgMs : 6000;
+        try
+        {
+            using CancellationTokenSource apiTimeout = new(TimeSpan.FromMilliseconds(apiTimeoutMs));
+            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, apiTimeout.Token);
+            GameBackground? suggested = await _backgroundService.GetSuggestedGameBackgroundAsync(gameId, linked.Token);
+            _suggestedBackgroundCache[cacheKey] = (suggested, DateTime.UtcNow);
+            Serilog.Log.Debug("[background] suggested: {Type} stop={Stop} video={Video}", suggested?.Type, suggested?.StopVideo, suggested?.Video?.Url);
+            return suggested;
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            _suggestedBackgroundCache[cacheKey] = (null, DateTime.UtcNow);
+            Serilog.Log.Information("[background] get suggested background timed out, using fallback image (cached for {Minutes} min)", SuggestedBackgroundTtl.TotalMinutes);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _suggestedBackgroundCache[cacheKey] = (null, DateTime.UtcNow);
+            Serilog.Log.Warning(ex, "[background] get suggested background failed");
+            return null;
+        }
+    }
+
+
     /// <summary>SkiaSharp 合成：底图铺满 + 主题图按上游语义整幅拉伸叠加，输出 PNG。</summary>
     private static byte[] ComposeBackgroundPng(string backgroundPath, string themePath)
     {
@@ -316,12 +362,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             {
                 if (requested is null)
                 {
-                    // 上游给 1 秒 API 超时 + 3 秒下载超时；这里只是拿「建议背景」，同样限时
-                    // 上游给 1 秒：Windows 上够用，Linux 首包要 TLS 握手，1 秒几乎必然超时 → 永远回退静态兜底（L-71）。
-                    int apiTimeoutMs = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_BG_TIMEOUT_MS"), out int dbgMs) && dbgMs > 0 ? dbgMs : 6000;
-                    using CancellationTokenSource apiTimeout = new(TimeSpan.FromMilliseconds(apiTimeoutMs));
-                    background = await _backgroundService.GetSuggestedGameBackgroundAsync(gameId, apiTimeout.Token);
-                    Serilog.Log.Debug("[background] suggested: {Type} stop={Stop} video={Video}", background?.Type, background?.StopVideo, background?.Video?.Url);
+                    background = await GetSuggestedBackgroundCachedAsync(gameId, token);
                 }
                 else
                 {
@@ -385,7 +426,12 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             BackgroundImageSource = await LoadBackgroundImageAsync(filePath, background, token);
             // 上游在静态背景分支调用 AccentColorHelper.ChangeAppAccentColor（AppBackground.xaml.cs:551），
             // Linux 侧从未实现过（D50）：这里按图取主色写回主题字典。
-            Starward.Helpers.AccentColorHelper.ApplyFromFile(filePath);
+            // 同一张图只在第一次换色：ChangeAppAccentColor 会触发整棵树的主题重解析，重复调用会闪。
+            if (filePath != _lastAccentFile)
+            {
+                _lastAccentFile = filePath;
+                Starward.Helpers.AccentColorHelper.ApplyFromFile(filePath);
+            }
         }
         catch (Exception ex)
         {

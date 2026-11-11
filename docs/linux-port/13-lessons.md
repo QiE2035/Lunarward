@@ -872,3 +872,11 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 - Uno 的 `Frame.Navigate` 默认不缓存页面，每次切换都重新膨胀 XAML（本机实测启动器页 ctor 289–425 ms）。给页面加 `NavigationCacheMode="Required"`，再进该页就降到 24–46 ms。
 - `WineRegistry.GetValue` 每次都会 spawn 一次 `wine reg query`（首次触碰前缀时还会等 wine 初始化），同步调用会把 UI 线程卡住 1 s 以上。页面初始化里的注册表读取必须整段 `await Task.Run(...)`，回来再赋属性。
 - 判断「卡在布局还是卡在 IO」的办法：分别给 ctor、`OnLoaded`、`Frame.Navigated` 打时间戳。本例 ctor 132 ms 而导航 1729 ms，立刻就能排除「页面构造慢」。
+
+## L-106 页面缓存之后，不能在 `Unloaded` 里清空 `ItemsSource`
+
+给页面加 `NavigationCacheMode="Required"`（D60）之后，页面里的控件实例会被复用：`Unloaded → Loaded` 会再次发生，但**同一个控件**还在。`GameBannerAndPost` 原来在 `Unloaded` 里 `Banners = null; PostGroups = null;`（上游写法，页面不缓存时无害），复用时等于先把 `Pivot.ItemsSource` 清空再赋新列表，Uno 的 `Pivot` 在这种情况下不重建条目——数据侧日志明明 `banners=5 groups=3`，界面上只剩一张空卡片（真机复现，切页两次必现）。正确做法：`Unloaded` 只解注册与停计时器；数据留在内存里，靠「当前游戏 id 变了」判断是否重新拉取。
+
+## L-107 「建议背景」失败也要缓存，否则每次切页都要等一轮超时
+
+`AppBackground.UpdateBackgroundAsync` 每次进启动器页都会被调用（页面 `Loaded` → 设 `CurrentGameId`）。它要请求「建议背景」接口，Linux 首包 + 弱网常 5–6 秒超时，失败后走 `GetFallbackBackgroundImage` + 重算强调色。不缓存就有两个后果：切一次页等 6 秒的超时链路重新跑一遍；每跑一次都重放「换背景 + 换强调色」，而 `ChangeAppAccentColor` 会触发整棵树主题重解析 → 用户看到的是「切回启动器时闪一下、卡一下」。处理：成功与失败结果都按游戏缓存 5 分钟；强调色按「文件路径」去重，同一张图只应用一次。

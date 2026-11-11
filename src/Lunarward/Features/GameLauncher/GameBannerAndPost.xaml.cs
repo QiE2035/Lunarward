@@ -26,6 +26,10 @@ public sealed partial class GameBannerAndPost : UserControl
     private Microsoft.UI.Dispatching.DispatcherQueueTimer _bannerTimer;
 
 
+    /// <summary>当前已加载内容属于哪个游戏；页面被缓存后据此判断要不要重新拉取。</summary>
+    private GameId? _contentGameId;
+
+
     private readonly ILogger<GameBannerAndPost> _logger = AppConfig.GetLogger<GameBannerAndPost>();
 
 
@@ -60,7 +64,11 @@ public sealed partial class GameBannerAndPost : UserControl
         WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, OnMainWindowStateChanged);
         WeakReferenceMessenger.Default.Register<GameNoticeWindowClosedMessage>(this, OnGameNoticeWindowClosed);
         WeakReferenceMessenger.Default.Register<GameAnnouncementSettingChangedMessage>(this, OnGameAnnouncementSettingChanged);
-        await UpdateGameContentAsync();
+        if (_contentGameId != CurrentGameId || Banners is null || PostGroups is null)
+        {
+            _contentGameId = CurrentGameId;
+            await UpdateGameContentAsync();
+        }
         await UpdateGameNoticeAlertAsync();
     }
 
@@ -70,8 +78,9 @@ public sealed partial class GameBannerAndPost : UserControl
         WeakReferenceMessenger.Default.UnregisterAll(this);
         _bannerTimer.Stop();
         _bannerTimer.Tick -= _bannerTimer_Tick;
-        Banners = null;
-        PostGroups = null;
+        // Lunarward：这里**不要**把 Banners/PostGroups 置 null。
+        // 页面加了 NavigationCacheMode 之后控件实例会复用，一旦把 ItemsSource 清空，
+        // Uno 的 Pivot 在重新赋值为新列表时不会重建条目，左下角公告区就只剩空卡片（真机复现）。
     }
 
 

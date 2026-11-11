@@ -44,6 +44,7 @@
                 <FlipView.ItemTemplate>
                     <DataTemplate x:DataType="sch:GameBanner">
                         <sc:CachedImage Name="Image_Banner"
+                                        DecodePixelWidth="760"
                                         Loaded="Image_Banner_Loaded"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center"
