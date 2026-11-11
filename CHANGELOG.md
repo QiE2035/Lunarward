@@ -2,6 +2,12 @@
 
 本文件按日期记录实现层面的关键变更（对用户可见的行为变化为主）。版本号尚未发布，当前处于 WIP 阶段。
 
+## 2026-11-11（文档）
+
+- 新增 `docs/linux-port/16-runtime-components.md`：运行组件与运行环境的目标形态（D58，设计稿，未实施）
+- 要点：组件强身份（哈希/来源/能力）、`profile.json`+`lock.json`、保留策略 `reference/hardlink/copy`（不假定 CoW）、
+  前缀 manifest 与生命周期、`overlay` 注入默认、refcount 回收（反对 LRU）、`missing` 一等状态、provider 多来源市场
+
 ## 2026-11-06
 
 - 非 M4 收尾（D51）：逐条定论 14 项缺口，见 `docs/linux-port/00-decisions.md`

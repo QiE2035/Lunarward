@@ -550,6 +550,39 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **未做**：图库虚拟化（`ItemsRepeater + UniformGridLayout`）——先靠降采样把解码量降两个数量级，实测已无明显卡顿；
 视频降帧被用户否掉（保持 30fps），如需省电可后续加「视频转 H.264 缓存」开关。
 
+## D58 · 运行组件与运行环境：目标形态（设计稿 v1，2026-11-11）
+
+**背景**：现有 `RuntimeProfile` 把 runner / graphics / prefix / env 四件事合成一个对象，直接存最终值；
+`ComponentStore` 只扫路径不给身份；`GraphicsInstaller` 靠往前缀里复制 dll；没有版本锁定、没有引用计数，
+也没有下载来源。讨论中用户提出三条修正，直接改变了设计：
+
+1. **反对「复制一份固定」**：能复用就不要重复存，且**不能假定用户是 btrfs**（无 reflink）。
+2. **下载市场要做**：否则用户得自己找包、解压、挑架构；且应支持多个自定义来源。
+3. **反对用 LRU 做回收**：「最近不用」不等于「没用」，「最近在用」不等于「还在用」，只有引用计数才代表真实性。
+
+**决定（目标形态，见 `16-runtime-components.md`）**：
+
+- **组件强身份**：`(kind, id, version, sha256, source, capabilities)`；哈希只算关键文件集合，惰性计算（L0 元数据 → L1 `pacman -Qo` → L2 关键文件 → L3 全量）。
+- **发现层与仓层分离**：扫描结果只是候选，进仓才是承诺。
+- **保留策略三档**：`reference`（零空间，只记身份 + 配方）/ `hardlink`（同分区零空间、留住旧 inode，用 `cp -al`，不依赖 CoW；pacman 以 rename 替换 → 旧版本继续可用）/ `copy`（跨分区或用户强制）。默认 `reference` + 配方；任何策略都记 recipe（`aur:pkg#version` + 多镜像 URL + sha256），因为 AUR 老版本常拿不回来。
+- **方案 = 声明 + 锁**：`profile.json`（可跟随的意图）+ `profile.lock.json`（钉死到哈希的事实 + `explain` 解释 + `verified_at`）。解析规则：显式 > 继承 > 默认；能力校验；冲突检测。
+- **前缀可重建**：`base` + `manifest(operations)` + 生命周期 `create/adopt/upgrade/snapshot/restore/clone/verify/discard`；快照三档降级 btrfs 子卷 → 硬链接树 → `tar.zst`（**都不假定 CoW**）。
+- **注入默认 overlay**：`WINEDLLPATH` + `WINEDLLOVERRIDES`，换 DXVK 不动前缀；`inprefix` 显式选择并记 manifest。
+- **预检 = 锁 vs 现实**：`missing` / `drift` / `version-mismatch` / `modified` / `locked` / `no-space` 六类结果统一呈现并写 `LaunchReport`。
+- **回收 = refcount**：引用来源为方案锁、前缀 manifest、运行租约（lease 文件带 pid）、显式 `keep`；**每次按事实重算，不落盘计数器**；`refcount > 0` 或 lease 或 keep → 永不自动删除；LRU 只用于纯缓存与候选排序。
+- **`missing` 是一等状态**（不是异常）：启动前展示「被哪些方案引用 / 上次可用时间 / 配方重取 / 换用系统版本 / 解除引用」。
+- **市场 = provider + 标准索引**：`providers/*.json`（official + 多个自定义：https / 本地目录 / `file://`）；索引条目强制 `sha256`，多来源去重，`http` 警告，记录 provenance，支持离线镜像。
+
+**明确不做**：沙箱/容器化运行时、游戏版本管理、Steam 库管理、「自动修好一切」的魔法。
+
+**实施状态**：**未实施**。分期 P0（身份）→ P1（锁 + drift）→ P2（保留策略/配方/missing）→ P3（前缀 manifest 与生命周期）→ P4（overlay + `--print-env`）→ P5（provider/下载）→ P6（UI）。P0+P1 是分水岭。
+
+**代价**：P1 起启动路径多一次解析与校验（L0/L1 毫秒级）；`reference` 策略会让 `missing` 变成常见状态，需要 UI 正面呈现；硬链接快照若被原地改写会污染（只用于回滚，回滚前 `verify`）。
+
+**待拍板**：Q1 默认保留策略（建议 `reference`）、Q2 游戏页是否允许临时覆盖（建议允许并标红）、Q3 `overlay` 默认（建议是）、Q4 provider 配置位置（建议独立 `providers/`）、Q5 `--print-env` 是否脱敏（建议默认脱敏）。见 `16-runtime-components.md` §14。
+
+---
+
 ## 协作约定复核（2026-11-05，来源：聊天记录）
 
 用户要求「顺便整理一下聊天记录看看还有哪些需要计入文档的」。以下是从 m00001 起到 m11348 为止所有明确要求，标注当前落点（✅ 已入文档 / 🆕 本次补入）：
