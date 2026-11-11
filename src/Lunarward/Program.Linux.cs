@@ -1091,6 +1091,37 @@ internal class LunarwardProgram
             return;
         }
 
+        // 运行器可用性一览（D58）：只做无副作用检查，不建前缀
+        if (args.Length >= 1 && args[0] is "--list-runners")
+        {
+            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            var runners = Starward.Features.Runtime.ComponentStore.GetRunners(true);
+            if (args.Contains("--json"))
+            {
+                var payload = runners.Select(r => new
+                {
+                    name = r.DisplayName,
+                    path = r.Path,
+                    version = r.Version,
+                    layout = r.Layout,
+                    usable = r.Usable,
+                    reason = r.UsabilityReason,
+                    wineserver = Starward.Features.Runtime.ComponentStore.FindWineserver(r.Path),
+                }).ToArray();
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(payload, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+                return;
+            }
+            Console.WriteLine($"扫描根：{string.Join(", ", Starward.Features.Runtime.ComponentStore.ScanRoots)}");
+            foreach (var r in runners)
+            {
+                string mark = r.Usable == true ? "✓" : "✗";
+                string version = string.IsNullOrWhiteSpace(r.Version) ? "(无版本)" : r.Version;
+                string reason = string.IsNullOrWhiteSpace(r.UsabilityReason) ? "" : "  ← " + r.UsabilityReason;
+                Console.WriteLine($"  {mark} {r.DisplayName,-14} {version,-20} {r.LayoutText,-9} {r.Path}{reason}");
+            }
+            return;
+        }
+
         if (args.Length >= 2 && args[0] is "--preflight")
         {
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz pfBiz))

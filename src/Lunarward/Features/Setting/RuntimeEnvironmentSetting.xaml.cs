@@ -29,6 +29,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     public RuntimeEnvironmentSetting()
     {
         this.InitializeComponent();
+        // Uno 的 ScrollViewer 在「禁用横向滚动」时仍会给内容无限宽度，横向 StackPanel/Grid 的星号列就没有约束，
+        // 表现为文字不省略、右侧徽标压到文字上甚至超出窗口（D58 v2 截图实测）。这里显式把列表宽度钉到可视区。
+        SizeChanged += (_, _) => UpdateContentWidth();
         LoadProfiles();
         LoadComponents();
         // Lunarward：截图/排错用（LUNARWARD_PROFILE_EDITOR=1 打开第一项的编辑对话框），正式版移除
@@ -337,6 +340,65 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
+    /// <summary>一行组件信息的布局信息：原始文案 + 这一行除文字外还要占多少像素。</summary>
+    private sealed class ComponentRowInfo
+    {
+        public ComponentRowInfo(TextBlock name, TextBlock version, string nameRaw, string versionRaw, double reservedWidth)
+        {
+            Name = name;
+            Version = version;
+            NameRaw = nameRaw;
+            VersionRaw = versionRaw;
+            ReservedWidth = reservedWidth;
+        }
+
+        public TextBlock Name { get; }
+
+        public TextBlock Version { get; }
+
+        public string NameRaw { get; }
+
+        public string VersionRaw { get; }
+
+        public double ReservedWidth { get; }
+    }
+
+
+    /// <summary>中间省略：保留头尾、掐掉中间（路径类文本最需要尾部的文件名）。</summary>
+    private static string Ellipsize(string value, int maxChars)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= maxChars || maxChars < 8)
+        {
+            return value;
+        }
+        int head = maxChars / 2;
+        int tail = maxChars - head - 1;
+        return string.Concat(value.AsSpan(0, head), "…", value.AsSpan(value.Length - tail));
+    }
+
+
+    private void UpdateContentWidth()
+    {
+        double width = ScrollViewer_Content.ViewportWidth > 0 ? ScrollViewer_Content.ViewportWidth : RootGrid.ActualWidth - 64;
+        if (width > 0)
+        {
+            StackPanel_Components.Width = width;
+            StackPanel_Profiles.Width = width;
+        }
+        // Uno 的测量链在这里不认「星号列 + TextTrimming」：文字仍会顶出可视区（截图实测）。
+        // 因此按可用像素估算可容纳的字符数，直接用「中间省略」的字符串，布局就不再依赖测量行为。
+        foreach (UIElement child in StackPanel_Components.Children)
+        {
+            if (child is Border { Tag: ComponentRowInfo info })
+            {
+                int chars = (int)Math.Max(24, (width - info.ReservedWidth) / 6.8);
+                info.Name.Text = Ellipsize(info.NameRaw, chars);
+                info.Version.Text = Ellipsize(info.VersionRaw, chars);
+            }
+        }
+    }
+
+
     private UIElement CreateComponentRow(Component component)
     {
         var kind = new TextBlock
@@ -362,9 +424,52 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         var text = new StackPanel { Spacing = 2 };
         text.Children.Add(name);
         text.Children.Add(version);
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+
+        // 用 Grid 而不是横向 StackPanel：StackPanel 给子项无限宽度，TextBlock 不会省略，
+        // 右边的可用性徽标就会压在路径文字上（实测重叠，见 D58 v2 的截图验证）。
+        Grid row = new() { ColumnSpacing = 12 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(kind, 0);
+        Grid.SetColumn(text, 1);
         row.Children.Add(kind);
         row.Children.Add(text);
+
+        // D58：扫描阶段就要能看出「能不能用 + 为什么」，别让用户选了才发现跑不起来
+        if (component.Kind is ComponentKind.Wine or ComponentKind.Proton)
+        {
+            var badge = new TextBlock
+            {
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                Text = component.Usable switch
+                {
+                    true => "可用",
+                    false => component.UsabilityReason,
+                    null => "未检测",
+                },
+                Opacity = component.Usable == true ? 1 : 0.7,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 320,
+            };
+            if (component.Usable == true)
+            {
+                badge.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
+                if (!string.IsNullOrWhiteSpace(component.LayoutText))
+                {
+                    badge.Text = $"可用 · {component.LayoutText}";
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(component.LayoutText))
+            {
+                badge.Text = $"{badge.Text}（{component.LayoutText}）";
+            }
+            Grid.SetColumn(badge, 2);
+            row.Children.Add(badge);
+        }
+
         if (component.Kind is ComponentKind.Dxvk or ComponentKind.Vkd3dProton)
         {
             // 图形组件要「装进某个前缀」才有意义：这里直接挑一个前缀目录装进去（D31 的按前缀安装）
@@ -372,18 +477,21 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             {
                 Content = "安装到前缀…",
                 Tag = component,
-                Margin = new Thickness(12, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
             };
             installButton.Click += Button_InstallGraphics_Click;
+            Grid.SetColumn(installButton, 3);
             row.Children.Add(installButton);
         }
+
         return new Border
         {
             Child = row,
             Padding = new Thickness(12, 8, 12, 8),
             CornerRadius = new CornerRadius(4),
             Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+            // 记录原始文案与固定占位，窗口尺寸变化时据此重算「中间省略」后的字符串（见 UpdateContentWidth）
+            Tag = new ComponentRowInfo(name, version, name.Text, version.Text, 72 + 24 + 24 + (row.Children.Count > 2 ? 180 : 0)),
         };
     }
 
@@ -633,6 +741,37 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         StackPanel runnerPanel = new() { Spacing = 8 };
         runnerPanel.Children.Add(runnerPickBox);
         runnerPanel.Children.Add(runnerGrid);
+        runnerPanel.Children.Add(new TextBlock
+        {
+            Text = "换运行器后，现有前缀会在下次启动时走一次 wine 更新（wineboot -u），里面的东西一般会保留。",
+            FontSize = 12,
+            Opacity = 0.6,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        // D58：给一条退路——上次成功启动用的组合，出问题一键切回
+        Features.Runtime.LastGoodEntry? lastGood = isNew ? null : Features.Runtime.LastKnownGoodStore.Get(profile.Id);
+        if (lastGood is not null && !string.IsNullOrWhiteSpace(lastGood.RunnerPath))
+        {
+            var lastGoodRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+            lastGoodRow.Children.Add(new TextBlock
+            {
+                Text = "上次可用：" + Features.Runtime.LastKnownGoodStore.Describe(lastGood),
+                FontSize = 12,
+                Opacity = 0.7,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            var useLastGood = new Button
+            {
+                Content = "切回",
+                MinWidth = 72,
+                IsEnabled = !string.Equals(lastGood.RunnerPath, profile.RunnerPath, StringComparison.Ordinal),
+            };
+            ToolTipService.SetToolTip(useLastGood, "把运行器路径改回上次成功启动时用的那个");
+            useLastGood.Click += (_, _) => runnerPathBox.Text = lastGood.RunnerPath!;
+            lastGoodRow.Children.Add(useLastGood);
+            runnerPanel.Children.Add(lastGoodRow);
+        }
 
         ComboBox prefixModeBox = new() { Header = "前缀模式" };
         string[] modes = { "template", "dedicated", "shared", "external", "ephemeral" };

@@ -31,9 +31,9 @@
 | 功能域 | 状态 | 一句话说明 | 补齐时机 |
 |---|---|---|---|
 | 启动游戏 | ✅ | `exec wine <exe> <args>`，不套 shell，保住「游戏是 wine 首个进程」 | — |
-| 运行环境（Profile） | ✅ | 运行器/前缀模式/图形组件/环境变量/调试 Shell | — |
+| 运行环境（Profile） | ✅ | 运行器/前缀模式/图形组件/环境变量/调试 Shell；运行器带布局与可用性（D58 v2）、启动成功记「上次可用」并可切回 | — |
 | 前缀生命周期 | ✅ | external / dedicated / shared / template / ephemeral 五模式 | — |
-| 组件管理 | ✅ | 扫描系统 / Steam / 自带组件；DXVK·VKD3D 导入并装入前缀 | 下载渠道 ⛔ 设计选择 |
+| 组件管理 | ✅ | 扫描系统 / Steam / 自带组件；DXVK·VKD3D 导入并装入前缀；扫描阶段零副作用（不建前缀）；`--list-runners [--json]` | 下载渠道 ⛔ 设计选择（D58 v2 不做市场） |
 | 启动前预检 + 启动报告 | ✅ | 6 项检查（只读，不建前缀）、失败弹窗、JSON 报告、前缀互斥锁 | — |
 | 后启动程序（Companion） | ✅ | 条目 CRUD、三种触发时机、伴随启动、`--companion-plan/run`；`WINEPREFIX` 按游戏 key + 前缀模式解析（不再只认 `PrefixPath`） | 注入型只编排不实现（D24） |
 | 输出与诊断 | 🟡 | 输出捕获/落盘/脱敏、面板、「运行输出」对话框；**只有沉默/面板两级**（`terminal` 级按 D37 降级为 M4，`RuntimeProfile.GameOutput` 目前是未消费字段） | M4（terminal 级） |

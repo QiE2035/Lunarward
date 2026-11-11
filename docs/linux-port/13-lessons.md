@@ -848,3 +848,11 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 ### L-100 名字叫 Cache 的字段不一定是缓存
 
 `AppConfig.CacheFolder` 是从上游继承来的名字，实际指向用户数据目录（日志、SQLite 数据库、背景下载都在里面）。往它下面加「缩略图」这种可再生物时，先分清「删了会不会丢用户数据」：纯缓存应放 `AppConfig.CacheDirectory`（`~/.cache/lunarward`），并交给 `Housekeeping` 定期清理，否则数据目录会越来越杂、备份也会把几百 MB 缩略图一起打包。
+
+### L-101 ScrollViewer 里「星号列 + TextTrimming」压不住宽度
+
+运行组件列表的每一行原本是「横向 StackPanel + 两个文字块 + 右侧徽标」：`StackPanel` 给子项无限宽度，`TextTrimming` 不生效，路径文字直接顶到徽标上、甚至超出窗口右边界（截图为证）。改成 `Grid`（`Auto / * / Auto / Auto`）后**仍然**顶出去——Uno 的 `ScrollViewer` 在 `HorizontalScrollMode=Disabled` 时也会用无限宽度测量内容，星号列拿不到上界。最终做法是不依赖测量：按可用像素估算可容纳字符数（12px ≈ 6.8 px/字符），用「中间省略」的字符串喂给 `TextBlock`（保留头尾，路径的尾部文件名最重要）。能用测量解决当然更好，但这条链在 Uno 上试了三种写法都不收敛，不要再花时间。
+
+### L-102 「上次可用」要记在启动成功之后
+
+记录「上次能用的组合」放在 `Process.Start` 之后、`process != null` 分支里，而不是预检通过时：预检只证明「看起来能跑」，真正的证据是进程起来了。这个顺序也保证「记录的一定是能用的」，用户按它切回去不会掉进另一个坏组合。

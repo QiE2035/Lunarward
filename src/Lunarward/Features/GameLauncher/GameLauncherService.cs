@@ -415,6 +415,11 @@ internal partial class GameLauncherService
             AttachEphemeralPrefixCleanup(process);
             if (process != null)
             {
+                // D58：进程真的起来了才记「上次能用的组合」——之后换运行器坏了可以一键切回
+                if (!OperatingSystem.IsWindows() && launchProfile is not null)
+                {
+                    Features.Runtime.LastKnownGoodStore.Remember(launchProfile);
+                }
                 // D27：重定向了 stdout/stderr 就必须立刻有人读，否则管道写满会把游戏卡住。
                 if (!OperatingSystem.IsWindows() && info.RedirectStandardOutput)
                 {

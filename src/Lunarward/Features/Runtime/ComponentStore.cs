@@ -35,6 +35,25 @@ public sealed class Component
     /// <summary>true = 由本程序管理（在 ~/.local/share/lunarward 下）；false = 外部目录。</summary>
     public bool Managed { get; init; }
 
+    /// <summary>
+    /// 运行器布局：<c>bin</c>（…/bin/wine）或 <c>files-bin</c>（…/files/bin/wine，Proton 形态）。
+    /// 非运行器为空。布局决定启动时要不要补库路径（D58）。
+    /// </summary>
+    public string Layout { get; init; } = "";
+
+    /// <summary>是否可用；null = 未判定。判定只看「有无版本、有无配套 wineserver」，不建前缀、无副作用。</summary>
+    public bool? Usable { get; set; }
+
+    /// <summary>不可用的原因（可用时为空），直接显示给用户。</summary>
+    public string UsabilityReason { get; set; } = "";
+
+    public string LayoutText => Layout switch
+    {
+        "files-bin" => "files/bin",
+        "bin" => "bin",
+        _ => "",
+    };
+
     public string KindText => Kind switch
     {
         ComponentKind.Wine => "Wine",
@@ -99,6 +118,7 @@ public static class ComponentStore
                 Name = name,
                 Path = full,
                 Managed = managed,
+                Layout = DetectLayout(full),
             });
         }
 
@@ -146,13 +166,17 @@ public static class ComponentStore
             }
         }
 
-        // 版本号：`wine --version` 结果按真实路径缓存（首次约 0.2–1 s，之后走缓存）
+        // 版本号 + 可用性：`wine --version` 结果按真实路径缓存（首次约 0.2–1 s，之后走缓存）。
+        // 可用性判定只做两件无副作用的事：读版本、找同套 wineserver——**不创建前缀**。
         foreach (Component runner in list)
         {
             if (string.IsNullOrWhiteSpace(runner.Version))
             {
                 runner.Version = ReadRunnerVersion(runner.Path) ?? "";
             }
+            (bool usable, string reason) = EvaluateRunner(runner);
+            runner.Usable = usable;
+            runner.UsabilityReason = reason;
         }
         _runners = list;
         logger?.LogInformation("Found {count} runner(s)", list.Count);
@@ -266,6 +290,71 @@ public static class ComponentStore
             return "";
         }
     }
+
+    /// <summary>从可执行文件路径判断布局：…/files/bin/wine → files-bin，…/bin/wine → bin。</summary>
+    private static string DetectLayout(string winePath)
+    {
+        string dir = Path.GetDirectoryName(winePath) ?? "";
+        if (Path.GetFileName(dir) != "bin")
+        {
+            return "";
+        }
+        return Path.GetFileName(Path.GetDirectoryName(dir) ?? "") == "files" ? "files-bin" : "bin";
+    }
+
+
+    /// <summary>找与 <paramref name="winePath"/> 配套的 wineserver：同目录优先，其次 PATH。</summary>
+    public static string? FindWineserver(string winePath)
+    {
+        string? dir = Path.GetDirectoryName(winePath);
+        if (dir is not null)
+        {
+            foreach (string name in new[] { "wineserver", "wineserver64" })
+            {
+                string candidate = Path.Combine(dir, name);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+        return FindInPath("wineserver");
+    }
+
+
+    /// <summary>
+    /// 判断一个运行器能不能用。只做**无副作用**的检查（不创建、不修改任何前缀）：可执行、读得到版本、有配套 wineserver。
+    /// 更严格的可用性要靠首次启动验证（D58：扫描阶段不下结论）。
+    /// </summary>
+    public static (bool Usable, string Reason) EvaluateRunner(Component runner)
+    {
+        if (!File.Exists(runner.Path))
+        {
+            return (false, "找不到可执行文件");
+        }
+        try
+        {
+            const UnixFileMode anyExec = UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
+            if ((File.GetUnixFileMode(runner.Path) & anyExec) == 0)
+            {
+                return (false, "没有可执行权限");
+            }
+        }
+        catch
+        {
+            // 权限位读不到就跳过这条，不影响后续判断
+        }
+        if (string.IsNullOrWhiteSpace(runner.Version))
+        {
+            return (false, "`wine --version` 没有输出（可能缺库或无法执行）");
+        }
+        if (FindWineserver(runner.Path) is null)
+        {
+            return (false, "找不到配套的 wineserver（游玩时长与前缀锁会不准）");
+        }
+        return (true, "");
+    }
+
 
     /// <summary>解析符号链接后的真实路径：Steam 的 ~/.steam/steam 与 ~/.local/share/Steam 指向同一份，必须去重。</summary>
     /// <summary>

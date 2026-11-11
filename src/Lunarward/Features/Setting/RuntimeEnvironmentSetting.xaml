@@ -11,7 +11,7 @@
     xmlns:sf="using:Starward.Frameworks"
     mc:Ignorable="d">
 
-    <Grid Margin="32,24,32,24" RowSpacing="16">
+    <Grid x:Name="RootGrid" Margin="32,24,32,24" RowSpacing="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -49,6 +49,7 @@
             </StackPanel>
 
             <ScrollViewer
+                x:Name="ScrollViewer_Content"
                 Grid.Row="2"
                 HorizontalScrollBarVisibility="Disabled"
                 HorizontalScrollMode="Disabled"
