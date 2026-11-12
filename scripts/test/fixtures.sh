@@ -65,6 +65,10 @@ cat > "$ROOT/fake-dxvk/fake.version" <<'EOS'
 9.9-fake
 EOS
 
+# 第二个图形组件（VKD3D 形态），用于验证「换组件时留 .bak」
+mkdir -p "$ROOT/fake-vkd3d/x64"
+head -c 1536 /dev/urandom > "$ROOT/fake-vkd3d/x64/d3d12.dll"
+
 # ── 假外部命令：记录参数，方便断言「被调用且参数正确」 ──────────────────────
 make_fake() {  # name, body
     cat > "$ROOT/bin/$1" <<EOS

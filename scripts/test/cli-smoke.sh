@@ -108,8 +108,9 @@ fi
 case_start T-RT-13b 换另一个组件时留 graphics.json.bak
 rm -f "$ROOT/prefix/.lunarward/graphics.json.bak"
 lw --graphics-import "$ROOT/fake-dxvk" >/dev/null 2>&1
-lw --graphics-install "$ROOT/prefix" "$(lw --graphics-list 2>&1 | awk -F'\t' '$2=="dxvk"{print $2; exit}')" >/dev/null 2>&1
+lw --graphics-import "$ROOT/fake-vkd3d" >/dev/null 2>&1
 lw --graphics-install "$ROOT/prefix" fake-dxvk >/dev/null 2>&1
+lw --graphics-install "$ROOT/prefix" fake-vkd3d >/dev/null 2>&1
 if expect_file "$ROOT/prefix/.lunarward/graphics.json.bak"; then pass_case; fi
 
 case_start T-RT-14 --graphics-import 导入目录
