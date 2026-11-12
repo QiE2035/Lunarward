@@ -89,6 +89,15 @@ public sealed partial class GameSettingPage : PageBase
     {
         var swNav = System.Diagnostics.Stopwatch.StartNew();
         base.OnNavigatedTo(e);
+        // Lunarward：没有选择游戏时（干净环境/首启），本页仍然会被导航到（例如 L1.5 自检）。
+        // 这里给一个明确空态并提前返回，避免下游按游戏分支时对空的 GameId 解引用（测试方案 F-06）。
+        if (string.IsNullOrEmpty(CurrentGameBiz.Value))
+        {
+            Serilog.Log.Information("GameSettingPage: no current game, empty state");
+            Image_Emoji.Source = null;
+            Helpers.InAppToast.MainWindow?.Warning("还没有选择游戏：请先在启动器页选一个游戏。", null, 6000);
+            return;
+        }
         Image_Emoji.Source = CurrentGameBiz.ToGame().Value switch
         {
             GameBiz.bh3 => new BitmapImage(AppConfig.EmojiAI),
@@ -115,6 +124,10 @@ public sealed partial class GameSettingPage : PageBase
 
     protected override async void OnLoaded()
     {
+        if (string.IsNullOrEmpty(CurrentGameBiz.Value))
+        {
+            return;
+        }
         try
         {
             InitializeResolutionItem();
