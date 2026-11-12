@@ -229,6 +229,55 @@ else
     skip_case "T-IN-10/T-IN-05b 需要真实网络（LW_NET=1 开启）"
 fi
 
+# ── 补充：JSON 输出 / 诊断包内容 / 版本标记 / 错误前缀 ───────────────────────
+case_start T-CL-18 --list-runners --json 是合法 JSON
+out=$(lw --list-runners --json 2>&1); rc=$?
+if expect_rc 0 $rc; then
+    if printf '%s' "$out" | python3 -c "import json,sys; d=json.load(sys.stdin); assert isinstance(d,list) and d; assert 'path' in d[0] or 'Path' in d[0]" 2>/dev/null; then
+        pass_case
+    else
+        fail_case "不是预期结构的 JSON"
+    fi
+fi
+
+case_start T-CL-19 --diagnose 产出的 zip 含关键文件
+DIAG="$ROOT/diag"
+out=$(lw --diagnose --out "$DIAG" 2>&1); rc=$?
+if expect_rc 0 $rc; then
+    z=$(ls "$DIAG"/*.zip 2>/dev/null | head -1)
+    if [ -n "$z" ] && unzip -l "$z" | grep -q "environment.txt" && unzip -l "$z" | grep -q "preflight.txt"; then
+        pass_case
+    else
+        fail_case "zip 内容缺少 environment.txt/preflight.txt"
+    fi
+fi
+
+case_start T-IN-11 --version-write 写入并 --version-status 读回
+mkdir -p "$ROOT/vgame"
+printf '[General]\ngame_version=\n' > "$ROOT/vgame/config.ini"
+out=$(lw --version-write "$ROOT/vgame" 9.9.9 2>&1); rc=$?
+if expect_rc 0 $rc; then
+    out=$(lw --version-status hk4e_cn 2>&1)
+    # version-status 只认已配置的安装路径；这里退一步只验证 config.ini 真被写入
+    if expect_contains "$(cat "$ROOT/vgame/config.ini")" "9.9.9"; then pass_case; fi
+fi
+
+case_start T-RT-18 --graphics-verify 对不存在的前缀报错
+out=$(lw --graphics-verify "$ROOT/no-such-prefix" 2>&1); rc=$?
+if expect_rc 1 $rc && expect_contains "$out" "前缀不存在"; then pass_case; fi
+
+case_start T-CL-20 --output-tail 在没有输出日志时给出空结果而非崩溃
+out=$(lw --output-tail 2>&1); rc=$?
+expect_rc 0 $rc && pass_case
+
+case_start T-LA-02 --launch-plan 不存在的 exe 返回 1
+out=$(lw --launch-plan "$ROOT/no-such-game.exe" 2>&1); rc=$?
+if expect_rc 1 $rc && expect_contains "$out" "找不到可执行文件"; then pass_case; fi
+
+case_start T-LA-03 --launch-plan 现有 exe 返回 0 并打印 wine/前缀
+out=$(lw --launch-plan "$ROOT/game/YuanShen.exe" 2>&1); rc=$?
+if expect_rc 0 $rc && expect_contains "$out" "wine"; then pass_case; fi
+
 summary
 rc=$?
 

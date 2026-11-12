@@ -49,10 +49,10 @@ public static class DiagnosticBundle
         AddText(zip, "prefixes.txt", BuildPrefixes(logger));
         AddText(zip, "launch-reports.txt", BuildRecentLaunchReports());
         AddText(zip, "log-tail.txt", ReadLogTail(250));
-        if (gameBiz is not null)
-        {
-            AddText(zip, "preflight.txt", BuildPreflight(gameBiz.Value, logger));
-        }
+        // 永远写一份 preflight.txt：没有指定游戏时写清楚「怎么指定」，而不是让压缩包里少一个文件
+        AddText(zip, "preflight.txt", gameBiz is null
+            ? "没有指定游戏。用 `lunarward --diagnose --game <gameKey>` 可附带该游戏的启动预检。\n"
+            : BuildPreflight(gameBiz.Value, logger));
         await Task.CompletedTask;
         return zipPath;
     }

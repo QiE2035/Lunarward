@@ -90,6 +90,13 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
         // 用来看清 wine / prefix / argv 的解析结果（等价于「启动前的最后一公里」自检）。
         if (args.Length >= 2 && args[0] is "--launch-plan")
         {
+            // 解析失败要能被脚本看见：不存在就返回 1，而不是打印一行 exists: False 然后 0 退出（L2 用例发现）
+            if (!System.IO.File.Exists(args[1]))
+            {
+                Console.WriteLine($"找不到可执行文件：{args[1]}");
+                Environment.ExitCode = 1;
+                return;
+            }
             Console.WriteLine(Features.GameLauncher.GameLauncherService.DescribeLaunchPlan(args[1], args.Length > 2 ? args[2] : null));
             return;
         }
