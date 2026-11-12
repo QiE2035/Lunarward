@@ -108,6 +108,7 @@ internal static class UiSelfTest
             }),
         };
 
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         int failed = 0;
         foreach (Check check in checks)
         {
@@ -129,7 +130,9 @@ internal static class UiSelfTest
             Console.WriteLine($"{(ok ? "PASS" : "FAIL")}  {check.Name}    {detail}");
         }
         Console.WriteLine($"──────── selftest-ui 汇总 ────────");
+        clock.Stop();
         Console.WriteLine($"通过 {checks.Count - failed} / 失败 {failed}");
+        Console.WriteLine($"自检完成，耗时 {clock.ElapsedMilliseconds} ms");
         return failed;
     }
 

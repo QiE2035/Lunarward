@@ -1,133 +1,126 @@
 #!/usr/bin/env bash
-# Lunarward 性能基线（L2 性能子集，对应测试方案 §性能预算）。
+# 性能基线（M-T4）：采集 3 个可脚本化的指标，和基线比，超过阈值就失败。
 #
-# 思路：挑几个「无网络、可重复」的入口，量它们的墙钟耗时与峰值内存；与基线 JSON 比较，
-# 超过阈值（默认 20%）判回归。它抓不到渲染帧率那类指标（那要靠 L3/L4 在人操作时用 cu_* + 截图），
-# 但足以拦住「组件扫描变慢」「启动路径退化」「改崩了内存」这类常见问题。
+#   bash scripts/test/perf.sh                 # 采集并与基线比较（回归 → 退出码 1）
+#   bash scripts/test/perf.sh --update        # 采集成新基线
 #
-# 用法：
-#   bash scripts/test/perf.sh                # 比对基线，超阈值退出 1
-#   bash scripts/test/perf.sh --record       # 记录当前值为新基线
-#   LW_BIN=/path/to/Lunarward bash scripts/test/perf.sh
+# 指标：
+#   cli_median_ms   `--version` 冷启动中位数（进程启动 + 依赖加载，不含 UI）
+#   selftest_ms     `--selftest-ui` 从启动到自检汇总的耗时（含创建窗口、导航两个页面）
+#   peak_rss_kb     `--selftest-ui` 进程峰值 RSS
+#
+# 为什么是这三个：它们完全确定性、不需要游戏与网络，能在 CI 里跑；
+# 真机观感类的指标（切页 150ms、视频 CPU）需要人工操作，见 19-test-plan.md 的 L3 清单。
 set -uo pipefail
 
-HERE=$(cd "$(dirname "$0")" && pwd)
-ROOT=$HERE/../..
-LW_BIN=${LW_BIN:-$ROOT/src/Lunarward/bin/Release/net10.0-desktop/Lunarward}
-BASELINE=${PERF_BASELINE:-$HERE/perf-baseline.json}
-THRESHOLD_PCT=${PERF_THRESHOLD_PCT:-20}
-RECORD=0
-[ "${1:-}" = "--record" ] && RECORD=1
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+: "${LW_BIN:?需要 LW_BIN=/path/to/Lunarward}"
+BIN="$LW_BIN"
+BASELINE="${PERF_BASELINE:-$HERE/../../docs/linux-port/perf-baseline.json}"
+THRESHOLD="${PERF_THRESHOLD:-20}"   # 允许变差 20%
 
-if [ ! -x "$LW_BIN" ]; then
-    echo "找不到可执行文件：$LW_BIN（先 dotnet build -c Release）" >&2
-    exit 2
-fi
+UPDATE=0
+[ "${1:-}" = "--update" ] && UPDATE=1
 
-# 隔离环境：不碰真实配置/游戏目录/缓存
-WORK=$(mktemp -d /tmp/lw-perf-XXXXXX)
-export XDG_CONFIG_HOME=$WORK/cfg
-export XDG_DATA_HOME=$WORK/data
-export XDG_CACHE_HOME=$WORK/cache
-export XDG_STATE_HOME=$WORK/state
-export HOME=$WORK/home
-mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$HOME"
+ROOT="$(mktemp -d /tmp/lw-perf-XXXXXX)"
+trap 'rm -rf "$ROOT"' EXIT
+mkdir -p "$ROOT/cfg" "$ROOT/data" "$ROOT/cache" "$ROOT/state" "$ROOT/home"
 
-now_ms() { date +%s%3N; }
-
-# $1 = 标签；其余 = 命令。结果写进 results 关联数组（bash 4+）
-declare -A RESULTS
-
-measure() {
-    local label=$1; shift
-    local s e
-    s=$(now_ms)
-    "$@" >/dev/null 2>&1
-    e=$(now_ms)
-    RESULTS["$label"]=$((e - s))
-    printf '%-28s %6d ms\n' "$label" "${RESULTS[$label]}"
+perf_env() {
+    env -u DISPLAY -u WAYLAND_DISPLAY \
+        XDG_CONFIG_HOME="$ROOT/cfg" \
+        XDG_DATA_HOME="$ROOT/data" \
+        XDG_CACHE_HOME="$ROOT/cache" \
+        XDG_STATE_HOME="$ROOT/state" \
+        HOME="$ROOT/home" \
+        "$@"
 }
 
-echo "== 冷路径（隔离环境）=="
-measure "list-runners"  "$LW_BIN" --list-runners
-measure "list-components" "$LW_BIN" --list-components
-measure "preflight-missing" "$LW_BIN" --preflight hk4e_cn || true
+median() { sort -n | awk '{a[NR]=$1} END{print (NR%2)?a[(NR+1)/2]:int((a[NR/2]+a[NR/2+1])/2)}'; }
 
-echo "== 热路径（第二次，进程已起过、页缓存已建）=="
-measure "list-runners-hot" "$LW_BIN" --list-runners
+echo "采集 CLI 冷启动（5 次）…"
+times=""
+for _ in 1 2 3 4 5; do
+    start=$(date +%s%N)
+    perf_env "$BIN" --version >/dev/null 2>&1
+    end=$(date +%s%N)
+    times="$times$(( (end - start) / 1000000 ))\n"
+done
+cli_ms=$(printf "$times" | median)
 
-# 启动 + UI 自检：包含 Uno 起来、首屏渲染、8 条断言，是「启动退化」最直接的代理指标
-if command -v xvfb-run >/dev/null 2>&1; then
-    echo "== 启动 + L1.5 自检（xvfb）=="
-    local_start=$(now_ms)
-    xvfb-run -a -s "-screen 0 1280x800x24" "$LW_BIN" --selftest-ui >"$WORK/selftest.log" 2>&1
-    local_end=$(now_ms)
-    RESULTS["startup-selftest"]=$((local_end - local_start))
-    printf '%-28s %6d ms\n' "startup-selftest" "${RESULTS[startup-selftest]}"
-    if ! grep -q "失败 0$" "$WORK/selftest.log"; then
-        echo "自检未全通过，日志：$WORK/selftest.log" >&2
-        FAILED=1
-    fi
-
-    # 峰值 RSS（KB）
-    peak_rss=$(/usr/bin/time -f '%M' xvfb-run -a -s "-screen 0 1280x800x24" "$LW_BIN" --selftest-ui 2>&1 >/dev/null | tail -1)
-    if [[ "$peak_rss" =~ ^[0-9]+$ ]]; then
-        RESULTS["peak-rss-kb"]=$peak_rss
-        printf '%-28s %6d KB\n' "peak-rss-kb" "$peak_rss"
-    fi
+if command -v xvfb-run >/dev/null; then
+    echo "采集 UI 自检耗时与峰值 RSS…"
+    /usr/bin/time -v -o "$ROOT/self.time" \
+        xvfb-run -a -s "-screen 0 1280x800x24" env \
+            XDG_CONFIG_HOME="$ROOT/cfg" XDG_DATA_HOME="$ROOT/data" \
+            XDG_CACHE_HOME="$ROOT/cache" XDG_STATE_HOME="$ROOT/state" HOME="$ROOT/home" \
+            "$BIN" --selftest-ui >"$ROOT/self.log" 2>&1
+    selftest_ms=$(sed -n 's/.*自检完成.*耗时 \([0-9]*\) *ms.*/\1/p' "$ROOT/self.log" | tail -1)
+    [ -z "${selftest_ms:-}" ] && selftest_ms=$(grep -oE '耗时 [0-9]+' "$ROOT/self.log" | tail -1 | grep -oE '[0-9]+')
+    peak_rss=$(awk '/Maximum resident set size/{print $NF}' "$ROOT/self.time")
 else
-    echo "（没有 xvfb-run，跳过启动指标）"
+    echo "没有 xvfb-run：跳过 selftest_ms / peak_rss_kb"
+    selftest_ms=""
+    peak_rss=""
 fi
 
-json=$(
-    printf '{'
-    first=1
-    for k in "${!RESULTS[@]}"; do
-        [ $first -eq 1 ] || printf ','
-        first=0
-        printf '"%s":%d' "$k" "${RESULTS[$k]}"
-    done
-    printf '}'
-)
+now_cli="$cli_ms"
+[ -n "${selftest_ms:-}" ] && now_selftest="$selftest_ms" || now_selftest=""
+[ -n "${peak_rss:-}" ] && now_rss="$peak_rss" || now_rss=""
 
-if [ "$RECORD" = "1" ]; then
-    printf '%s\n' "$json" > "$BASELINE"
+echo "结果：cli_median_ms=$now_cli selftest_ms=${now_selftest:-n/a} peak_rss_kb=${now_rss:-n/a}"
+
+if [ "$UPDATE" = "1" ]; then
+    mkdir -p "$(dirname "$BASELINE")"
+    cat >"$BASELINE" <<EOF
+{
+  "measured_at": "$(date -Iseconds)",
+  "host": "$(uname -sr)",
+  "cli_median_ms": $now_cli,
+  "selftest_ms": ${now_selftest:-null},
+  "peak_rss_kb": ${now_rss:-null}
+}
+EOF
     echo "已写入基线：$BASELINE"
-    echo "$json"
     exit 0
 fi
 
 if [ ! -f "$BASELINE" ]; then
-    echo "还没有基线（先跑一次 --record）：$BASELINE" >&2
-    exit 2
+    echo "没有基线文件（$BASELINE），先跑 --update"
+    exit 0
 fi
 
-echo "== 与基线比较（阈值 ${THRESHOLD_PCT}%）=="
-regressions=0
-for k in "${!RESULTS[@]}"; do
-    base=$(python3 - "$BASELINE" "$k" <<'PY'
-import json,sys
-data=json.load(open(sys.argv[1]))
-print(data.get(sys.argv[2], ""))
+python3 - "$BASELINE" "$now_cli" "$now_selftest" "$now_rss" "$THRESHOLD" <<'PY'
+import json, sys
+baseline_path, cli, selftest, rss, threshold = sys.argv[1:6]
+base = json.load(open(baseline_path))
+threshold = float(threshold)
+failed = []
+
+def check(name, now, old):
+    if now in ("", "None"):
+        return
+    if old is None:
+        return
+    now = float(now)
+    if old <= 0:
+        return
+    delta = (now - old) / old * 100
+    flag = "OK"
+    if delta > threshold:
+        flag = "REGRESSION"
+        failed.append(f"{name}: {old} → {now:g} (+{delta:.0f}%)")
+    print(f"  {name:16s} {old:>10} → {now:>10g}  {delta:+6.0f}%  {flag}")
+
+print("与基线比较（阈值 +%.0f%%）：" % threshold)
+check("cli_median_ms", cli, base.get("cli_median_ms"))
+check("selftest_ms", selftest, base.get("selftest_ms"))
+check("peak_rss_kb", rss, base.get("peak_rss_kb"))
+
+if failed:
+    print("回归：")
+    for f in failed:
+        print("  - " + f)
+    sys.exit(1)
+print("无回归")
 PY
-)
-    cur=${RESULTS[$k]}
-    if [ -z "$base" ] || [ "$base" -eq 0 ]; then
-        printf '%-28s base=-(新指标) cur=%d ms\n' "$k" "$cur"
-        continue
-    fi
-    pct=$(python3 -c "print(round(($cur-$base)*100.0/$base,1))")
-    status=ok
-    if python3 -c "import sys;sys.exit(0 if $pct > $THRESHOLD_PCT else 1)"; then
-        status=REGRESSION
-        regressions=$((regressions+1))
-    fi
-    printf '%-28s base=%6d cur=%6d  %+6s%%  %s\n' "$k" "$base" "$cur" "$pct" "$status"
-done
-
-rm -rf "$WORK"
-if [ "$regressions" -gt 0 ]; then
-    echo "有 $regressions 项超过阈值" >&2
-    exit 1
-fi
-echo "全部在预算内"

@@ -56,6 +56,12 @@ jobs:
         LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
       run: bash scripts/test/chunk-smoke.sh
 
+    # 性能冒烟：与 docs/linux-port/perf-baseline.json 比，超过 +20% 判回归（当前基线只含 CLI 冷启动）。
+    - name: Perf smoke (baseline compare)
+      env:
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+      run: bash scripts/test/perf.sh
+
     - name: L1.5 UI self-test (xvfb)
       env:
         LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
