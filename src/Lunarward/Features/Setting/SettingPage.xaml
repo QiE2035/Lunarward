@@ -82,13 +82,15 @@
                 <!--  手柄增强  -->
                 <NavigationViewItem Content="{x:Bind lang:Lang.SettingPage_ControllerEnhancement}" Tag="GamepadControlSetting">
                     <NavigationViewItem.Icon>
-                        <FontIcon FontFamily="{ThemeResource XboxFluent2}" Glyph="&#xE9CD;" />
+                        <!-- LUNARWARD-DEVIATION: XboxFluent2 字体在 Uno/Skia 下不加载（手柄图标显示为方框），改用内置 Symbols 里有字形的 E7FC -->
+                        <FontIcon Glyph="&#xE7FC;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <!--  运行环境（Lunarward 新增：Profile 列表，D28）  -->
                 <NavigationViewItem Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Title}" Tag="RuntimeEnvironmentSetting">
                     <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE950;" />
+                        <!-- LUNARWARD-DEVIATION: E950（芯片）在 12px 下看起来像空心方框，换 E7F8（笔记本）更好辨认 -->
+                        <FontIcon Glyph="&#xE7F8;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <!--  高级  -->
