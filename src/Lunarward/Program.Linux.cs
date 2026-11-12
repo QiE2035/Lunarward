@@ -1409,6 +1409,14 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
             return;
         }
 
+        // `--selftest-ui`：进程内 UI 自检（L1.5，见 Features/Dev/UiSelfTest.cs）。
+        // 这里只把开关塞进环境变量，真正执行在 MainWindow 第一次 Activated 之后（那时窗口已 map、首页已 OnLoaded）。
+        if (args.Contains("--selftest-ui"))
+        {
+            Environment.SetEnvironmentVariable("LUNARWARD_SELFTEST", "1");
+        }
+
+
         var host = UnoPlatformHostBuilder.Create()
             .App(() => new Starward.App())
             .UseX11()

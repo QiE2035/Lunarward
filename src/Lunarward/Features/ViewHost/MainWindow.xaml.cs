@@ -37,10 +37,50 @@ public sealed partial class MainWindow : WindowEx
         InitializeMainWindow();
         this.Activated += OnFirstActivated;
         this.Activated += OnIconActivatedOnce;
+        if (Environment.GetEnvironmentVariable("LUNARWARD_SELFTEST") is "1")
+        {
+            this.Activated += OnSelfTestActivated;
+        }
         App.Current.EnsureSystemTray();
         RunDebugWindowAction();
         WeakReferenceMessenger.Default.Register<AccentColorChangedMessage>(this, OnAccentColorChanged);
         WeakReferenceMessenger.Default.Register<GameStartedMessage>(this, OnGameStarted);
+    }
+
+
+    private static bool _selfTestStarted;
+
+
+    /// <summary>
+    /// `--selftest-ui`：进程内 UI 自检（L1.5）。Uno 的 Skia/X11 后端没有 AT-SPI 树，
+    /// 只能像 Uno 自己的 RuntimeTests 那样在进程内断言，所以这里自己读视觉树/布局结果。
+    /// </summary>
+    private void OnSelfTestActivated(object? sender, Microsoft.UI.Xaml.WindowActivatedEventArgs args)
+    {
+        if (_selfTestStarted)
+        {
+            return;
+        }
+        _selfTestStarted = true;
+        _ = RunSelfTestAsync();
+    }
+
+
+    private async System.Threading.Tasks.Task RunSelfTestAsync()
+    {
+        await System.Threading.Tasks.Task.Delay(600);
+        int failed;
+        try
+        {
+            failed = await Features.Dev.UiSelfTest.RunAsync(this, TimeSpan.FromSeconds(1));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"FAIL  自检本身抛异常    {ex.GetType().Name}: {ex.Message}");
+            failed = 1;
+        }
+        // 自检是有终态的批处理模式：跑完直接退出，避免 CI 里挂住
+        Environment.Exit(failed == 0 ? 0 : 1);
     }
 
 
@@ -298,6 +338,10 @@ public sealed partial class MainWindow : WindowEx
 
 
     /// <summary>托盘菜单用：把主视图导航到设置页。</summary>
+    /// <summary>根视图（L1.5 UI 自检用；x:Name 生成的字段对其他类不可见）。</summary>
+    public MainView? RootView => MainContentHost;
+
+
     public void OpenSettings() => MainContentHost?.NavigateToSettings();
 
 
