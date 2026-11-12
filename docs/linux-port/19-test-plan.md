@@ -447,3 +447,26 @@ L2 脚手架（`scripts/test/`）第一次全量跑 33 条用例，暴露 3 个�
 `T-RT-13b`（换组件时留 `graphics.json.bak`）在 CI 上失败过一次——因为 CI 没有 `/usr/share/dxvk`，
 首装目标缺失导致只写了一次记录。改为夹具自带 `fake-dxvk` / `fake-vkd3d` 两个组件，装 A 再装 B 才触发备份。
 
+
+## 附录：L1.5 `--selftest-ui` 已落地（2026-11-12）
+
+实现：`src/Lunarward/Features/Dev/UiSelfTest.cs` + `MainWindow.OnSelfTestActivated`；CLI 开关 `--selftest-ui`
+（只设 `LUNARWARD_SELFTEST=1`，真正执行在窗口首次 Activated 之后，跑完 `Environment.Exit`）。
+
+当前 8 条断言（真机 8/8 通过）：
+
+| 断言 | 抓什么 |
+| --- | --- |
+| 窗口已显示且有尺寸 | 后端没起来 / 窗口被挪出屏幕 |
+| 主内容区是 `MainView` | XAML 结构被改坏（`RootView` 为空） |
+| 启动器页已加载 | `Frame` 吞掉页面构造异常（L-28） |
+| 导航到游戏设置页后内容非空 | 页面 ctor 抛异常被 frame 掩盖 |
+| 导航到设置页后内容非空 | 同上 |
+| 关键画刷资源存在 | 主题资源被删（`ApplicationPageBackgroundThemeBrush` / `SystemAccentColor`） |
+| 运行时方案能被解析 | 绑定损坏导致回落空方案 |
+| 主窗口标题正确 | 标题被改回 Starward（品牌回归） |
+
+CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1280x800x24" <Release 二进制> --selftest-ui`，
+退出码非 0 让作业红。
+
+**边界**：不注入输入，只断言结构与资源，覆盖不了交互（点击/滚动/拖拽）——那部分归 L3（我在场时用 `cu_*` 真机操作 + 截图）。

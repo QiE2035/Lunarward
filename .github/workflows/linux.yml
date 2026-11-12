@@ -50,6 +50,13 @@ jobs:
         LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
       run: bash scripts/test/cli-smoke.sh
 
+    - name: L1.5 UI self-test (xvfb)
+      env:
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+      run: |
+        sudo apt-get install -y xvfb
+        xvfb-run -a -s "-screen 0 1280x800x24" "$LW_BIN" --selftest-ui
+
     - name: Upload L2 artifacts on failure
       if: failure()
       uses: actions/upload-artifact@v4

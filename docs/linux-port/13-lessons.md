@@ -924,3 +924,12 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 - 把「· 系统包」拼在「版本 · 路径」后面，宽窗口下看不出来，窄一点就被 `TextTrimming` 切掉——用户以为来源没显示。来源、徽标这类短标签要单独占一列（`Auto` 宽），或独立一行。
 - 同义开关（`EnsureGraphics` + `GraphicsId`）一定会分叉：两个都能表达「要不要装」，结果就是一处关了一处没关。保留一个字段，旧字段只做迁移读取。
 
+
+## L-118：UI 自检要拿 `MainView` 得走公开属性，`x:Name` 字段跨类不可见
+
+写 `--selftest-ui` 时先按 `window.Content is MainView` 断言，实测 `Content` 是外层 `Grid`（MainWindow.xaml 用 Grid 包
+`MainView` 做背景），而 `MainView` 实例来自 `x:Name="MainContentHost"` 生成字段——别的类访问不到。第一版 8 条断言里
+4 条因此失败，看着像「页面没加载」，其实是取值路径错了。
+
+做法：`MainWindow` 暴露 `public MainView? RootView => MainContentHost;`，自检只走公开属性。
+**教训**：进程内 UI 自检断言失败时，先怀疑「我取错了对象」，再怀疑「代码坏了」。
