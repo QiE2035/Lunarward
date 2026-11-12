@@ -62,6 +62,13 @@ jobs:
         echo "selftest exit=$rc"
         grep -q "失败 0$" /tmp/selftest.log
 
+    - name: Perf snapshot (informational)
+      env:
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+      run: |
+        # CI 机器性能与本地基线不可比，这里只记录当次数值（不设门禁）；门禁在本地按 perf-baseline.json 比对
+        bash scripts/test/perf.sh --record || true
+
     - name: Upload L2 artifacts on failure
       if: failure()
       uses: actions/upload-artifact@v4
