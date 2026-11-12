@@ -221,8 +221,10 @@ public sealed partial class ScreenshotPage : PageBase
                     relativePath ??= config.GameScreenshotDir;
                 }
             }
-            string? folder = AppConfig.ScreenshotFolder;
-            if (!Directory.Exists(folder))
+            // Lunarward：截图目录默认走 ScreenCaptureLinux.DefaultFolder（~/图片/Lunarward），
+            // 与真实落盘位置一致；否则页面会去找从未写过的 <data>/Screenshots 并显示「文件夹不存在」（L3 T-UI 发现）。
+            string? folder = ScreenCaptureLinux.DefaultFolder;
+            if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
             {
                 folder = Path.Join(AppConfig.UserDataFolder, "Screenshots");
             }

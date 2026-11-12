@@ -40,6 +40,8 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <!--  Lunarward：诊断区单独占一行，否则会和第 0 行的「分辨率」重叠（L3 真机用例 T-UI-31 发现）  -->
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Button Width="0"
                         Height="0"
@@ -208,7 +210,10 @@
                 </StackPanel>
 
                 <!--  诊断（D63 §6）：跑一次启动预检，把六项结果摊开，失败项可直接跳去修  -->
-                <StackPanel Margin="0,24,0,0" Spacing="8">
+                <StackPanel Grid.Row="3"
+                            Grid.ColumnSpan="2"
+                            Margin="0,24,0,0"
+                            Spacing="8">
                     <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="诊断" />
                     <TextBlock
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
