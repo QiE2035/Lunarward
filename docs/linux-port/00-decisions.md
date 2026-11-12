@@ -765,7 +765,7 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - `--screenshot` 之前只有 `--capture-test` 的名字，这次补了正式名字（同一个分支，旧名保留）。
 
 
-**P1 落地（2026-11-12，提交 `?`）**：三段落成且真机核对通过。
+**P1 落地（2026-11-12，提交 `e234877`）**：三段落成且真机核对通过。
 
 - 数据层：`PrefixManager.PrefixInspection` + `Inspect(path)`（`Exists`/`HasDriveC`/`HasRegistry`/`Locked`/`SizeBytes`/`Managed`/`GameKey`/`ProfileId`/`Mode`）+ `EnumerateKnownPrefixes(profiles)`；目录大小带 10 分钟缓存（`ConcurrentDictionary<string,(long,DateTime)>`），`IgnoreInaccessible` + 跳过 reparse point，单个文件读不到不影响整页。
 - 运行器：`ComponentStore.ManualRunners`（`~/.config/lunarward/manual-runners.json`）作为第五段扫描来源，`[添加路径…]` 选文件 → `ReadRunnerVersion` 探测 → 落盘 → 刷新；行徽标追加「N 个方案在用」（现算 `profile.RunnerPath` 与组件路径全等比较）。
