@@ -1,5 +1,8 @@
 # 11 · M1-0 实测：把上游代码接到 Uno(Linux) 上到底缺什么
 
+> **状态：历史快照（2026-11-13 标注）。** 本文记录 M1-0 首次编译的缺口数字；现状以 `12-shims-and-gaps.md` 为准。保留用于说明当时的工作量与判断依据。
+
+
 > 目的：不再靠纸面矩阵推断，而是**真的建一个 Linux 头工程编译一遍**，把缺口变成具体数字。
 > 产物：`src/Lunarward/`（复制自 `src/Starward/`，**上游目录一个字节没改**）。
 > 复现：`cd src/Lunarward && dotnet build Lunarward.csproj -c Debug`（工程自带 `global.json`/`NuGet.config`，用华为云镜像）。

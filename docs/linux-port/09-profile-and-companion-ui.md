@@ -1,5 +1,8 @@
 # 09 · Profile 与后启动程序：信息架构与交互
 
+> **状态：历史文档（2026-11-13 标注）。** 本文是早期的 Profile / 伴随启动 UI 设想；实际实现见 `16-runtime-components.md`（v2 极简）与 `17-runtime-environment-ui.md`（三段式 UI，D63）。保留用于回溯早期取舍，不要据此改代码。
+
+
 > 本文只描述**界面与交互**（数据模型见 `03-runtime-model.md`，平台接口见 `02-architecture.md`）。
 > 原则：凡是 Starward 已有的交互，一律沿用它的表达方式（`NavigationView` + `SettingsCard` + `ContentDialog` + 列表卡片），不自创控件语言（D3）。
 
