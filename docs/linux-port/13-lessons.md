@@ -933,3 +933,13 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 
 做法：`MainWindow` 暴露 `public MainView? RootView => MainContentHost;`，自检只走公开属性。
 **教训**：进程内 UI 自检断言失败时，先怀疑「我取错了对象」，再怀疑「代码坏了」。
+
+## L-119 符号链接的 `FileInfo.Length` 是链接长度，不是目标大小
+
+判「本地文件是否与清单一致」时写过 `info.Length == file.Size`，本机测试通过，换成
+`--target` 目录（里面是 `File.CreateSymbolicLink` 产出的链接）就永远不相等：
+`new FileInfo("/tmp/x/Game.exe").Length` 返回 **24**（链接路径字符串长度），目标文件是 100 字节。
+
+正确写法：`File.ResolveLinkTarget(path, returnFinalTarget: true) is FileInfo target ? target.Length : info.Length`。
+
+出现方式很隐蔽——功能本身没问题，只有「重复执行同一操作」时才会暴露（L2 的 T-IN-23 就是幂等用例）。

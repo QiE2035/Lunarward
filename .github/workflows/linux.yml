@@ -43,12 +43,18 @@ jobs:
 
     # L2：CLI 全链路冒烟（临时 XDG + 假运行器/假前缀/假外部命令，不需要显示器、不联网）
     - name: Install test deps
-      run: sudo apt-get update && sudo apt-get install -y jq unzip
+      run: sudo apt-get update && sudo apt-get install -y jq unzip zstd
 
     - name: L2 CLI smoke
       env:
         LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
       run: bash scripts/test/cli-smoke.sh
+
+    # L2 安装链路：本地假 Sophon 服务（protobuf 清单 + zstd 分块），验证「只下新块、未变更文件链接」。
+    - name: L2 install smoke (fake Sophon)
+      env:
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+      run: bash scripts/test/chunk-smoke.sh
 
     - name: L1.5 UI self-test (xvfb)
       env:

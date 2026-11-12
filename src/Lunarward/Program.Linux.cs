@@ -73,7 +73,67 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
             return;
         }
 
-// 只解析不启动：`lunarward --shell-plan` 打印每个 Profile 的调试 Shell 命令行与环境变量
+                // 未变更文件的搬运：先硬链接（同分区零成本），失败退复制
+        static bool LinkOrCopy(string srcRoot, string dstRoot, string relative)
+        {
+            try
+            {
+                string src = System.IO.Path.Combine(srcRoot, relative);
+                string dst = System.IO.Path.Combine(dstRoot, relative);
+                if (!System.IO.File.Exists(src) || System.IO.File.Exists(dst))
+                {
+                    return false;
+                }
+                string? dir = System.IO.Path.GetDirectoryName(dst);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    System.IO.Directory.CreateDirectory(dir);
+                }
+                try
+                {
+                    System.IO.File.CreateSymbolicLink(dst, src);
+                }
+                catch
+                {
+                    System.IO.File.Copy(src, dst, overwrite: true);
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // 本地已有同尺寸文件才算「可以跳过」（符号链接要解析到目标，见 InstallPipeline.LocalFileMatches）
+        static bool LocalCopyMatches(string root, Starward.Features.GameInstall.Sophon.SophonChunkFile file)
+            => Starward.Features.GameInstall.Sophon.InstallPipeline.LocalFileMatches(root, file);
+
+// 离线/联调：`LUNARWARD_SOPHON_DIRECT=1` 时跳过 HoYoPlay 的 branch 查询，直接构造一个假 package，
+        // 让安装链路可以指向 `LUNARWARD_SOPHON_BASE` 指定的假服务（L2 用）。
+        static Starward.Features.GameInstall.Sophon.SophonBuildInfo? GetBuildForTest(
+            Starward.Features.GameInstall.Sophon.SophonClient client,
+            Starward.Core.HoYoPlay.GameId gameId,
+            bool preDownload,
+            List<string> fields,
+            string? tag)
+        {
+            if (Environment.GetEnvironmentVariable("LUNARWARD_SOPHON_DIRECT") == "1")
+            {
+                var package = new Starward.Core.HoYoPlay.GameBranchPackage
+                {
+                    PackageId = Environment.GetEnvironmentVariable("LUNARWARD_SOPHON_PACKAGE") ?? "fake-package",
+                    Branch = preDownload ? "predownload" : "main",
+                    Password = "fake-password",
+                    Tag = tag ?? Environment.GetEnvironmentVariable("LUNARWARD_SOPHON_TAG") ?? "9.9.9",
+                };
+                var branch = new Starward.Core.HoYoPlay.GameBranch { GameId = gameId, Main = package };
+                return client.GetBuildInfoForPackageAsync(branch, package, preDownload, fields, default, tag).GetAwaiter().GetResult();
+            }
+            return client.GetBuildInfoAsync(gameId, preDownload, fields, default, tag).GetAwaiter().GetResult();
+        }
+
+        // 只解析不启动：`lunarward --shell-plan` 打印每个 Profile 的调试 Shell 命令行与环境变量
         if (args.Length >= 1 && args[0] is "--shell-plan")
         {
             foreach (Features.Runtime.RuntimeProfile profile in Features.Runtime.RuntimeProfileStore.LoadAll())
@@ -476,8 +536,8 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
             }
             var cpHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
             var cpSophon = new Starward.Features.GameInstall.Sophon.SophonClient(cpHyp);
-            var cpNew = cpSophon.GetBuildInfoAsync(cpGameId, args.Contains("--predownload"), cpFields, default).GetAwaiter().GetResult();
-            var cpOld = cpSophon.GetBuildInfoAsync(cpGameId, false, cpFields, default, cpLocal).GetAwaiter().GetResult();
+            var cpNew = GetBuildForTest(cpSophon, cpGameId, args.Contains("--predownload"), cpFields, null);
+            var cpOld = GetBuildForTest(cpSophon, cpGameId, false, cpFields, cpLocal);
             if (cpNew is null || cpOld is null)
             {
                 Console.WriteLine($"拿不到清单：new={cpNew is not null} old={cpOld is not null}（本地版本 {cpLocal}）");
@@ -532,8 +592,8 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
             }
             var crHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
             var crSophon = new Starward.Features.GameInstall.Sophon.SophonClient(crHyp);
-            var crNew = crSophon.GetBuildInfoAsync(crGameId, args.Contains("--predownload"), crFields, default).GetAwaiter().GetResult();
-            var crOld = crSophon.GetBuildInfoAsync(crGameId, false, crFields, default, crLocal).GetAwaiter().GetResult();
+            var crNew = GetBuildForTest(crSophon, crGameId, args.Contains("--predownload"), crFields, null);
+            var crOld = GetBuildForTest(crSophon, crGameId, false, crFields, crLocal);
             if (crNew is null || crOld is null)
             {
                 Console.WriteLine($"拿不到清单：new={crNew is not null} old={crOld is not null}");
@@ -566,7 +626,15 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 var need = new List<Starward.Features.GameInstall.Sophon.SophonChunkFile>();
                 foreach (var f in fileList)
                 {
-                    if (f.IsFolder || (crOldHash.TryGetValue(f.File, out string? oldHash) && string.Equals(oldHash, f.MD5, StringComparison.OrdinalIgnoreCase)))
+                    if (f.IsFolder)
+                    {
+                        continue;
+                    }
+                    // 清单说没变、且本地（crInstall）确实有这个文件才跳过；
+                    // 否则会把「本地缺文件」当成「不用下」，--target 指向新目录时产出残缺树（F-11）。
+                    bool crUnchanged = crOldHash.TryGetValue(f.File, out string? oldHash)
+                                       && string.Equals(oldHash, f.MD5, StringComparison.OrdinalIgnoreCase);
+                    if (crUnchanged && LocalCopyMatches(crInstall, f))
                     {
                         continue;
                     }
@@ -576,7 +644,24 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                     }
                     need.Add(f);
                 }
-                Console.WriteLine($"[{field}] 待处理 {need.Count} 个文件 → {prefix}");
+                // 未变更的文件不会进入 need：如果 target 是另一个目录，要把它们链接/复制过去，
+                // 否则 --target 会得到一个残缺的树（F-11，离线假服务测试发现）。
+                int crLinked = 0;
+                if (!string.Equals(System.IO.Path.GetFullPath(crInstall), System.IO.Path.GetFullPath(crTarget), StringComparison.Ordinal))
+                {
+                    foreach (var f in fileList)
+                    {
+                        if (!f.IsFolder && !need.Contains(f))
+                        {
+                            if (LinkOrCopy(crInstall, crTarget, f.File))
+                            {
+                                crLinked++;
+                            }
+                        }
+                    }
+                }
+                Console.WriteLine($"[{field}] 待处理 {need.Count} 个文件 → {prefix}"
+                                  + (crLinked > 0 ? $"，链接 {crLinked} 个未变更文件" : ""));
                 var part = Starward.Features.GameInstall.Sophon.ChunkReuseDownloader.RunAsync(
                     crHttp, need, crIndex, crInstall, crTarget, prefix, crLimit,
                     (done, total) => Task.CompletedTask, default).GetAwaiter().GetResult();

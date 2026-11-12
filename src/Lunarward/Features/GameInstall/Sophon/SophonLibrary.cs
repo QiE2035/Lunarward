@@ -21,6 +21,12 @@ namespace Starward.Features.GameInstall.Sophon;
 public static class SophonLibrary
 {
 
+    /// <summary>
+    /// API 基址：默认官方；`LUNARWARD_SOPHON_BASE` 可指向本地假服务（L2 安装链路离线测试用）。
+    /// </summary>
+    public static string ApiBase => (Environment.GetEnvironmentVariable("LUNARWARD_SOPHON_BASE") ?? "https://downloader-api.mihoyo.com").TrimEnd('/');
+
+
     public static string BuildUrl(GameBranchPackage package, bool preDownload, string? tag = null)
     {
         // 预下载不是「换个 branch」，而是同一个 branch 上用 package.Tag 指向预下载版本；
@@ -29,7 +35,7 @@ public static class SophonLibrary
         // tag 留空 = 该 branch 的最新版本（上游也是这么调的：`branch=predownload&tag=`）。
         string tagValue = string.IsNullOrEmpty(tag) ? "" : tag;
         // tag 为空 = 该 branch 最新；指定 tag 可以取历史版本的清单（chunk 复用要靠它算「本地已有块」）。
-        return $"https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getBuild?branch={branch}&package_id={package.PackageId}&password={package.Password}&tag={tagValue}";
+        return $"{ApiBase}/downloader/sophon_chunk/api/getBuild?branch={branch}&package_id={package.PackageId}&password={package.Password}&tag={tagValue}";
     }
 
 
@@ -39,7 +45,7 @@ public static class SophonLibrary
         // 官方 getBuild 的 branch 参数就是 package.branch（L-59）。
         string branch = package.Branch ?? "main";
         // getPatchBuild 不带 tag：一次返回所有本地版本可用的补丁。
-        return $"https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getPatchBuild?branch={branch}&package_id={package.PackageId}&password={package.Password}";
+        return $"{ApiBase}/downloader/sophon_chunk/api/getPatchBuild?branch={branch}&package_id={package.PackageId}&password={package.Password}";
     }
 
 

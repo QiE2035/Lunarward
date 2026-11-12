@@ -354,6 +354,31 @@ public static class InstallPipeline
     /// 与 <see cref="RunAsync"/> 的区别是数据源不同（这里用 chunk 清单而不是 SophonAsset），
     /// 因此单独一个入口；调用方按「有补丁用补丁、没补丁用本方法」的顺序编排。
     /// </summary>
+    /// <summary>
+    /// 本机是否已有同尺寸的这个文件。
+    /// 注意符号链接：<see cref="FileInfo.Length"/> 对符号链接返回的是**链接本身**的长度（实测 24），
+    /// 不是目标文件大小，所以必须先解析出真实目标再比（L2 测试 T-IN-23 发现）。
+    /// </summary>
+    public static bool LocalFileMatches(string outputRoot, SophonChunkFile file)
+    {
+        try
+        {
+            string path = Path.Combine(outputRoot, file.File);
+            var info = new FileInfo(path);
+            if (!info.Exists)
+            {
+                return false;
+            }
+            long length = File.ResolveLinkTarget(path, returnFinalTarget: true) is FileInfo target ? target.Length : info.Length;
+            return length == file.Size;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
     public static async Task<InstallPipelineResult> RunChunkReuseAsync(
         HttpClient httpClient,
         SophonBuildInfo newBuild,
@@ -383,7 +408,15 @@ public static class InstallPipeline
             var need = new List<SophonChunkFile>();
             foreach (SophonChunkFile f in files)
             {
-                if (f.IsFolder || (oldHashes.TryGetValue(f.File, out string? oldHash) && string.Equals(oldHash, f.MD5, StringComparison.OrdinalIgnoreCase)))
+                if (f.IsFolder)
+                {
+                    continue;
+                }
+                // 只有「清单说没变」且「本地确实在」才跳过：清单相等不代表本地文件还在
+                // （被删/换盘/漏拷都会命中，离线假服务测试里发现 --target 指向新目录时产出残缺树，F-11）。
+                bool unchanged = oldHashes.TryGetValue(f.File, out string? oldHash)
+                                 && string.Equals(oldHash, f.MD5, StringComparison.OrdinalIgnoreCase);
+                if (unchanged && LocalFileMatches(outputRoot, f))
                 {
                     continue;
                 }

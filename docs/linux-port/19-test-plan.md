@@ -448,6 +448,37 @@ L2 脚手架（`scripts/test/`）第一次全量跑 33 条用例，暴露 3 个�
 首装目标缺失导致只写了一次记录。改为夹具自带 `fake-dxvk` / `fake-vkd3d` 两个组件，装 A 再装 B 才触发备份。
 
 
+## 附录：L2 安装链路（假 Sophon 服务，2026-11-12）
+
+为了在没有网络、没有真实游戏目录的情况下测「安装/更新/复用/续传」，加了一套离线安装链路：
+
+- `scripts/test/fake-sophon.py`：本地 HTTP 服务，手写 protobuf 清单 + 系统 `zstd` 压缩分块；
+  两个版本（9.9.8 / 9.9.9）共用部分 chunk，端点 `getBuild` / `manifests/<id>` / `chunks/<id>`，
+  `getPatchBuild` 回空清单表示「没有可差分补丁」，让链路走 chunk 复用。
+- 注入点：`SophonLibrary.ApiBase`（`LUNARWARD_SOPHON_BASE`）+ `Program.Linux.cs` 的 `GetBuildForTest`
+  （`LUNARWARD_SOPHON_DIRECT=1` 直接构造假 package，跳过 HoYoPlay 的 branch 查询）。
+- `scripts/test/chunk-smoke.sh`：6 条用例（T-IN-20…T-IN-25），CI 与本地都跑。
+
+用例与首轮结果：
+
+| 编号 | 内容 | 结果 |
+| --- | --- | --- |
+| T-IN-20 | plan 报告「可复用 2 块 / 需下载 22 B」 | 通过 |
+| T-IN-21 | run 只下新增块，未变更文件链接进 target | 通过（此用例抓出 F-11/F-12） |
+| T-IN-22 | target 树完整（100 / 256 / 300 字节） | 通过 |
+| T-IN-23 | 重复运行待处理 0 个文件（幂等） | 通过（抓出 F-12） |
+| T-IN-24 | 本地缺文件即使清单没变也要重下 | 通过（F-11 的回归） |
+| T-IN-25 | 复用过程不改写源安装目录 | 通过 |
+
+跑出来的问题：
+
+| 编号 | 现象 | 根因 | 处置 |
+| --- | --- | --- | --- |
+| F-11 | `--install-chunk-run --target <另一个目录>` 产出的树缺文件 | 未变更文件被整份跳过，target≠install 时没人搬过去 | 已修：跳过前要求本地确实有同尺寸文件；target≠install 时未变更文件用 `LinkOrCopy` 链过去（打印「链接 N 个未变更文件」） |
+| F-12 | target 树里已有符号链接时，同一命令反复重写这两个文件 | `FileInfo.Length` 对符号链接返回**链接本身**的长度（实测 24 字节），不等于目标文件大小 | 已修：`InstallPipeline.LocalFileMatches` 先 `File.ResolveLinkTarget(...)` 再比长度（L-119） |
+
+这两条都是「幂等/幂等失败」的典型：功能看起来对，重复执行才暴露。CI 现在跑这套用例，回归会被挡住。
+
 ## 附录：L1.5 `--selftest-ui` 已落地（2026-11-12）
 
 实现：`src/Lunarward/Features/Dev/UiSelfTest.cs` + `MainWindow.OnSelfTestActivated`；CLI 开关 `--selftest-ui`
