@@ -26,6 +26,11 @@ UI 与业务代码移植而来。目标是把 Starward 的完整功能与观感�
 
 ![启动器](./docs/linux-port/screenshots/m3-launcher-hero.png)
 
+## 测试
+
+- 单元测试：`dotnet test Starward.slnx -c Release`
+- 完整测试方案（分层、用例清单、缺陷流程）：[docs/linux-port/19-test-plan.md](docs/linux-port/19-test-plan.md)
+
 ## 构建
 
 从仓库根直接构建即可（根 `Starward.slnx` 只含 Linux 项目；上游的 Windows 解决方案不参与构建，见 D53）：

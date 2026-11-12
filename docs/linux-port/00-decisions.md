@@ -799,3 +799,11 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - 实测：`--run-once "默认（opt）" /usr/bin/env` 输出 `LUNARWARD_WINE=/opt/spritz-wine-tkg/bin/wine`、`WINEPREFIX=/home/qie2035/.wine`、`LUNARWARD_PROFILE=默认（opt）`、`LUNARWARD_PROFILE_ID=8b3d42fa`，退出码 0 —— 与游戏启动的环境一致。
 - 又删的冗余：图形组件区标题改成「图形层（DXVK / VKD3D）」并合并进同一段（原来「运行器」与「已检测到的组件」两处都列运行器）；「临时（退出即删）」前缀选项移进编辑器「高级」折叠，避免与「新建/复制自现有」并列时选错。
 - 未做：图形组件「删除」入口（只删我们自己导入的那份）、`WINEDLLPATH` 叠加、方案导入导出。
+
+**D65 测试分层与门禁**
+
+- 四层：L1 单元（xunit，CI 必过）、L2 CLI/无头集成（CI，临时 XDG + 假前缀 + 假 Sophon）、L3 GUI 端到端（本机 X11，`cu_*` 注入 + 日志断言 + 截图判据）、L4 人工验收（真实账号/游戏，用户在场）。
+- 隔离：L2/L3 一律把 `XDG_CONFIG_HOME`/`XDG_DATA_HOME`/`XDG_CACHE_HOME`/`XDG_STATE_HOME` 指向 `mktemp -d`，不碰用户真实配置与游戏目录。
+- 用例登记：`19-test-plan.md` §4 为唯一清单，ID 形如 `T-RT-04`；修完的提交信息必须带 ID；S1/S2 缺陷先补用例再修。
+- 门禁：push 跑 L1 + L2 冒烟；每晚跑 L2 全量 + L3 关键 10 条；发布前 S1/S2 清零 + L3 关键全过。
+- 代价：GUI 自动化会抢焦点、需要真实会话；假 Sophon 服务要自己维护；L4 无法自动化的部分依赖用户时间。
