@@ -29,6 +29,23 @@
 | L3 | GUI 端到端 | 本机（X11/XWayland） | 真实会话、真实 wine、cu_* 工具 | 每轮改动后手跑 + 每晚 | 关键用例必须过 |
 | L4 | 人工验收 | 本机 + 真实账号/游戏 | 用户在场 | 里程碑 | 清单逐条勾选 |
 
+### 2.5 关于 `Uno.UITest`：不采用（有证据）
+
+- 官方文档明确列出未支持的目标：**SkiaSharp backends（GTK、WPF、Tizen）、Xamarin.macOS、Windows**；已支持只有 WebAssembly（Selenium + Chrome）与 iOS/Android（Xamarin.UITest/AppCenter）（`platform.uno` → *Using Uno.UITest* 页）。
+- NuGet 上只有 4 个包且都停在 `1.0.0`：`Uno.UITest`、`Uno.UITest.Helpers`、`Uno.UITest.Xamarin`、`Uno.UITest.Selenium` —— 没有 X11/Skia 的 driver。
+- 我们的目标框架是 `net10.0-desktop`（Skia + X11），所以它连「能跑」都不成立；唯一能套用的假设是把启动器编成 WASM 在浏览器里测，但 wine/GTK/X11 在那底下都不可用，测到的不是真实链路。
+- 结论：**不用它**。真实输入仍靠 L3 的 `cu_*`（合成输入 + 截图 + 日志断言）。
+
+### 2.6 可选层 L1.5：进程内 UI 断言（借鉴 Uno 的 RuntimeTests 思路）
+
+Uno 自己那套运行时测试（`RuntimeTestPlatforms` 里有 `SkiaX11`）是在**应用进程内**跑断言：查视觉树、读 DependencyProperty、量布局，而不是注入系统输入。这个思路对我们有用，且没有 `Uno.UITest` 的平台限制：
+
+- 形态：应用内加一个 `--selftest-ui`（`#if DEBUG` 或 `LUNARWARD_SELFTEST=1`，不进发行版副作用），启动后按用例清单逐条在 UI 线程断言，最后打印 `PASS/FAIL` 并设置退出码。
+- 能覆盖：`GameBannerAndPost` 三个 tab 是否存在、切游戏后 `ItemsSource` 是否换新、图标 `Glyph` 码位、设置页根背景 Brush、InfoBar 可见性、窗口尺寸与 90% 屏幕夹取、预检对话框条目数与按钮文案。
+- 不能覆盖：真实鼠标/键盘、托盘、窗口管理器行为、外部程序拉起 → 仍归 L3。
+- 好处：不抢焦点、可塞进 CI（Xvfb + `xvfb-run`）、失败能精确到用例 ID。
+- 代价：多一个只在测试用的应用内入口；每条断言都要在 UI 线程跑（`DispatcherQueue`），且只能断言我们自己写进代码的东西，发现不了「用户觉得丑」。
+
 L2 的隔离方式：`XDG_CONFIG_HOME` / `XDG_DATA_HOME` / `XDG_CACHE_HOME` / `XDG_STATE_HOME` 全部指向 `mktemp -d`，由此不碰用户真实数据（三个目录均已在代码里支持）。GUI 用例也走这套环境变量，避免测试污染真实配置。
 
 ## 3. 测试矩阵
