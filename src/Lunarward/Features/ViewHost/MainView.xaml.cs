@@ -115,6 +115,9 @@ public sealed partial class MainView : UserControl
 
     private async void MainView_Loaded(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
+#if DEBUG
+        DevSwitchGameIfRequestedAsync();
+#endif
         // Lunarward：M1 截图验证用，LUNARWARD_PAGE=setting 时直接跳转到指定页（正式版移除）
         string? debugPage = Starward.Features.Dev.DevSwitches.Page;
         if (!string.IsNullOrEmpty(debugPage))
@@ -282,7 +285,33 @@ public sealed partial class MainView : UserControl
         CurrentGameId = e.Item1;
         CurrentGameFeatureConfig = GameFeatureConfig.FromGameId(CurrentGameId);
         UpdateNavigationView();
+        // 页面是缓存的，不重建就不会自己换内容：广播一次，让当前页刷新（D62）。
+        WeakReferenceMessenger.Default.Send(new CurrentGameChangedMessage(CurrentGameId));
     }
+
+
+#if DEBUG
+    private async void DevSwitchGameIfRequestedAsync()
+    {
+        try
+        {
+            string? biz = Environment.GetEnvironmentVariable("LUNARWARD_DEV_SWITCH_GAME");
+            if (string.IsNullOrWhiteSpace(biz))
+            {
+                return;
+            }
+            await Task.Delay(6000);
+            if (Starward.Core.GameBiz.TryParse(biz, out Starward.Core.GameBiz target))
+            {
+                GameSelector.DevSelectGame(target);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "[dev] switch game failed");
+        }
+    }
+#endif
 
 
 

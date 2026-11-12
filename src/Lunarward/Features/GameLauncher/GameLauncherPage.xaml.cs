@@ -79,8 +79,32 @@ public sealed partial class GameLauncherPage : PageBase
         WeakReferenceMessenger.Default.Register<RemovableStorageDeviceChangedMessage>(this, OnRemovableStorageDeviceChanged);
         WeakReferenceMessenger.Default.Register<GameInstallTaskStartedMessage>(this, OnGameInstallTaskStarted);
         WeakReferenceMessenger.Default.Register<BackgroundChangedMessage>(this, OnBackgroundChanged);
+        WeakReferenceMessenger.Default.Register<GameLauncherPage, CurrentGameChangedMessage>(this, (r, m) => r.OnCurrentGameChanged(m));
     }
 
+
+
+    /// <summary>切换游戏（页面已缓存，不会重建）：把本页与下挂控件换成新游戏的内容（D62）。</summary>
+    private void OnCurrentGameChanged(CurrentGameChangedMessage message)
+    {
+        try
+        {
+            if (CurrentGameId == message.GameId)
+            {
+                return;
+            }
+            CurrentGameId = message.GameId;
+            CurrentGameBiz = message.GameId.GameBiz;
+            InitializeGameFeature();
+            CheckGameVersion();
+            UpdateGameInstallTask();
+            _ = InitializeGameServerAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "[launcher] refresh for current game failed");
+        }
+    }
 
 
     protected override void OnUnloaded()

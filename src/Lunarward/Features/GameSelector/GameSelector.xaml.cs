@@ -374,6 +374,25 @@ public sealed partial class GameSelector : UserControl
 
 
 
+#if DEBUG
+    /// <summary>
+    /// 开发用：按 biz 直接切游戏（等价于点图标选服），用于无人值守复现「切换游戏后左下角不刷新」。
+    /// </summary>
+    public void DevSelectGame(Starward.Core.GameBiz biz)
+    {
+        if (string.IsNullOrWhiteSpace(biz.Value))
+        {
+            return;
+        }
+        CurrentGameBiz = biz;
+        CurrentGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(biz);
+        AppConfig.CurrentGameBiz = biz;
+        CurrentGameChanged?.Invoke(this, (CurrentGameId, false));
+        Serilog.Log.Information("[dev] switched game to {biz}", biz.Value);
+    }
+#endif
+
+
     /// <summary>
     /// 双击没有被选择的游戏图标
     /// </summary>

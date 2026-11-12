@@ -55,6 +55,12 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 
     private string? _lastBackgroundFile;
 
+    /// <summary>当前已经应用好背景的游戏；页面切来切去时不要重做（D62）。</summary>
+    private GameId? _appliedGameId;
+
+    /// <summary>视频壁纸正在播；此时 BackgroundImageSource 可能是 null，守卫要把它算作「已应用」。</summary>
+    private bool _videoActive;
+
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -230,7 +236,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             return cached.Background;
         }
         // 上游给 1 秒 API 超时；Linux 首包要 TLS 握手，1 秒几乎必然超时（L-71），这里放宽到 6 秒。
-        int apiTimeoutMs = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_BG_TIMEOUT_MS"), out int dbgMs) && dbgMs > 0 ? dbgMs : 6000;
+        int apiTimeoutMs = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_BG_TIMEOUT_MS"), out int dbgMs) && dbgMs > 0 ? dbgMs : 1500;
         try
         {
             using CancellationTokenSource apiTimeout = new(TimeSpan.FromMilliseconds(apiTimeoutMs));
@@ -335,8 +341,33 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     /// </param>
     public async Task UpdateBackgroundAsync(GameBackground? requested = null)
     {
-        StopVideoBackground();
+        await UpdateBackgroundCoreAsync(requested);
+    }
+
+
+    private async Task UpdateBackgroundCoreAsync(GameBackground? requested)
+    {
         GameId? gameId = CurrentGameId;
+        // 没换游戏、用户也没在切换器里点新背景：当前这张就是对的，别把视频停掉再重下一遍。
+        if (requested is null && gameId is not null && gameId == _appliedGameId && (BackgroundImageSource is not null || _videoActive))
+        {
+            Serilog.Log.Debug("[background] keep current background for {game}", gameId.Id);
+            return;
+        }
+        StopVideoBackground();
+        // 先用本地已有的背景/兜底图把画面填上（纯磁盘 IO，几百毫秒），网络那一段慢也看不见空白。
+        if (BackgroundImageSource is null)
+        {
+            try
+            {
+                string quickPath = BackgroundService.GetCachedBackgroundFile(gameId) ?? BackgroundService.GetFallbackBackgroundImage(gameId);
+                BackgroundImageSource = await LoadBackgroundImageAsync(quickPath, null, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "[background] quick background failed");
+            }
+        }
         if (gameId is null)
         {
             BackgroundImageSource = new BitmapImage(DefaultBackground);
@@ -376,6 +407,8 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
                         // 主题图（海报，带游戏标题文字）按上游语义整幅拉伸画在帧上。
                         if (await TryStartVideoBackgroundAsync(background, token))
                         {
+                            _appliedGameId = gameId;
+                            _videoActive = true;
                             // 视频在播时先把「暂停后要看到的那张静态图（海报+主题文字层）」在后台准备好：
                             // 否则点暂停要先等海报下载（≤3s）+ 主题图下载（≤6s）+ Skia 合成，好几秒才出图（真机复现）。
                             _ = PreloadPausedBackgroundAsync(background, token);
@@ -417,9 +450,12 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             }
             if (filePath == _lastBackgroundFile)
             {
+                // 图没变（预加载海报时也会写 _lastBackgroundFile），但游戏维度已经应用过，记下来供守卫早退。
+                _appliedGameId = gameId;
                 return;
             }
             _lastBackgroundFile = filePath;
+            _appliedGameId = gameId;
             CurrentGameBackground = background;
             // 上游静态背景也会把 Theme 图（透明底的标题文字层）叠在底图上（AppBackground.xaml.cs:419-437）；
             // 之前只贴底图，所以暂停/静态时左上角没有标题文字（实测主题图 99.1% 像素透明，是纯文字层）。
@@ -673,6 +709,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         _videoPlayer?.Dispose();
         _videoPlayer = null;
         _currentVideoPath = null;
+        _videoActive = false;
         _videoSurface?.Dispose();
         _videoSurface = null;
         _videoWidth = 0;

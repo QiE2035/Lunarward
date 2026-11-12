@@ -94,3 +94,9 @@
 - 游戏扫描支持配置根与 24 小时增量缓存；
 - `~/.local/share/Lunarward` 合并为指向 `lunarward` 的符号链接，`WelcomeWindow` 默认值改小写；
 - 背景图库的视频条目改用 libVLC 抽首帧做缩略图（不再黑块）。
+
+## 2026-11-12（四）
+
+- 修：切换游戏后左下角公告/资讯仍是上一个游戏的内容（新增 `CurrentGameChangedMessage`、页面与 banner 属性 setter 重载、Pivot 先置空再赋值）。
+- 修：从其它页切回「启动器」卡几秒（背景层加同游戏守卫、先用本地图秒出画面、建议背景超时 1.5 s）。
+- 开发入口：`LUNARWARD_DEV_SWITCH_GAME=<biz>`（DEBUG）按真实选服路径切游戏，便于复现。

@@ -892,3 +892,12 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 ## L-110 `x:Bind` 的 bool → Visibility 在本项目可用，空态层不必写转换器
 
 给「空态覆盖层」绑 `Visibility="{x:Bind ShowRecordEmptyState}"`（bool）直接编译通过并生效（Uno 的隐式转换）。比引入 `BoolToVisibilityConverter` 干净，但要求属性变更时 `OnPropertyChanged` 通知到该属性本身——只通知数据源属性是不够的，本例在 `CurrentRole` 的 setter 里额外 `OnPropertyChanged(nameof(ShowRecordEmptyState))`。
+
+### L-111 页面缓存之后，「跨游戏刷新」必须靠消息，不能靠加载时机
+`NavigationCacheMode` 之后 `OnNavigatedTo`/`Loaded` 只在第一次跑；改 `MainView.CurrentGameId` 不会传到页面与下挂控件。要新增一条 `CurrentGameChangedMessage`，由页面在处理里改自己的 `CurrentGameId`，下挂控件再靠属性 setter 触发重载。判断「有没有刷新」别只用日志，要截图看内容文案。
+
+### L-112 Uno 的 Pivot：换 ItemsSource 不会重建 tab 内容
+同一个 Pivot 重新赋一个全新的 `List<T>`，条目容器被复用，里面的文案还是旧的（banner 这种单值控件会更新，容易误判「已经刷新了」）。有效做法是 `ItemsSource = null` → 让出一轮布局（`await Task.Delay(60)`）→ 再赋新列表。仅 `Clear()`+`Add()` 或 `Collapsed/Visible` 切换都试过，无效。
+
+### L-113 背景层不要每次 Loaded 都重做
+`StopVideoBackground()` + 取建议背景 + 下载 + Skia 合成在页面来回切时被重复触发，实测 8–10 秒。加「同游戏守卫」（记录 `_appliedGameId`，视频在播时记 `_videoActive`）后直接返回；同时进来先用本地缓存图/兜底图填画面（2 ms），把网络放到后面。排查时用 `Stopwatch` 打在 `UpdateBackgroundAsync` 的 finally 里，能一眼看出是页面还是背景层慢。

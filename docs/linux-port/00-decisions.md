@@ -674,6 +674,30 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 
 </details>
 
+### D62 缓存页面后的跨页/跨游戏刷新，与「切回启动器卡几秒」
+
+**现象**：①从其它页切回「启动器」要卡几秒；②切换游戏后，左下角公告/资讯仍是上一个游戏的内容。
+
+**根因（三处，全部实测）**
+1. 页面加了 `NavigationCacheMode`（D60）后不再重建，切换游戏只改了 `MainView.CurrentGameId`，`GameBannerAndPost.CurrentGameId`（导航参数赋的值）保持旧值，`Loaded` 里的 `_contentGameId != CurrentGameId` 永远为假 → 不刷新。
+2. 即使重新取到了内容，`Pivot.ItemsSource` 换成新列表也不重建 tab 条目（Uno 复用条目容器）→ banner 变了、三个 tab 里还是旧活动的文案。
+3. 背景层 `UpdateBackgroundCoreAsync` 每次进来先无条件 `StopVideoBackground()`，之后取「建议背景」（接口在本机必超时）→ 下载 → Skia 合成，累计 8–10 秒；这段虽在后台，但会挡住首帧画面。
+
+**修法**
+- `Features/ViewHost/CurrentGameChangedMessage.cs` + `MainView.GameSelector_CurrentGameChanged` 广播；`GameLauncherPage` 收到后更新 `CurrentGameId`/`CurrentGameBiz` 并重跑 `InitializeGameFeature`/`CheckGameVersion`/`UpdateGameInstallTask`/`InitializeGameServerAsync`；`GameBannerAndPost.CurrentGameId` 改成带 setter 的属性，值变化且 `IsLoaded` 时重载内容。
+- `UpdateGameContentAsync` 里先把 `Pivot_Posts.ItemsSource = null`，赋新列表后等一次布局周期再挂回去（`await Task.Delay(60)`），强制重建 tab 内容。
+- 背景层：加 `_appliedGameId` + `_videoActive` 守卫，同游戏且已有画面（静态图或视频在播）时直接返回，不再停视频重下；进来先用 `BackgroundService.GetCachedBackgroundFile` 或兜底图把画面填上（实测 2 ms），网络那段慢也看不见空白；「建议背景」超时 6 s → 1.5 s（可用 `LUNARWARD_BG_TIMEOUT_MS` 覆盖）。
+- 开发入口（`#if DEBUG`，D35）：`LUNARWARD_DEV_SWITCH_GAME=<biz>` 启动后 6 秒用 `GameSelector.DevSelectGame` 走真实选服路径切游戏，便于无人值守复现。
+
+**实测**
+- `quick background 2 ms`、`launcher OnLoaded sync 25–34 ms`、`nav GameLauncherPage sync 266–342 ms`。
+- 用 dev 入口在 `hkrpg_cn ↔ hk4e_cn` 之间切换：banner 与三个 tab 的条目都换成了新游戏的内容（截图 `/tmp/dev_switch.jpg`、`/tmp/dev_genshin.jpg`）。
+- `dotnet test` 36 通过。
+
+**代价 / 未做**
+- 换游戏的瞬间先显示「上一张/兜底图」，几百毫秒后才换成新游戏的背景；这是有意的（首帧优先）。
+- 建议背景接口在本机仍会超时（TLS 首包），只是不再挡画面；没有做「预取 + 落盘缓存」。
+
 ## 协作约定复核（2026-11-05，来源：聊天记录）
 
 用户要求「顺便整理一下聊天记录看看还有哪些需要计入文档的」。以下是从 m00001 起到 m11348 为止所有明确要求，标注当前落点（✅ 已入文档 / 🆕 本次补入）：

@@ -12,6 +12,7 @@ using Starward.Features.ViewHost;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Windows.System;
 
@@ -39,7 +40,40 @@ public sealed partial class GameBannerAndPost : UserControl
     private readonly GameNoticeService _gameNoticeService = AppConfig.GetService<GameNoticeService>();
 
 
-    public GameId CurrentGameId { get; set; }
+    private GameId _currentGameId;
+
+    /// <summary>当前游戏。页面缓存后不会重建，切换游戏时必须靠这里自己换内容（D62）。</summary>
+    public GameId CurrentGameId
+    {
+        get => _currentGameId;
+        set
+        {
+            if (_currentGameId == value)
+            {
+                return;
+            }
+            _currentGameId = value;
+            if (IsLoaded)
+            {
+                _ = ReloadForCurrentGameAsync();
+            }
+        }
+    }
+
+
+    private async Task ReloadForCurrentGameAsync()
+    {
+        try
+        {
+            _contentGameId = CurrentGameId;
+            await UpdateGameContentAsync();
+            await UpdateGameNoticeAlertAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "[banner] reload for current game failed");
+        }
+    }
 
 
 
@@ -186,7 +220,12 @@ public sealed partial class GameBannerAndPost : UserControl
                 return;
             }
             Banners = content.Banners;
+            // Uno 的 Pivot 会复用条目容器：仅仅换 ItemsSource 的内容不会重建 tab 内容（真机复现：
+            // 换游戏后 banner 变了、三个 tab 里还是上一个游戏的活动）。先清空、等一次布局周期再赋新列表。
+            Pivot_Posts.ItemsSource = null;
             PostGroups = GamePostGroup.FromGameContent(content);
+            await Task.Delay(60);
+            Pivot_Posts.ItemsSource = PostGroups;
             ShowBannerAndPost = true;
         }
         catch (Exception ex)
