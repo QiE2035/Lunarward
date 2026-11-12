@@ -16,6 +16,63 @@ internal class LunarwardProgram
     [STAThread]
     public static void Main(string[] args)
     {
+// 无副作用查询（不需要 DISPLAY）：`lunarward --version` / `--help`
+        if (args.Length >= 1 && args[0] is "--version" or "-v")
+        {
+            string ver = Starward.AppConfig.AppVersion;
+            if (string.IsNullOrWhiteSpace(ver))
+            {
+                ver = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
+            }
+            Console.WriteLine($"Lunarward {ver}");
+            return;
+        }
+        if (args.Length >= 1 && args[0] is "--help" or "-h")
+        {
+            Console.WriteLine("""
+Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starward 移植）
+
+用法：lunarward [命令] [参数]
+不带命令时启动图形界面。
+
+环境诊断
+  --version                        打印版本
+  --diagnose [--out DIR] [--game BIZ]
+                                   生成诊断包 zip（默认 ~/Downloads）
+  --preflight <biz>                启动前预检六项
+  --launch-plan <exe> [args]       只解析不启动：打印 wine/前缀/argv
+
+运行环境
+  --list-runners [--json]          列出发现的运行器（布局/可用性/原因）
+  --list-components [--json]       列出组件（含图形层）
+  --prefix-ensure <id|名字>        按方案准备前缀
+  --run-once <id|名字> <程序> [参数…]
+                                   在方案环境里跑一次程序
+  --shell-plan                     打印每个方案的调试 Shell 命令
+  --graphics-list
+  --graphics-install <前缀> <名字|id|路径>
+  --graphics-verify <前缀>
+  --graphics-remove <前缀>
+  --graphics-import <目录>
+
+安装 / 更新
+  --install-plan <biz> / --install-run <biz> [--limit-mb N]
+  --update-plan <biz> / --update-run <biz> [--limit-mb N]
+  --patch-plan <biz> / --patch-run <biz>
+  --install-chunk-plan <biz> / --install-chunk-run <biz>
+  --predownload-size <biz>
+  --version-status <gameKey> / --version-write <gameKey> <版本>
+
+窗口 / 协议 / 其它
+  --hide / --show                  启动即隐藏 / 唤回主窗口
+  --screenshot                     截图并存到设置目录
+  --update-check                   查询 AUR 版本
+  --register-protocol / --unregister-protocol / --protocol-status
+  --new-instance                   跳过单实例检查
+""");
+            return;
+        }
+
 // 只解析不启动：`lunarward --shell-plan` 打印每个 Profile 的调试 Shell 命令行与环境变量
         if (args.Length >= 1 && args[0] is "--shell-plan")
         {
@@ -1340,30 +1397,8 @@ internal class LunarwardProgram
             {
                 Console.WriteLine($"{c.KindText}\t{c.Name}\t{c.Version}\t{c.Id}");
             }
-            foreach (var c in Features.Runtime.ComponentStore.GetRunners(true))
-            {
-                Console.WriteLine($"{c.KindText}\t{c.Name}\t{c.Version}\t{c.Id}");
-            }
             return;
         }
-        if (args.Length >= 3 && args[0] is "--graphics-install")
-        {
-            var c = Features.Runtime.ComponentStore.GetGraphics(true).FirstOrDefault(x => x.Id == args[2]);
-            if (c is null)
-            {
-                Console.WriteLine($"找不到组件：{args[2]}");
-                return;
-            }
-            bool changed = Features.Runtime.GraphicsInstaller.EnsureInstalled(args[1], c);
-            var installed = Features.Runtime.GraphicsInstaller.GetInstalled(args[1]);
-            Console.WriteLine(changed ? $"已安装 {c.Name} -> {args[1]}" : $"已是最新（未改动）：{installed?.Name}");
-            if (installed is not null)
-            {
-                Console.WriteLine($"记录：{installed.Name} / {installed.InstalledAt:yyyy-MM-dd HH:mm} / {installed.Files.Count} 个文件");
-            }
-            return;
-        }
-
         // L-72：Uno 的 X11 后端在没有 DISPLAY 时会抛异常/静默失败，而且在 HostBuilder.Build() 里就炸，
         // 比 App.OnLaunched 更早。这里先给一句人话，避免 IDE 里「进程在跑但没窗口」的悬案。
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY"))

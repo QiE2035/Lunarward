@@ -15,8 +15,18 @@ internal static class UrlProtocolService
 {
     private const string Scheme = "lunarward";
 
-    private static string DesktopFilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "applications", "lunarward.desktop");
+    /// <summary>XDG_DATA_HOME/applications（未设置时回落 ~/.local/share/applications），便于测试与自定义数据目录。</summary>
+    private static string DesktopFilePath
+    {
+        get
+        {
+            string? xdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+            string root = string.IsNullOrWhiteSpace(xdg)
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share")
+                : xdg;
+            return Path.Combine(root, "applications", "lunarward.desktop");
+        }
+    }
 
     private static string ExecutablePath => Environment.ProcessPath ?? "lunarward";
 

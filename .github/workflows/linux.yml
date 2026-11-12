@@ -38,5 +38,22 @@ jobs:
     - name: Build
       run: dotnet build Starward.slnx -c Release --no-restore
 
-    - name: Test
+    - name: Test (L1 单测)
       run: dotnet test Starward.slnx -c Release --no-build
+
+    # L2：CLI 全链路冒烟（临时 XDG + 假运行器/假前缀/假外部命令，不需要显示器、不联网）
+    - name: Install test deps
+      run: sudo apt-get update && sudo apt-get install -y jq unzip
+
+    - name: L2 CLI smoke
+      env:
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+      run: bash scripts/test/cli-smoke.sh
+
+    - name: Upload L2 artifacts on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: l2-logs
+        path: /tmp/lw-l2-*/logs
+        if-no-files-found: ignore
