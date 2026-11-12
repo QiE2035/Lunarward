@@ -4,7 +4,6 @@
 // 官方启动器因此只需要下几十 MB。我们之前的 InstallPipeline 是「整文件重下」，于是把
 // 33 GB 的变更全算成下载量。这里先用两个版本的清单算出「有多少 chunk 本地已有」，
 // 验证可行后再让下载器真正复用（见 InstallPipeline 的 reuse 分支）。
-using Starward.Core.HoYoPlay;
 using System;
 using System.Collections.Generic;
 using System.IO;

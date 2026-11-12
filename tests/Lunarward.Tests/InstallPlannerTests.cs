@@ -12,7 +12,7 @@ namespace Lunarward.Tests;
 public class InstallPlannerTests
 {
 
-    private static SophonChunkFile File(string path, long size, string? md5 = null, long compressed = 0)
+    private static SophonChunkFile File(string path, long size, string md5 = "", long compressed = 0)
         => new()
         {
             File = path,

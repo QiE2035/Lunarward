@@ -428,3 +428,22 @@
 4. `--selftest-ui` 要往应用里加测试入口（`LUNARWARD_SELFTEST=1`，不进发行版副作用），需要你同意这个形态。
 
 需要确认的四件事，同 §11 的 1–4；另外**每晚自动跑**是否允许（会自动起应用、可能弹通知）。
+
+
+## 附录：首轮 L2 跑出来的问题（2026-11-12）
+
+L2 脚手架（`scripts/test/`）第一次全量跑 33 条用例，暴露 3 个真 bug 与 2 处文档/行为不一致。这一节记录它们，
+既是从「测试」到「修复」的链路证据，也说明这套脚手架确实能抓到东西。
+
+| 编号 | 现象 | 根因 | 处置 |
+| --- | --- | --- | --- |
+| F-01 | `UrlProtocolService` 注册协议时把 .desktop 写到 `~/.local/share/applications`，即使设置了 `XDG_DATA_HOME` | `DesktopFilePath` 用 `SpecialFolder.UserProfile` 硬拼路径 | 已修：优先 `XDG_DATA_HOME`（与 D22 的 XDG 口径一致） |
+| F-02 | `--graphics-list` 输出里混着 Wine/Proton 运行器 | 该分支在打印图形层后又跑了一段运行器循环 | 已修：只列图形层，并加回归用例 T-CL-06 |
+| F-03 | `Program.Linux.cs` 里有两个 `--graphics-install` 分支，第二个永不可达且措辞不同 | 历史上重复添加 | 已修：删掉不可达分支 |
+| F-04 | `--graphics-install <prefix> <目录>` 报「没有这个图形组件」 | 只接受已扫描组件的 Id/名字/路径，不认任意目录 | 记录为当前行为（T-CL-17）；是否支持「传目录自动导入」待定 |
+| F-05 | help 里 `--version-status <目录>` 与实际参数（gameKey）不符 | 文档漂移 | 已修：help 改 `<gameKey>` |
+
+顺带发现 `--list-runners` 的可用性用的是 `✓` 而不是「可用」字样，测试断言按实际输出校正；
+`T-RT-13b`（换组件时留 `graphics.json.bak`）在 CI 上失败过一次——因为 CI 没有 `/usr/share/dxvk`，
+首装目标缺失导致只写了一次记录。改为夹具自带 `fake-dxvk` / `fake-vkd3d` 两个组件，装 A 再装 B 才触发备份。
+

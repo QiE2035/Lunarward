@@ -15,6 +15,7 @@
     <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/SophonChunkManifest.cs" Link="Linked/SophonChunkManifest.cs" />
     <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/InstallPlanner.cs" Link="Linked/InstallPlanner.cs" />
     <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/ChunkResume.cs" Link="Linked/ChunkResume.cs" />
+    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/ChunkReusePlanner.cs" Link="Linked/ChunkReusePlanner.cs" />
     <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/GameVersionMarker.cs" Link="Linked/GameVersionMarker.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/PrefixPath.cs" Link="Linked/PrefixPath.cs" />
     <Compile Include="../../src/Lunarward/Helpers/JsonFile.cs" Link="Linked/JsonFile.cs" />
