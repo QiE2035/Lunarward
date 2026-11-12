@@ -901,3 +901,9 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 
 ### L-113 背景层不要每次 Loaded 都重做
 `StopVideoBackground()` + 取建议背景 + 下载 + Skia 合成在页面来回切时被重复触发，实测 8–10 秒。加「同游戏守卫」（记录 `_appliedGameId`，视频在播时记 `_videoActive`）后直接返回；同时进来先用本地缓存图/兜底图填画面（2 ms），把网络放到后面。排查时用 `Stopwatch` 打在 `UpdateBackgroundAsync` 的 finally 里，能一眼看出是页面还是背景层慢。
+
+## L-114 运行环境页：前缀大小要缓存、组件路径比较要用 `GetFullPath`
+
+- `PrefixManager.Inspect` 对大前缀 `du` 一次要几百毫秒（`.wine` 370 MB ≈ 0.2 s，百 GB 前缀更久），进页必须缓存（10 分钟），并把「这次是缓存值」也暴露出来，否则用户会以为数字是刚算的。
+- 判断「这个运行器有几个方案在用」不能只比字符串：`profile.RunnerPath` 可能带 `~`、可能带尾斜杠，必须是 `PrefixManager.ExpandPath` → `Path.GetFullPath` → 全等比较；早期直接 `==` 得到恒定 0。
+- `Directory.EnumerateFiles` 要带 `IgnoreInaccessible = true` 与 `AttributesToSkip = ReparsePoint`，否则 winetricks 建出来的符号链接会把枚举拖死。

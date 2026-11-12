@@ -55,7 +55,41 @@
                 HorizontalScrollMode="Disabled"
                 VerticalScrollBarVisibility="Auto">
                 <StackPanel Spacing="4">
-                    <StackPanel x:Name="StackPanel_Profiles" Spacing="4" />
+                    <!--  运行器：只读清单 + 手动添加路径（D63 三段式第一段）  -->
+                    <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="运行器" />
+                    <TextBlock
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="只读清单：启动器只发现和选择，不安装、不复制、不删除系统里的 wine。要固定某个版本请用包管理器装到独立目录，再用「添加路径…」指过来。"
+                        TextWrapping="Wrap" />
+                    <StackPanel
+                        Margin="0,4,0,0"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Button x:Name="Button_AddRunner" Click="Button_AddRunner_Click" Content="添加路径…" />
+                    </StackPanel>
+                    <StackPanel x:Name="StackPanel_Runners" Margin="0,4,0,0" Spacing="4" />
+
+                    <!--  方案  -->
+                    <TextBlock
+                        Margin="0,16,0,0"
+                        Style="{ThemeResource BodyStrongTextBlockStyle}"
+                        Text="方案" />
+                    <StackPanel x:Name="StackPanel_Profiles" Margin="0,4,0,0" Spacing="4" />
+
+                    <!--  前缀：单独成段，看得到「谁在用它/多大/什么状态」  -->
+                    <TextBlock
+                        Margin="0,16,0,0"
+                        Style="{ThemeResource BodyStrongTextBlockStyle}"
+                        Text="前缀" />
+                    <TextBlock
+                        Style="{ThemeResource CaptionTextBlockStyle}"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="wine 的 C 盘。会坏、会占几十 G、会被多个方案共用，所以单独列出来；外部前缀只显示不清理。"
+                        TextWrapping="Wrap" />
+                    <StackPanel x:Name="StackPanel_Prefixes" Margin="0,4,0,0" Spacing="4" />
+
+                    <!--  图形组件（DXVK / VKD3D）：仍放在组件区，P3 再按前缀收敛  -->
                     <TextBlock
                         Margin="0,16,0,0"
                         Style="{ThemeResource BodyStrongTextBlockStyle}"
@@ -74,10 +108,7 @@
                             Click="Button_ImportGraphics_Click"
                             Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportGraphics}" />
                     </StackPanel>
-                    <StackPanel
-                        x:Name="StackPanel_Components"
-                        Margin="0,4,0,0"
-                        Spacing="4" />
+                    <StackPanel x:Name="StackPanel_Components" Margin="0,4,0,0" Spacing="4" />
                 </StackPanel>
             </ScrollViewer>
 

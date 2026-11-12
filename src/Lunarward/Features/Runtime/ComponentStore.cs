@@ -166,6 +166,13 @@ public static class ComponentStore
             }
         }
 
+        // 5) 用户手动添加的路径（D63）：只登记，不复制、不探测目录树
+        foreach (string manual in ManualRunners.Load())
+        {
+            string name = Path.GetFileName(Path.GetDirectoryName(manual.TrimEnd('/'))) ?? manual;
+            AddRunner(manual, ComponentKind.Wine, name, false);
+        }
+
         // 版本号 + 可用性：`wine --version` 结果按真实路径缓存（首次约 0.2–1 s，之后走缓存）。
         // 可用性判定只做两件无副作用的事：读版本、找同套 wineserver——**不创建前缀**。
         foreach (Component runner in list)
@@ -622,4 +629,58 @@ public static class ComponentStore
         }
         return null;
     }
+}
+
+/// <summary>
+/// 用户手动添加的运行器（`~/.config/lunarward/manual-runners.json`）。
+/// 只存可执行文件路径；不复制、不修改，删掉清单里的条目就等于放弃引用。
+/// </summary>
+public static class ManualRunners
+{
+
+    public static string FilePath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData, Environment.SpecialFolderOption.DoNotVerify),
+        "lunarward", "manual-runners.json");
+
+
+    public static IReadOnlyList<string> Load()
+    {
+        try
+        {
+            if (!File.Exists(FilePath))
+            {
+                return [];
+            }
+            List<string>? list = System.Text.Json.JsonSerializer.Deserialize<List<string>>(File.ReadAllText(FilePath));
+            return list?.Where(x => !string.IsNullOrWhiteSpace(x)).ToList() ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+
+    public static void Add(string winePath)
+    {
+        List<string> list = Load().ToList();
+        string full = Path.GetFullPath(winePath);
+        if (!list.Any(x => string.Equals(Path.GetFullPath(x), full, StringComparison.Ordinal)))
+        {
+            list.Add(full);
+            Helpers.JsonFile.WriteAtomic(FilePath, list);
+        }
+    }
+
+
+    public static void Remove(string winePath)
+    {
+        List<string> list = Load().ToList();
+        string full = Path.GetFullPath(winePath);
+        if (list.RemoveAll(x => string.Equals(Path.GetFullPath(x), full, StringComparison.Ordinal)) > 0)
+        {
+            Helpers.JsonFile.WriteAtomic(FilePath, list);
+        }
+    }
+
 }

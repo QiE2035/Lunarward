@@ -10,6 +10,7 @@ using Starward.Helpers;
 using Microsoft.Extensions.Logging;
 using Starward.Features.GameLauncher;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -87,6 +88,194 @@ public static class PrefixManager
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share");
             return Path.Combine(data, "lunarward", "prefix");
         }
+    }
+
+
+    /// <summary>前缀的一次性快照：给「运行环境」页面用（可见即可，不改任何东西）。</summary>
+    public sealed class PrefixInspection
+    {
+        public string Path { get; init; } = "";
+
+        public bool Exists { get; init; }
+
+        public bool HasDriveC { get; init; }
+
+        public bool HasRegistry { get; init; }
+
+        public bool Locked { get; init; }
+
+        public long SizeBytes { get; init; }
+
+        public bool SizeIsStale { get; init; }
+
+        public string? GameKey { get; init; }
+
+        public string? ProfileId { get; init; }
+
+        public string? Mode { get; init; }
+
+        /// <summary>"我们的"（位于 PrefixRoot 下）还是外部目录。</summary>
+        public bool Managed { get; init; }
+    }
+
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long Size, DateTime At)> SizeCache = new();
+
+
+    /// <summary>目录大小：带 10 分钟缓存（大前缀 du 一次要几百毫秒）。</summary>
+    private static long ComputeSize(string path, out bool stale)
+    {
+        stale = false;
+        if (SizeCache.TryGetValue(path, out (long Size, DateTime At) cached)
+            && DateTime.UtcNow - cached.At < TimeSpan.FromMinutes(10))
+        {
+            return cached.Size;
+        }
+        stale = true;
+        long size = 0;
+        try
+        {
+            var options = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                AttributesToSkip = FileAttributes.ReparsePoint,
+            };
+            foreach (string file in Directory.EnumerateFiles(path, "*", options))
+            {
+                try
+                {
+                    size += new FileInfo(file).Length;
+                }
+                catch
+                {
+                    // 单个文件读不到就跳过，不要因为一个损坏条目让整页报错
+                }
+            }
+        }
+        catch
+        {
+            return 0;
+        }
+        SizeCache[path] = (size, DateTime.UtcNow);
+        return size;
+    }
+
+
+    /// <summary>检查一个前缀：存在性、结构、占用、大小。</summary>
+    public static PrefixInspection Inspect(string? path, bool computeSize = true)
+    {
+        string prefix = ExpandPath(path) ?? "";
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return new PrefixInspection();
+        }
+        bool exists = Directory.Exists(prefix);
+        if (!exists)
+        {
+            return new PrefixInspection { Path = prefix };
+        }
+        bool stale = false;
+        long size = computeSize ? ComputeSize(prefix, out stale) : 0;
+        PrefixInspection result = new()
+        {
+            Path = prefix,
+            Exists = true,
+            HasDriveC = Directory.Exists(Path.Combine(prefix, "drive_c")),
+            HasRegistry = File.Exists(Path.Combine(prefix, "system.reg")) || File.Exists(Path.Combine(prefix, "user.reg")),
+            Locked = IsPrefixLocked(prefix),
+            SizeBytes = size,
+            SizeIsStale = computeSize && stale,
+            Managed = IsUnderPrefixRoot(prefix),
+        };
+        try
+        {
+            string meta = Path.Combine(prefix, ".lunarward", "prefix.json");
+            if (File.Exists(meta))
+            {
+                using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(meta));
+                result = new PrefixInspection
+                {
+                    Path = result.Path,
+                    Exists = result.Exists,
+                    HasDriveC = result.HasDriveC,
+                    HasRegistry = result.HasRegistry,
+                    Locked = result.Locked,
+                    SizeBytes = result.SizeBytes,
+                    SizeIsStale = result.SizeIsStale,
+                    Managed = result.Managed,
+                    GameKey = doc.RootElement.TryGetProperty("GameKey", out JsonElement g) ? g.GetString() : null,
+                    ProfileId = doc.RootElement.TryGetProperty("ProfileId", out JsonElement p) ? p.GetString() : null,
+                    Mode = doc.RootElement.TryGetProperty("Mode", out JsonElement m) ? m.GetString() : null,
+                };
+            }
+        }
+        catch
+        {
+            // 元数据坏了不影响页面显示
+        }
+        return result;
+    }
+
+
+    private static bool IsUnderPrefixRoot(string path)
+    {
+        try
+        {
+            string root = PrefixRoot.TrimEnd('/') + "/";
+            return path.StartsWith(root, StringComparison.Ordinal)
+                || string.Equals(path.TrimEnd('/'), PrefixRoot.TrimEnd('/'), StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
+    /// <summary>页面上要显示的全部前缀：PrefixRoot 下的目录 + 方案里指定的外部目录。</summary>
+    public static IReadOnlyList<PrefixInspection> EnumerateKnownPrefixes(IReadOnlyList<RuntimeProfile> profiles, bool computeSize = true)
+    {
+        List<string> paths = new();
+        try
+        {
+            if (Directory.Exists(PrefixRoot))
+            {
+                paths.AddRange(Directory.EnumerateDirectories(PrefixRoot));
+            }
+        }
+        catch
+        {
+            // 目录不可读就只显示方案里登记的
+        }
+        foreach (RuntimeProfile profile in profiles)
+        {
+            string? path = ExpandPath(profile.PrefixPath);
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                paths.Add(path!);
+            }
+        }
+        List<PrefixInspection> result = new();
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        foreach (string path in paths)
+        {
+            string full;
+            try
+            {
+                full = Path.GetFullPath(path).TrimEnd('/');
+            }
+            catch
+            {
+                continue;
+            }
+            if (!seen.Add(full) || full.Length == 0)
+            {
+                continue;
+            }
+            result.Add(Inspect(full, computeSize));
+        }
+        return result;
     }
 
 

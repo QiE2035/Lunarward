@@ -763,3 +763,13 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - 这些 Linux 专属文案先用中文字面量（不新增 11 个 resx 的键），与 D51「CLI 固定中文」同一口径；后续统一入 `Lang.resx` 时再抽。
 - 空态只覆盖「未登录 / 无角色」；战绩页里各子页（深渊、幻想真境剧诗等）的空态沿用上游。
 - `--screenshot` 之前只有 `--capture-test` 的名字，这次补了正式名字（同一个分支，旧名保留）。
+
+
+**P1 落地（2026-11-12，提交 `?`）**：三段落成且真机核对通过。
+
+- 数据层：`PrefixManager.PrefixInspection` + `Inspect(path)`（`Exists`/`HasDriveC`/`HasRegistry`/`Locked`/`SizeBytes`/`Managed`/`GameKey`/`ProfileId`/`Mode`）+ `EnumerateKnownPrefixes(profiles)`；目录大小带 10 分钟缓存（`ConcurrentDictionary<string,(long,DateTime)>`），`IgnoreInaccessible` + 跳过 reparse point，单个文件读不到不影响整页。
+- 运行器：`ComponentStore.ManualRunners`（`~/.config/lunarward/manual-runners.json`）作为第五段扫描来源，`[添加路径…]` 选文件 → `ReadRunnerVersion` 探测 → 落盘 → 刷新；行徽标追加「N 个方案在用」（现算 `profile.RunnerPath` 与组件路径全等比较）。
+- 方案：沿用现有行 + 旧编辑对话框（P2 再改独立页）。
+- 前缀：单独成段，行显示 `模式 · 游戏` / `大小 · N 个方案使用 · 状态` / 绝对路径 / `[打开目录]`，仅「我们的 + 无人引用 + 未被占用」才出现 `[清理]`（二次确认）；外部前缀只读。
+- 未做（按分期）：方案独立编辑页（P2）、图形层分组与安装/移除/校验（P3）、`lastLogin` 徽标（P4）、SHA 去重（P3）。
+- 代价：前缀大小首次进页会遍历一次（本机 `.wine` 370 MB 约 0.2 s）；新文案仍是中文字面量（沿用 D61 口径，i18n 时统一收）。

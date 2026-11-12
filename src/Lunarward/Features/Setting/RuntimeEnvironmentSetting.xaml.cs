@@ -34,6 +34,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         SizeChanged += (_, _) => UpdateContentWidth();
         LoadProfiles();
         LoadComponents();
+        LoadPrefixes();
         // Lunarward：截图/排错用（LUNARWARD_PROFILE_EDITOR=1 打开第一项的编辑对话框），正式版移除
         if (Starward.Features.Dev.DevSwitches.ProfileEditor)
         {
@@ -181,21 +182,233 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private void LoadComponents()
     {
+        // D63 三段式：运行器进第一段、图形组件留在最后的组件区（P3 再收敛到前缀行）
+        StackPanel_Runners.Children.Clear();
         StackPanel_Components.Children.Clear();
         IReadOnlyList<Component> runners = ComponentStore.GetRunners(false, _logger);
         IReadOnlyList<Component> graphics = ComponentStore.GetGraphics(false, _logger);
-        if (runners.Count == 0 && graphics.Count == 0)
+
+        if (runners.Count == 0)
+        {
+            StackPanel_Runners.Children.Add(new TextBlock
+            {
+                Text = "没有找到 wine。可以点「添加路径…」指一个 wine 可执行文件。",
+                Opacity = 0.7,
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
+        else
+        {
+            foreach (Component runner in runners)
+            {
+                StackPanel_Runners.Children.Add(CreateComponentRow(runner, CountProfilesUsingRunner(runner)));
+            }
+        }
+
+        if (graphics.Count == 0)
         {
             StackPanel_Components.Children.Add(new TextBlock { Text = Lang.Lunarward_Components_Empty, Opacity = 0.7 });
+        }
+        else
+        {
+            foreach (Component graphic in graphics)
+            {
+                StackPanel_Components.Children.Add(CreateComponentRow(graphic, 0));
+            }
+        }
+    }
+
+
+    /// <summary>有几个方案正指着这个运行器（D63：让「这行有没有人在用」可见）。</summary>
+    private int CountProfilesUsingRunner(Component runner)
+    {
+        int count = 0;
+        foreach (RuntimeProfile profile in RuntimeProfileStore.LoadAll(_logger))
+        {
+            string? path = Starward.Features.Runtime.PrefixManager.ExpandPath(profile.RunnerPath);
+            if (!string.IsNullOrWhiteSpace(path)
+                && string.Equals(Path.GetFullPath(path!), runner.Path, StringComparison.Ordinal))
+            {
+                count++;
+            }
+        }
+        return count;
+    }
+
+
+    /// <summary>前缀段：来源、大小、被几个方案共用、状态（D63）。</summary>
+    private void LoadPrefixes()
+    {
+        StackPanel_Prefixes.Children.Clear();
+        IReadOnlyList<RuntimeProfile> profiles = RuntimeProfileStore.LoadAll(_logger);
+        IReadOnlyList<Starward.Features.Runtime.PrefixManager.PrefixInspection> prefixes =
+            Starward.Features.Runtime.PrefixManager.EnumerateKnownPrefixes(profiles);
+        if (prefixes.Count == 0)
+        {
+            StackPanel_Prefixes.Children.Add(new TextBlock
+            {
+                Text = "还没有任何前缀。新建方案时创建，或在方案里指向已有目录。",
+                Opacity = 0.7,
+                TextWrapping = TextWrapping.Wrap,
+            });
             return;
         }
-        foreach (Component runner in runners)
+        foreach (Starward.Features.Runtime.PrefixManager.PrefixInspection prefix in prefixes)
         {
-            StackPanel_Components.Children.Add(CreateComponentRow(runner));
+            StackPanel_Prefixes.Children.Add(CreatePrefixRow(prefix, profiles));
         }
-        foreach (Component graphic in graphics)
+    }
+
+
+    private UIElement CreatePrefixRow(Starward.Features.Runtime.PrefixManager.PrefixInspection prefix, IReadOnlyList<RuntimeProfile> profiles)
+    {
+        int used = profiles.Count(x =>
+            string.Equals(Starward.Features.Runtime.PrefixManager.ExpandPath(x.PrefixPath), prefix.Path, StringComparison.Ordinal));
+
+        string state = !prefix.Exists ? "不存在"
+            : !prefix.HasDriveC ? "缺少 drive_c"
+            : prefix.Locked ? "正被占用"
+            : "健康";
+
+        string sizeText = prefix.Exists && prefix.SizeBytes > 0
+            ? Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(prefix.SizeBytes)
+            : "—";
+
+        var title = new TextBlock
         {
-            StackPanel_Components.Children.Add(CreateComponentRow(graphic));
+            Text = (prefix.Mode, prefix.GameKey, prefix.Managed) switch
+            {
+                (null, null, false) => "外部前缀",
+                (null, null, true) => Path.GetFileName(prefix.Path),
+                (null, _, _) => prefix.GameKey!,
+                (_, null, _) => $"{prefix.Mode} · {Path.GetFileName(prefix.Path)}",
+                _ => $"{prefix.Mode} · {prefix.GameKey}",
+            },
+            FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var info = new TextBlock
+        {
+            Text = $"{sizeText} · {used} 个方案使用 · {state}",
+            Opacity = 0.6,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var pathText = new TextBlock
+        {
+            Text = Ellipsize(prefix.Path, 90),
+            Opacity = 0.5,
+            FontSize = 12,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var open = new Button { Content = "打开目录", Tag = prefix.Path };
+        open.Click += (_, _) => Helpers.OpenUrl.Open(prefix.Path);
+        buttons.Children.Add(open);
+        if (prefix.Managed && used == 0 && !prefix.Locked)
+        {
+            var clean = new Button { Content = "清理", Tag = prefix.Path };
+            clean.Click += Button_CleanupPrefix_Click;
+            buttons.Children.Add(clean);
+        }
+
+        var content = new StackPanel { Spacing = 6 };
+        content.Children.Add(title);
+        content.Children.Add(info);
+        content.Children.Add(pathText);
+        content.Children.Add(buttons);
+
+        return new Border
+        {
+            Child = content,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(12, 10, 12, 10),
+            CornerRadius = new CornerRadius(4),
+            Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+        };
+    }
+
+
+    /// <summary>手动添加运行器：选一个 wine 可执行文件，探测 `--version` 后记进 manual-runners.json（D63）。</summary>
+    private async void Button_AddRunner_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string? file = await PickWineExecutableAsync();
+            if (string.IsNullOrWhiteSpace(file))
+            {
+                return;
+            }
+            if (!File.Exists(file))
+            {
+                return;
+            }
+            string? version = Starward.Features.Runtime.ComponentStore.ReadRunnerVersion(file);
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                Helpers.InAppToast.MainWindow?.Error((string?)null, "这个文件跑不出 `wine --version`，可能不是 wine 或缺少依赖库。");
+                return;
+            }
+            Starward.Features.Runtime.ManualRunners.Add(file);
+            Starward.Features.Runtime.ComponentStore.Invalidate();
+            LoadComponents();
+            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已添加：{version}", 4000);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Add manual runner failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, "添加失败");
+        }
+    }
+
+
+    /// <summary>挑一个可执行文件：优先走系统文件对话框，退回 kdialog/zenity。</summary>
+    private async Task<string?> PickWineExecutableAsync()
+    {
+        try
+        {
+            // 不给扩展名过滤：wine 可执行文件没有后缀
+            return await Helpers.FileDialogHelper.PickSingleFileAsync(XamlRoot);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Pick executable failed");
+            return null;
+        }
+    }
+
+
+    /// <summary>清理我们创建、且没有任何方案在用的前缀。</summary>
+    private async void Button_CleanupPrefix_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string path })
+        {
+            return;
+        }
+        ContentDialogResult result = await new ContentDialog
+        {
+            Title = "清理这个前缀？",
+            Content = "会删除目录及其内容，不可恢复：\n" + path + "\n\n如果是你还想保留的 wine 环境，请点「取消」。",
+            PrimaryButtonText = "删除",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+        }.ShowAsync();
+        if (result != ContentDialogResult.Primary)
+        {
+            return;
+        }
+        try
+        {
+            Directory.Delete(path, recursive: true);
+            LoadPrefixes();
+            Helpers.InAppToast.MainWindow?.Success((string?)null, "已清理前缀", 3000);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Cleanup prefix failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, "清理失败");
         }
     }
 
@@ -259,7 +472,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
-    private UIElement CreateComponentRow(Component component)
+    private UIElement CreateComponentRow(Component component, int usedByProfiles)
     {
         var kind = new TextBlock
         {
@@ -320,6 +533,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 if (!string.IsNullOrWhiteSpace(component.LayoutText))
                 {
                     badge.Text = $"可用 · {component.LayoutText}";
+                }
+                // D63：一眼看出这行有没有人在用，避免删掉/换掉还在用的运行器
+                if (usedByProfiles > 0)
+                {
+                    badge.Text = $"{badge.Text} · {usedByProfiles} 个方案在用";
                 }
             }
             else if (!string.IsNullOrWhiteSpace(component.LayoutText))
