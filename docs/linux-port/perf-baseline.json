@@ -1,7 +1,10 @@
 {
-  "measured_at": "2026-11-12T18:32:43+08:00",
-  "host": "Linux 7.3.3-1-cachyos-bore-lto",
-  "cli_median_ms": 71,
-  "selftest_ms": null,
-  "peak_rss_kb": null
+  "envs": {
+    "Linux 7.3.3-1-cachyos-bore-lto": {
+      "measured_at": "2026-11-12T18:36:05+08:00",
+      "cli_median_ms": 74,
+      "selftest_ms": null,
+      "peak_rss_kb": null
+    }
+  }
 }

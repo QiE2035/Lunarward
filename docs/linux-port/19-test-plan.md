@@ -512,6 +512,11 @@ L3 不进 CI：需要真实桌面、真实输入，而且很多判据是「看�
 | 视频背景 idle CPU | `perf` / `/proc/<pid>/stat` 10 s | ≤ 1.2 核（30fps 时实测 ~0.95） |
 | 空闲 RSS | `/proc/<pid>/status` VmRSS | ≤ 600 MB（实测 ~465 MB） |
 
+> `perf.sh` 的基线按主机名分区（`docs/linux-port/perf-baseline.json` 的 `envs`）：
+> 绝对启动时间跨机器不可比（本机 `--version` 中位 71 ms，GitHub runner 实测 93 ms），
+> 因此只有「同一台机器」才做 +20% 判定；换机器只记录、不判红。CI 上当前只记录
+> `cli_median_ms` / `selftest_ms` / `peak_rss_kb` 三个值（见 job 日志）。
+
 ## 附录：L1.5 `--selftest-ui` 已落地（2026-11-12）
 
 实现：`src/Lunarward/Features/Dev/UiSelfTest.cs` + `MainWindow.OnSelfTestActivated`；CLI 开关 `--selftest-ui`

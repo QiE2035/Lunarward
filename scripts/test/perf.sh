@@ -72,16 +72,26 @@ echo "结果：cli_median_ms=$now_cli selftest_ms=${now_selftest:-n/a} peak_rss_
 
 if [ "$UPDATE" = "1" ]; then
     mkdir -p "$(dirname "$BASELINE")"
-    cat >"$BASELINE" <<EOF
-{
-  "measured_at": "$(date -Iseconds)",
-  "host": "$(uname -sr)",
-  "cli_median_ms": $now_cli,
-  "selftest_ms": ${now_selftest:-null},
-  "peak_rss_kb": ${now_rss:-null}
+    python3 - "$BASELINE" "$(uname -sr)" "$now_cli" "${now_selftest:-}" "${now_rss:-}" <<'PY'
+import json, os, sys
+path, host, cli, selftest, rss = sys.argv[1:6]
+data = {"envs": {}}
+if os.path.exists(path):
+    try:
+        data = json.load(open(path))
+    except Exception:
+        data = {"envs": {}}
+data.setdefault("envs", {})
+data["envs"][host] = {
+    "measured_at": __import__("datetime").datetime.now().astimezone().isoformat(timespec="seconds"),
+    "cli_median_ms": int(cli),
+    "selftest_ms": int(selftest) if selftest else None,
+    "peak_rss_kb": int(rss) if rss else None,
 }
-EOF
-    echo "已写入基线：$BASELINE"
+json.dump(data, open(path, "w"), ensure_ascii=False, indent=2)
+print(f"已更新 {host} 的基线")
+PY
+    echo "基线文件：$BASELINE"
     exit 0
 fi
 
@@ -90,10 +100,15 @@ if [ ! -f "$BASELINE" ]; then
     exit 0
 fi
 
-python3 - "$BASELINE" "$now_cli" "$now_selftest" "$now_rss" "$THRESHOLD" <<'PY'
+python3 - "$BASELINE" "$now_cli" "$now_selftest" "$now_rss" "$THRESHOLD" "$(uname -sr)" <<'PY'
 import json, sys
-baseline_path, cli, selftest, rss, threshold = sys.argv[1:6]
-base = json.load(open(baseline_path))
+baseline_path, cli, selftest, rss, threshold, host = sys.argv[1:7]
+data = json.load(open(baseline_path))
+base = data.get("envs", {}).get(host)
+if base is None:
+    print(f"基线里没有 {host} 的记录（只有 {', '.join(data.get('envs', {})) or '空'}）：本次只记录，不判定")
+    print(f"  cli_median_ms={cli or 'n/a'} selftest_ms={selftest or 'n/a'} peak_rss_kb={rss or 'n/a'}")
+    sys.exit(0)
 threshold = float(threshold)
 failed = []
 
