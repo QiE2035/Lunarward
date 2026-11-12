@@ -783,3 +783,10 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - 新增 CLI（便于脚本与排错）：`--graphics-install <prefix> <id|名称|路径>`、`--graphics-verify <prefix>`、`--graphics-remove <prefix>`。
 - 实测（临时前缀 `~/games/lw-prefix-test`，测完已删）：`--graphics-verify` → `未安装（0/0）`；装 → `已装 dxvk · 与记录一致（5/5）`；删掉一个 `d3d11.dll` → `不一致（1 个缺失）（4/5）`；重装 → 恢复一致；移除 → `未安装（0/0）`，目录里留下 `graphics.json.bak`。
 - 未做：图形组件的「删除」（仅允许删我们自己导入的那份；UI 未接）、`WINEDLLPATH` 叠加、SHA 参与 `Verify`（只在分组时用）。
+
+**冗余清理（2026-11-12 同日，按「移植保真 + 组件管理够用」两条判）**
+
+- 删除 `GameNoticeWindow`（4 个文件 + `GameNoticeWindowClosedMessage` + `--page notice` 调试入口 + `GameBannerAndPost` 里的注册/处理 + csproj 的 `Compile Remove`）。理由：D40/D50 已定「公告走浏览器」，内嵌窗口是死代码，留着还要维护 XAML 与排除项。
+- 取消 `shared` 前缀模式：`PrefixManager` 的两处分支删掉，`RuntimeProfileStore.MigrateLegacy` 把旧配置的 `shared` 归一成 `dedicated`（并保留原 `PrefixPath`，不让前缀换地方）。「共用」改由「多个游戏绑同一个方案」表达。
+- 删除旧的方案编辑对话框 `ShowProfileEditorAsync`（约 270 行）+ `DevSwitches.ProfileEditor` 逃生口。理由：P2 已改成页内整页编辑，旧对话框只剩一个 DEBUG 入口在用，两套表单会让字段慢慢分叉（`EnsureGraphics` 就只在旧对话框里）。
+- 删除 `--capture-test` 旧别名，只留 `--screenshot`。

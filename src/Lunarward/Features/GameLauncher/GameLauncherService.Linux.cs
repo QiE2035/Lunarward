@@ -250,9 +250,9 @@ internal partial class GameLauncherService
             try
             {
                 // dedicated/shared 前缀首次初始化要跑 wineboot（约十几秒），先给用户一个明确提示
-                bool willInitialize = profile.PrefixMode is "dedicated" or "shared"
+                bool willInitialize = profile.PrefixMode is "dedicated"
                     && !Directory.Exists(string.IsNullOrWhiteSpace(profile.PrefixPath)
-                        ? Path.Combine(Features.Runtime.PrefixManager.PrefixRoot, profile.PrefixMode is "shared" ? "shared" : key.ToLowerInvariant())
+                        ? Path.Combine(Features.Runtime.PrefixManager.PrefixRoot, key.ToLowerInvariant())
                         : profile.PrefixPath);
                 if (willInitialize)
                 {

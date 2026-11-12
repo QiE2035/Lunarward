@@ -87,7 +87,6 @@
     <Compile Remove="Features/GameInstall/GameInstallTaskStartedMessage.cs" />
     <Compile Remove="Features/GameInstall/InstallGameDialog.xaml.cs" />
     <Compile Remove="Features/GameInstall/PreDownloadDialog.xaml.cs" />
-    <Compile Remove="Features/GameLauncher/GameNoticeWindow.xaml.cs" />
     <Compile Remove="Features/GameRecord/BBSWebBridge.xaml.cs" />
     <Compile Remove="Features/GameRecord/BattleChronicleWindow.xaml.cs" />
     <Compile Remove="Features/GameRecord/LoginPage.xaml.cs" />

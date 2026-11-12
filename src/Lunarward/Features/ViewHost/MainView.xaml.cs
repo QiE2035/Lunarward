@@ -200,19 +200,6 @@ public sealed partial class MainView : UserControl
                 });
             }
 #endif
-            if (DevSwitches.Page == "notice")
-            {
-                // 调试：直接打开游戏公告窗口（WebView2 渲染公告页，M2）。
-                try
-                {
-                    var noticeWindow = new Features.GameLauncher.GameNoticeWindow { CurrentGameBiz = AppConfig.CurrentGameBiz };
-                    noticeWindow.Activate();
-                }
-                catch (Exception ex)
-                {
-                    Serilog.Log.Error(ex, "open notice window failed");
-                }
-            }
             if (target is not null)
             {
                 // 游戏相关页面需要 GameId 作为导航参数（PageBase.OnNavigatedTo 读取），否则内容为空

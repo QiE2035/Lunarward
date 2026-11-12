@@ -61,6 +61,7 @@ public static class RuntimeProfileStore
                 RuntimeProfile? profile = JsonSerializer.Deserialize<RuntimeProfile>(File.ReadAllText(file), JsonOptions);
                 if (profile is not null)
                 {
+                    MigrateLegacy(profile, logger);
                     profiles.Add(profile);
                 }
             }
@@ -85,6 +86,24 @@ public static class RuntimeProfileStore
             profiles.Add(profile);
         }
         return profiles.OrderBy(x => x.Name, StringComparer.CurrentCulture).ToList();
+    }
+
+
+    /// <summary>
+    /// 旧配置的语义归一（D63）：`shared` 已取消——「多个游戏共用一个前缀」改成「多个游戏绑同一个方案」，
+    /// 读到时按 `dedicated` 处理并保留原来的路径，避免让用户的前缀突然换地方。
+    /// </summary>
+    private static void MigrateLegacy(RuntimeProfile profile, ILogger? logger)
+    {
+        if (string.Equals(profile.PrefixMode, "shared", StringComparison.OrdinalIgnoreCase))
+        {
+            profile.PrefixMode = "dedicated";
+            if (string.IsNullOrWhiteSpace(profile.PrefixPath))
+            {
+                profile.PrefixPath = Path.Combine(PrefixManager.PrefixRoot, "shared");
+            }
+            logger?.LogInformation("Migrated legacy prefix mode shared -> dedicated: {id}", profile.Id);
+        }
     }
 
 

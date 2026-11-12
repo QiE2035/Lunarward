@@ -96,7 +96,6 @@ public sealed partial class GameBannerAndPost : UserControl
     private async void GameBannerAndPost_Loaded(object sender, RoutedEventArgs e)
     {
         WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, OnMainWindowStateChanged);
-        WeakReferenceMessenger.Default.Register<GameNoticeWindowClosedMessage>(this, OnGameNoticeWindowClosed);
         WeakReferenceMessenger.Default.Register<GameAnnouncementSettingChangedMessage>(this, OnGameAnnouncementSettingChanged);
         if (_contentGameId != CurrentGameId || Banners is null || PostGroups is null)
         {
@@ -135,13 +134,6 @@ public sealed partial class GameBannerAndPost : UserControl
         catch { }
     }
 
-
-
-    private async void OnGameNoticeWindowClosed(object _, GameNoticeWindowClosedMessage message)
-    {
-        // Lunarward: Linux 下窗口置前由合成器/Activate 决定，无需 Win32 调用
-        await UpdateGameNoticeAlertAsync();
-    }
 
 
 

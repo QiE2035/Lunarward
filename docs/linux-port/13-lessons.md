@@ -914,3 +914,8 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 - `RuntimeProfile.Environment` 是 `Dictionary<string,string>`：直接绑到 TextBox 会 `CS0029`，按 `KEY=VALUE` 每行一条解析/序列化最省事。
 - 图形层的「校验」必须同时比存在性与长度：只比存在时，被其它工具覆盖过的 dll 会显示「一致」，用户会以为装的是同一个版本。
 
+## L-116 两套同义表单必然会分叉
+
+- 方案编辑同时存在「对话框」与「页内整页」两套实现时，新字段只加在其中一套（`_editorName` 先漏、`EnsureGraphics` 只留在旧对话框），用户看到的行为取决于从哪个按钮进来。
+- 死代码不占运行时间，但它占**排查时间**：`GameNoticeWindow` 四个文件加 csproj 排除项，每次改公告相关逻辑都要先确认「这坨还有没有用」。
+

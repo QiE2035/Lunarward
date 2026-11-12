@@ -74,7 +74,6 @@ internal static class DevSwitches
         int.TryParse(Read("scroll", "LUNARWARD_SCROLL"), out int offset) ? offset : 0;
 
     /// <summary>打开第一个配置的编辑对话框（截图用）。</summary>
-    public static bool ProfileEditor => Flag("profile-editor", "LUNARWARD_PROFILE_EDITOR");
 
     /// <summary>截图页加载后直接打开查看器，指向第 N 张（-1 表示不打开）。</summary>
     public static int ViewerIndex =>

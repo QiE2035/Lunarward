@@ -309,19 +309,6 @@ public static class PrefixManager
                 WriteMetadata(path, key, profile, "dedicated", null);
                 return path;
             }
-            case "shared":
-            {
-                string path = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
-                    ? Path.Combine(PrefixRoot, "shared")
-                    : ExpandPath(profile.PrefixPath)!;
-                if (!Directory.Exists(path))
-                {
-                    CreateWithWineboot(profile, path, logger);
-                    TightenPermissions(path);
-                }
-                WriteMetadata(path, key, profile, "shared", null);
-                return path;
-            }
             case "template":
             {
                 string template = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
@@ -401,11 +388,6 @@ public static class PrefixManager
             case "dedicated":
             {
                 string path = string.IsNullOrWhiteSpace(profile.PrefixPath) ? Path.Combine(PrefixRoot, key) : ExpandPath(profile.PrefixPath)!;
-                return Directory.Exists(path) ? path : null;
-            }
-            case "shared":
-            {
-                string path = string.IsNullOrWhiteSpace(profile.PrefixPath) ? Path.Combine(PrefixRoot, "shared") : ExpandPath(profile.PrefixPath)!;
                 return Directory.Exists(path) ? path : null;
             }
             case "template":

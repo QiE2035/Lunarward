@@ -128,7 +128,7 @@ public static class LaunchPreflight
                 : GameLauncherService.ResolvePrefix(gameKey);
             if (prefix is null)
             {
-                result.Items.Add(profile is { PrefixMode: "dedicated" or "shared" or "template" or "ephemeral" }
+                result.Items.Add(profile is { PrefixMode: "dedicated" or "template" or "ephemeral" }
                     ? new PreflightItem
                     {
                         Name = "Wine 前缀",

@@ -38,7 +38,7 @@ internal class LunarwardProgram
         }
 
         // 截图（D31）：`lunarward --screenshot`，打印落盘路径。`--capture-test` 是同义旧名。
-        if (args.Length >= 1 && args[0] is "--screenshot" or "--capture-test")
+        if (args.Length >= 1 && args[0] is "--screenshot")
         {
             string? file = Features.Screenshot.ScreenCaptureLinux.CaptureAsync(notify: false).GetAwaiter().GetResult();
             Console.WriteLine(file is null ? "截图失败：没有可用的截图工具" : file);

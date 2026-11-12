@@ -122,7 +122,6 @@ public sealed class RuntimeProfile
     {
         "template" => Lang.Lunarward_PrefixMode_Template,
         "dedicated" => Lang.Lunarward_PrefixMode_Dedicated,
-        "shared" => Lang.Lunarward_PrefixMode_Shared,
         "external" => Lang.Lunarward_PrefixMode_External,
         "ephemeral" => Lang.Lunarward_PrefixMode_Ephemeral,
         _ => PrefixMode,
