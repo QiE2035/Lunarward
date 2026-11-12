@@ -28,6 +28,9 @@ public sealed class InstalledGraphics
 
     public List<string> Files { get; set; } = new();
 
+    /// <summary>每个文件的长度；老记录可能没有，校验时退化为只看存在性。</summary>
+    public Dictionary<string, long> Sizes { get; set; } = new();
+
 }
 
 
@@ -92,10 +95,13 @@ public static class GraphicsInstaller
             return false;
         }
 
+        BackupRecord(prefix);
+
         string system32 = Path.Combine(prefix, "drive_c", "windows", "system32");
         string syswow64 = Path.Combine(prefix, "drive_c", "windows", "syswow64");
         Directory.CreateDirectory(system32);
         List<string> written = new();
+        Dictionary<string, long> sizes = new();
         foreach ((string source, string target) in files)
         {
             string dir = target.EndsWith("32.dll") || target.StartsWith("x86", StringComparison.Ordinal) ? syswow64 : system32;
@@ -103,6 +109,7 @@ public static class GraphicsInstaller
             string dest = Path.Combine(dir, Path.GetFileName(target));
             File.Copy(source, dest, overwrite: true);
             written.Add(dest);
+            sizes[dest] = new FileInfo(dest).Length;
         }
 
         InstalledGraphics record = new()
@@ -113,10 +120,124 @@ public static class GraphicsInstaller
             Source = component.Path,
             InstalledAt = DateTime.Now,
             Files = written,
+            Sizes = sizes,
         };
         Directory.CreateDirectory(Path.GetDirectoryName(RecordPath(prefix))!);
         JsonFile.WriteAtomic(RecordPath(prefix), record, JsonOptions);
         logger?.LogInformation("Installed {name} ({kind}) into {prefix}: {count} files", component.Name, component.KindText, prefix, written.Count);
+        return true;
+    }
+
+
+    /// <summary>写记录前留一份 .bak，出问题能按上一份回滚（D63 §5）。</summary>
+    private static void BackupRecord(string prefix)
+    {
+        try
+        {
+            string path = RecordPath(prefix);
+            if (File.Exists(path))
+            {
+                File.Copy(path, path + ".bak", overwrite: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "backup graphics record failed");
+        }
+    }
+
+
+    /// <summary>前缀里图形层的状态：记录 + 实际文件核对结果。</summary>
+    public sealed class GraphicsStatus
+    {
+        public InstalledGraphics? Record { get; init; }
+
+        public int TotalFiles { get; init; }
+
+        public int MissingFiles { get; init; }
+
+        /// <summary>「已装 DXVK 3.1.1 · 与记录一致 / 不一致（N 个缺失）/ 未安装」。</summary>
+        public string Text { get; init; } = "未安装";
+
+        public bool IsGuardBroken => Record is not null && MissingFiles > 0;
+    }
+
+
+    /// <summary>核对该前缀的图形层：文件是否还在、大小是否对得上（不做 SHA，D63 §5 第 4 条）。</summary>
+    public static GraphicsStatus Verify(string prefix)
+    {
+        InstalledGraphics? record = GetInstalled(prefix);
+        if (record is null || record.Files.Count == 0)
+        {
+            return new GraphicsStatus { Text = "未安装" };
+        }
+        int missing = 0;
+        foreach (string file in record.Files)
+        {
+            try
+            {
+                FileInfo info = new(file);
+                if (!info.Exists)
+                {
+                    missing++;
+                }
+                else if (record.Sizes.TryGetValue(file, out long expected) && expected > 0 && info.Length != expected)
+                {
+                    missing++;
+                }
+            }
+            catch
+            {
+                missing++;
+            }
+        }
+        string name = string.IsNullOrWhiteSpace(record.Name) ? record.Id : record.Name;
+        string text = missing == 0
+            ? $"已装 {name} · 与记录一致"
+            : $"已装 {name} · 不一致（{missing} 个缺失）";
+        return new GraphicsStatus
+        {
+            Record = record,
+            TotalFiles = record.Files.Count,
+            MissingFiles = missing,
+            Text = text,
+        };
+    }
+
+
+    /// <summary>从前缀里移除图形层：按记录删文件、删记录（保留 .bak）。外部前缀默认不允许调用。</summary>
+    public static bool Remove(string prefix, ILogger? logger = null)
+    {
+        InstalledGraphics? record = GetInstalled(prefix);
+        if (record is null)
+        {
+            return false;
+        }
+        int removed = 0;
+        foreach (string file in record.Files)
+        {
+            try
+            {
+                if (File.Exists(file))
+                {
+                    File.Delete(file);
+                    removed++;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "delete graphics file failed: {file}", file);
+            }
+        }
+        try
+        {
+            File.Delete(RecordPath(prefix));
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "delete graphics record failed: {prefix}", prefix);
+        }
+        logger?.LogInformation("Removed graphics {name} from {prefix}: {count} files", record.Id, prefix, removed);
         return true;
     }
 

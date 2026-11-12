@@ -28,6 +28,51 @@ public sealed partial class GameSettingPage : PageBase
 
     private readonly ILogger<GameSettingPage> _logger = AppConfig.GetLogger<GameSettingPage>();
 
+
+    /// <summary>手动跑一次启动预检（D63 §6），把结果摊开。</summary>
+    private async void Button_Diagnose_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string? installPath = Starward.Features.GameLauncher.GameLauncherService.GetGameInstallPath(CurrentGameBiz);
+            string? exeName = await AppConfig.GetService<Starward.Features.GameLauncher.GameLauncherService>().GetGameExeNameAsync(CurrentGameId);
+            string? exePath = string.IsNullOrWhiteSpace(installPath) || string.IsNullOrWhiteSpace(exeName)
+                ? null
+                : Path.Combine(installPath!, exeName!);
+            Starward.Features.Runtime.RuntimeProfile? profile = Starward.Features.Runtime.ProfileBinding.Resolve(CurrentGameBiz);
+            Starward.Features.GameLauncher.PreflightResult result =
+                Starward.Features.GameLauncher.LaunchPreflight.Check(CurrentGameBiz, exePath, profile, _logger);
+
+            var panel = new StackPanel { Spacing = 8, MaxWidth = 560 };
+            panel.Children.Add(new TextBlock
+            {
+                Text = result.CanLaunch ? "结论：可以启动" : "结论：还不能启动",
+                TextWrapping = TextWrapping.Wrap,
+            });
+            foreach (Starward.Features.GameLauncher.PreflightItem item in result.Items)
+            {
+                panel.Children.Add(new TextBlock
+                {
+                    Text = $"· {item.Name}：{item.Status} {item.Detail}".TrimEnd(),
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                });
+            }
+            await new ContentDialog
+            {
+                Title = "启动检查",
+                Content = new ScrollViewer { Content = panel, MaxHeight = 420 },
+                CloseButtonText = "知道了",
+                XamlRoot = XamlRoot,
+            }.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "diagnose failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, "启动检查失败");
+        }
+    }
+
     private readonly GameLauncherService _gameLauncherService = AppConfig.GetService<GameLauncherService>();
 
 

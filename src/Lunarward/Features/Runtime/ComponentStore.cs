@@ -47,6 +47,9 @@ public sealed class Component
     /// <summary>不可用的原因（可用时为空），直接显示给用户。</summary>
     public string UsabilityReason { get; set; } = "";
 
+    /// <summary>图形组件的内容指纹（x64/d3d11.dll 或 d3d12.dll 的 SHA-256 前 12 位）。用于同内容分组（D63 §5）。</summary>
+    public string ContentHash { get; set; } = "";
+
     public string LayoutText => Layout switch
     {
         "files-bin" => "files/bin",
@@ -411,6 +414,77 @@ public static class ComponentStore
         {
             return Path.GetFullPath(path);
         }
+    }
+
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> HashCache = new();
+
+
+    /// <summary>图形组件的内容指纹：取 x64 里最关键的那个 dll 做 SHA-256，取不到返回空。</summary>
+    private static string ComputeGraphicsHash(string directory)
+    {
+        string[] candidates =
+        [
+            Path.Combine(directory, "x64", "d3d11.dll"),
+            Path.Combine(directory, "x64", "d3d12.dll"),
+            Path.Combine(directory, "d3d11.dll"),
+            Path.Combine(directory, "d3d12.dll"),
+        ];
+        foreach (string candidate in candidates)
+        {
+            try
+            {
+                if (!File.Exists(candidate))
+                {
+                    continue;
+                }
+                string key = candidate + "|" + new FileInfo(candidate).Length + "|" + File.GetLastWriteTimeUtc(candidate).Ticks;
+                if (HashCache.TryGetValue(key, out string? cached))
+                {
+                    return cached;
+                }
+                using FileStream stream = File.OpenRead(candidate);
+                byte[] hash = System.Security.Cryptography.SHA256.HashData(stream);
+                string text = Convert.ToHexString(hash)[..12];
+                HashCache[key] = text;
+                return text;
+            }
+            catch
+            {
+                return "";
+            }
+        }
+        return "";
+    }
+
+
+    /// <summary>给图形组件补内容指纹，并返回「同内容折叠」后的分组；取不到指纹时按 Id 分组。</summary>
+    public static IReadOnlyList<List<Component>> GroupGraphics(IReadOnlyList<Component> graphics, bool computeHash = true)
+    {
+        bool skipHash = Environment.GetEnvironmentVariable("LUNARWARD_NO_COMPONENT_HASH") == "1";
+        Dictionary<string, List<Component>> groups = new(StringComparer.Ordinal);
+        List<string> order = new();
+        foreach (Component graphic in graphics)
+        {
+            if (computeHash && !skipHash && string.IsNullOrEmpty(graphic.ContentHash))
+            {
+                graphic.ContentHash = ComputeGraphicsHash(graphic.Path);
+            }
+            string key = string.IsNullOrEmpty(graphic.ContentHash) ? "id:" + graphic.Id : "sha:" + graphic.ContentHash;
+            if (!groups.TryGetValue(key, out List<Component>? list))
+            {
+                list = new List<Component>();
+                groups[key] = list;
+                order.Add(key);
+            }
+            list.Add(graphic);
+        }
+        List<List<Component>> result = new();
+        foreach (string key in order)
+        {
+            result.Add(groups[key]);
+        }
+        return result;
     }
 
 

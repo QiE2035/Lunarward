@@ -1078,6 +1078,52 @@ internal class LunarwardProgram
 
         // 只读诊断：列出扫描到的运行器与图形组件（D56）
         Starward.Helpers.DataFolder.Unify();
+        // 图形层的前缀侧操作：给脚本/排错用（D63 §5）
+        if (args.Length >= 2 && args[0] is "--graphics-install" or "--graphics-verify" or "--graphics-remove")
+        {
+            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            string prefix = args[1];
+            if (!Directory.Exists(prefix))
+            {
+                Console.WriteLine($"前缀不存在：{prefix}");
+                Environment.ExitCode = 1;
+                return;
+            }
+            if (args[0] is "--graphics-install")
+            {
+                if (args.Length < 3)
+                {
+                    Console.WriteLine("用法：--graphics-install <prefix> <组件 id|名字|路径>");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                string wanted = args[2];
+                Starward.Features.Runtime.Component? component = Starward.Features.Runtime.ComponentStore
+                    .GetGraphics(false)
+                    .FirstOrDefault(x => x.Id == wanted || x.Name == wanted || x.Path == wanted);
+                if (component is null)
+                {
+                    Console.WriteLine($"没有这个图形组件：{wanted}（用 --list-components 看可用的）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                bool installed = Starward.Features.Runtime.GraphicsInstaller.EnsureInstalled(prefix, component);
+                Console.WriteLine(installed ? $"已安装 {component.Name} 到 {prefix}" : "记录与文件都齐全，已跳过");
+            }
+            else if (args[0] is "--graphics-verify")
+            {
+                Starward.Features.Runtime.GraphicsInstaller.GraphicsStatus status =
+                    Starward.Features.Runtime.GraphicsInstaller.Verify(prefix);
+                Console.WriteLine($"{status.Text}（{status.TotalFiles - status.MissingFiles}/{status.TotalFiles}）");
+            }
+            else
+            {
+                bool removed = Starward.Features.Runtime.GraphicsInstaller.Remove(prefix);
+                Console.WriteLine(removed ? "已移除图形层" : "没有找到图形层记录");
+            }
+            return;
+        }
+
         if (args.Length >= 1 && args[0] is "--list-components")
         {
             AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();

@@ -907,3 +907,10 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 - `PrefixManager.Inspect` 对大前缀 `du` 一次要几百毫秒（`.wine` 370 MB ≈ 0.2 s，百 GB 前缀更久），进页必须缓存（10 分钟），并把「这次是缓存值」也暴露出来，否则用户会以为数字是刚算的。
 - 判断「这个运行器有几个方案在用」不能只比字符串：`profile.RunnerPath` 可能带 `~`、可能带尾斜杠，必须是 `PrefixManager.ExpandPath` → `Path.GetFullPath` → 全等比较；早期直接 `==` 得到恒定 0。
 - `Directory.EnumerateFiles` 要带 `IgnoreInaccessible = true` 与 `AttributesToSkip = ReparsePoint`，否则 winetricks 建出来的符号链接会把枚举拖死。
+
+## L-115 编辑器要「页内整页」而不是再套一层对话框
+
+- 方案编辑塞进 `ContentDialog` 时，Uno 的对话框宽度固定、ScrollViewer 高度受限，四段表单要来回滚；改成同一个页面里两块互斥的 `ScrollViewer`（列表 ↔ 编辑），体验与「独立页」一致，也不用处理导航参数与返回栈。
+- `RuntimeProfile.Environment` 是 `Dictionary<string,string>`：直接绑到 TextBox 会 `CS0029`，按 `KEY=VALUE` 每行一条解析/序列化最省事。
+- 图形层的「校验」必须同时比存在性与长度：只比存在时，被其它工具覆盖过的 dll 会显示「一致」，用户会以为装的是同一个版本。
+

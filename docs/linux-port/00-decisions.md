@@ -773,3 +773,13 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - 前缀：单独成段，行显示 `模式 · 游戏` / `大小 · N 个方案使用 · 状态` / 绝对路径 / `[打开目录]`，仅「我们的 + 无人引用 + 未被占用」才出现 `[清理]`（二次确认）；外部前缀只读。
 - 未做（按分期）：方案独立编辑页（P2）、图形层分组与安装/移除/校验（P3）、`lastLogin` 徽标（P4）、SHA 去重（P3）。
 - 代价：前缀大小首次进页会遍历一次（本机 `.wine` 370 MB 约 0.2 s）；新文案仍是中文字面量（沿用 D61 口径，i18n 时统一收）。
+
+**P2–P4 落地（2026-11-12 同日）**
+
+- P2 方案编辑：改成**页内整页视图**（`ScrollViewer_Editor` 与列表互斥显示，带「← 返回」）。四段：名称 / 运行器（下拉 + 原运行器不可用提示）/ 图形层（DXVK 下拉，写明「装进前缀后生效」）/ 前缀（新建 / 复制自现有 / 使用已有 / 临时 + 路径 + 浏览 + 状态提示）/ 高级折叠（`KEY=VALUE` 多行环境变量、调试 Shell）。保存做轻校验：运行器不可用拦下、`external`/`template` 必须填目录。`RuntimeProfile` 的 `Environment` 是 `Dictionary<string,string>`，保存时按行解析，不整体重写 `RuntimeProfileStore`。
+- P2 游戏页诊断：`GameSettingPage` 底部新增「诊断 → 运行启动检查」，跑一次 `LaunchPreflight.Check` 并以对话框摊开六项（结论行 + 每项状态/说明）。
+- P3 图形层：`ComponentStore.GroupGraphics` 按 `x64/d3d11.dll`（VKD3D 取 `d3d12.dll`）的 SHA-256 前 12 位分组，同内容折叠并显示「共 N 份」；`GraphicsInstaller` 新增 `Verify(prefix)`（存在 + 长度比对 → `已装 xxx · 与记录一致 / 不一致（N 个缺失）/ 未安装`）、`Remove(prefix)`（按记录删文件再删记录）、写记录前留 `graphics.json.bak`，记录里增 `Sizes`。前缀行据此显示状态并给 `安装图形层 / 重装 / 移除图形层 / 校验`；外部前缀的移除要二次确认。
+- P4 `lastLogin`：方案行显示 `上次启动：MM-dd HH:mm 成功 · <runner 版本>`，数据来自 `last-good.json`（`LastKnownGoodStore.Get`），无记录显示「还没有成功启动记录」。
+- 新增 CLI（便于脚本与排错）：`--graphics-install <prefix> <id|名称|路径>`、`--graphics-verify <prefix>`、`--graphics-remove <prefix>`。
+- 实测（临时前缀 `~/games/lw-prefix-test`，测完已删）：`--graphics-verify` → `未安装（0/0）`；装 → `已装 dxvk · 与记录一致（5/5）`；删掉一个 `d3d11.dll` → `不一致（1 个缺失）（4/5）`；重装 → 恢复一致；移除 → `未安装（0/0）`，目录里留下 `graphics.json.bak`。
+- 未做：图形组件的「删除」（仅允许删我们自己导入的那份；UI 未接）、`WINEDLLPATH` 叠加、SHA 参与 `Verify`（只在分组时用）。

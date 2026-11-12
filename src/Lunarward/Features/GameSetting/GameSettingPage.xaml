@@ -207,6 +207,16 @@
                     <StackPanel x:Name="Panel_Companions" Spacing="8" />
                 </StackPanel>
 
+                <!--  诊断（D63 §6）：跑一次启动预检，把六项结果摊开，失败项可直接跳去修  -->
+                <StackPanel Margin="0,24,0,0" Spacing="8">
+                    <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="诊断" />
+                    <TextBlock
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text="启动前会检查可执行文件、运行器、前缀、占用与图形层。这里可以手动跑一次。"
+                        TextWrapping="Wrap" />
+                    <Button x:Name="Button_Diagnose" Click="Button_Diagnose_Click" Content="运行启动检查" />
+                </StackPanel>
+
             </Grid>
           </StackPanel>
         </ScrollViewer>

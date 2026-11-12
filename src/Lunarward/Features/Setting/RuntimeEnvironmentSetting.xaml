@@ -48,6 +48,7 @@
                 </Button>
             </StackPanel>
 
+            <Grid Grid.Row="2">
             <ScrollViewer
                 x:Name="ScrollViewer_Content"
                 Grid.Row="2"
@@ -111,6 +112,21 @@
                     <StackPanel x:Name="StackPanel_Components" Margin="0,4,0,0" Spacing="4" />
                 </StackPanel>
             </ScrollViewer>
+
+            <!--  方案编辑（D63 §4）：整页视图，列表暂时隐藏，标题栏带「返回」  -->
+            <ScrollViewer
+                x:Name="ScrollViewer_Editor"
+                HorizontalScrollBarVisibility="Disabled"
+                HorizontalScrollMode="Disabled"
+                VerticalScrollBarVisibility="Auto"
+                Visibility="Collapsed">
+                <StackPanel
+                    x:Name="StackPanel_Editor"
+                    MaxWidth="760"
+                    HorizontalAlignment="Left"
+                    Spacing="8" />
+            </ScrollViewer>
+            </Grid>
 
     </Grid>
 </sf:PageBase>
