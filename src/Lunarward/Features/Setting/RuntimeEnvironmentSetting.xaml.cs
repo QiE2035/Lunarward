@@ -142,6 +142,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttons.Children.Add(shellButton);
 
+        // 「在这个方案下运行」的第二种形态：不启动游戏，用同一套环境跑一次工具（D64）
+        var runButton = new Button { Content = "运行程序…", Tag = profile };
+        runButton.Click += Button_RunOnce_Click;
+        buttons.Children.Add(runButton);
+
         var editButton = new Button { Content = Lang.Common_Edit, Tag = profile };
         editButton.Click += Button_Edit_Click;
         var cloneButton = new Button { Content = Lang.Lunarward_RuntimeEnv_Clone, Tag = profile };
@@ -178,6 +183,59 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             CornerRadius = new CornerRadius(4),
             Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
         };
+    }
+
+
+    /// <summary>选一个程序 + 可选参数，在方案环境里跑一次（D64）。</summary>
+    private async void Button_RunOnce_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: RuntimeProfile profile })
+        {
+            return;
+        }
+        try
+        {
+            string? file = await Helpers.FileDialogHelper.PickSingleFileAsync(XamlRoot);
+            if (string.IsNullOrWhiteSpace(file))
+            {
+                return;
+            }
+            var argsBox = new TextBox { PlaceholderText = "参数（可选），例如 /S 或 -o out.bin", MinWidth = 420 };
+            var dialog = new ContentDialog
+            {
+                Title = "运行一次",
+                Content = new StackPanel
+                {
+                    Spacing = 8,
+                    Children =
+                    {
+                        new TextBlock { Text = file, FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap },
+                        new TextBlock { Text = $"环境：{profile.Name}", FontSize = 12, Opacity = 0.7 },
+                        argsBox,
+                    },
+                },
+                PrimaryButtonText = "运行",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = XamlRoot,
+            };
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            {
+                return;
+            }
+            var process = Starward.Features.Runtime.RunOnceService.Start(profile, file, argsBox.Text, _logger);
+            if (process is null)
+            {
+                Helpers.InAppToast.MainWindow?.Error((string?)null, "没能启动：文件不存在，或这个方案没有可用的 wine。");
+                return;
+            }
+            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已启动（PID {process.Id}）", 4000);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "run once failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, "运行失败");
+        }
     }
 
 
@@ -583,7 +641,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         _editorPrefixNew = new RadioButton { Content = "新建一个（推荐）", GroupName = "prefix" };
         _editorPrefixCopy = new RadioButton { Content = "复制自现有前缀…", GroupName = "prefix" };
         _editorPrefixExternal = new RadioButton { Content = "使用已有目录", GroupName = "prefix" };
-        _editorPrefixEphemeral = new RadioButton { Content = "临时（退出即删）", GroupName = "prefix" };
+        _editorPrefixEphemeral = new RadioButton { Content = "临时（退出即删，调试组合用）", GroupName = "prefix" };
         string mode = profile?.PrefixMode ?? "dedicated";
         switch (mode)
         {
@@ -592,7 +650,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             case "ephemeral": _editorPrefixEphemeral.IsChecked = true; break;
             default: _editorPrefixNew.IsChecked = true; break;
         }
-        foreach (RadioButton radio in new[] { _editorPrefixNew, _editorPrefixCopy, _editorPrefixExternal, _editorPrefixEphemeral })
+        // 「临时」属于调试用途，放进高级折叠，避免和「新建/复制自现有」并列时选错（D63 §2 精简）
+        foreach (RadioButton radio in new[] { _editorPrefixNew, _editorPrefixCopy, _editorPrefixExternal })
         {
             radio.Checked += (_, _) => UpdateEditorPrefixRow();
             StackPanel_Editor.Children.Add(radio);
@@ -616,6 +675,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         // 4) 高级
         var expander = new Expander { Header = "高级", IsExpanded = false, HorizontalAlignment = HorizontalAlignment.Stretch };
         var advanced = new StackPanel { Spacing = 6 };
+        _editorPrefixEphemeral.Checked += (_, _) => UpdateEditorPrefixRow();
+        advanced.Children.Add(new TextBlock { Text = "前缀（调试用）", FontSize = 12, Opacity = 0.7 });
+        advanced.Children.Add(_editorPrefixEphemeral);
         advanced.Children.Add(new TextBlock { Text = "环境变量（每行 KEY=VALUE）", FontSize = 12, Opacity = 0.7 });
         _editorEnv = new TextBox
         {
@@ -930,13 +992,23 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private UIElement CreateComponentRow(Component component, int usedByProfiles, int groupCount = 1, IReadOnlyList<Component>? group = null)
     {
-        var kind = new TextBlock
+        // 来源单独一行放在最左侧：塞进路径行会被省略号吃掉（截图实测）
+        var kindPanel = new StackPanel { MinWidth = 76, Spacing = 2 };
+        kindPanel.Children.Add(new TextBlock
         {
             Text = component.KindText,
             FontSize = 12,
             Opacity = 0.6,
-            MinWidth = 72,
-        };
+        });
+        if (!string.IsNullOrWhiteSpace(component.SourceText))
+        {
+            kindPanel.Children.Add(new TextBlock
+            {
+                Text = component.SourceText,
+                FontSize = 10,
+                Opacity = 0.5,
+            });
+        }
         var name = new TextBlock
         {
             Text = component.Name,
@@ -961,9 +1033,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Grid.SetColumn(kind, 0);
+        Grid.SetColumn(kindPanel, 0);
         Grid.SetColumn(text, 1);
-        row.Children.Add(kind);
+        row.Children.Add(kindPanel);
         row.Children.Add(text);
 
         // D58：扫描阶段就要能看出「能不能用 + 为什么」，别让用户选了才发现跑不起来

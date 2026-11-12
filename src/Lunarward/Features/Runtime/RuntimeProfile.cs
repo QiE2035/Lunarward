@@ -57,8 +57,12 @@ public sealed class RuntimeProfile
     public string? GraphicsId { get; set; }
 
 
-    /// <summary>启动前把所选图形组件安装/更新到前缀（D31/组件层）。</summary>
-    public bool EnsureGraphics { get; set; } = true;
+    /// <summary>
+    /// 旧字段（已废弃）：曾经和 <see cref="GraphicsId"/> 一起表达「要不要自动装图形层」。
+    /// 现在 `GraphicsId` 非空即代表要装，二者冗余（D64）；保留它只为了读旧配置时能迁移。
+    /// </summary>
+    [System.Text.Json.Serialization.JsonPropertyName("EnsureGraphics")]
+    public bool LegacyEnsureGraphics { get; set; } = true;
 
 
     [JsonIgnore]

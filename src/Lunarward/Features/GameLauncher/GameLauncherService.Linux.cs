@@ -284,7 +284,7 @@ internal partial class GameLauncherService
         }
 
         // M2：启动前把选定的 DXVK/VKD3D 装进前缀（失败只告警，不阻断启动——组件缺失时游戏仍可用自带 d3d 实现）
-        if (profile is not null && profile.EnsureGraphics && !string.IsNullOrWhiteSpace(profile.GraphicsId))
+        if (profile is not null && !string.IsNullOrWhiteSpace(profile.GraphicsId))
         {
             try
             {
@@ -309,7 +309,7 @@ internal partial class GameLauncherService
                 _logger.LogWarning(ex, "Ensure graphics failed, continue without it.");
             }
         }
-        else if (profile is not null && profile.EnsureGraphics)
+        else if (profile is not null)
         {
             _logger.LogDebug("Profile has no graphics component selected; skip install.");
         }

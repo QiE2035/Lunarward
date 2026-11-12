@@ -95,6 +95,12 @@ public static class RuntimeProfileStore
     /// </summary>
     private static void MigrateLegacy(RuntimeProfile profile, ILogger? logger)
     {
+        // 旧的「自动安装图形层」开关已并入 GraphicsId：关着的话就把选中的 Id 清掉（D64）
+        if (!profile.LegacyEnsureGraphics && !string.IsNullOrWhiteSpace(profile.GraphicsId))
+        {
+            profile.GraphicsId = null;
+            logger?.LogInformation("Migrated legacy EnsureGraphics=false: cleared GraphicsId for {id}", profile.Id);
+        }
         if (string.Equals(profile.PrefixMode, "shared", StringComparison.OrdinalIgnoreCase))
         {
             profile.PrefixMode = "dedicated";

@@ -790,3 +790,12 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - 取消 `shared` 前缀模式：`PrefixManager` 的两处分支删掉，`RuntimeProfileStore.MigrateLegacy` 把旧配置的 `shared` 归一成 `dedicated`（并保留原 `PrefixPath`，不让前缀换地方）。「共用」改由「多个游戏绑同一个方案」表达。
 - 删除旧的方案编辑对话框 `ShowProfileEditorAsync`（约 270 行）+ `DevSwitches.ProfileEditor` 逃生口。理由：P2 已改成页内整页编辑，旧对话框只剩一个 DEBUG 入口在用，两套表单会让字段慢慢分叉（`EnsureGraphics` 就只在旧对话框里）。
 - 删除 `--capture-test` 旧别名，只留 `--screenshot`。
+
+**D64 冗余清理第二批：来源标签、`EnsureGraphics` 归一、一次性运行**
+
+- **来源标签**：`Component` 加 `Source`（`managed` / `system` / `launcher` / `steam` / `manual`），`ComponentSource.Guess` 按路径判定（本程序目录 → Steam → `~/.local/share/{sleepy-launcher,anime-game-launcher,honkers-launcher,lutris,bottles,heroic,umu}` → 其余算系统包），手动添加的显式标 `manual`。UI 上单独一行放在最左列——塞进路径行会被省略号吃掉（首版实测截图 `/tmp/r5a.png`）。来源只用于显示与排序，不参与「能不能用」。
+- **`EnsureGraphics` 归一**：`RuntimeProfile.GraphicsId` 非空即代表「启动前装图形层」，`EnsureGraphics` 布尔是冗余开关（也只在已删的旧对话框里能改）。字段改成 `LegacyEnsureGraphics`（`[JsonPropertyName("EnsureGraphics")]`），读旧配置时 `false` → 清空 `GraphicsId`，随后删掉两处使用（启动装配、预检）。
+- **一次性运行**（「在这个方案下运行」的第二形态）：新增 `Features/Runtime/RunOnceService.cs`，与游戏启动/伴随启动共用 `ProfileShellService.BuildEnvironment`；`IsWindowsExecutable` 判 `.exe/.bat/.cmd/.msi` 走方案里的 wine，其余直接执行；`SplitArguments` 支持引号包裹但不做 shell 解释。入口：运行环境页方案行的「运行程序…」（选文件 + 可选参数）、CLI `--run-once <方案 id|名字> <程序> [参数…]`（等 5 分钟并回传退出码）。
+- 实测：`--run-once "默认（opt）" /usr/bin/env` 输出 `LUNARWARD_WINE=/opt/spritz-wine-tkg/bin/wine`、`WINEPREFIX=/home/qie2035/.wine`、`LUNARWARD_PROFILE=默认（opt）`、`LUNARWARD_PROFILE_ID=8b3d42fa`，退出码 0 —— 与游戏启动的环境一致。
+- 又删的冗余：图形组件区标题改成「图形层（DXVK / VKD3D）」并合并进同一段（原来「运行器」与「已检测到的组件」两处都列运行器）；「临时（退出即删）」前缀选项移进编辑器「高级」折叠，避免与「新建/复制自现有」并列时选错。
+- 未做：图形组件「删除」入口（只删我们自己导入的那份）、`WINEDLLPATH` 叠加、方案导入导出。

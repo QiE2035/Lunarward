@@ -1078,6 +1078,40 @@ internal class LunarwardProgram
 
         // 只读诊断：列出扫描到的运行器与图形组件（D56）
         Starward.Helpers.DataFolder.Unify();
+        // 在某个方案的环境里跑一次程序（D64）：与游戏启动共用同一套 env，便于跑补丁/安装器
+        if (args.Length >= 3 && args[0] is "--run-once")
+        {
+            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            string wanted = args[1];
+            string exe = args[2];
+            string extra = args.Length > 3 ? string.Join(' ', args[3..]) : "";
+            List<Starward.Features.Runtime.RuntimeProfile> profiles = Starward.Features.Runtime.RuntimeProfileStore.LoadAll();
+            Starward.Features.Runtime.RuntimeProfile? profile = profiles.FirstOrDefault(x => x.Id == wanted)
+                ?? profiles.FirstOrDefault(x => string.Equals(x.Name, wanted, StringComparison.Ordinal));
+            if (profile is null)
+            {
+                Console.WriteLine($"没有这个方案：{wanted}（用 --list-profiles 看有哪些）");
+                Environment.ExitCode = 1;
+                return;
+            }
+            using System.Diagnostics.Process? process = Starward.Features.Runtime.RunOnceService.Start(profile, exe, extra);
+            if (process is null)
+            {
+                Console.WriteLine("没能启动：文件不存在，或方案没有可用的 wine");
+                Environment.ExitCode = 1;
+                return;
+            }
+            Console.WriteLine($"已启动 pid={process.Id}，等待退出…");
+            if (!process.WaitForExit(TimeSpan.FromMinutes(5)))
+            {
+                Console.WriteLine("等了 5 分钟还没退出，放手了（进程仍在跑）");
+                return;
+            }
+            Console.WriteLine($"退出码：{process.ExitCode}");
+            Environment.ExitCode = process.ExitCode;
+            return;
+        }
+
         // 图形层的前缀侧操作：给脚本/排错用（D63 §5）
         if (args.Length >= 2 && args[0] is "--graphics-install" or "--graphics-verify" or "--graphics-remove")
         {

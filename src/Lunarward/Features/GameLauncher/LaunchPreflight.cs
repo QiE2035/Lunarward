@@ -218,7 +218,7 @@ public static class LaunchPreflight
         }
 
         // 5) 图形组件
-        if (profile is not null && profile.EnsureGraphics)
+        if (profile is not null)
         {
             if (string.IsNullOrWhiteSpace(profile.GraphicsId))
             {

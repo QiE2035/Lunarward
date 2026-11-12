@@ -50,6 +50,23 @@ public sealed class Component
     /// <summary>图形组件的内容指纹（x64/d3d11.dll 或 d3d12.dll 的 SHA-256 前 12 位）。用于同内容分组（D63 §5）。</summary>
     public string ContentHash { get; set; } = "";
 
+    /// <summary>
+    /// 来源标记（D63 §2 五类来源）：`managed` 启动器自下载/导入、`system` 系统包管理器、
+    /// `launcher` 其它启动器、`steam` Steam、`manual` 用户手动添加的路径。
+    /// 只影响显示与排序，不影响能不能用。
+    /// </summary>
+    public string Source { get; set; } = "";
+
+    public string SourceText => Source switch
+    {
+        "managed" => "启动器",
+        "system" => "系统包",
+        "launcher" => "其它启动器",
+        "steam" => "Steam",
+        "manual" => "手动",
+        _ => "",
+    };
+
     public string LayoutText => Layout switch
     {
         "files-bin" => "files/bin",
@@ -69,6 +86,51 @@ public sealed class Component
     public string DisplayName => string.IsNullOrWhiteSpace(Version) ? Name : $"{Name}  ({Version})";
 
     public override string ToString() => DisplayName;
+}
+
+
+internal static class ComponentSource
+{
+    /// <summary>
+    /// 按路径猜来源（D63 §2）：只用于显示与排序，不参与「能不能用」的判断。
+    /// 顺序：本程序目录 → Steam → 其它启动器 → 系统（/usr、/opt、PATH 等）。
+    /// </summary>
+    public static string Guess(string path, bool managed)
+    {
+        if (managed || path.StartsWith(ComponentStore.ComponentsFolder, StringComparison.Ordinal))
+        {
+            return "managed";
+        }
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (path.Contains("/steamapps/", StringComparison.Ordinal)
+            || path.Contains("compatibilitytools.d", StringComparison.Ordinal)
+            || path.Contains("/.steam/", StringComparison.Ordinal))
+        {
+            return "steam";
+        }
+        foreach (string launcher in OtherLauncherFolders)
+        {
+            string prefix = Path.Combine(home, ".local", "share", launcher);
+            if (path.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                return "launcher";
+            }
+        }
+        return "system";
+    }
+
+    /// <summary>常见第三方启动器在 ~/.local/share 下的目录名（只用于判来源）。</summary>
+    private static readonly string[] OtherLauncherFolders =
+    {
+        "sleepy-launcher",
+        "anime-game-launcher",
+        "honkers-launcher",
+        "honkai-star-rail-launcher",
+        "lutris",
+        "bottles",
+        "heroic",
+        "umu",
+    };
 }
 
 
@@ -99,7 +161,7 @@ public static class ComponentStore
         List<Component> list = new();
         HashSet<string> seen = new(StringComparer.Ordinal);
 
-        void AddRunner(string path, ComponentKind kind, string name, bool managed)
+        void AddRunner(string path, ComponentKind kind, string name, bool managed, string? source = null)
         {
             string full;
             try
@@ -122,6 +184,7 @@ public static class ComponentStore
                 Path = full,
                 Managed = managed,
                 Layout = DetectLayout(full),
+                Source = source ?? ComponentSource.Guess(full, managed),
             });
         }
 
@@ -173,7 +236,7 @@ public static class ComponentStore
         foreach (string manual in ManualRunners.Load())
         {
             string name = Path.GetFileName(Path.GetDirectoryName(manual.TrimEnd('/'))) ?? manual;
-            AddRunner(manual, ComponentKind.Wine, name, false);
+            AddRunner(manual, ComponentKind.Wine, name, false, "manual");
         }
 
         // 版本号 + 可用性：`wine --version` 结果按真实路径缓存（首次约 0.2–1 s，之后走缓存）。
@@ -235,6 +298,7 @@ public static class ComponentStore
                 Name = Path.GetFileName(full.TrimEnd('/')),
                 Path = full,
                 Managed = full.StartsWith(ComponentsFolder, StringComparison.Ordinal),
+                Source = ComponentSource.Guess(full, full.StartsWith(ComponentsFolder, StringComparison.Ordinal)),
             });
         }
 
