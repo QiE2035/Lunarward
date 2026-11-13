@@ -283,6 +283,14 @@
 
 **代价**：备份工具默认会包含 `~/.local/share`、排除 `~/.cache`，因此缩略图不再随数据一起备份——这正是想要的（可重新生成）。
 
+### D67 · 游戏设置页的行高重算（2026-11-13）
+
+- **问题**：真机滚动到底时，「运行配置」与 HDR 分区重叠（`22` 的 P0-2）。原始假设「右列横向溢出」被像素测量否掉（1200 宽最右文字 x=1149，1000 宽 x=807）。
+- **根因**：内容 Grid 行高是 `Auto`；HDR 分区靠 `Visibility`/`HDRNotSupported` 在异步初始化后变可见，Uno 不重算行高 → 后出现的块画到下一行位置。
+- **做法**：内容 Grid 命名 `Grid_Content`，`InitializeGameSettingAsync` 末尾 `DispatcherQueue.TryEnqueue(() => Grid_Content.InvalidateMeasure())`。
+- **代价**：多一次布局；`Auto` 行 + 异步可见性组合在其他页面同样可能踩（见 L-119）。
+- **未做 / 撤回**：底部按钮条改实底（与重叠无关）、`ScrollViewer.Clip`（Uno 不应用，逐像素相同）。
+
 ## 变更记录
 
 | 日期 | 变更 | 原因 | 影响文档 |

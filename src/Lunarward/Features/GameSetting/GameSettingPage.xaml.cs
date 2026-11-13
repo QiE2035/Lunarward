@@ -342,6 +342,11 @@ public sealed partial class GameSettingPage : PageBase
             {
                 StarRailFpsIndex = fpsIndex;
             }
+            // Lunarward：本页各分区靠 Visibility 异步出现（如 HDR 块要等注册表/显示器状态），
+            // 而外层 Grid 的行高是 Auto —— Uno 在「先测出行高、后让子项可见」时不会重算行高，
+            // 结果后出现的块画到下一行的位置上（真机 T-UI-31 复现：HDR 与「运行配置」重叠）。
+            // 初始化结束后显式请求一次重新测量。
+            DispatcherQueue.TryEnqueue(() => Grid_Content.InvalidateMeasure());
             var resolutionSetting = registrySettings.Resolution;
             if (resolutionSetting != null)
             {

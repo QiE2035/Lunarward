@@ -31,7 +31,9 @@
                     <Button Click="Button_RebindProfile_Click" Content="重新选择运行环境" />
                 </InfoBar.ActionButton>
             </InfoBar>
-            <Grid Margin="24,20,24,24" ColumnSpacing="24">
+            <Grid x:Name="Grid_Content"
+                  Margin="24,20,24,24"
+                  ColumnSpacing="24">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition />
                     <ColumnDefinition />

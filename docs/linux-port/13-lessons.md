@@ -943,3 +943,12 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 正确写法：`File.ResolveLinkTarget(path, returnFinalTarget: true) is FileInfo target ? target.Length : info.Length`。
 
 出现方式很隐蔽——功能本身没问题，只有「重复执行同一操作」时才会暴露（L2 的 T-IN-23 就是幂等用例）。
+
+## L-119 · `Auto` 行不随「异步变可见」重算，表现为两块内容重叠
+
+- **现象**：游戏设置页滚动到底，「运行配置」标题与 HDR 段落画在同一坐标；改窗口尺寸、最小化恢复都不消失（排除重绘残留）。
+- **根因**：行高 `Auto` 先按「子项都 Collapsed」测出，随后 `Visibility`/绑定在异步初始化里变可见，Uno 未重新测量行高。
+- **判据**：用两种「强制整体重排」的动作（改尺寸、最小化恢复）对比——仍重叠就是布局，不是重绘。
+- **修法**：初始化结束 `DispatcherQueue.TryEnqueue(() => grid.InvalidateMeasure())`。
+- **教训**：先测像素再定方向。本次先后怀疑「横向无限测量」与「丙烯半透明透出」，都被截图/逐像素比较否掉（`Clip` 加了以后逐像素相同）。
+
