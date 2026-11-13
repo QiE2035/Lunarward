@@ -142,3 +142,7 @@ bash scripts/sync-upstream.sh            # 合并；冲突里「已偏差文件�
 `GameSelector.xaml(.cs)`（卡片尺寸/横向滚动）、`GameBannerAndPost.*`（公告→浏览器、Pivot 重建）、
 `MainView.xaml`（标题栏交还 WM）、`Setting/*.xaml`（实底与 Linux 文案）、`GameSettingPage.*`（异步初始化后重算布局）、
 `GameLauncherPage.xaml(.cs)`（背景圆点、导航缓存）、`Features/GameInstall/*`（Sophon 链路重写）。
+
+## 偏差分类表
+
+`18-upstream-table.md` 由脚本生成：遍历 `list-deviations.sh` 的同名差异文件，按 diff 关键词归类（外链 OpenUrl / 窗口 X11 / XDG 目录 / 图标码位 / wine 前缀 / 去 Windows API / 页面缓存 / 字体族 / 实底 / 品牌名 / 资源替换 / 去 WinUI 事件）。更新方式见该文件顶部说明。
