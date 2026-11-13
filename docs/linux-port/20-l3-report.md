@@ -77,3 +77,25 @@ F-13 / F-15 修复在提交 `ca720be`；F-14 需产品决策。
 3. 读码定位：`BackgroundService.cs:145-156` —— `lastBgIds` 以首个背景 id 开头（无新背景）时取上次那张并 `StopVideo = true`；`ChangeBackgroundImageIndex` 只是把列表里同一个（已带 `StopVideo=true`）对象发出去，所以点圆点也不会播。
 4. 顺带修掉的真问题：**调试入口 `LUNARWARD_VIDEO_BG` 起播后不记 `_appliedGameId/_videoActive`**，导致守卫失效、同会话重复起播（日志 6 条 `video background started`）。
 5. 因此「视频静止」是上游行为，若要「用户选过视频就一直播」属于**偏离上游**的 UX 决定，需单独拍板（见 D68）。
+
+
+## F-21 重新定性（2026-11-13 复核）
+
+现象：启动器停在一张静态 CG，围绕「视频壁纸不播」做过两轮判断，均需更正。
+
+**已确认的事实（有证据）**
+
+1. 上游默认确实是动态背景。`getAllGameBasicInfo` 对 hk4e_cn 返回的 `backgrounds[0]` 是 `BACKGROUND_TYPE_VIDEO`（`3citmgCMOP`），且响应里没有 `stop_video` 字段（默认 false）。
+2. `BackgroundService.cs:145-156` 只在「上次记录的背景文件名 = 某条**静态**海报」时把 `StopVideo` 置 true。也就是说「上次停在静态图」会让上游自己也不播视频。
+3. 本机当时的 `CurrentGameBiz` 是 **`abc_cn`**（不是 `hk4e_cn`），数据库里 `bg_abc_cn` 指向一张 `.webp` 海报、`game_background_ids_abc_cn` 只有 `BACKGROUND_TYPE_POSTER` → 按上游规则，这个游戏+这个记录状态下**本就不播视频**。
+4. 因此「启动器把视频壁纸弄坏了」这一结论**不成立**；此前把它记成 P1 回归是我的判断错误（前提没核对：看的是哪个游戏、上次记录是什么）。
+
+**仍然成立的三处真偏差（已修，见 D69）**
+
+- `TryStartVideoBackgroundAsync` 的 4 条失败路径全是静默 `return false`，调用方随后贴兜底图 → 表现成「静止」，且日志里查不到原因。
+- 起播失败且**已有画面**时不应再贴兜底图。
+- Linux 分部完全缺少上游的记账调用（`AppConfig.SetBg` / `SetGameBackgroundIds`），「上次背景」永远不更新。
+
+**待验证（需要把当前游戏切到 hk4e_cn）**
+
+在 `hk4e_cn` 且 `lastBg` 为空/为视频时，应当出现 `[background] video background started`、CPU ≈1 核、窗内两帧差异 >20%。本轮两次点击选择层都没真正切过去（点到了相邻卡片），留作下一步。

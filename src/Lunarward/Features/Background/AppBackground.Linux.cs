@@ -14,6 +14,7 @@ using Windows.UI;
 using Starward.Core.HoYoPlay;
 using Starward.Features.ViewHost;
 using System;
+using System.Linq;
 using System.IO;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.ComponentModel;
@@ -446,7 +447,12 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
                             _ = ApplyAccentFromPosterAsync(background, token);
                             return;
                         }
-                        // 没有 libvlc / 拿不到视频文件时退回静态兜底图，不黑屏
+                        // 没有 libvlc / 拿不到视频文件时：已有画面就保持，什么都没有才退回兜底图（不黑屏）
+                        if (BackgroundImageSource is not null || _videoActive)
+                        {
+                            Serilog.Log.Information("[background] video unavailable, keeping current picture");
+                            return;
+                        }
                         filePath = BackgroundService.GetFallbackBackgroundImage(gameId);
                     }
                     else if (background.Type is GameBackground.BACKGROUND_TYPE_CUSTOM)
@@ -498,6 +504,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             _lastBackgroundFile = filePath;
             _appliedGameId = gameId;
             CurrentGameBackground = background;
+            _ = RecordAppliedBackgroundAsync(background, filePath, token);
             // 上游静态背景也会把 Theme 图（透明底的标题文字层）叠在底图上（AppBackground.xaml.cs:419-437）；
             // 之前只贴底图，所以暂停/静态时左上角没有标题文字（实测主题图 99.1% 像素透明，是纯文字层）。
             BackgroundImageSource = await LoadBackgroundImageAsync(filePath, background, token);
@@ -540,6 +547,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     {
         if (!VideoBackgroundPlayer.IsAvailable)
         {
+            Serilog.Log.Warning("[background] video skipped: libvlc unavailable");
             return false;
         }
         try
@@ -577,8 +585,19 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             {
                 Serilog.Log.Warning(ex, "[background] theme image unavailable, video plays without poster text");
             }
-            if (token.IsCancellationRequested || string.IsNullOrWhiteSpace(videoPath) || !File.Exists(videoPath))
+            if (token.IsCancellationRequested)
             {
+                Serilog.Log.Debug("[background] video skipped: cancelled");
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(videoPath))
+            {
+                Serilog.Log.Warning("[background] video skipped: no video file (download failed or url missing)");
+                return false;
+            }
+            if (!File.Exists(videoPath))
+            {
+                Serilog.Log.Warning("[background] video skipped: file not found: {path}", videoPath);
                 return false;
             }
 
@@ -607,6 +626,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             Interlocked.Exchange(ref _videoFrameCount, 0);
             Serilog.Log.Information("[background] video background started: {path}", videoPath);
             _ = WarnIfNoVideoFrameAsync(videoPath);
+            _ = RecordAppliedBackgroundAsync(background, videoPath, token);
             return true;
         }
         catch (Exception ex)
@@ -744,6 +764,41 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         catch (Exception ex)
         {
             Serilog.Log.Debug(ex, "[background] preload paused image failed");
+        }
+    }
+
+
+    /// <summary>
+    /// 与上游对齐：应用完背景后记「上次用的背景」和「当时的背景 id 列表」，
+    /// 下次启动时 GetSuggestedGameBackgroundAsync 才能判断「有没有新背景、上次是静态还是视频」。
+    /// 上游在 AppBackground.xaml.cs:249-251 做同样的事；Linux 侧一直都漏了（D69）。
+    /// </summary>
+    private async Task RecordAppliedBackgroundAsync(GameBackground? background, string? filePath, CancellationToken token)
+    {
+        try
+        {
+            if (background is null || filePath is null)
+            {
+                return;
+            }
+            if (background.Type is GameBackground.BACKGROUND_TYPE_CUSTOM)
+            {
+                return;
+            }
+            Starward.Core.GameBiz biz = CurrentGameId.GameBiz;
+            AppConfig.SetBg(biz, Path.GetFileName(filePath));
+            List<GameBackground> list = await _backgroundService.GetGameBackgroundsAsync(CurrentGameId, token);
+            if (!token.IsCancellationRequested && list.Count > 0)
+            {
+                AppConfig.SetGameBackgroundIds(biz, string.Join(',', list.Select(x => x.Id)));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "[background] record applied background failed");
         }
     }
 

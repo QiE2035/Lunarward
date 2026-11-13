@@ -838,3 +838,17 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **代价**：最坏情况（两次超时）多等约 12 秒后台请求，但界面在此之前已用本地图填好，不影响可交互性。
 
 **未做（需单独拍板）**：让「用户点选过的视频背景」在启动时继续播放（偏离上游 `StopVideo` 复用语义）。
+
+### D69 视频壁纸的失败可见性与背景记账（2026-11-13）
+
+**背景**：F-21 一度被定性为「视频壁纸回归」，复核后确认判断前提错误（当时当前游戏是 `abc_cn`，其记录的背景是静态海报，按上游规则本就不播视频）。但沿这条线查出三处真偏差。
+
+**改动**
+
+1. `TryStartVideoBackgroundAsync` 的 4 条失败路径补日志：`video skipped: libvlc unavailable` / `cancelled` / `no video file (download failed or url missing)` / `file not found: <path>`（原来全是静默 `return false`）。
+2. 起播失败但已有画面（`BackgroundImageSource is not null || _videoActive`）时记 `video unavailable, keeping current picture` 并直接返回，不再用兜底图覆盖当前画面；只有完全没画面才用兜底图。
+3. 补上游记账：`RecordAppliedBackgroundAsync(background, filePath, token)` → `AppConfig.SetBg(biz, 文件名)` + `AppConfig.SetGameBackgroundIds(biz, ids)`，静态应用与视频起播各调一次，跳过 `CUSTOM`；对应上游 `AppBackground.xaml.cs:249-251`。
+
+**代价**：`RecordAppliedBackgroundAsync` 每次应用背景会多一次 `GetGameBackgroundsAsync`（命中缓存，实测 <1 ms 的字典查询 + 首次网络）；日志量增加 1–3 行/次切换。
+
+**未做**：没有为「视频起播失败」做自动重试；没有把「上次背景是静态 → 这次也静态」做成用户可关闭的开关（保持与上游一致）。
