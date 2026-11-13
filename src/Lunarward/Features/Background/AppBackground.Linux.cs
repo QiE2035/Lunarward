@@ -1,4 +1,4 @@
-// Lunarward：应用背景（壁纸）。
+﻿// Lunarward：应用背景（壁纸）。
 //
 // 上游用 Win2D + MediaPlayer 播放视频壁纸、用 CanvasBitmap 做缩放；Linux 侧 M2 先做静态图：
 //   - 图片：BitmapImage 直接加载（file:// 与 ms-appx://）
@@ -90,16 +90,30 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         VerticalAlignment = VerticalAlignment.Stretch,
     };
 
-    private SkiaSharp.SKBitmap? _videoSurface;
+    // 视频帧双缓冲：
+    // 解码线程（libVLC vmem 回调）拷进 back，然后在锁内跟 front 交换；
+    // UI 线程只负责读取 front 画一次。这样 8.3 MB/帧的 Marshal.Copy 不再占用 UI 线程，
+    // 而且 UI 队列里最多只有一个待处理的 Invalidate（合并），不会随切换/负载堆积。
+    private readonly object _frameLock = new();
+
+    private SkiaSharp.SKBitmap? _videoFront;
+
+    private SkiaSharp.SKBitmap? _videoBack;
 
     private int _videoWidth;
 
     private int _videoHeight;
 
+    private int _paintQueued;
+
+    private bool _hasVideoFrame;
+
 
     public AppBackground()
     {
         Current = this;
+        // UI 卡顿看门狗：默认关闭，LUNARWARD_UI_WATCHDOG=1 时启用（见 Helpers/UiWatchdog.cs）。
+        Starward.Helpers.UiWatchdog.Start(DispatcherQueue);
         // 上游 AppBackground.xaml.cs 里注册了 BackgroundChangedMessage；Linux 侧之前漏了这条，
         // 结果「点背景切换器 → 发消息 → 没人消费」，表现就是切了没反应（L-70）。
         WeakReferenceMessenger.Default.Register<AppBackground, BackgroundChangedMessage>(this, (r, m) => r.OnBackgroundChangedMessage(m));
@@ -611,10 +625,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             _videoPlayer.SetOverlay(themePath);
             int width = _videoPlayer.Width;
             int height = _videoPlayer.Height;
-            _videoPlayer.FrameReady += (pixels, w, h) =>
-            {
-                DispatcherQueue.TryEnqueue(() => PresentVideoFrame(pixels, w, h));
-            };
+            _videoPlayer.FrameReady += OnVideoFrameArrived;
             if (!_videoPlayer.Start(videoPath))
             {
                 StopVideoBackground();
@@ -638,7 +649,12 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     }
 
 
-    private void PresentVideoFrame(byte[] pixels, int width, int height)
+    /// <summary>
+    /// libVLC 的 vmem 回调线程上执行：拷进 back 缓冲、交换、再按目标帧率**合并**地请求一次重绘。
+    /// 合并的意思是「UI 队列里最多挂一个 Invalidate」——UI 线程忙的时候直接丢帧，
+    /// 而不是把任务越堆越多（堆积的表现就是画面停住、点东西几秒后才响应）。
+    /// </summary>
+    private void OnVideoFrameArrived(byte[] pixels, int width, int height)
     {
         try
         {
@@ -647,33 +663,55 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
                 return;
             }
             Interlocked.Increment(ref _videoFrameCount);
-            if (_videoSurface is null || _videoWidth != width || _videoHeight != height)
+            lock (_frameLock)
             {
-                _videoSurface?.Dispose();
-                _videoSurface = new SkiaSharp.SKBitmap(new SkiaSharp.SKImageInfo(width, height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Opaque));
-                _videoWidth = width;
-                _videoHeight = height;
+                if (_videoBack is null || _videoWidth != width || _videoHeight != height)
+                {
+                    _videoFront?.Dispose();
+                    _videoBack?.Dispose();
+                    var info = new SkiaSharp.SKImageInfo(width, height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Opaque);
+                    _videoFront = new SkiaSharp.SKBitmap(info);
+                    _videoBack = new SkiaSharp.SKBitmap(info);
+                    _videoWidth = width;
+                    _videoHeight = height;
+                    _hasVideoFrame = false;
+                }
+                nint target = _videoBack.GetPixels();
+                if (target == 0)
+                {
+                    return;
+                }
+                System.Runtime.InteropServices.Marshal.Copy(pixels, 0, target, Math.Min(pixels.Length, _videoBack.ByteCount));
+                (_videoFront, _videoBack) = (_videoBack, _videoFront);
+                _hasVideoFrame = true;
             }
-            nint target = _videoSurface.GetPixels();
-            if (target == 0)
+            if (_skipVideoPaint)
             {
                 return;
             }
-            System.Runtime.InteropServices.Marshal.Copy(pixels, 0, target, Math.Min(pixels.Length, _videoSurface.ByteCount));
-            // 每次 Invalidate 都会触发一次整窗合成（不是只重画这块 Skia 画布），实测占 ~1 个核。
-            // 按目标帧率节流，避免把 UI 线程压满导致整体「很卡」。
-            if (!_skipVideoPaint)
+            long now = Environment.TickCount64;
+            if (now - _lastVideoInvalidate < _videoFrameIntervalMs)
             {
-                long now = Environment.TickCount64;
-                if (now - _lastVideoInvalidate >= _videoFrameIntervalMs)
-                {
-                    _lastVideoInvalidate = now;
-                    _videoCanvas.Invalidate();
-                }
+                return;
+            }
+            if (Interlocked.Exchange(ref _paintQueued, 1) != 0)
+            {
+                // 已经有一个待处理的合成：本帧丢弃。
+                return;
+            }
+            _lastVideoInvalidate = now;
+            if (!DispatcherQueue.TryEnqueue(() =>
+            {
+                Interlocked.Exchange(ref _paintQueued, 0);
+                _videoCanvas.Invalidate();
+            }))
+            {
+                Interlocked.Exchange(ref _paintQueued, 0);
             }
         }
         catch (Exception ex)
         {
+            Interlocked.Exchange(ref _paintQueued, 0);
             Serilog.Log.Warning(ex, "[background] present video frame failed");
             StopVideoBackground();
         }
@@ -683,7 +721,15 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     private void VideoCanvas_PaintSurface(object? sender, SkiaSharp.Views.Windows.SKPaintSurfaceEventArgs e)
     {
         SkiaSharp.SKCanvas canvas = e.Surface.Canvas;
-        SkiaSharp.SKBitmap? bitmap = _videoSurface;
+        SkiaSharp.SKBitmap? bitmap;
+        lock (_frameLock)
+        {
+            if (!_hasVideoFrame)
+            {
+                return;
+            }
+            bitmap = _videoFront;
+        }
         if (bitmap is null || bitmap.Width <= 0 || bitmap.Height <= 0)
         {
             return;
@@ -837,10 +883,17 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         _videoPlayer = null;
         _currentVideoPath = null;
         _videoActive = false;
-        _videoSurface?.Dispose();
-        _videoSurface = null;
-        _videoWidth = 0;
-        _videoHeight = 0;
+        lock (_frameLock)
+        {
+            _videoFront?.Dispose();
+            _videoBack?.Dispose();
+            _videoFront = null;
+            _videoBack = null;
+            _videoWidth = 0;
+            _videoHeight = 0;
+            _hasVideoFrame = false;
+        }
+        Interlocked.Exchange(ref _paintQueued, 0);
         _videoCanvas.Visibility = Visibility.Collapsed;
         _image.Visibility = Visibility.Visible;
         _image.Opacity = 1.0;
