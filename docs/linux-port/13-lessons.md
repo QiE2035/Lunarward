@@ -975,3 +975,13 @@ F-21 的两次误判都栽在同一处：没有先确认「当前是哪个游戏
 全仓搜 `catch {}` / `catch (Exception) {}` 共 187 处，其中 183 处在上游共享文件里（按零偏差铁律不动），`*.Linux.cs` 只有 4 处：2 处是清理动作的兜底（`Kill` 失败、删临时文件失败，保持无痕合理），另 2 处是真问题——`GameInstallScanner.Linux.cs` 的「重复安装路径去重」整段被吞（会出现「明明装了却认不到、日志里一点线索都没有」），`GameInstallService.Linux.cs` 的 `cts.Cancel()` 用 catch-all（把 `ObjectDisposedException` 之外的异常也吞掉）。两处已改：前者 `LogWarning` 且不影响扫描结果，后者只吞 `ObjectDisposedException`、其余记 Warning。
 
 可复用的判断：**自己能容忍失败的动作才允许无痕**（清理、兜底渲染）；**影响结论的动作必须留痕**（扫描、探测、状态判定）。
+
+## L-123 在 kwin-mcp 隔离会话里跑 X11-only 应用的方法
+
+本应用是 Uno X11 主机（`Program.Linux.cs` 里 `.UseX11()`，Uno 6.7 没有 Wayland 后端），而 `kwin-mcp` 的 `session_start` 起的是**纯 Wayland** 隔离会话，直接 `launch_app` 会报 `No platform host could be selected`。正确做法：
+
+1. `session_start`（隔离会话，屏幕 1600×900 即可）；
+2. 在会话内起一个 X 服务器：`launch_app("Xwayland :5 -noreset -decorate")`，等 `/tmp/.X11-unix/X5` 出现（`/tmp/.X1-lock` 之类残留会报 `Server is already active`，换号或删锁）；
+3. 再把 `DISPLAY=:5` 通过 `env` 传给 `launch_app` 启动应用。
+
+这样窗口、点击、截图全在隔离会话内部，不会出现在用户桌面上，也不抢用户键鼠。判据：`launch_app` 返回的 app log 无 `No platform host could be selected`，且 `screenshot` 里能看到窗口。
