@@ -804,20 +804,24 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 
 
     /// <summary>
-    /// 起播后 2 秒还没有任何一帧 → 记 Warning（F-21 的教训：界面静止时只有 CPU 才能看出来）。
+    /// 起播后 5 秒还没有任何一帧 → 记 Warning（F-21 的教训：界面静止时只有 CPU 才能看出来）。
+    ///
+    /// 阈值从 2 秒放宽到 5 秒（2026-11-13 真机实测）：VP9 1080p 首帧要经过「VLC 缓冲 ~1.0 s
+    /// （VLC 日志 `Stream buffering done (1033 ms)`）+ 解码 + 一次 8 MB 整帧拷贝」，
+    /// 首帧通常落在 2.0–3.0 s 之间。2 秒阈值把正常起播也报成了故障，导致误判为回归。
     /// </summary>
     private async Task WarnIfNoVideoFrameAsync(string videoPath)
     {
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
             if (_currentVideoPath != videoPath)
             {
                 return;
             }
             if (Interlocked.Read(ref _videoFrameCount) == 0)
             {
-                Serilog.Log.Warning("[background] video started but no frame in 2000 ms: {path}", videoPath);
+                Serilog.Log.Warning("[background] video started but no frame in 5000 ms: {path}", videoPath);
             }
         }
         catch (Exception ex)
