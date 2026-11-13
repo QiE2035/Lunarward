@@ -1433,6 +1433,11 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 Console.WriteLine($"[{item.Status,-7}] {item.Name,-12} {item.Detail}{(item.Fix is null ? "" : "  → " + item.Fix)}");
             }
             Console.WriteLine(pf.CanLaunch ? "结论：可以启动" : "结论：不要启动（见上面 Failed 项）");
+            // 脚本里会拿它当门禁（与 --launch-plan 一致）：不能启动就返回非 0。
+            if (!pf.CanLaunch)
+            {
+                Environment.ExitCode = 1;
+            }
             return;
         }
 

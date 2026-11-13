@@ -560,3 +560,16 @@ CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1
 退出码非 0 让作业红。
 
 **边界**：不注入输入，只断言结构与资源，覆盖不了交互（点击/滚动/拖拽）——那部分归 L3（我在场时用 `cu_*` 真机操作 + 截图）。
+
+### L2 命令面补齐（2026-11-13）
+
+`scripts/test/cli-extra.sh` 新增 13 条：`--shell-plan`、`--url-plan`、`--companion-plan`、
+`--companion-run`（缺参数 + 条目不存在两条）、`--prefix-ensure`、`--prefix-template`、`--runner-check`、
+`--convert-screenshots`，以及假 Sophon 下的 `--install-plan`、`--patch-plan`、`--install-fetch`、`--update-run`。
+
+本轮由用例抓到的真缺陷：
+
+| 编号 | 现象 | 修法 |
+| --- | --- | --- |
+| F-20 | 不完整/未知的 `--xxx` 子命令**静默启动 GUI**（`--companion-run` 少传一个 id，表现为「命令没反应、反而弹出窗口」） | `Program.Linux.cs` 在进 GUI 前检查首参数，未知命令打印「未知命令或不完整」并返回 1；GUI 只允许 `--hide/--show/--new-instance/--selftest-ui` |
+| F-22 | `--preflight` 结论为「不要启动」时退出码仍是 0，脚本没法当门禁 | 不可启动时 `Environment.ExitCode = 1`（与 `--launch-plan` 一致） |
