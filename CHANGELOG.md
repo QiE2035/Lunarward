@@ -1,4 +1,8 @@
 
+## 2026-11-13（十一）
+
+- 修掉每次切换游戏必现的 `ArgumentOutOfRangeException`（`Pivot.SynchronizeSelectedItem` 拿旧索引索引未重建的 header 容器，L-126/D71）：赋值 `PostGroups` 前把 `Pivot_Posts.SelectedIndex` 置 `-1`，赋值后再设回 0。真机切 4 次游戏，异常 0 次（修复前每次必现），资讯区不再停留在上一个游戏的状态。
+
 ## 2026-11-13（十）
 
 - 视频壁纸看门狗从 2 秒放宽到 5 秒。VP9 1080p 首帧正常需要 2–3 秒（VLC 缓冲 ~1.0 s + 解码 + 8 MB 帧拷贝），旧阈值把正常起播也报成 `video started but no frame`，导致 F-21 被误判为回归；真机复测三次帧差 39.70%–48.13%，视频一直正常。

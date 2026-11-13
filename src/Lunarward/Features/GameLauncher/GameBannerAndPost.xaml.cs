@@ -215,9 +215,17 @@ public sealed partial class GameBannerAndPost : UserControl
             // Uno 的 Pivot 会复用条目容器：仅仅换 ItemsSource 的内容不会重建 tab 内容（真机复现：
             // 换游戏后 banner 变了、三个 tab 里还是上一个游戏的活动）。先清空、等一次布局周期再赋新列表。
             Pivot_Posts.ItemsSource = null;
+            // Uno 的 Pivot.SynchronizeSelectedItem（6.7.45 的 Pivot.cs:295-301）在 ItemsSource 变短/换新时
+            // 会拿**旧的 SelectedIndex** 去索引还没重建的 _staticHeader.Children，抛 ArgumentOutOfRangeException；
+            // 上游 WinUI 在 Windows 上不会踩到。SelectedIndex = -1 会让它第一道守卫直接返回（L-126）。
+            Pivot_Posts.SelectedIndex = -1;
             PostGroups = GamePostGroup.FromGameContent(content);
             await Task.Delay(60);
             Pivot_Posts.ItemsSource = PostGroups;
+            if (PostGroups?.Count > 0)
+            {
+                Pivot_Posts.SelectedIndex = 0;
+            }
             ShowBannerAndPost = true;
         }
         catch (Exception ex)

@@ -999,3 +999,24 @@ F-21 的两次误判都栽在同一处：没有先确认「当前是哪个游戏
 真机复测（`cu_*`，1200×676）：启动即播 48.13%、会话中切换 44.79%、干净构建重启 39.70%，三次都正常。
 
 教训：①阈值取「正常路径最慢值 × 1.5」而不是平均；②「没帧」这类否定证据必须配合「等了足够久」的条件，否则量的是自己的采样太早；③判定回归前先验证同一环境下的正例（这次是 `poc/video-spike` 直接跑出 `frames=12`）。
+
+
+## L-126 · `Pivot` 换 `ItemsSource` 抛 `ArgumentOutOfRangeException`（Uno 顺序缺陷）
+
+**现象**：切游戏时日志稳定出现
+
+```
+System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index')
+  at Microsoft.UI.Xaml.Controls.Pivot.SynchronizeSelectedItem() ... Pivot.cs:line 301
+  at Microsoft.UI.Xaml.Controls.Pivot.UpdateItems(...)
+  at Microsoft.UI.Xaml.Controls.Pivot.OnItemsSourceChanged(...)
+  at Starward.Features.GameLauncher.GameBannerAndPost.UpdateGameContentAsync()
+```
+
+**根因**：Uno 的 `SynchronizeSelectedItem` 守卫是 `SelectedIndex != -1 && HasItems`，然后直接索引 `_staticHeader.Children[selectedIndex]`；换数据源瞬间 `HasItems` 已真、header 容器还没重建。
+
+**后果**：异常从 `PostGroups` 赋值处抛出，后面 `ShowBannerAndPost = true` 执行不到，横幅/资讯区可见性停留在上一个游戏；日志每次刷 ~45 行堆栈。
+
+**解法**：赋值前后把 `SelectedIndex` 设成 `-1`（改完再设回 0）。`-1` 命中守卫第一项直接返回。
+
+**验证方法**：`grep -c ArgumentOutOfRangeException ~/.local/share/lunarward/log/Starward_*.log` 在切游戏前后计数，修复后不再增长。

@@ -861,3 +861,16 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - `GameInstallService.Linux.cs`：`cts.Cancel()` 只吞 `ObjectDisposedException`（正常竞态），其余记 `Serilog.Log.Warning("停止下载任务时取消令牌失败：{game}", biz)`。
 
 **代价**：扫描/停止路径各多一条日志，无行为变化。**未做**：没有把这条规则扩到上游共享文件（那会破坏零偏差）。
+
+
+## D71 · Uno Pivot 换 ItemsSource 的越界异常：切换前把 SelectedIndex 置 -1
+
+**问题**：每次切游戏时 `GameBannerAndPost.UpdateGameContentAsync` 给 `PostGroups` 赋新列表，日志稳定抛 `ArgumentOutOfRangeException`（`UIElementCollection.get_Item`），落在 `Pivot.SynchronizeSelectedItem()`。
+
+**根因（对过 Uno 6.7.45 `Pivot.cs:295-301`）**：该方法的守卫是 `SelectedIndex != -1 && HasItems`，随后直接 `_staticHeader.Children[selectedIndex]`。换 `ItemsSource` 时 `HasItems` 立刻为真，而 `_staticHeader.Children` 要等 `SynchronizeItems` 之后才重建，于是拿旧索引去索引空集合；`selectedIndex` 又被 `Math.Max(...,0)` 夹成 ≥0，必然越界。上游 WinUI 在 Windows 上不会踩到（推断，未实测）。
+
+**决定**：在 Lunarward 自己那份 `GameBannerAndPost.xaml.cs`（D62 已存在，非上游文件）里，赋值 `PostGroups` 之前先 `Pivot_Posts.SelectedIndex = -1`，赋值完成后再设回 0。`-1` 让 Uno 的第一道守卫直接返回，不进入索引。
+
+**代价**：每次切换多两次属性赋值；标签页选中项回到第一个（上游行为也是每次换游戏默认第一个）。
+
+**验证**：真机切 4 次游戏，`Starward_261113.log` 里 pid 87809 的 `EROR` 行数 = 0（修复前同一操作 20 次异常）。
