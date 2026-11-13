@@ -2,14 +2,14 @@
 
 > 这份文档回答一个问题：**Linux 版里，哪些地方是「真的做了」，哪些只是「先让它编译过」？**
 >
-> **最后校准**：2026-11-12（D64）。UI 层的逐页复核与缺陷记录在 `21-ui-audit.md` / `22-port-verification.md`；本文只回答「实现了没有、还是只是替身」。
+> **最后校准**：2026-11-13（D70 + L-125）。UI 层的逐页复核与缺陷记录在 `21-ui-audit.md` / `22-port-verification.md`；本文只回答「实现了没有、还是只是替身」。
 >
 > 维护规则（强制）：每新增一个 `*.Linux.cs`、每新增一处 `Compat/` 兼容层、每把一个上游文件加入
 > `<Compile Remove>`，都必须同步更新本表。没有登记的替身视为缺陷（D33）。
 >
 > **本表是唯一登记处。** 其它文档只描述机制，不描述状态。
 
-- 最后更新：2026-11-12（D65 测试分层与门禁用例登记）
+- 最后更新：2026-11-13（视频看门狗阈值、背景记账、catch 收口）
 - 对应代码：`src/Lunarward/`（`linux-port` 分支，76 提交）
 - 规模：33 个 `*.Linux.cs`、8 个 `*.LinuxAuto.cs`、6 个 `Compat/` 兼容层、55 条 `<Compile Remove>`
 
@@ -232,6 +232,13 @@
 | 2026-11-06 | D50：托盘不可用时关闭=退出、桌面通知、6 语言补齐与语言设置生效、强调色按背景取色 | 缺口清单第一批（m13555） |
 | 2026-11-06 | D51 非 M4 收尾：14 项缺口逐条定论（补丁体积语义、CLI 中文、托盘信号、HDR、AVIF/JXL、自更新、登录依赖前置检查、热键/Wayland、NoticeWindow、CI 出包、上游同步、CHANGELOG、D36 结项、真机待验） |
 | 2026-11-05 | D48：托盘补 `Properties.GetAll`（KDE 菜单+图标）、视频随窗口隐藏暂停/唤回恢复、静态背景合成 `Theme` 文字层 |
+
+| 2026-11-10 | 安装链路：chunk 级复用（`ChunkReusePlanner`/`ChunkReuseDownloader`）+ `UpdateOrchestrator` 组合编排（补丁 7.76 GB + chunk 16.04 GB，省 47%）+ 可续传（`RunResumableAsync`）；Repair 改用本地版本清单且不写版本标记（D42/L-68） |
+| 2026-11-11 | GitHub 上线与工程化：`ATTRIBUTIONS.md`、单提交历史、`.github/workflows/linux.yml` 替代上游 6 个 Windows 工作流；`slnx` 收敛为 Linux-only 四工程（D45/D53） |
+| 2026-11-12 | 运行环境 D63（三段页 + 整页编辑器 + 图形层校验/移除 + 上次启动徽标）；D64 冗余清理（删 `GameNoticeWindow`、取消 `shared` 前缀、`EnsureGraphics` 归一、来源标签、`RunOnceService`） |
+| 2026-11-12 | 测试分层 D65：L1 49 条 + L1.5 `--selftest-ui` 8 条 + L2 47 条脚本 + L3 真机；覆盖率 90.39% 行 / 77.95% 分支（`tests/coverlet.runsettings`） |
+| 2026-11-13 | 背景链路定案（D69）：补齐上游 `SetBg`/`SetGameBackgroundIds` 记账、4 处静默 `return false` 带原因、起播失败不再覆盖已有画面；D70 `*.Linux.cs` 无痕 catch 收口为 2 处 |
+| 2026-11-13 | 视频看门狗 2 s → 5 s（L-125）：VP9 1080p 首帧实测 2.0–3.0 s，旧阈值把正常起播报成故障，真机三次复测帧差 39.70%–48.13% |
 
 - 2026-11-06：`#1` 图标码位替换（E62E→E769 等 7 处，L-88）、`#2` 暂停静态图预加载、`#3` 窗口底座统一（D49）；图库窗口 1500×845 且有系统标题栏（真机几何 + `_NET_FRAME_EXTENTS` 验证）。
 

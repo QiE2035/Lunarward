@@ -137,7 +137,7 @@ lunarward --graphics-list                                    # 检测到的运�
 
 移植的取舍、运行模型、移植矩阵、依赖准入、风险、路线图都在
 [`docs/linux-port/`](./docs/linux-port/README.md)。改代码前建议先读
-[`00-decisions.md`](./docs/linux-port/00-decisions.md)（D0–D34）与
+[`00-decisions.md`](./docs/linux-port/00-decisions.md)（D0–D70）与
 [`13-lessons.md`](./docs/linux-port/13-lessons.md)（踩过的坑）。
 
 ## 许可与致谢

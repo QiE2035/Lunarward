@@ -36,6 +36,7 @@
 6. **危险入口不进发行版**：调试/开发入口一律 `#if DEBUG` 或 `DevSwitches`，Release 构建里不得残留副作用命令（D35）。
 7. **不留临时插桩**：`[xx-diag]` 日志、`LUNARWARD_DEV_*` 钩子、临时脚本，提交前删掉或降级为 `Debug`。
 8. **不要 `pkill -f`**：会杀掉自己的 shell；用 `pkill -x Lunarward`。
+9. **用完随手关**：手动启动的实例、`--selftest-ui` 进程、cli-smoke 起的假服务，验证一结束就关（`pkill -x Lunarward`），不要留在用户桌面上吃资源、抢单实例锁、继续写日志。下一轮动手前先 `pgrep -x Lunarward` 确认干净。
 
 ---
 
@@ -55,8 +56,9 @@ dotnet test Starward.slnx -c Debug
 # 进程内 UI 自检（8 条断言，CI 里跑在 xvfb 上）
 LUNARWARD_SELFTEST=1 ./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward --selftest-ui
 
-# L2 CLI 冒烟（33+ 条，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
+# L2 CLI 冒烟（cli-smoke 34 条 + cli-extra 13 条，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-smoke.sh
+LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-extra.sh
 
 # 离线安装链路（假 Sophon 服务 + zstd 分块）
 bash scripts/test/chunk-smoke.sh
@@ -79,7 +81,7 @@ bash scripts/test/chunk-smoke.sh
 
 ```
 App.xaml(.cs)                 应用启动、单实例、托盘、深链、语言
-Program.Linux.cs              CLI 入口（30+ 子命令，headless 可用）
+Program.Linux.cs              CLI 入口（60+ 开关/子命令，headless 可用）
 Frameworks/                   平台底座：WindowEx.Linux（窗口 chrome/尺寸/显隐）
 Helpers/                      X11Window(libxcb)、AppIcon、OpenUrl、JsonFile(原子写)、
                               DesktopNotification、DiagnosticBundle、ProcessQuery、Housekeeping、X11KeyState
@@ -111,17 +113,18 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 
 覆盖率现实：测试工程**链接源码**而非引用程序集，`coverlet` 测不到主程序（line-rate 0）。要覆盖率得先改 `ProjectReference` + `InternalsVisibleTo`。
 
-**GUI 自动化约定**：能用 `cu_*`（dsh-cu）就不要 `xdotool`——`cu_batch` 一次调用完成「激活→点击→等待→截图」，`cu_screenshot` 取图，`cu_windows waitFor` 等窗口。`xdotool` 只保留「毫秒级轮询窗口出现」。跑 GUI 用例前先看 `cu_status.session.locked`。
+**GUI 自动化约定**：能用 `cu_*`（dsh-cu）就不要 `xdotool`——`cu_batch` 一次调用完成「激活→点击→等待→截图」，`cu_screenshot` 取图，`cu_windows waitFor` 等窗口。`xdotool` 只保留「毫秒级轮询窗口出现」。跑 GUI 用例前先看 `cu_status.session.locked`；**跑完立刻 `pkill -x Lunarward`**，别让测试实例留在用户桌面上。
 
 ---
 
 ## 6. 文档地图（`docs/linux-port/`）
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D66 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D70 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-118 坑与复现方法（唯一）
-- `19-test-plan.md` — 测试计划（唯一）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
+- `13-lessons.md` — L-01…L-125 坑与复现方法（唯一）
+- `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
+- `19-test-plan.md` — 测试计划（唯一，210 条用例）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
 - `16-runtime-components.md` / `17-runtime-environment-ui.md` — 运行环境设计与 UI
 - `09` / `11` / `15` — **历史文档**，不要据此改代码
 - `docs/user/` — 给用户的 FAQ 与运行环境说明
@@ -150,7 +153,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 
 - [ ] `dotnet build Starward.slnx -c Release` 0 错误
 - [ ] `dotnet test Starward.slnx` 全绿
-- [ ] `bash scripts/test/cli-smoke.sh` 全绿（改了 CLI 时必跑）
+- [ ] `bash scripts/test/cli-smoke.sh` 与 `cli-extra.sh` 全绿（改了 CLI 时必跑）
 - [ ] 没有残留 `[xx-diag]` 日志 / 临时 `DevSwitches` / `/tmp` 调试代码
 - [ ] `src/Starward/` 无改动（`git status --porcelain src/Starward`）
 - [ ] 文档已同步（决策 / 坑 / CHANGELOG 至少一处）
