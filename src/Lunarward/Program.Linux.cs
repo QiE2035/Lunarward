@@ -1505,6 +1505,20 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
         }
         // L-72：Uno 的 X11 后端在没有 DISPLAY 时会抛异常/静默失败，而且在 HostBuilder.Build() 里就炸，
         // 比 App.OnLaunched 更早。这里先给一句人话，避免 IDE 里「进程在跑但没窗口」的悬案。
+        // 参数像命令但没有任何分支接住：不要静默进 GUI（否则缺一个参数就会变成「命令没反应，反而弹出窗口」）。
+        // 允许的「纯 GUI 开关」只有下面几个，其余以 - 开头的首参数一律判为未知命令。
+        if (args.Length > 0 && args[0].StartsWith('-'))
+        {
+            string[] guiFlags = { "--hide", "--show", "--new-instance", "--selftest-ui" };
+            if (!guiFlags.Contains(args[0]))
+            {
+                Console.WriteLine($"未知命令或不完整：{string.Join(' ', args)}");
+                Console.WriteLine("运行 lunarward --help 查看可用命令。");
+                Environment.ExitCode = 1;
+                return;
+            }
+        }
+
         if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DISPLAY"))
             && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
         {
@@ -1520,20 +1534,6 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
             Environment.SetEnvironmentVariable("LUNARWARD_SELFTEST", "1");
         }
 
-
-        // 参数像命令但没有任何分支接住：不要静默进 GUI（否则缺一个参数就会变成「命令没反应，反而弹出窗口」）。
-        // 允许的「纯 GUI 开关」只有下面几个，其余以 - 开头的首参数一律判为未知命令。
-        if (args.Length > 0 && args[0].StartsWith('-'))
-        {
-            string[] guiFlags = { "--hide", "--show", "--new-instance", "--selftest-ui" };
-            if (!guiFlags.Contains(args[0]))
-            {
-                Console.WriteLine($"未知命令或不完整：{string.Join(' ', args)}");
-                Console.WriteLine("运行 lunarward --help 查看可用命令。");
-                Environment.ExitCode = 1;
-                return;
-            }
-        }
 
         var host = UnoPlatformHostBuilder.Create()
             .App(() => new Starward.App())
