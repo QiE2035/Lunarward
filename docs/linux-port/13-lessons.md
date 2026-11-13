@@ -969,3 +969,9 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 F-21 的两次误判都栽在同一处：没有先确认「当前是哪个游戏、它的背景记录是什么、上游在这种状态下期望什么表现」，就按「我上次看到的是动态 → 现在不动 → 移植弄坏了」下结论。
 
 可复用的检查顺序：①当前选中的游戏/配置（本机是 SQLite `Setting` 的 `CurrentGameBiz`）→ ②相关持久化状态（`bg_<biz>`、`game_background_ids_<biz>`）→ ③上游同名逻辑在该状态下会怎么走（读 `src/Starward` 对应文件，而不是凭印象）→ ④才轮到「移植实现有问题」。四步里任何一步没做，结论都只能写成假设。
+
+## L-122 我们自己的代码里不该有「无痕的 catch」
+
+全仓搜 `catch {}` / `catch (Exception) {}` 共 187 处，其中 183 处在上游共享文件里（按零偏差铁律不动），`*.Linux.cs` 只有 4 处：2 处是清理动作的兜底（`Kill` 失败、删临时文件失败，保持无痕合理），另 2 处是真问题——`GameInstallScanner.Linux.cs` 的「重复安装路径去重」整段被吞（会出现「明明装了却认不到、日志里一点线索都没有」），`GameInstallService.Linux.cs` 的 `cts.Cancel()` 用 catch-all（把 `ObjectDisposedException` 之外的异常也吞掉）。两处已改：前者 `LogWarning` 且不影响扫描结果，后者只吞 `ObjectDisposedException`、其余记 Warning。
+
+可复用的判断：**自己能容忍失败的动作才允许无痕**（清理、兜底渲染）；**影响结论的动作必须留痕**（扫描、探测、状态判定）。

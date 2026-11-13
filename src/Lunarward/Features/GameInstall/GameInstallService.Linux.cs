@@ -73,7 +73,14 @@ public partial class GameInstallService
             {
                 running.Cancel();
             }
-            catch { }
+            catch (ObjectDisposedException)
+            {
+                // 任务刚好收尾释放了 CTS，属于正常竞态。
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "停止下载任务时取消令牌失败：{game}", gameId.GameBiz.Value);
+            }
         }
         if (_tasks.TryRemove(gameId, out GameInstallContext? stopped))
         {

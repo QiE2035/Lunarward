@@ -130,7 +130,11 @@ internal static class GameInstallScanner
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 收尾去重失败不该让整次扫描失败，但必须留下痕迹：否则「明明装了却认不到」会完全没有线索。
+            logger?.LogWarning(ex, "清理重复安装路径记录失败（不影响本次扫描结果）");
+        }
 
         TouchCache();
         return count;

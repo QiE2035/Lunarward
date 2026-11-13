@@ -852,3 +852,12 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **代价**：`RecordAppliedBackgroundAsync` 每次应用背景会多一次 `GetGameBackgroundsAsync`（命中缓存，实测 <1 ms 的字典查询 + 首次网络）；日志量增加 1–3 行/次切换。
 
 **未做**：没有为「视频起播失败」做自动重试；没有把「上次背景是静态 → 这次也静态」做成用户可关闭的开关（保持与上游一致）。
+
+### D70 自有代码里「无痕 catch」的收口（2026-11-13）
+
+全仓 `catch {}` 共 187 处，183 处属上游共享文件（不动）。`*.Linux.cs` 的 4 处里，`ScreenCapture.Linux.cs` 两处（Kill 失败、删临时文件失败）保持无痕；另两处改为留痕：
+
+- `GameInstallScanner.Linux.cs`：重复安装路径去重失败 → `logger.LogWarning("清理重复安装路径记录失败（不影响本次扫描结果）")`，返回结果不变。
+- `GameInstallService.Linux.cs`：`cts.Cancel()` 只吞 `ObjectDisposedException`（正常竞态），其余记 `Serilog.Log.Warning("停止下载任务时取消令牌失败：{game}", biz)`。
+
+**代价**：扫描/停止路径各多一条日志，无行为变化。**未做**：没有把这条规则扩到上游共享文件（那会破坏零偏差）。
