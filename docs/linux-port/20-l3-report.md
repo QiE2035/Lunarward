@@ -68,4 +68,12 @@ F-13 / F-15 修复在提交 `ca720be`；F-14 需产品决策。
 
 | 编号 | 级别 | 现象 | 证据 | 处置 |
 | --- | --- | --- | --- | --- |
-| F-21 | P1 | 视频壁纸起播后画面不推进（非「暂停」语义，窗口处于激活状态） | 日志有 `video background started` 与 `paused image preloaded`，但 1.2s/1.5s 间隔两帧截图逐像素相同（0.00%），`/proc/<pid>/stat` 5 秒仅 6 tick（≈0.01 核），说明 libVLC 没在解码；同机早前（D48）同一 webm 实测 38% 帧差 | 待排查：怀疑 `AppBackground` 二次实例或 `StopVideoBackground()` 在静态图预加载路径里把播放器停掉，而画布仍可见；需要用 `[vid-diag]` 复测帧计数 |
+| F-21 | ~~P1~~ → **非缺陷（设计如此）** | 现象：启动后视频壁纸静止、CPU ≈0.01 核、两帧截图 0 差异 | 取证见下节 | 结论：`BackgroundService.GetSuggestedGameBackgroundAsync` 在「背景列表没有新增」时，把上次用过的背景**复用并置 `StopVideo = true`**（上游语义：看过的背景不再自动播视频）。日志 `fd` 无 .webm、CPU 空闲与此完全吻合；强制 `LUNARWARD_VIDEO_BG` 走视频路径时 CPU 0.96 核、有 .webm 句柄，渲染链路本身正常 |
+
+#### F-21 取证链（2026-11-13）
+
+1. 强制视频路径（`LUNARWARD_VIDEO_BG=<本地 webm>`）：`/proc/<pid>/stat` 5 秒 **478 tick ≈ 0.96 核**，`fd` 里 .webm 打开 → 解码与出帧正常。
+2. 正常启动：5 秒 **6 tick ≈ 0.01 核**，`fd` 无 .webm，两帧逐像素 0 差异，日志无 `video background started`。
+3. 读码定位：`BackgroundService.cs:145-156` —— `lastBgIds` 以首个背景 id 开头（无新背景）时取上次那张并 `StopVideo = true`；`ChangeBackgroundImageIndex` 只是把列表里同一个（已带 `StopVideo=true`）对象发出去，所以点圆点也不会播。
+4. 顺带修掉的真问题：**调试入口 `LUNARWARD_VIDEO_BG` 起播后不记 `_appliedGameId/_videoActive`**，导致守卫失效、同会话重复起播（日志 6 条 `video background started`）。
+5. 因此「视频静止」是上游行为，若要「用户选过视频就一直播」属于**偏离上游**的 UX 决定，需单独拍板（见 D68）。

@@ -816,3 +816,25 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - 门禁：push 跑 L1 + L2 冒烟；每晚跑 L2 全量 + L3 关键 10 条；发布前 S1/S2 清零 + L3 关键全过。
 - 代价：GUI 自动化会抢焦点、需要真实会话；假 Sophon 服务要自己维护；L4 无法自动化的部分依赖用户时间。
 - 最终版（`19-test-plan.md`）：196 条用例，14 个模块分册（RT/LA/IN/CF/PL/UI/AC/CL/RC/SEC/LP/SO/CP/I18N）；新增性能预算表（11 项指标 + 基线 JSON + 20% 回归阈值）、故障注入（kill -9 时点、磁盘满、断网、外部命令卡死）、浸泡（2 小时 / 200 次切页 / 100 次截图）、安全用例（路径穿越、符号链接写穿、命令注入、敏感文件权限）、以及「Uno.UITest 不采用」的证据说明与 L1.5 进程内断言层。
+
+## D68 · 建议背景的超时语义与视频帧看门狗（2026-11-13）
+
+**背景**：F-21 排查发现「视频壁纸有时不动」有三类原因，过去混在一起：
+
+| 类型 | 判据 | 处理 |
+| --- | --- | --- |
+| 上游语义：看过的背景不自动播视频 | `BackgroundService.GetSuggestedGameBackgroundAsync` 在无新背景时把上次背景 `StopVideo = true` | **不改**（对齐上游）。想要「选过就一直播」属于 UX 偏离，见「未做」 |
+| 请求失败：超时/异常把画面换成兜底图 | 1200px 截图前缀为兜底 CG、日志 `using fallback image` | 已改：见下 |
+| 真正没解码 | 无 `.webm` 句柄 + CPU 空闲 | 新增看门狗日志，见下 |
+
+**改动**（`Features/Background/AppBackground.Linux.cs`）
+
+1. 建议背景超时默认 1500 ms → **4000 ms**，并在超时后**再试一次**（`apiTimeoutMs`、`2×apiTimeoutMs`）；两次都失败才算「拿不到」。
+2. 「拿不到」与「拿不到新背景」都不再覆盖已有画面：`BackgroundImageSource is not null || _videoActive` 时记 `keeping current picture` 并返回。
+3. 失败结果只缓存 **30 秒**（成功仍缓存 5 分钟），避免一次抖动影响数分钟。
+4. 调试入口 `LUNARWARD_VIDEO_BG` 起播后同样写 `_appliedGameId/_videoActive`，消除重复起播。
+5. 新增帧看门狗：起播后 2 秒仍 `_videoFrameCount == 0` → `[background] video started but no frame in 2000 ms`（实测用 `/tmp/fake.webm` 触发）。
+
+**代价**：最坏情况（两次超时）多等约 12 秒后台请求，但界面在此之前已用本地图填好，不影响可交互性。
+
+**未做（需单独拍板）**：让「用户点选过的视频背景」在启动时继续播放（偏离上游 `StopVideo` 复用语义）。

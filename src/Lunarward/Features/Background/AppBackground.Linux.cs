@@ -29,6 +29,9 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 
     private long _lastVideoInvalidate;
 
+    // E：起播后 2 秒内一帧都没来就说明「播放器起来了但没解码」，这类问题以前只能靠 CPU 占用才能发现。
+    private long _videoFrameCount;
+
     private static readonly bool _skipVideoPaint = Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_NOPAINT") is "1";
 
 
@@ -50,6 +53,9 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     // 触发一次背景更新：不缓存的话每切一次页都要等一轮超时，并重放一次「回退图 + 换强调色」，
     // 用户看到的就是「切回启动器卡一下、主题闪一下」。失败结果同样缓存，避免连续重试。
     private static readonly TimeSpan SuggestedBackgroundTtl = TimeSpan.FromMinutes(5);
+
+    // 「没拿到」只记 30 秒：一次超时不应该让视频壁纸 5 分钟内都起不来（F-21）。
+    private static readonly TimeSpan SuggestedBackgroundFailureTtl = TimeSpan.FromSeconds(30);
     private readonly Dictionary<string, (GameBackground? Background, DateTime At)> _suggestedBackgroundCache = new();
     private string? _lastAccentFile;
 
@@ -230,26 +236,47 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     private async Task<GameBackground?> GetSuggestedBackgroundCachedAsync(GameId gameId, CancellationToken token)
     {
         string cacheKey = gameId.Id ?? string.Empty;
-        if (_suggestedBackgroundCache.TryGetValue(cacheKey, out (GameBackground? Background, DateTime At) cached)
-            && DateTime.UtcNow - cached.At < SuggestedBackgroundTtl)
+        if (_suggestedBackgroundCache.TryGetValue(cacheKey, out (GameBackground? Background, DateTime At) cached))
         {
-            return cached.Background;
+            // 拿到过背景：正常缓存 5 分钟；没拿到（超时/异常）：只缓存 30 秒，别让一次网络抖动影响好几分钟。
+            TimeSpan ttl = cached.Background is null ? SuggestedBackgroundFailureTtl : SuggestedBackgroundTtl;
+            if (DateTime.UtcNow - cached.At < ttl)
+            {
+                return cached.Background;
+            }
         }
         // 上游给 1 秒 API 超时；Linux 首包要 TLS 握手，1 秒几乎必然超时（L-71），这里放宽到 6 秒。
-        int apiTimeoutMs = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_BG_TIMEOUT_MS"), out int dbgMs) && dbgMs > 0 ? dbgMs : 1500;
+        int apiTimeoutMs = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_BG_TIMEOUT_MS"), out int dbgMs) && dbgMs > 0 ? dbgMs : 4000;
         try
         {
-            using CancellationTokenSource apiTimeout = new(TimeSpan.FromMilliseconds(apiTimeoutMs));
-            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, apiTimeout.Token);
-            GameBackground? suggested = await _backgroundService.GetSuggestedGameBackgroundAsync(gameId, linked.Token);
-            _suggestedBackgroundCache[cacheKey] = (suggested, DateTime.UtcNow);
-            Serilog.Log.Debug("[background] suggested: {Type} stop={Stop} video={Video}", suggested?.Type, suggested?.StopVideo, suggested?.Video?.Url);
-            return suggested;
+            // 超时往往只是首包 TLS 慢（L-71）：按 1x / 2x / 4x 退避重试，仍失败才算「拿不到」。
+            int[] attempts = { apiTimeoutMs, apiTimeoutMs * 2 };
+            for (int i = 0; i < attempts.Length; i++)
+            {
+                try
+                {
+                    using CancellationTokenSource apiTimeout = new(TimeSpan.FromMilliseconds(attempts[i]));
+                    using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(token, apiTimeout.Token);
+                    GameBackground? suggested = await _backgroundService.GetSuggestedGameBackgroundAsync(gameId, linked.Token);
+                    _suggestedBackgroundCache[cacheKey] = (suggested, DateTime.UtcNow);
+                    Serilog.Log.Debug("[background] suggested: {Type} stop={Stop} video={Video}", suggested?.Type, suggested?.StopVideo, suggested?.Video?.Url);
+                    return suggested;
+                }
+                catch (OperationCanceledException) when (!token.IsCancellationRequested)
+                {
+                    if (i == attempts.Length - 1)
+                    {
+                        throw;
+                    }
+                    Serilog.Log.Debug("[background] suggested background timed out after {Ms} ms, retrying", attempts[i]);
+                }
+            }
+            return null;
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
             _suggestedBackgroundCache[cacheKey] = (null, DateTime.UtcNow);
-            Serilog.Log.Information("[background] get suggested background timed out, using fallback image (cached for {Minutes} min)", SuggestedBackgroundTtl.TotalMinutes);
+            Serilog.Log.Information("[background] get suggested background timed out (retried once); retry in {Seconds} s", SuggestedBackgroundFailureTtl.TotalSeconds);
             return null;
         }
         catch (Exception ex)
@@ -384,6 +411,9 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_BG"))
                 && await TryStartVideoBackgroundAsync(null, token))
             {
+                // 调试入口也要记状态：否则守卫失效，每次进页面都会重启播放器（日志里反复 video background started）。
+                _appliedGameId = gameId;
+                _videoActive = true;
                 return;
             }
 
@@ -432,11 +462,22 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             }
             catch (OperationCanceledException)
             {
+                // 拿不到建议背景 ≠ 现在没有背景：只要画面上已经有东西（尤其视频正在播），就保持现状。
+                if (BackgroundImageSource is not null || _videoActive)
+                {
+                    Serilog.Log.Information("[background] suggested background timed out, keeping current picture");
+                    return;
+                }
                 Serilog.Log.Information("[background] get suggested background timed out, using fallback image");
                 filePath = BackgroundService.GetFallbackBackgroundImage(gameId);
             }
             catch (Exception ex)
             {
+                if (BackgroundImageSource is not null || _videoActive)
+                {
+                    Serilog.Log.Warning(ex, "[background] get suggested background failed, keeping current picture");
+                    return;
+                }
                 Serilog.Log.Warning(ex, "[background] get suggested background failed");
                 filePath = BackgroundService.GetFallbackBackgroundImage(gameId);
             }
@@ -563,7 +604,9 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             _image.Visibility = Visibility.Collapsed;
             _videoCanvas.Visibility = Visibility.Visible;
             _currentVideoPath = videoPath;
+            Interlocked.Exchange(ref _videoFrameCount, 0);
             Serilog.Log.Information("[background] video background started: {path}", videoPath);
+            _ = WarnIfNoVideoFrameAsync(videoPath);
             return true;
         }
         catch (Exception ex)
@@ -583,6 +626,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             {
                 return;
             }
+            Interlocked.Increment(ref _videoFrameCount);
             if (_videoSurface is null || _videoWidth != width || _videoHeight != height)
             {
                 _videoSurface?.Dispose();
@@ -700,6 +744,30 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         catch (Exception ex)
         {
             Serilog.Log.Debug(ex, "[background] preload paused image failed");
+        }
+    }
+
+
+    /// <summary>
+    /// 起播后 2 秒还没有任何一帧 → 记 Warning（F-21 的教训：界面静止时只有 CPU 才能看出来）。
+    /// </summary>
+    private async Task WarnIfNoVideoFrameAsync(string videoPath)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            if (_currentVideoPath != videoPath)
+            {
+                return;
+            }
+            if (Interlocked.Read(ref _videoFrameCount) == 0)
+            {
+                Serilog.Log.Warning("[background] video started but no frame in 2000 ms: {path}", videoPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "[background] video frame watchdog failed");
         }
     }
 
