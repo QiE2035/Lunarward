@@ -53,3 +53,19 @@ F-13 / F-15 修复在提交 `ca720be`；F-14 需产品决策。
 2. **锁屏会静默吃掉所有点击**：`cu_status.session.locked=true` / `org.kde.screensaver.GetActive=true` 时截图是锁屏，点击无效——跑 GUI 用例前先探这两个状态。
 3. **日志要跨重启看**：`Starward_yyyymmdd.log` 是追加写，同一文件里混着多个进程实例的输出，判断「有没有重算」必须看**本轮启动之后**的行号区间，否则会把旧实例的日志当成新缺陷（本轮 T-UI-32 差点误判）。
 4. **临时插桩必须当步清理**：为了定位 T-UI-32 加进 `AppBackground.Linux.cs` 的两行 `Information` 日志（`core…` / `keep current…`），提交前必须删掉/降回 `Debug`，否则日志噪声永久留下。
+
+## 7. 第二轮补充（2026-11-13，补跑 T-UI-33/34/35/41/42）
+
+| 编号 | 用例 | 结果 | 证据 |
+| --- | --- | --- | --- |
+| T-UI-33 | 切换游戏（选择层） | **通过** | 点左栏「游戏」图标 → 选择层展开（6 张卡片 + 已安装占用 322.26GB）；点「崩坏：星穹铁道」→ 子菜单选「中国服」→ 主界面换成星穹铁道（`/tmp/l3_selector2.png`、`/tmp/l3_hsr.png`、`/tmp/l3_hsr2.png`） |
+| T-UI-34 | 背景圆点 + 视频壁纸 | **部分通过** | 悬停底栏可唤出圆点条（5 个点 + 图库/复制/另存/暂停四个按钮，`/tmp/l3_bar2.png`）；点圆点未观察到背景变化（`/tmp/l3_dots_before.png` vs `l3_dots_after2.png` 差异 **0.00%**），且视频「已起播」（日志 6 次 `video background started`）但连续两帧截图差异 **0.00%**、进程 CPU 仅 **0.01 核** → 视频实际未推进，见 F-21 |
+| T-UI-35 | 打开背景图库 | **通过** | 悬停底栏 → 点图库按钮 → 新窗口 `Starward - Background Viewer`（683×455）打开，缩略图网格渲染（`/tmp/l3_gallery.png`） |
+| T-UI-41 | 窗口缩放 / 断点 | **通过** | `cu_window geometry` 1200×680 → 1000×680：布局由双列降为单列（`/tmp/l3_1000_launcher.png`），无横向溢出；DP-2 输出 scale=1.5、窗口仍在屏内 |
+| T-UI-42 | 工作区切换 | **跳过** | 当前 KWin 只有 1 个虚拟桌面（`org.kde.KWin.setCurrentDesktop 2` 返回 `false`、`currentDesktop` 仍为 1），无法构造「切走再切回」 |
+
+### 新缺陷
+
+| 编号 | 级别 | 现象 | 证据 | 处置 |
+| --- | --- | --- | --- | --- |
+| F-21 | P1 | 视频壁纸起播后画面不推进（非「暂停」语义，窗口处于激活状态） | 日志有 `video background started` 与 `paused image preloaded`，但 1.2s/1.5s 间隔两帧截图逐像素相同（0.00%），`/proc/<pid>/stat` 5 秒仅 6 tick（≈0.01 核），说明 libVLC 没在解码；同机早前（D48）同一 webm 实测 38% 帧差 | 待排查：怀疑 `AppBackground` 二次实例或 `StopVideoBackground()` 在静态图预加载路径里把播放器停掉，而画布仍可见；需要用 `[vid-diag]` 复测帧计数 |

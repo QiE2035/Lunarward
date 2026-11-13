@@ -420,7 +420,14 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
             {
                 dlTargetDir = args[dlTargetAt + 1];
             }
-            Starward.Features.GameInstall.Sophon.InstallDownloadRunner.RunAsync(dlBiz, dlOnlyFile, dlPre, dlAll, dlLimitMb, dlParallel, dlTargetDir, args.Contains("--write-version"))
+            // 安装目录覆盖：命令行排错/离线测试时不必先让启动器把路径写进设置（与 --install-dir 的其它命令一致）。
+            string? dlInstallDir = null;
+            int dlInstallAt = Array.IndexOf(args, "--install-dir");
+            if (dlInstallAt >= 0 && args.Length > dlInstallAt + 1)
+            {
+                dlInstallDir = args[dlInstallAt + 1];
+            }
+            Starward.Features.GameInstall.Sophon.InstallDownloadRunner.RunAsync(dlBiz, dlOnlyFile, dlPre, dlAll, dlLimitMb, dlParallel, dlTargetDir, args.Contains("--write-version"), dlInstallDir)
                                                                 .GetAwaiter()
                                                                 .GetResult();
             return;
@@ -1508,6 +1515,20 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
             Environment.SetEnvironmentVariable("LUNARWARD_SELFTEST", "1");
         }
 
+
+        // 参数像命令但没有任何分支接住：不要静默进 GUI（否则缺一个参数就会变成「命令没反应，反而弹出窗口」）。
+        // 允许的「纯 GUI 开关」只有下面几个，其余以 - 开头的首参数一律判为未知命令。
+        if (args.Length > 0 && args[0].StartsWith('-'))
+        {
+            string[] guiFlags = { "--hide", "--show", "--new-instance", "--selftest-ui" };
+            if (!guiFlags.Contains(args[0]))
+            {
+                Console.WriteLine($"未知命令或不完整：{string.Join(' ', args)}");
+                Console.WriteLine("运行 lunarward --help 查看可用命令。");
+                Environment.ExitCode = 1;
+                return;
+            }
+        }
 
         var host = UnoPlatformHostBuilder.Create()
             .App(() => new Starward.App())

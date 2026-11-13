@@ -17,12 +17,12 @@ namespace Starward.Features.GameInstall.Sophon;
 internal static class InstallDownloadRunner
 {
 
-    public static async Task RunAsync(GameBiz biz, string? onlyFile, bool preDownload, bool all, long limitMb, int parallel, string? targetDir, bool writeVersion)
+    public static async Task RunAsync(GameBiz biz, string? onlyFile, bool preDownload, bool all, long limitMb, int parallel, string? targetDir, bool writeVersion, string? installDirOverride = null)
     {
         try
         {
             await AppConfig.CheckEnviromentAsync();
-            string? installPath = AppConfig.GetGameInstallPath(biz);
+            string? installPath = installDirOverride ?? AppConfig.GetGameInstallPath(biz);
             if (installPath is null)
             {
                 Console.WriteLine($"没有记录 {biz} 的安装路径，请先让启动器识别游戏。");

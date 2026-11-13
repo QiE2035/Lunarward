@@ -41,6 +41,21 @@ jobs:
     - name: Test (L1 单测)
       run: dotnet test Starward.slnx -c Release --no-build
 
+    # 覆盖率：被测逻辑以链接源码方式编译在测试程序集内，必须带 tests/coverlet.runsettings
+    # （IncludeTestAssembly=true），否则 coverlet 直接忽略测试程序集、覆盖率恒为 0。
+    - name: Coverage (L1)
+      env:
+        LW_COVERAGE_OUT: ${{ runner.temp }}/coverage
+      run: bash scripts/test/coverage.sh 85
+
+    - name: Upload coverage
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-cobertura
+        path: ${{ runner.temp }}/coverage/**/coverage.cobertura.xml
+        if-no-files-found: warn
+
     # L2：CLI 全链路冒烟（临时 XDG + 假运行器/假前缀/假外部命令，不需要显示器、不联网）
     - name: Install test deps
       run: sudo apt-get update && sudo apt-get install -y jq unzip zstd
@@ -49,6 +64,13 @@ jobs:
       env:
         LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
       run: bash scripts/test/cli-smoke.sh
+
+    # L2 补充命令面：--shell-plan/--url-plan/--companion-*/--prefix-*/--runner-check/
+    # --convert-screenshots + 假 Sophon 的 --install-plan/--patch-plan/--install-fetch/--update-run。
+    - name: L2 CLI extra smoke
+      env:
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+      run: bash scripts/test/cli-extra.sh
 
     # L2 安装链路：本地假 Sophon 服务（protobuf 清单 + zstd 分块），验证「只下新块、未变更文件链接」。
     - name: L2 install smoke (fake Sophon)

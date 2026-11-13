@@ -108,6 +108,15 @@
 - `22-port-verification.md`：更正缩放误判（按 1:1 处理并标注待确认），撤回 P1-1，P1-2/P2-2 降级为待复核。
 - 新增仓库根 `AGENTS.md`：项目定位、构建与测试命令、环境坑、代码/文档地图、协作规则与工具约定。
 
+## 2026-11-13（三）── 测试面补齐
+
+- 覆盖率可度量：新增 `tests/coverlet.runsettings`（`IncludeTestAssembly=true`）与 `scripts/test/coverage.sh`，行覆盖 **90.39%**（800/885）、分支 **77.95%**；CI 出 cobertura 并设 85% 阈值。
+- L2 补充命令面：新增 `scripts/test/cli-extra.sh`（13 条），覆盖 `--shell-plan/--url-plan/--companion-*/--prefix-*/--runner-check/--convert-screenshots` 与假 Sophon 的 `--install-plan/--patch-plan/--install-fetch/--update-run`；已接入 CI。
+- 修 bug：不完整/未知的子命令不再静默进 GUI（`--companion-run` 少一个参数就会「命令没反应、反而弹窗口」），现在打印「未知命令或不完整」并返回 1。
+- 修 bug：`--install-fetch/--install-run` 新增 `--install-dir`，不必先让启动器把安装路径写进设置。
+- L3 补跑：切换游戏（选择层）、打开图库、1000px 断点均通过；发现 **F-21**（视频壁纸起播后画面不推进，0.00% 帧差、CPU 0.01 核）。
+- 上游同步支撑：新增 `scripts/list-deviations.sh`（81 个同名文件偏差）与 `scripts/sync-upstream.sh`（冲突时对「已偏差文件」默认保留本仓），文档 `18-upstream-deviations.md`。
+
 ## 2026-11-13（二）— 游戏设置页布局重叠
 
 - 修：`GameSettingPage` 内容 Grid 在异步初始化后显式 `InvalidateMeasure()`，解决「运行配置」与 HDR 分区重叠（D67 / L-119 / `22` P0-2）。

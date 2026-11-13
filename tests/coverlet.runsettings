@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lunarward：测试工程用「链接源码」的方式编译被测逻辑（见 D37 / 19-test-plan.md），
+     被测代码因此位于测试程序集内部，而 coverlet 默认不统计测试程序集本身。
+     这里显式打开 IncludeTestAssembly，覆盖率才不会是 0。 -->
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <IncludeTestAssembly>true</IncludeTestAssembly>
+          <SkipAutoProps>true</SkipAutoProps>
+          <ExcludeByAttribute>GeneratedCodeAttribute</ExcludeByAttribute>
+          <Exclude>[xunit.*]*,[Microsoft.*]*,[Serilog]*</Exclude>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
