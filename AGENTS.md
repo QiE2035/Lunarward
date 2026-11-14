@@ -48,7 +48,7 @@
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 49 条）
+# 单元测试（当前 61 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）
