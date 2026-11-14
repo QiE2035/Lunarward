@@ -1103,3 +1103,17 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 修法：①比较分支兼容扁平基线（`if base is None and "cli_median_ms" in data: base = {...}`）；②`/usr/bin/time` 不存在时只测耗时、RSS 记 n/a；③新增 `startup_stall_ms` 并配**绝对上限 1500 ms**（UX 硬指标不该跟某台机器的基线比）；④基线重新生成，不带 null 的空指标。
 - 通用规则：任何「有基线就比、没基线就过」的脚本，必须在**第一次落地时**确认它真的会红——制造一次回归（临时把阈值调到 1）验证失败路径，否则绿灯没有意义。
 
+
+## L-136 链接源码的测试工程，覆盖率分母只看「链接进来的文件」
+
+- 现象：新增 `ComponentDownloader.cs`（约 430 行，含 HEAD 探测、分片并发、单流降级、合并校验）后被链接进测试工程，覆盖率从 90.59% 掉到 **74.42%**（1164/1564），CI 的 85% 门槛直接红；而这些行里真正无法离线覆盖的只有「http 请求 + 文件搬运」。
+- 修法：把**纯算术/纯字符串**抽成 `src/Lunarward/Features/Runtime/ComponentDownloadMath.cs`（`ChunkCount`/`PlanChunk`/`PartPath`/`ApplyMirror`），测试工程改为链接 `ComponentDownloadMath.cs` + `ComponentSources.cs`，**不再链接下载器**；网络编排由手工实测（`--component-download dxvk` → 4 连接 / 18,041,512 字节 / digest 一致）+ `cli-extra` 兜。
+- 通用规则：①覆盖率只统计链接集，链接边界就是覆盖边界——把 IO 编排挡在链接集外、把判定逻辑抽出来，比给网络时序写 mock 划算；②一旦把某个文件移出链接集，必须在文档里写明「这部分靠什么验证」，否则等于悄悄降低门槛；③`coverage.sh` 报告要能区分「行覆盖」和「分支覆盖」，本轮是 87.44% / 66.16%（34 个类）。
+
+
+## L-137 改代码前先确认「要替换的那段区间里还有什么」
+
+- 现象：用一段 `python` 脚本按「从 `ApplyMirror` 到 `DownloadChunkedAsync`」整段替换时，夹在中间的 `ProbeAsync`（HEAD 探测）和 `RangeRejectedException` 定义一起被删，编译报 `CS0103 ProbeAsync` / `CS0246 RangeRejectedException`，而下载器逻辑本身看不出问题。
+- 修法：先 `grep -n` 打印两端锚点之间的成员清单再替换；替换后立即 `dotnet build`（不要攒着改完再编）。
+- 通用规则：脚本化改代码时，锚点只负责定位，落盘的内容必须以「该区间原有全部成员」为基线做增删，而不是只写想加的那部分。
+

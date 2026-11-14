@@ -19,14 +19,14 @@ public class ComponentRuntimeTests
     [InlineData(8388609, 8388608, 2)]
     public void ChunkCount_RoundsUp(long total, int chunkSize, int expected)
     {
-        Assert.Equal(expected, ComponentDownloader.ChunkCount(total, chunkSize));
+        Assert.Equal(expected, ComponentDownloadMath.ChunkCount(total, chunkSize));
     }
 
     [Fact]
     public void ChunkCount_RejectsNonPositiveChunkSize()
     {
-        Assert.Equal(0, ComponentDownloader.ChunkCount(1024, 0));
-        Assert.Equal(0, ComponentDownloader.ChunkCount(-1, 4096));
+        Assert.Equal(0, ComponentDownloadMath.ChunkCount(1024, 0));
+        Assert.Equal(0, ComponentDownloadMath.ChunkCount(-1, 4096));
     }
 
     [Fact]
@@ -34,10 +34,10 @@ public class ComponentRuntimeTests
     {
         const long total = 20_000_000;
         const int chunk = 8 * 1024 * 1024;
-        (long start, long length) = ComponentDownloader.PlanChunk(total, 0, chunk);
+        (long start, long length) = ComponentDownloadMath.PlanChunk(total, 0, chunk);
         Assert.Equal(0, start);
         Assert.Equal(chunk, length);
-        (long start2, long length2) = ComponentDownloader.PlanChunk(total, 2, chunk);
+        (long start2, long length2) = ComponentDownloadMath.PlanChunk(total, 2, chunk);
         Assert.Equal(2L * chunk, start2);
         Assert.Equal(total - 2L * chunk, length2);
     }
@@ -45,7 +45,7 @@ public class ComponentRuntimeTests
     [Fact]
     public void PlanChunk_BeyondEndIsZeroLength()
     {
-        (long start, long length) = ComponentDownloader.PlanChunk(1024, 5, 4096);
+        (long start, long length) = ComponentDownloadMath.PlanChunk(1024, 5, 4096);
         Assert.Equal(20480, start);
         Assert.Equal(0, length);
     }
@@ -53,7 +53,7 @@ public class ComponentRuntimeTests
     [Fact]
     public void ApplyMirror_KeepsHostPathAfterScheme()
     {
-        string url = ComponentDownloader.ApplyMirror(new Uri("https://github.com/a/b/releases/download/v1/x.tar.zst"), "https://mirror.example/gh");
+        string url = ComponentDownloadMath.ApplyMirror(new Uri("https://github.com/a/b/releases/download/v1/x.tar.zst"), "https://mirror.example/gh");
         Assert.Equal("https://mirror.example/gh/github.com/a/b/releases/download/v1/x.tar.zst", url);
     }
 
@@ -61,8 +61,8 @@ public class ComponentRuntimeTests
     public void ApplyMirror_EmptyPrefixIsIdentity()
     {
         Uri uri = new("https://github.com/a/b/x.tar.zst");
-        Assert.Equal(uri.ToString(), ComponentDownloader.ApplyMirror(uri, null));
-        Assert.Equal(uri.ToString(), ComponentDownloader.ApplyMirror(uri, "  "));
+        Assert.Equal(uri.ToString(), ComponentDownloadMath.ApplyMirror(uri, null));
+        Assert.Equal(uri.ToString(), ComponentDownloadMath.ApplyMirror(uri, "  "));
     }
 
     [Fact]

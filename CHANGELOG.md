@@ -191,6 +191,13 @@
 - 修 bug：`--preflight` 结论为「不要启动」时返回 1（F-22），脚本可当门禁。
 - 上游同步支撑：新增 `scripts/list-deviations.sh`（81 个同名文件偏差）与 `scripts/sync-upstream.sh`（冲突时对「已偏差文件」默认保留本仓），文档 `18-upstream-deviations.md`。
 
+## 2026-11-14（八）— 组件层覆盖率补齐
+
+- 修：`Coverage (L1)` 从 74.42% 回到 **87.44% 行 / 66.16% 分支**（34 个类），CI 恢复绿。
+- 加：`ComponentDownloadMath`（分片算术 / `.part.<n>` 命名 / 镜像前缀拼接）从下载器抽出，测试工程改为链接它与 `ComponentSources`，下载编排不再进覆盖率口径（靠 `--component-download` 手工实测 + `cli-extra` 兜）。
+- 加：`ComponentSources` 单测 11 条（默认源排序、同 id 覆盖、新 id 追加、损坏文件回落、归档判定、zstd 偏好、版本抠取）；单测总数 85 → 104。
+- 顺带：`ComponentDownloader.cs` 补回被脚本误删的 `ProbeAsync` 与 `RangeRejectedException`（L-137）。
+
 ## 2026-11-13（二）— 游戏设置页布局重叠
 
 - 修：`GameSettingPage` 内容 Grid 在异步初始化后显式 `InvalidateMeasure()`，解决「运行配置」与 HDR 分区重叠（D67 / L-119 / `22` P0-2）。

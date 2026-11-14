@@ -9,6 +9,7 @@
 // 注意：这里所有操作都必须在后台线程（D72：UI 线程不许做阻塞 IO / fork 外部进程）。
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -25,6 +26,13 @@ namespace Starward.Features.Runtime;
 public sealed record ComponentDownloadProgress(long Received, long? Total, int ActiveConnections, double BytesPerSecond)
 {
     public double? Percent => Total is > 0 ? (double)Received / Total.Value * 100 : null;
+}
+
+
+/// <summary>源端不接受 Range 请求（连续两次被拒）时抛出，调用方降级为单连接。</summary>
+internal sealed class RangeRejectedException : Exception
+{
+    public RangeRejectedException(string message) : base(message) { }
 }
 
 
@@ -59,21 +67,11 @@ public static class ComponentDownloader
 
     /// <summary>分片计划：第 index 片的起点与长度（纯函数，便于单测）。</summary>
     public static (long Start, long Length) PlanChunk(long total, int index, int chunkSize)
-    {
-        long start = (long)index * chunkSize;
-        long length = Math.Min(chunkSize, Math.Max(0, total - start));
-        return (start, length);
-    }
+        => ComponentDownloadMath.PlanChunk(total, index, chunkSize);
 
 
     public static int ChunkCount(long total, int chunkSize)
-    {
-        if (total <= 0 || chunkSize <= 0)
-        {
-            return 0;
-        }
-        return (int)((total + chunkSize - 1) / chunkSize);
-    }
+        => ComponentDownloadMath.ChunkCount(total, chunkSize);
 
 
     /// <summary>
@@ -176,48 +174,37 @@ public static class ComponentDownloader
 
     /// <summary>镜像前缀：<c>https://mirror/</c> + 原 URL 去掉协议。</summary>
     public static string ApplyMirror(Uri url, string? mirrorPrefix)
-    {
-        if (string.IsNullOrWhiteSpace(mirrorPrefix))
-        {
-            return url.ToString();
-        }
-        string prefix = mirrorPrefix.EndsWith('/') ? mirrorPrefix : mirrorPrefix + "/";
-        string tail = url.ToString();
-        int scheme = tail.IndexOf("://", StringComparison.Ordinal);
-        if (scheme >= 0)
-        {
-            tail = tail[(scheme + 3)..];
-        }
-        return prefix + tail;
-    }
+        => ComponentDownloadMath.ApplyMirror(url, mirrorPrefix);
 
 
+    /// <summary>
+    /// HEAD 探测：能拿到长度吗、支持 Range 吗。拿不到长度时按「不支持分片」处理。
+    /// </summary>
     private static async Task<(long? Total, bool Ranges)> ProbeAsync(HttpClient http, Uri url, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Head, url);
         try
         {
+            using var request = new HttpRequestMessage(HttpMethod.Head, url);
             using HttpResponseMessage response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
                 .ConfigureAwait(false);
-            long? total = response.Content.Headers.ContentLength;
-            bool ranges = response.Headers.AcceptRanges.Contains("bytes");
-            return (total, ranges && total is > 0);
+            if (!response.IsSuccessStatusCode)
+            {
+                return (null, false);
+            }
+            long? length = response.Content.Headers.ContentLength;
+            string? acceptRanges = response.Headers.TryGetValues("Accept-Ranges", out IEnumerable<string>? values)
+                ? values.FirstOrDefault()
+                : null;
+            bool ranges = acceptRanges?.Contains("bytes", StringComparison.OrdinalIgnoreCase) == true;
+            return (length, ranges && length is > 0);
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            // HEAD 不被支持时当作单流处理，不阻塞下载
             return (null, false);
         }
     }
 
 
-    private sealed class RangeRejectedException : Exception
-    {
-        public RangeRejectedException(string message) : base(message) { }
-    }
-
-
-    /// <summary>返回 true 表示有片是上一轮留下的（发生过续传）。</summary>
     private static async Task<bool> DownloadChunkedAsync(
         HttpClient http, string url, string workDir, string fileName, long total,
         int connections, int chunkSize, ILogger? logger,

@@ -48,7 +48,7 @@
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 85 条）
+# 单元测试（当前 104 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）
@@ -128,7 +128,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - `README.md` — 总览与状态（**先看这个**）
 - `00-decisions.md` — D0–D73 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-135 坑与复现方法（唯一）
+- `13-lessons.md` — L-01…L-137 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
 - `19-test-plan.md` — 测试计划（唯一，225 条：213 条功能用例 T-* + 12 条回归用例 RG-*）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
 - `16-runtime-components.md` / `17-runtime-environment-ui.md` — 运行环境设计与 UI
