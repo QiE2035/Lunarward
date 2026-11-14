@@ -965,7 +965,7 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - **决定**：采用 **A**。理由：①进程内 GTK3（Uno 自带 GtkSharp 3.24）+ GTK4 并存属不受推荐组合（必须 `extern alias` 隔离，`CS0433` 是常态）；②GTK 窗口标题栏由 WM 装饰，颜色跟系统配色走，`GTK_THEME` 只影响窗口内部，观感上「像另一个程序」，要统一得自绘 CSD。
 - **实现**：`lunarward --webkit-login --url <登录页> --output <cookies.json> [--timeout 秒]`（`Features/GameRecord/WebKitLoginHost.cs`），由 `WebLoginService.LoginAsync` 用 `Environment.ProcessPath` 拉起自己；**没有 `libwebkitgtk-6.0` 时自动退回 python3 助手（D32 保留）**，两者输出格式一致（`{Cookies:{...}, Time:"yyyy-MM-ddTHH:mm:ss"}`）。
 - **cookie 怎么拿**：`CookieManager.SetPersistentStorage(<output>.db, Sqlite)` + 每 2 秒读 `moz_cookies`（`name`/`value`）。之所以不调 `GetCookies`：GirCore 0.8.1 只生成了 `*Finish`，没有 `GetCookiesAsync` 这类异步入。命中标记（同 python 的 `LOGIN_MARKERS`）即导出并关窗；关窗也导出；兜底超时导出。
-- **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 的 `depends` 需要加 `webkitgtk-6.0`（打包侧待办）。
+- **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 包 `packaging/PKGBUILD` 已把 `webkitgtk-6.0` 并入 `depends`（pkgrel 2），原 `webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
 - **验证**（实测，2026-11-14）：本地起 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，`--webkit-login` 开窗后 2 秒内即输出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0；`moz_cookies` 里两条与页面一致。**待验收**：真实米游社登录（需用户操作）。
 
 ---

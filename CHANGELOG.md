@@ -4,6 +4,7 @@
 - **cookie 取法**：`CookieManager.SetPersistentStorage` + 每 2 秒读 WebKit 的 `moz_cookies`（GirCore 只生成了 `*Finish`，没有异步 cookie API）；命中登录标记即导出关窗，关窗与超时也导出。
 - **撤回一条旧结论**：D32/D75 曾以「本机没有 `libwebkitgtk-6.0`」判定登录窗不改 GirCore——`extra/webkitgtk-6.0` 一直在仓库里，是论据本身错了（D46）。A/B 两个 spike 都跑通，选 A（独立进程）以避免 Uno 自带 GTK3 与 GTK4 同进程并存、以及 GTK 标题栏跟系统配色走的观感问题。
 - 实测：本地起带 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，开窗后 2 秒内导出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0。**真实米游社登录待验收**。
+- **打包**：`packaging/PKGBUILD` 把 `webkitgtk-6.0` 并入 `depends`（pkgrel 1 → 2），`webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
 - 文档：新增 D76、L-149；24 号「登录窗」一行由「不改（有据）」改为已落地并写清撤回原因。
 
 ## 2026-11-14（十三）——外部能力走 portal、图片格式补齐、弹层实底
