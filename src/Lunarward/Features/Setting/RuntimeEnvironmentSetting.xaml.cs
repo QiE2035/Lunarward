@@ -1437,6 +1437,14 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         row.Children.Add(kindPanel);
         row.Children.Add(text);
 
+        // 右侧：状态徽标 + 「检查」（组件健康，D73 §2.6 的 UI 落点）
+        var right = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
         // D58：扫描阶段就要能看出「能不能用 + 为什么」，别让用户选了才发现跑不起来
         if (component.Kind is ComponentKind.Wine or ComponentKind.Proton)
         {
@@ -1471,8 +1479,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             {
                 badge.Text = $"{badge.Text}（{component.LayoutText}）";
             }
-            Grid.SetColumn(badge, 2);
-            row.Children.Add(badge);
+            right.Children.Add(badge);
         }
 
         if (component.Kind is ComponentKind.Dxvk or ComponentKind.Vkd3dProton)
@@ -1486,8 +1493,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                     Opacity = 0.6,
                     VerticalAlignment = VerticalAlignment.Center,
                 };
-                Grid.SetColumn(copies, 2);
-                row.Children.Add(copies);
+                right.Children.Add(copies);
             }
             // 图形组件要「装进某个前缀」才有意义：这里直接挑一个前缀目录装进去（D31 的按前缀安装）
             var installButton = new Button
@@ -1501,6 +1507,18 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             row.Children.Add(installButton);
         }
 
+        var healthButton = new Button
+        {
+            Content = "检查",
+            Tag = component,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        ToolTipService.SetToolTip(healthButton, "跑一次健康检查（运行器执行 --version，图形层检查 dll）");
+        healthButton.Click += Button_ComponentHealth_Click;
+        right.Children.Add(healthButton);
+        Grid.SetColumn(right, 2);
+        row.Children.Add(right);
+
         return new Border
         {
             Child = row,
@@ -1510,6 +1528,79 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             // 记录原始文案与固定占位，窗口尺寸变化时据此重算「中间省略」后的字符串（见 UpdateContentWidth）
             Tag = new ComponentRowInfo(name, version, name.Text, version.Text, 72 + 24 + 24 + (row.Children.Count > 2 ? 180 : 0)),
         };
+    }
+
+
+    /// <summary>组件健康（D73 §2.6）：一句概括 + 等宽只读原文，不做发行版包名映射。</summary>
+    private async void Button_ComponentHealth_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: Component component })
+        {
+            return;
+        }
+        ComponentHealthResult result;
+        try
+        {
+            result = await Starward.Features.Runtime.ComponentHealth
+                .CheckAsync(component, _logger)
+                .ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "component health check failed: {name}", component.Name);
+            Helpers.InAppToast.MainWindow?.Error(ex, "健康检查失败");
+            return;
+        }
+
+        var summary = new TextBlock
+        {
+            Text = result.Summary,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var meta = new TextBlock
+        {
+            Text = $"退出码：{result.ExitCode} · 耗时 {result.Elapsed.TotalMilliseconds:0} ms · {component.Path}",
+            FontSize = 12,
+            Opacity = 0.6,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var output = new ScrollViewer
+        {
+            Height = 220,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollMode = ScrollMode.Enabled,
+            VerticalScrollMode = ScrollMode.Enabled,
+            Content = new TextBlock
+            {
+                // TextBlock 而不是多行 TextBox（L-141：代码 new 出来的多行 TextBox 只画第一行）
+                Text = string.IsNullOrWhiteSpace(result.Output) ? "(没有输出)" : result.Output,
+                IsTextSelectionEnabled = true,
+                FontSize = 12,
+                TextWrapping = TextWrapping.NoWrap,
+            },
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = $"健康检查 · {component.Name}",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children = { summary, meta, output },
+            },
+            PrimaryButtonText = "复制原文",
+            CloseButtonText = Lang.Lunarward_RuntimeEnv_Close,
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+        };
+        ContentDialogResult choice = await dialog.ShowAsync();
+        if (choice == ContentDialogResult.Primary)
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(string.IsNullOrWhiteSpace(result.Output) ? result.Summary : result.Output);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        }
     }
 
 

@@ -515,3 +515,10 @@ CLI：`--component-scan`、`--component-health <id|名字>`、`--component-impor
 - 方案卡片、前缀卡片、组件两分区、编辑器的「启动预览」与「高级」折叠均正常渲染。
 - 「配置文本（只读）」的多行 `TextBox` 只画第一行（`{`）→ 已换成 `ScrollViewer` + `TextBlock`（L-141）；前缀卡片的图形层状态补上「图形层：」前缀。
 - 未验证（留给验收）：`--component-download` 之外的下载取消按钮（未实现）、游戏设置页下拉在真实游戏上的联动。
+
+### 13.7 组件健康入口（2026-11-14 补）
+
+- §2.6 要求的「组件健康」之前只在 CLI（`--component-health`）有落点，页面里没有入口 → 现在每一行组件（运行器与图形层都算）右侧都有「检查」按钮。
+- 点开是一个对话框：标题「健康检查 · <名字>」，第一行是一句概括（`可用 (wine-11.19-… (Staging))` / `不可用：<原因>`），第二行是 `退出码 · 耗时 · 路径`，下面是等宽、只读、可复制的原文（命令行 + `exit:` + `stdout:` / `stderr:`），按钮「复制原文 / 关闭」。
+- 按 m21977 的口径：**不做发行版包名映射**，只给原文，避免映射误差把关键信息吃掉；检查是后台线程跑的（`ComponentHealth.CheckAsync` 用 `WaitForExitAsync` + 15 s 超时），不占 UI 线程（硬规则 10）。
+- 实测（系统 Wine）：概括 `可用 (wine-11.19-1-g78e32ba1d3d (Staging))`、`退出码 0 · 耗时 4 ms`、原文含 `$ /opt/spritz-wine-tkg/bin/wine --version` 与 `stdout: wine-11.19-…`。
