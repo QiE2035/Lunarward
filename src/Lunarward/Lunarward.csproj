@@ -49,6 +49,10 @@
     <PackageReference Include="Tmds.DBus" Version="0.95.2" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
     <PackageReference Include="Hi3Helper.Sophon" Version="1.7.1" />
+    <!-- 登录助手（D76）：Gtk4 + WebKitGTK 6.0 的 .NET 绑定。Aliases 是为了跟 Uno 自带的
+         GtkSharp 3.24（GTK3）区分，否则 Gtk.Application / WebView 会 CS0433 撞名。 -->
+    <PackageReference Include="GirCore.Gtk-4.0" Version="0.8.1" Aliases="gir" />
+    <PackageReference Include="GirCore.WebKit-6.0" Version="0.8.1" Aliases="gir" />
     <PackageReference Include="NuGet.Versioning" Version="7.9.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />

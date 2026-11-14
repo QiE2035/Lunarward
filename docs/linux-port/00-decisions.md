@@ -956,6 +956,20 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 
 **验证**：`--launch-plan` 在迁移后的真实配置上打印出正确的前缀与命令行；5 条 `MigrateFromLegacy` 单测覆盖上述规则。
 
+## D76 登录窗改用「本程序 + WebKitGTK 6.0」（A 方案）
+
+- **背景**：D32/D75 当初判定「登录窗不改 GirCore」，论据是「本机没有 `libwebkitgtk-6.0`」。该论据不成立——`extra/webkitgtk-6.0 2.54.2-1` 一直在官方仓库里，只是本机没装（D46：结论要有论据，不能拿「我这台机器没有」当「目标环境没有」）。
+- **两种方案都实测过**（spike 记录在 `poc/webkit-spike/README.md`）：
+  - **A（独立进程）**：`poc/webkit-spike` 用 GirCore 0.8.1 + GTK4 + WebKitGTK 6.0 开窗并渲染页面成功。
+  - **B（同进程）**：`poc/uno-smoke` 里 `GtkWebProbe.cs` 证明 Uno 进程内也能开 GTK4 窗口且 Uno 主循环继续跑。
+- **决定**：采用 **A**。理由：①进程内 GTK3（Uno 自带 GtkSharp 3.24）+ GTK4 并存属不受推荐组合（必须 `extern alias` 隔离，`CS0433` 是常态）；②GTK 窗口标题栏由 WM 装饰，颜色跟系统配色走，`GTK_THEME` 只影响窗口内部，观感上「像另一个程序」，要统一得自绘 CSD。
+- **实现**：`lunarward --webkit-login --url <登录页> --output <cookies.json> [--timeout 秒]`（`Features/GameRecord/WebKitLoginHost.cs`），由 `WebLoginService.LoginAsync` 用 `Environment.ProcessPath` 拉起自己；**没有 `libwebkitgtk-6.0` 时自动退回 python3 助手（D32 保留）**，两者输出格式一致（`{Cookies:{...}, Time:"yyyy-MM-ddTHH:mm:ss"}`）。
+- **cookie 怎么拿**：`CookieManager.SetPersistentStorage(<output>.db, Sqlite)` + 每 2 秒读 `moz_cookies`（`name`/`value`）。之所以不调 `GetCookies`：GirCore 0.8.1 只生成了 `*Finish`，没有 `GetCookiesAsync` 这类异步入。命中标记（同 python 的 `LOGIN_MARKERS`）即导出并关窗；关窗也导出；兜底超时导出。
+- **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 的 `depends` 需要加 `webkitgtk-6.0`（打包侧待办）。
+- **验证**（实测，2026-11-14）：本地起 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，`--webkit-login` 开窗后 2 秒内即输出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0；`moz_cookies` 里两条与页面一致。**待验收**：真实米游社登录（需用户操作）。
+
+---
+
 ## D75 外部能力先走 portal，视觉上「弹层必须实底」
 
 **背景**：两件事在同一批里暴露出来。①24 号盘点发现打开链接、选文件、截图、桌面通知都是 fork 外部命令（`xdg-open` / `kdialog` / `spectacle` / `notify-send`），在 flatpak 沙盒与纯 Wayland 会话里会静默失败；②Skia 后端没有系统模糊，`AcrylicBrush` 退化成半透明灰，对话框里壁纸文字直接透上来，浅色壁纸区基本读不清。
@@ -965,7 +979,7 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 1. 打开链接、选文件、桌面通知 → **xdg-desktop-portal 优先**（`OpenURI` / `FileChooser` / `org.freedesktop.Notifications`），外部命令只做兜底；全部是 D-Bus 异步往返，不 fork。
 2. 截图 → **外部工具优先**（spectacle / grim / gnome-screenshot），portal `Screenshot` 兜底。理由：静默全屏是热键体验的核心，portal 在部分桌面会弹授权/选区。
 3. 弹层与对话框统一用不透明表面 `LunarwardSurfaceBrush`（Dark `#FF202020` / Light `#FFF3F3F3`），覆盖 `ContentDialog`、`FlyoutPresenter`、`MenuFlyoutPresenterBackground`、`GameLauncherSettingDialog`；叠在应用背景上的页面类面板保留半透明。
-4. AVIF / JXL / HEIC 编解码交给 `Magick.NET-Q8-AnyCPU`（Skia 无对应 delegate），统一入口 `Helpers.ImageDecode`；登录窗**不改** GirCore：本机与目标环境都没有 `libwebkitgtk-6.0`，且进程内 GTK4 主循环与 Uno 的 X11 主机共存风险高于收益，保留 python3 + WebKitGTK 4.1 助手（D32）。
+4. AVIF / JXL / HEIC 编解码交给 `Magick.NET-Q8-AnyCPU`（Skia 无对应 delegate），统一入口 `Helpers.ImageDecode`；登录窗部分**已被 D76 取代**（当时误判目标环境没有 `webkitgtk-6.0`）。
 
 **代价**：①AppImage / 安装体积增加约 40 MB（Magick 的 linux-x64 native，publish 只留本机 RID）；②portal 调用失败时多一跳兜底，日志里会看到两条记录；③portal 的 `FileChooser` 对话框外观由桌面决定，和 kdialog 不完全一致。
 

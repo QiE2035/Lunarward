@@ -1189,3 +1189,10 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 现象：`AcrylicBrush` 在 Windows 上靠系统模糊，在 Skia 后端只是把 `TintColor` 按 `TintOpacity` 叠上去 —— 背景壁纸的文字直接透到对话框里，浅色壁纸区灰白字几乎读不清。
 - 修法：给弹层/对话框单独一套**不透明表面** `LunarwardSurfaceBrush`（Dark `#FF202020` / Light `#FFF3F3F3`），`ContentDialog`、`FlyoutPresenter`、`MenuFlyoutPresenterBackground`、`GameLauncherSettingDialog` 都换成它；页面里叠在应用背景上的面板仍保留原来的半透明观感（那里没有「文字压在别的文字上」的问题）。
 - 教训：判断标准不是「像不像 Windows」，而是「文字背后有没有别的内容」。有就必须实底。
+
+## L-149 用 .NET 绑定 GTK4/WebKitGTK 6.0 的三个硬点
+
+- **库名对不上**：GirCore 的 `DllImport` 名是 `WebKit` / `JavaScriptCore`，glibc 会去找 `libWebKit.so` → `System.DllNotFoundException`。要么在输出目录建 `libWebKit.so` 符号链接，要么 `NativeLibrary.SetDllImportResolver(typeof(WebKit.WebView).Assembly, Resolve)` 映射到 `libwebkitgtk-6.0.so.4` / `libjavascriptcoregtk-6.0.so.1`（与 L-57 的 libzstd 同类）。
+- **cookie 没有异步入口**：GirCore 0.8.1 的 `CookieManager` 只生成了 `GetCookiesFinish` / `GetAllCookiesFinish`（返回非泛型 `List`），能用的路径是 `SetPersistentStorage(path, CookiePersistentStorage.Sqlite)` + 自己读 `moz_cookies`（`SELECT name, value`）。读库要容忍 `SqliteException`（WebKit 正在写时短暂锁库），下一轮再试即可。
+- **与 Uno 撞名**：Uno 自带 GtkSharp 3.24（GTK3），同进程引 GTK4 必然 `CS0433`（`Gtk.Application`、`WebView` 等）；跨程序集要用 `extern alias gir;` + `using Gtk4 = gir::Gtk;`。所以「登录窗放独立进程」不只是观感问题，也是依赖隔离问题。
+- 附带：GirCore 里所有构造函数都是 `ConstructArgument[]`，一律走静态工厂（`Gtk.Application.New(appId, flags)`、`ApplicationWindow.New(app)`）；全局函数在 `GLib.Functions` / `WebKit.Functions`；`Gio.ApplicationFlags` 没有 `None`，传 `0`。

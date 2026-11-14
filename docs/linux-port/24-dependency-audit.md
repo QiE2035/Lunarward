@@ -102,7 +102,7 @@
 | P3 文件对话框 portal 化 | ✅ 2026-11-14 | `FileDialogHelper` 先走 `org.freedesktop.portal.FileChooser`（含 filters / multiple / directory / 保存建议名），portal 不可用才 kdialog → zenity |
 | P4 截图 portal 化 | ✅ 2026-11-14 | `ScreenCapture.Linux` 在 spectacle / grim / gnome-screenshot 全失败后走 `org.freedesktop.portal.Screenshot`；**外部工具优先**的理由见下 |
 | P4 AVIF / JXL 编解码（Magick.NET） | ✅ 2026-11-14 | 新增 `Helpers/MagickCodec.cs` + `Helpers/ImageDecode.cs`（Skia 优先、AVIF/JXL/HEIC 走 Magick）；`ComponentDownloader` 之外的四个解码点统一走 `ImageDecode`；`--image-info` 可自检。**体积代价**：`Magick.NET-Q8-AnyCPU` 输出里 4 个 RID native 共 ~146 MB，publish 单个 RID 只留一个（linux-x64 ~40 MB） |
-| P4 登录窗 GirCore 化 | ⛔ 不改（有据） | 本机 `libwebkitgtk-6.0.so` 不存在（`pacman -Qo` 无、`/usr/lib/libwebkitgtk*` 只有 4.1），GirCore 的 `WebKit-6.0` 绑定要求 6.0 运行时；且进程内 GTK4 主循环要与 Uno 自己的 X11 主机共存，风险高于收益。当前 python3 + WebKitGTK 4.1 助手可用（D32），保留 |
+| P4 登录窗 WebKitGTK 6.0 化 | ✅ 2026-11-14（D76） | 先前的「不改」结论**已撤回**：当时只查了本机有没有装，没查仓库——`extra/webkitgtk-6.0 2.54.2-1` 一直有，用户装上后 spike 通过。落地方式是 **A 方案**：登录窗仍是独立进程，但实现换成「本程序 + WebKitGTK 6.0」（`--webkit-login`），去掉 python3 依赖；B 方案（同进程）实测也能跑，但 Uno 自带 GtkSharp 3.24（GTK3）与 GTK4 并存、且 GTK 窗口标题栏跟系统配色走，观感不统一，故不采用 |
 | 顺手：`xdotool` → 进程内 xcb | ✅ 2026-11-14 | 新增 `X11Window.Activate`（EWMH `_NET_ACTIVE_WINDOW`），`X11KeyState.ActivateWindow` 先走它，`xdotool` 仅兜底 |
 | 顺手：`ProcessQuery` 改扫 `/proc` | ✅ 2026-11-14 | 不再 fork `fuser` / `lsof`：读 `/proc/*/fd` 的符号链接按路径前缀匹配（跳过无权限进程，可取消） |
 

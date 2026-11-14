@@ -54,6 +54,8 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
   --graphics-list
   --component-scan                 列出下载源（可用的受管组件清单）
   --component-list <源 id>          列出某个源的可用归档（名称 / 大小 / 版本）
+  --webkit-login --url <登录页> --output <cookies.json> [--timeout 秒]
+                                   登录窗（本程序 + WebKitGTK 6.0，独立进程）
   --image-info <图片路径>           看某个图片能不能解（Skia / Magick 两条后端各报一行）
   --component-health <id|名字>     健康检查：一句结论 + 可复制的原文
   --component-import <归档> --kind wine|graphics
@@ -141,6 +143,19 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 return client.GetBuildInfoForPackageAsync(branch, package, preDownload, fields, default, tag).GetAwaiter().GetResult();
             }
             return client.GetBuildInfoAsync(gameId, preDownload, fields, default, tag).GetAwaiter().GetResult();
+        }
+
+        // 登录助手（D76）：登录窗是独立进程，实现换成「本程序 + WebKitGTK 6.0」，不再依赖 python3。
+        if (args.Length >= 1 && args[0] is "--webkit-login")
+        {
+            if (!Features.GameRecord.WebKitLoginHost.IsAvailable())
+            {
+                Console.Error.WriteLine("没有找到 libwebkitgtk-6.0（Arch 上装 webkitgtk-6.0）。");
+                Environment.ExitCode = 1;
+                return;
+            }
+            Environment.ExitCode = Features.GameRecord.WebKitLoginHost.Run(args[1..]);
+            return;
         }
 
         // 只解析不启动：`lunarward --shell-plan` 打印每个 Profile 的调试 Shell 命令行与环境变量

@@ -1,3 +1,11 @@
+## 2026-11-14（十四）——登录窗换成「本程序 + WebKitGTK 6.0」
+
+- **登录不再依赖 python3**（D76）：新增 `--webkit-login --url <登录页> --output <cookies.json> [--timeout 秒]`（`Features/GameRecord/WebKitLoginHost.cs`，GirCore 0.8.1 + GTK4 + WebKitGTK 6.0），`WebLoginService.LoginAsync` 用 `Environment.ProcessPath` 拉起自己；**没有 `libwebkitgtk-6.0` 时自动退回原 python3 助手**，输出格式不变。
+- **cookie 取法**：`CookieManager.SetPersistentStorage` + 每 2 秒读 WebKit 的 `moz_cookies`（GirCore 只生成了 `*Finish`，没有异步 cookie API）；命中登录标记即导出关窗，关窗与超时也导出。
+- **撤回一条旧结论**：D32/D75 曾以「本机没有 `libwebkitgtk-6.0`」判定登录窗不改 GirCore——`extra/webkitgtk-6.0` 一直在仓库里，是论据本身错了（D46）。A/B 两个 spike 都跑通，选 A（独立进程）以避免 Uno 自带 GTK3 与 GTK4 同进程并存、以及 GTK 标题栏跟系统配色走的观感问题。
+- 实测：本地起带 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，开窗后 2 秒内导出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0。**真实米游社登录待验收**。
+- 文档：新增 D76、L-149；24 号「登录窗」一行由「不改（有据）」改为已落地并写清撤回原因。
+
 ## 2026-11-14（十三）——外部能力走 portal、图片格式补齐、弹层实底
 
 - **打开链接 / 选文件 / 桌面通知改走 xdg-desktop-portal**（D75）：`OpenUrl` 先发 `org.freedesktop.portal.OpenURI`，`FileDialogHelper` 先发 `FileChooser`（filters / 多选 / 目录 / 保存建议名），`DesktopNotification` 直接 D-Bus `org.freedesktop.Notifications`；外部命令（`xdg-open` / `kdialog` / `zenity` / `notify-send`）全部降级为兜底。

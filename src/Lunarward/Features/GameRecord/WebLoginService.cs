@@ -66,47 +66,106 @@ public static class WebLoginService
         }
     }
 
+    /// <summary>
+    /// 用本程序自己的 `--webkit-login` 起登录窗（D76）。返回 null 表示这个环境没有 WebKitGTK 6.0，
+    /// 调用方应退回 python 助手。
+    /// </summary>
+    private static Process? TryStartNativeHelper(string url, TimeSpan timeout)
+    {
+        if (!WebKitLoginHost.IsAvailable())
+        {
+            Serilog.Log.Information("webkitgtk-6.0 not found, falling back to python login helper");
+            return null;
+        }
+        string? self = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(self))
+        {
+            return null;
+        }
+        try
+        {
+            var psi = new ProcessStartInfo(self)
+            {
+                UseShellExecute = false,
+            };
+            psi.ArgumentList.Add("--webkit-login");
+            psi.ArgumentList.Add("--url");
+            psi.ArgumentList.Add(url);
+            psi.ArgumentList.Add("--output");
+            psi.ArgumentList.Add(CookiesFile);
+            psi.ArgumentList.Add("--timeout");
+            psi.ArgumentList.Add(((int)Math.Max(30, timeout.TotalSeconds)).ToString());
+            // WebKitGTK 在部分驱动/合成器下要关 DMABUF 渲染；Wayland 会话强制 X11（L-12）
+            psi.Environment["WEBKIT_DISABLE_DMABUF_RENDERER"] = "1";
+            if (Environment.GetEnvironmentVariable("XDG_SESSION_TYPE") == "wayland")
+            {
+                psi.Environment["GDK_BACKEND"] = "x11";
+            }
+            Serilog.Log.Information("login window via webkitgtk-6.0 (self child process)");
+            return Process.Start(psi);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "failed to start native login helper");
+            return null;
+        }
+    }
+
+
+    /// <summary>老的 python3 + WebKitGTK 4.1 助手，只在没有 webkitgtk-6.0 时用。</summary>
+    private static Process? TryStartPythonHelper(string helper, string url)
+    {
+        var psi = new ProcessStartInfo("python3")
+        {
+            ArgumentList = { helper, "--url", url, "--output", CookiesFile },
+            UseShellExecute = false,
+        };
+        psi.Environment["WEBKIT_DISABLE_DMABUF_RENDERER"] = "1";
+        if (Environment.GetEnvironmentVariable("XDG_SESSION_TYPE") == "wayland")
+        {
+            psi.Environment["GDK_BACKEND"] = "x11";
+        }
+        Serilog.Log.Information("login window via python3 helper (fallback)");
+        return Process.Start(psi);
+    }
+
+
     /// <summary>打开登录窗并等待 cookie 落盘。返回 false 表示用户取消或超时。</summary>
     public static async Task<bool> LoginAsync(string url, TimeSpan timeout)
     {
-        string? helper = ResolveHelper();
-        if (helper is null)
-        {
-            Serilog.Log.Warning("login helper missing: Assets/login-helper/login.py");
-            Helpers.InAppToast.MainWindow?.Warning("登录助手缺失：安装包不完整？", null, 8000);
-            return false;
-        }
-        string? missingDependency = await CheckHelperDependenciesAsync();
-        if (missingDependency is not null)
-        {
-            Serilog.Log.Warning("login helper dependencies missing: {detail}", missingDependency);
-            Helpers.InAppToast.MainWindow?.Warning(missingDependency, null, 12000);
-            return false;
-        }
         try
         {
             File.Delete(CookiesFile);
         }
         catch { }
 
-        var psi = new ProcessStartInfo("python3")
+        // 首选：本程序自己开 WebKitGTK 6.0 登录窗（D76）。没有 webkitgtk-6.0 才退回 python 助手。
+        Process? started = TryStartNativeHelper(url, timeout);
+        if (started is null)
         {
-            ArgumentList = { helper, "--url", url, "--output", CookiesFile },
-            UseShellExecute = false,
-        };
-        // WebKitGTK 在部分驱动/合成器下需要关掉 DMABUF 渲染，Wayland 会话还要强制 X11（L-12）
-        psi.Environment["WEBKIT_DISABLE_DMABUF_RENDERER"] = "1";
-        if (Environment.GetEnvironmentVariable("XDG_SESSION_TYPE") == "wayland")
-        {
-            psi.Environment["GDK_BACKEND"] = "x11";
+            string? helper = ResolveHelper();
+            if (helper is null)
+            {
+                Serilog.Log.Warning("login helper missing: Assets/login-helper/login.py");
+                Helpers.InAppToast.MainWindow?.Warning("登录助手缺失：安装包不完整？", null, 8000);
+                return false;
+            }
+            string? missingDependency = await CheckHelperDependenciesAsync();
+            if (missingDependency is not null)
+            {
+                Serilog.Log.Warning("login helper dependencies missing: {detail}", missingDependency);
+                Helpers.InAppToast.MainWindow?.Warning(missingDependency, null, 12000);
+                return false;
+            }
+            started = TryStartPythonHelper(helper, url);
         }
-        using var process = Process.Start(psi);
-        if (process is null)
+        if (started is null)
         {
             return false;
         }
         // 助手在检测到登录 cookie 后会自行退出；这里也轮询输出文件，
         // 这样用户即使不关登录窗口，也能在登录成功当刻拿到登录态。
+        using Process process = started;
         using var cts = new System.Threading.CancellationTokenSource(timeout);
         try
         {
