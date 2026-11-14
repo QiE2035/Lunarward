@@ -595,7 +595,7 @@ CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1
 | RG-06 `.reg` 必须带 BOM | `wine reg import` 吃无 BOM 的 UTF-16LE 时返回 0 却什么都没写（L-128） | `BuildRegFileBytes` 前两字节是 `FF FE`，且解码含 `Windows Registry Editor Version 5.00` | L1 | ✅ `RegistryFormatTests` |
 | RG-07 备份不得自我嵌套 | 手动备份把整个 `DatabaseBackup` 目录打进 zip（历次 `.zip` 套娃） | 归档内只有一个 `.db` 条目 | L1/L2 | ⬜ 待补（需把 `DatabaseService.CreateArchive` 链进测试工程） |
 | RG-08 进度文案不吞 0.0% | `StartGameButton` 用 `progress > 0`，`0.0%` 那一帧显示为空 | 进度为 0 时文本是 `0.0%` 而不是空串 | L1 | ⬜ 待补（把百分号格式化抽成纯函数） |
-| RG-09 启动耗时不回归 | 冷启动 1.04 s 由「XAML 通胀 0.58 s + 首帧 0.46 s」构成 | 分段基线与 §9 偏差 ≤20% | L3+看门狗 | ⬜ 半自动（`LUNARWARD_UI_WATCHDOG=1` 人工比对） |
+| RG-09 启动卡顿不回归 | 冷启动 1.04 s「XAML 通胀 0.58 s + 首帧 0.46 s」，D72 之前还叠加过 4.2 s | `perf.sh` 采集 `startup_stall_ms`（看门狗），**绝对上限 1500 ms** + 与基线比（+20%） | L2（`scripts/test/perf.sh`） | ✅ 已自动化 |
 | RG-10 未知命令不得静默进 GUI | `--companion-run hk4e_cn` 少一个参数 → 直接弹窗 | 首参数以 `-` 开头且不在白名单 → 打印提示 + `exit 1` | L2 | ✅ `cli-extra.sh` |
 | RG-11 预检结论要反映到退出码 | `--preflight` 判定不可启动仍 `rc=0` | 不可启动时 `rc=1` | L2 | ✅ `cli-extra.sh` |
 | RG-12 安装路径不依赖 config.json | `--install-fetch` 说「没有记录安装路径」，实际存 SQLite | 传 `--install-dir` 后能完成规划 | L2 | ✅ `cli-extra.sh` |

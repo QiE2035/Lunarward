@@ -1095,3 +1095,11 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 判断依据：这个事件不是平台契约，只有「文字真的被截断」时才发；xvfb 的布局与字体度量不同，可能整段都能放下，于是永不触发。功能本身（字号 -1）是渐进增强，缺失只是不变小，不影响正确性。
 - 做法：自检只断言**可控部分**——挂事件、强制 `UpdateLayout()`、改宽度再改回来、600 ms 内不许抛异常；「触发 / 未触发」写进 detail 供人工核对。
 - 通用规则：L1.5 断言要么钉「顺序 / 不抛异常 / 内容存在」，要么钉「数值区间」；凡是「某个平台事件必须发生」的，只能进 L3 人工项。
+
+## L-135 基线文件的格式漂移会让「比较」变成永真
+
+- 现象：`scripts/test/perf.sh` 的 `--update` 写的是 `{"envs": {"<uname -sr>": {...}}}`，而仓库里的 `perf-baseline.json` 还是早期的扁平结构 `{"list-runners-hot":413,...}`。比较分支只查 `envs[host]`，取不到就打印「本次只记录，不判定」并 `exit 0` —— **CI 里那条 Perf smoke 其实从来没红过**，灯是绿的但没在测。
+- 另一层：脚本依赖 `/usr/bin/time -v` 取峰值 RSS，Arch 默认不装 `time` 包 → 每次都 `self.time` 不存在、`awk` 报错、`peak_rss_kb` 恒为空（同样静默）。
+- 修法：①比较分支兼容扁平基线（`if base is None and "cli_median_ms" in data: base = {...}`）；②`/usr/bin/time` 不存在时只测耗时、RSS 记 n/a；③新增 `startup_stall_ms` 并配**绝对上限 1500 ms**（UX 硬指标不该跟某台机器的基线比）；④基线重新生成，不带 null 的空指标。
+- 通用规则：任何「有基线就比、没基线就过」的脚本，必须在**第一次落地时**确认它真的会红——制造一次回归（临时把阈值调到 1）验证失败路径，否则绿灯没有意义。
+
