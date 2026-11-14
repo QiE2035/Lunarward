@@ -22,9 +22,9 @@
             <InfoBar Margin="0,0,0,16"
                      IsClosable="False"
                      IsOpen="True"
-                     Message="Linux 版暂未实现手柄映射，这一页只是占位，下面的开关不会生效。"
+                     Message="{x:Bind lang:Lang.Lunarward_Gamepad_NotSupported_Message}"
                      Severity="Informational"
-                     Title="暂不支持" />
+                     Title="{x:Bind lang:Lang.Lunarward_Gamepad_NotSupported_Title}" />
 
             <!--  手柄增强  -->
             <StackPanel HorizontalAlignment="Left"

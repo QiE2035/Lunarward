@@ -54,7 +54,7 @@ dotnet test Starward.slnx -c Debug
 # 运行（开发构建）
 ./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward
 
-# 进程内 UI 自检（8 条断言，CI 里跑在 xvfb 上）
+# 进程内 UI 自检（9 条断言，CI 里跑在 xvfb 上）
 LUNARWARD_SELFTEST=1 ./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward --selftest-ui
 
 # L2 CLI 冒烟（cli-smoke 34 条 + cli-extra 13 条，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
@@ -123,7 +123,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - `README.md` — 总览与状态（**先看这个**）
 - `00-decisions.md` — D0–D72 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-131 坑与复现方法（唯一）
+- `13-lessons.md` — L-01…L-132 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
 - `19-test-plan.md` — 测试计划（唯一，210 条用例）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
 - `16-runtime-components.md` / `17-runtime-environment-ui.md` — 运行环境设计与 UI

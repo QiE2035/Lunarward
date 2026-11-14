@@ -3052,4 +3052,22 @@
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>このプレフィックスは使用中です：</value>
   </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Linux のグローバルホットキーは X11 のキーボード状態をポーリングして実装しています。root 権限は不要で、X11 / XWayland セッションで利用できます。純粋な Wayland セッションでは使用できないため、システムのショートカットにコマンド `lunarward --show` を割り当ててください。</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>未対応</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
+    <value>Linux 版ではゲームパッドの割り当てを実装していません。このページはプレースホルダーで、下のスイッチは効果がありません。</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>アカウントまたはキャラクターがありません</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
+    <value>HoYoLAB / miHoYo アカウントでログインすると、ここに戦績が表示されます。</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
+    <value>ログイン</value>
+  </data>
 </root>

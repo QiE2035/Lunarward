@@ -203,6 +203,7 @@
                                Grid.Column="1"
                                HorizontalAlignment="Left"
                                VerticalAlignment="Center"
+                               IsTextTrimmedChanged="TextBlock_Deepest_IsTextTrimmedChanged"
                                TextTrimming="CharacterEllipsis">
                         <Run Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{x:Bind lang:Lang.ApocalypticShadowPage_HighestDifficultyCleared}" />
                         <Run Text="" />

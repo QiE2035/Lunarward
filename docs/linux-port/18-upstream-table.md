@@ -113,5 +113,5 @@
 
 ### 仍需决策的 2 项
 
-1. **`IsTextTrimmedChanged` 能否回加**：Uno 6.7.359 的程序集里**已有** `add_IsTextTrimmedChanged` / `IsTextTrimmedChangedEventArgs` / `get_IsTextTrimmed`（`strings` 8 处命中），L-24 当年「Uno 没有这个事件」的阻塞条件可能已消解。涉及 `ScreenshotSetting.xaml:61`、`GachaStatsCard.xaml:59`、`ZZZGachaStatsCard.xaml:59`、`InstallGameDialog.xaml:55`、三个 StarRail 战绩页（`:206/:203/:204`）。回加能恢复「长文案被截断时两行回流」的自适应；但 Skia 后端是否真的触发该事件需要实测。
+1. **`IsTextTrimmedChanged` 能否回加（已定：能，已全部回加 2026-11-14，见 L-132）**：Uno 6.7.359 的程序集里**已有** `add_IsTextTrimmedChanged` / `IsTextTrimmedChangedEventArgs` / `get_IsTextTrimmed`（`strings` 8 处命中），L-24 当年「Uno 没有这个事件」的阻塞条件可能已消解。涉及 `ScreenshotSetting.xaml:61`、`GachaStatsCard.xaml:59`、`ZZZGachaStatsCard.xaml:59`、`InstallGameDialog.xaml:55`、三个 StarRail 战绩页（`:206/:203/:204`）。回加能恢复「长文案被截断时两行回流」的自适应；但 Skia 后端是否真的触发该事件需要实测。
 2. **硬编码中文文案的 i18n 欠账**：`HotkeySetting.xaml:22`、`GamepadControlSetting.xaml:22-27`、`GameRecordPage.xaml:527` 三处按 D61 用了中文字面量，等统一入 `Lang.resx`。

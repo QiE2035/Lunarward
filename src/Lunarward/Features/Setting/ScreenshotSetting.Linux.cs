@@ -118,5 +118,13 @@ public sealed partial class ScreenshotSetting : PageBase
     private void HotkeyInput_HotkeyDeleted(object sender, HotkeyInputEventArg e) { }
     private void HotkeyInput_HotkeyEditFinished(object sender, HotkeyEditFinishedEventArg e) { }
     private void HotkeyInput_HotkeyEditing(object sender, HotkeyInputEventArg e) { }
-    private void TextBlock_IsTextTrimmedChanged(Microsoft.UI.Xaml.Controls.TextBlock sender, IsTextTrimmedChangedEventArgs e) { }
+    // Lunarward：上游这段逻辑在 ScreenshotSetting.xaml.cs（本工程 <Compile Remove>），
+    // 这里补回来：文字被截断一次就缩小一号（最小 12），避免长路径被硬切（D46 复核结论 1）。
+    private void TextBlock_IsTextTrimmedChanged(Microsoft.UI.Xaml.Controls.TextBlock sender, IsTextTrimmedChangedEventArgs e)
+    {
+        if (sender.FontSize > 12)
+        {
+            sender.FontSize -= 1;
+        }
+    }
 }

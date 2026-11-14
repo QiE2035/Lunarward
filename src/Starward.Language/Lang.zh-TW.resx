@@ -3053,4 +3053,22 @@
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>此前綴正被佔用：</value>
   </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Linux 下全域快速鍵透過輪詢 X11 鍵盤狀態實現，不需要 root 權限。X11 / XWayland 工作階段可直接使用；純 Wayland 工作階段不可用，請把系統快速鍵綁定到指令 lunarward --show。</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>暫不支援</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
+    <value>Linux 版暫未實作手把對應，這一頁只是佔位，下面的開關不會生效。</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>還沒有登入或沒有綁定角色</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
+    <value>登入米遊社通行證後，這裡會顯示戰績與抽卡紀錄。</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
+    <value>登入</value>
+  </data>
 </root>

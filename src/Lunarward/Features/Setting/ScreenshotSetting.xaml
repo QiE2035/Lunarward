@@ -59,6 +59,7 @@
                         <TextBlock VerticalAlignment="Center"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    MaxLines="2"
+                                   IsTextTrimmedChanged="TextBlock_IsTextTrimmedChanged"
                                    Text="{x:Bind ScreenshotFolder}"
                                    TextTrimming="CharacterEllipsis"
                                    TextWrapping="Wrap" />

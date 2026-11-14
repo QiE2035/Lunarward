@@ -3047,4 +3047,22 @@
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>พรีฟิกซ์นี้ถูกใช้งานอยู่: </value>
   </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>ปุ่มลัดทั่วระบบบน Linux ทำงานโดยตรวจสอบสถานะคีย์บอร์ด X11 เป็นระยะ ไม่ต้องใช้สิทธิ์ root ใช้ได้ในเซสชัน X11 / XWayland แต่ใช้ไม่ได้ในเซสชัน Wayland แท้ — ให้ผูกคำสั่ง `lunarward --show` กับปุ่มลัดของระบบแทน</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>ยังไม่รองรับ</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
+    <value>เวอร์ชัน Linux ยังไม่ได้ทำการแมปเกมแพด หน้านี้เป็นเพียงตัวอย่าง และสวิตช์ด้านล่างไม่มีผล</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>ยังไม่มีบัญชีหรือตัวละคร</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
+    <value>เข้าสู่ระบบด้วยบัญชี HoYoLAB / miHoYo แล้วสถิติจะแสดงที่นี่</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
+    <value>เข้าสู่ระบบ</value>
+  </data>
 </root>

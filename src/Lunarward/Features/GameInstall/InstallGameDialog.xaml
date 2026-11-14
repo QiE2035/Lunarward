@@ -53,6 +53,7 @@
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            IsTextScaleFactorEnabled="False"
                            MaxLines="2"
+                           IsTextTrimmedChanged="TextBlock_IsTextTrimmedChanged"
                            Text="{x:Bind InstallationPath}"
                            TextTrimming="CharacterEllipsis"
                            TextWrapping="Wrap" />

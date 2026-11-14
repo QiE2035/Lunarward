@@ -3053,4 +3053,22 @@ Sei invitato a inviare i dati esportati al seguente repository:</value>
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>Questo prefix è in uso: </value>
   </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Le scorciatoie globali su Linux sono implementate interrogando lo stato della tastiera X11; non serve root. Funzionano nelle sessioni X11/XWayland. Non disponibili in una sessione Wayland pura: assegna il comando `lunarward --show` a una scorciatoia di sistema.</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>Non ancora supportato</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
+    <value>La mappatura del controller non è implementata nella build Linux; questa pagina è un segnaposto e l'interruttore qui sotto non ha effetto.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>Nessun account o personaggio</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
+    <value>Accedi con il tuo account HoYoLAB/miHoYo e i record compariranno qui.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
+    <value>Accedi</value>
+  </data>
 </root>

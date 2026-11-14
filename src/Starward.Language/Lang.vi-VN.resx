@@ -3050,4 +3050,22 @@ Bạn có chấp nhận rủi ro và tiếp tục?</value>
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>Prefix này đang được dùng: </value>
   </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Phím tắt toàn cục trên Linux được thực hiện bằng cách thăm dò trạng thái bàn phím X11, không cần quyền root. Dùng được trong phiên X11 / XWayland. Không dùng được trong phiên Wayland thuần — hãy gán lệnh `lunarward --show` cho phím tắt của hệ thống.</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>Chưa hỗ trợ</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
+    <value>Bản Linux chưa triển khai ánh xạ tay cầm; trang này chỉ là chỗ giữ chỗ và công tắc bên dưới không có tác dụng.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>Chưa có tài khoản hoặc nhân vật</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
+    <value>Đăng nhập bằng tài khoản HoYoLAB / miHoYo và dữ liệu sẽ hiển thị ở đây.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
+    <value>Đăng nhập</value>
+  </data>
 </root>

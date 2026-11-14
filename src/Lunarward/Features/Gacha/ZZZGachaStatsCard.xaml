@@ -56,6 +56,7 @@
             <TextBlock Name="TextBlock_GachaTypeText"
                        FontSize="16"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       IsTextTrimmedChanged="TextBlock_GachaTypeText_IsTextTrimmedChanged"
                        Text="{x:Bind WarpTypeStats.GachaTypeText}"
                        TextTrimming="CharacterEllipsis" />
             <TextBlock Grid.Column="1"

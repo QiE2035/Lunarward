@@ -1,3 +1,11 @@
+## 2026-11-14（四）——截断自适应回加、三处文案入 i18n
+
+- **`IsTextTrimmedChanged` 全部回加（7 处）**：`ScreenshotSetting.xaml`、`GachaStatsCard.xaml`、`ZZZGachaStatsCard.xaml`、`InstallGameDialog.xaml`、`ApocalypticShadowPage.xaml`、`ForgottenHallPage.xaml`、`PureFictionPage.xaml`。L-24 当年判定「Uno 没有这个事件」已过时：Uno 6.7.359 的程序集里有 `add_IsTextTrimmedChanged`，且自检第 9 条实测**事件在 Skia 后端会触发**。
+- `ScreenshotSetting.Linux.cs` 与 `InstallGameDialog.Linux.cs` 里原本是空 stub（上游实现所在 `.xaml.cs` 在 `<Compile Remove>`）→ 补回上游逻辑：被截断一次就缩一号字（最小 12）。
+- `UiSelfTest` 新增第 9 条断言「IsTextTrimmedChanged 在 Skia 后端会触发」（40×20 容器 + `MaxLines=1` + 超长文本，等 1.5 s），`--selftest-ui` 9/9 通过。
+- 三处硬编码中文入 `Lang`：热键说明、手柄页 InfoBar 标题/正文、战绩空态标题/正文/按钮，共 6 个键 × **12 个 resx**（en + zh-CN/zh-HK/zh-TW + de/es/it/ja/ko/ru/th/vi），并三处 XAML 改为 `x:Bind lang:Lang.Lunarward_*`。
+- 启动组成实测（决定不做 `x:Load` 结构性优化）：`MainView` 通胀 360 ms（内含 `GameSelector` 64 ms）+ `GameLauncherPage` 201 ms（内含 `StartGameButton` 70 ms、`GameBannerAndPost` 21 ms）。可延迟的部分只有 85 ms 量级，而 `GameSelector` 在构造函数里就要建游戏图标区、是首屏一部分，`x:Load` 会让首屏图标空着 → 收益 6% 但改动共享 XAML 且改变观感，**不做**，数据入 `19-test-plan.md` §9。
+
 ## 2026-11-14（三）——偏差复核与两处真实缺陷
 
 - 26 个「小改动」上游偏差全部复核完（A×19 / B×4 / C×3，死文件 0），结论落 `docs/linux-port/18-upstream-table.md`。

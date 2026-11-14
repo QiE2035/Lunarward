@@ -527,14 +527,14 @@
               Visibility="{x:Bind ShowRecordEmptyState}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
                 <FontIcon FontSize="40" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE9D9;" />
-                <TextBlock FontSize="18" HorizontalAlignment="Center" Text="还没有登录或没有绑定角色" />
+                <TextBlock FontSize="18" HorizontalAlignment="Center" Text="{x:Bind lang:Lang.Lunarward_Record_Empty_Title}" />
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            HorizontalAlignment="Center"
-                           Text="登录米游社通行证后，这里会显示战绩与抽卡记录。"
+                           Text="{x:Bind lang:Lang.Lunarward_Record_Empty_Description}"
                            TextWrapping="Wrap" />
                 <Button HorizontalAlignment="Center"
                         Command="{x:Bind WebLoginCommand}"
-                        Content="登录"
+                        Content="{x:Bind lang:Lang.Lunarward_Record_Empty_Login}"
                         Style="{ThemeResource AccentButtonStyle}" />
             </StackPanel>
         </Grid>

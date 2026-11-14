@@ -1,4 +1,4 @@
-// Lunarward：L1.5「进程内 UI 自检」（D65 里的 --selftest-ui）。
+﻿// Lunarward：L1.5「进程内 UI 自检」（D65 里的 --selftest-ui）。
 //
 // 为什么需要它：Uno 的 Skia/X11 后端不发布 AT-SPI 树，外部工具（Uno.UITest 也不支持 Skia）看不到控件；
 // 但 Uno 自家的 RuntimeTests 在 SkiaX11 上跑的是「进程内断言」——直接读视觉树、DependencyProperty 和布局结果。
@@ -98,6 +98,34 @@ internal static class UiSelfTest
                     Starward.Features.Runtime.ProfileBinding.Resolve(null);
                 bool ok = !string.IsNullOrEmpty(profile.Id) && !string.IsNullOrEmpty(profile.Name);
                 return Task.FromResult((ok, $"{profile.Name} ({profile.RunnerType})"));
+            }),
+
+            new("IsTextTrimmedChanged 在 Skia 后端会触发", async () =>
+            {
+                // 恢复 7 处「文字被截断时自适应」的前提就是这个事件真的会触发（L-24 曾判定 Uno 没有它）。
+                // 这里现场放一个超长文本 + 极窄宽度的 TextBlock，挂一次事件，等 1.5 s。
+                var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                var host = new Grid { Width = 40, Height = 20 };
+                var block = new TextBlock
+                {
+                    MaxLines = 1,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    Text = "IsTextTrimmedChanged 自检：这是一段一定放不下的超长文本，用来触发截断事件",
+                };
+                block.IsTextTrimmedChanged += (_, _) => tcs.TrySetResult(true);
+                host.Children.Add(block);
+                if (window.Content is Panel panel)
+                {
+                    panel.Children.Add(host);
+                }
+                host.UpdateLayout();
+                Task done = await Task.WhenAny(tcs.Task, Task.Delay(1500));
+                if (window.Content is Panel owner)
+                {
+                    owner.Children.Remove(host);
+                }
+                bool ok = done == tcs.Task;
+                return (ok, ok ? "事件已触发" : "1.5 s 内没有触发（Skia 后端可能不实现该事件）");
             }),
 
             new("主窗口标题正确", () =>

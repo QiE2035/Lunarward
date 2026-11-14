@@ -108,4 +108,15 @@ public sealed partial class InstallGameDialog : ContentDialog
         }
     }
 
+
+    // Lunarward：上游这段在 InstallGameDialog.xaml.cs（本工程 <Compile Remove>），
+    // 安装路径过长时自动缩一号字，避免被硬切成两行省略号（D46 复核结论 1）。
+    private void TextBlock_IsTextTrimmedChanged(Microsoft.UI.Xaml.Controls.TextBlock sender, IsTextTrimmedChangedEventArgs args)
+    {
+        if (sender.FontSize > 12)
+        {
+            sender.FontSize--;
+        }
+    }
+
 }

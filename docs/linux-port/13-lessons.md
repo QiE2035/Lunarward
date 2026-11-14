@@ -1069,3 +1069,10 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 冷启动 1.04 s、游戏设置对话框首次 170 ms，前者由 XAML 通胀 + 首帧布局/光栅两段构成，后者是「通胀 81 ms + 首帧 89 ms」；只有分层打点（ctor / InitializeComponent done / 首次 `LayoutUpdated`）才能说清钱花在哪。
 - 看门狗只回答「UI 线程被占住了多久」，不回答「谁占的」；`dotnet-stack` 只回答「采样那一瞬间在谁身上」。三者要给同一条时间线对齐才有结论。
 - 反例教训：`AppBackground.xaml.cs` 里的看门狗初始化写了却没日志——因为该文件在 `<Compile Remove>` 里根本不编译（L-41 家族），这种「什么都没发生」最容易被误读成「功能不生效」。
+
+### L-132 · 旧结论会过期：判定「平台不支持某能力」要重新查程序集
+
+- L-24 当年记「Uno 没有 `IsTextTrimmedChanged`」，据此把 7 处 XAML 的事件删除。本轮复核发现 Uno 6.7.359 的程序集里**已有** `add_IsTextTrimmedChanged` / `IsTextTrimmedChangedEventArgs` / `get_IsTextTrimmed`，且自检实测 Skia 后端**会触发**该事件 → 7 处全部回加（`ScreenshotSetting` / `GachaStatsCard` / `ZZZGachaStatsCard` / `InstallGameDialog` / 三个 StarRail 战绩页），恢复「长文案被截断时缩字号」的自适应。
+- 推论：lessons 里的「框架不支持 X」要带版本号，并在升级 Uno 时复查；判定能力是否存在用 `strings`/`ildasm` 查程序集，比查旧结论可靠。
+- 附带一条：上游实现所在 `.xaml.cs` 被 `<Compile Remove>` 时，事件处理器要在 `*.Linux.cs` 里补**真实逻辑**而不是空 stub，否则事件会触发但什么也不做（`ScreenshotSetting.Linux.cs` 与 `InstallGameDialog.Linux.cs` 本轮各补一处）。
+

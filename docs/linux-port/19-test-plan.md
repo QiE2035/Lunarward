@@ -406,6 +406,8 @@
 | 冷启动分段 | 总 1.04–1.24 s = XAML 通胀 0.58 s（`MainWindow` ctor→`InitializeComponent` done）+ 窗口激活与首帧布局/光栅 0.46 s（无日志事件的纯 measure/arrange + Skia 光栅） | 2026-11-14 打点实测 |
 | 冷启动 watchdog 其它卡顿 | 1 次 312–328 ms（托盘注册、`Accent color applied` 之后） | 同上 |
 | 游戏设置对话框首次打开 | 170 ms（XAML 通胀 81 ms + 首帧布局 89 ms）；同一会话再次打开 45 ms（17+28） | 同上 |
+| 冷启动 XAML 通胀构成 | `MainView` 360 ms（内含 `GameSelector` 64 ms）+ `GameLauncherPage` 201 ms（内含 `StartGameButton` 70 ms、`GameBannerAndPost` 21 ms） | 2026-11-14 ctor 打点 |
+| `IsTextTrimmedChanged`（Skia） | 事件会触发（自检第 9 条，1.5 s 内） | 2026-11-14 自检 |
 
 ---
 

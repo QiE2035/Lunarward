@@ -3053,4 +3053,22 @@
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>이 접두사가 사용 중입니다: </value>
   </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Linux의 전역 단축키는 X11 키보드 상태를 폴링하여 동작하며 root 권한이 필요 없습니다. X11 / XWayland 세션에서 사용할 수 있습니다. 순수 Wayland 세션에서는 사용할 수 없으므로 시스템 단축키에 `lunarward --show` 명령을 지정하세요.</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>아직 지원되지 않음</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
+    <value>Linux 빌드에는 게임패드 매핑이 구현되어 있지 않습니다. 이 페이지는 자리 표시자이며 아래 스위치는 동작하지 않습니다.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>아직 계정이나 캐릭터가 없습니다</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
+    <value>HoYoLAB / miHoYo 계정으로 로그인하면 여기에 전적이 표시됩니다.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
+    <value>로그인</value>
+  </data>
 </root>

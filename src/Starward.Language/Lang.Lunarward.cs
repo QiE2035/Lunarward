@@ -1,4 +1,4 @@
-// Lunarward：Linux 版新增的界面文案。上游 Lang 由 ResX 生成器产出，
+﻿// Lunarward：Linux 版新增的界面文案。上游 Lang 由 ResX 生成器产出，
 // 这里以 partial 方式追加，避免与生成文件互相覆盖（Lang.Designer.cs 已改为 partial）。
 namespace Starward.Language;
 
@@ -96,4 +96,10 @@ public partial class Lang
     public static string Lunarward_Error_InstallDirInvalid => ResourceManager.GetString("Lunarward_Error_InstallDirInvalid", resourceCulture) ?? "安装目录无效";
 
     public static string Lunarward_Error_PrefixLocked => ResourceManager.GetString("Lunarward_Error_PrefixLocked", resourceCulture) ?? "该前缀正被占用：";
+        public static string Lunarward_Hotkey_Description => ResourceManager.GetString("Lunarward_Hotkey_Description", resourceCulture) ?? "Lunarward_Hotkey_Description";
+        public static string Lunarward_Gamepad_NotSupported_Title => ResourceManager.GetString("Lunarward_Gamepad_NotSupported_Title", resourceCulture) ?? "Lunarward_Gamepad_NotSupported_Title";
+        public static string Lunarward_Gamepad_NotSupported_Message => ResourceManager.GetString("Lunarward_Gamepad_NotSupported_Message", resourceCulture) ?? "Lunarward_Gamepad_NotSupported_Message";
+        public static string Lunarward_Record_Empty_Title => ResourceManager.GetString("Lunarward_Record_Empty_Title", resourceCulture) ?? "Lunarward_Record_Empty_Title";
+        public static string Lunarward_Record_Empty_Description => ResourceManager.GetString("Lunarward_Record_Empty_Description", resourceCulture) ?? "Lunarward_Record_Empty_Description";
+        public static string Lunarward_Record_Empty_Login => ResourceManager.GetString("Lunarward_Record_Empty_Login", resourceCulture) ?? "Lunarward_Record_Empty_Login";
 }

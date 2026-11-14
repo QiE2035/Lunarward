@@ -3053,4 +3053,22 @@ Puede enviar los datos exportados al siguiente repositorio:</value>
   <data name="PlayTimeStatsDialog_Total" xml:space="preserve">
     <value>Total</value>
   </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Los atajos globales en Linux se implementan consultando el estado del teclado de X11; no se necesita root. Funcionan en sesiones X11/XWayland. No están disponibles en una sesión Wayland pura: asigna el comando `lunarward --show` a un atajo del sistema.</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>Aún no compatible</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
+    <value>La asignación de mando no está implementada en la versión Linux; esta página es un marcador y el interruptor de abajo no tiene efecto.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>Aún no hay cuenta ni personaje</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
+    <value>Inicia sesión con tu cuenta de HoYoLAB/miHoYo y los registros aparecerán aquí.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
+    <value>Iniciar sesión</value>
+  </data>
 </root>

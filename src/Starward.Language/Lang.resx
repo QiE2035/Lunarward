@@ -3053,4 +3053,22 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>This prefix is in use: </value>
   </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Global hotkeys on Linux are implemented by polling the X11 keyboard state; no root permission is needed. They work in X11 / XWayland sessions. Not available in a pure Wayland session — bind the command `lunarward --show` to a system shortcut instead.</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>Not supported yet</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
+    <value>Gamepad mapping is not implemented in the Linux build; this page is a placeholder and the switch below has no effect.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>No account or character yet</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
+    <value>Sign in with your HoYoLAB / miHoYo account and the records will show up here.</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
 </root>

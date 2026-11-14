@@ -3053,4 +3053,22 @@
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>该前缀正被占用：</value>
   </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Linux 下全局热键通过轮询 X11 键盘状态实现，不需要 root 权限。X11 / XWayland 会话可直接使用；纯 Wayland 会话不可用，请把系统快捷键绑定到命令 lunarward --show。</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>暂不支持</value>
+  </data>
+  <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
+    <value>Linux 版暂未实现手柄映射，这一页只是占位，下面的开关不会生效。</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>还没有登录或没有绑定角色</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
+    <value>登录米游社通行证后，这里会显示战绩与抽卡记录。</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
+    <value>登录</value>
+  </data>
 </root>
