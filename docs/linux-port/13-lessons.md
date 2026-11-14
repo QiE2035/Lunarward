@@ -1042,3 +1042,18 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 **原因**：`reg.exe` 靠 BOM 判断「这是 UTF-16」，没有 BOM 就按 ANSI 解析，整份文件被当成无效内容跳过，退出码仍是 0。
 
 **做法**：写 `.reg` 时显式拼 `Encoding.Unicode.GetPreamble() + Encoding.Unicode.GetBytes(text)` 落盘（`File.WriteAllBytesAsync`），不要指望默认行为；写完用一次 `reg query` 回读确认。
+
+
+## L-129 · 「该异步没异步」要按类清，不要只修发现的那一处
+
+**现象**：修完 `WineRegistry` 的 4 秒卡顿后，同类问题还有三处（导入图形组件同步拷 100 MB、`EnsureInstalled` 拷 DLL、`ComponentStore` 首次扫 PATH/Steam 库），都属于「一次点击卡一下」。
+
+**做法**：按六类逐类搜，别凭印象——
+1. 同步等异步：`.Result` / `.Wait()` / `.GetAwaiter().GetResult()`；
+2. 同步子进程：`Process.Start` + `WaitForExit()`（只搜 `WaitForExit()` 就够，`Process.Start` 多数是 fire-and-forget）；
+3. 同步目录/文件 IO：`Directory.GetFiles(...AllDirectories)`、大文件 `File.Copy`；
+4. 同步网络；5. 静态构造里的阻塞；6. `[ThreadStatic]` 跨 `await`。
+
+**判断标准**（本次结论）：CLI 主线程、退出路径、`<Compile Remove>` 掉的死文件、先判 `IsCompletedSuccessfully` 的取结果、异步续体里的 `.Result`、解析 1 px 图的静态构造——都可以留着；只有「UI 线程 + 可能上百毫秒」才必须改。
+
+**改法固定**：调用点包 `await Task.Run(...)`；页面初始化改成 `private void X() { _ = XAsync(); }` + `XAsync` 里先 `Task.Run` 取数据、`await` 之后再碰控件。

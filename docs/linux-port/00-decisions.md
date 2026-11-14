@@ -903,3 +903,10 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - 真机 `reg import` 端到端：用与代码完全相同的字节组装（BOM + UTF-16LE）导入 `HKCU\Software\LunarwardSelfTest`，rc=0 且回读到 `Flag REG_DWORD 0x1`、`Name REG_SZ 自检`；400 字节的 hex 行也能一次导入。
 
 **代价**：注册表值最多滞后 5 分钟（游戏内改的账号要在 5 分钟后才反映，或重启启动器）；写操作会失效缓存，所以启动器自己写的立刻可见。
+
+**2026-11-14 补充（同类收口）**：按同一原则清掉三处「一次点击卡一下」的同步重活——
+1. `RuntimeEnvironmentSetting.Button_ImportGraphics_Click` 的 `CopyDirectory`（导入 DXVK 组件，几百文件 / ~100 MB）包进 `Task.Run`；
+2. `GraphicsInstaller.EnsureInstalled` 的三个 UI 调用点（`GameLauncherPage` 预检修复、`RuntimeEnvironmentSetting` 前缀行与组件行）包进 `Task.Run`（拷 5 个 DLL + SHA-256）；
+3. `RuntimeEnvironmentSetting.LoadComponents` 改为 `LoadComponentsAsync`：`ComponentStore.GetRunners/GetGraphics` 的首次扫描（PATH + 所有 Steam 库 + `compatibilitytools.d`）在后台跑，扫完再回 UI 线程建行。
+
+验证：`--page setting --subpage RuntimeEnvironmentSetting` 冷启动看门狗只剩启动那 1 次平台渲染卡顿（1244 ms），页面组件行正常渲染（截图 `RuntimeEnvironmentSetting` 6 个运行器、来源标签齐全）；`dotnet test` 61 通过。

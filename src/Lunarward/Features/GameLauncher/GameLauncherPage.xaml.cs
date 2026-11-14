@@ -770,7 +770,7 @@ public sealed partial class GameLauncherPage : PageBase
                         MainWindow.Current?.OpenRuntimeSettings();
                         return;
                     }
-                    bool ok = GraphicsInstaller.EnsureInstalled(prefix, component, _logger);
+                    bool ok = await Task.Run(() => GraphicsInstaller.EnsureInstalled(prefix, component, _logger));
                     if (ok)
                     {
                         Helpers.InAppToast.MainWindow?.Success($"{component.DisplayName} 已安装到前缀。", null, 4000);

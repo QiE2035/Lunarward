@@ -241,11 +241,19 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private void LoadComponents()
     {
+        // D72：首次扫描要遍历 PATH、所有 Steam 库与 compatibilitytools.d，不能在 UI 线程上做
+        _ = LoadComponentsAsync();
+    }
+
+
+    private async Task LoadComponentsAsync()
+    {
+        (IReadOnlyList<Component> runners, IReadOnlyList<Component> graphics) = await Task.Run(() =>
+            (ComponentStore.GetRunners(false, _logger), ComponentStore.GetGraphics(false, _logger)));
+
         // D63 三段式：运行器进第一段、图形组件留在最后的组件区（P3 再收敛到前缀行）
         StackPanel_Runners.Children.Clear();
         StackPanel_Components.Children.Clear();
-        IReadOnlyList<Component> runners = ComponentStore.GetRunners(false, _logger);
-        IReadOnlyList<Component> graphics = ComponentStore.GetGraphics(false, _logger);
 
         if (runners.Count == 0)
         {
@@ -500,7 +508,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                     Starward.Features.Runtime.PrefixManager.ExpandPath(x.PrefixPath), prefixPath, StringComparison.Ordinal))?.GraphicsId ?? "";
             }
             Component? chosen = graphics.FirstOrDefault(x => x.Id == wanted) ?? graphics[0];
-            bool installed = Starward.Features.Runtime.GraphicsInstaller.EnsureInstalled(prefixPath, chosen, _logger);
+            bool installed = await Task.Run(() =>
+                Starward.Features.Runtime.GraphicsInstaller.EnsureInstalled(prefixPath, chosen, _logger));
             LoadPrefixes();
             Helpers.InAppToast.MainWindow?.Success((string?)null,
                 installed ? $"已装 {chosen.Name}" : "记录与文件都齐全，已跳过", 4000);
@@ -1134,7 +1143,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             string name = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar));
             string target = Path.Combine(ComponentStore.ComponentsFolder, kind, name);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            CopyDirectory(dir, target);
+            await Task.Run(() => CopyDirectory(dir, target));
             ComponentStore.Invalidate();
             LoadComponents();
             Helpers.InAppToast.MainWindow?.Success((string?)null, $"已导入 {kind}「{name}」", 4000);
@@ -1180,7 +1189,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 Helpers.InAppToast.MainWindow?.Error((string?)null, "这个目录不像 Wine 前缀（缺少 drive_c）");
                 return;
             }
-            bool ok = Features.Runtime.GraphicsInstaller.EnsureInstalled(prefix, component, _logger);
+            bool ok = await Task.Run(() =>
+                Features.Runtime.GraphicsInstaller.EnsureInstalled(prefix, component, _logger));
             if (ok)
             {
                 Helpers.InAppToast.MainWindow?.Success((string?)null, $"已把「{component.Name}」安装到该前缀", 4000);
