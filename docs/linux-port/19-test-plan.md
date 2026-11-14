@@ -407,7 +407,7 @@
 | 冷启动 watchdog 其它卡顿 | 1 次 312–328 ms（托盘注册、`Accent color applied` 之后） | 同上 |
 | 游戏设置对话框首次打开 | 170 ms（XAML 通胀 81 ms + 首帧布局 89 ms）；同一会话再次打开 45 ms（17+28） | 同上 |
 | 冷启动 XAML 通胀构成 | `MainView` 360 ms（内含 `GameSelector` 64 ms）+ `GameLauncherPage` 201 ms（内含 `StartGameButton` 70 ms、`GameBannerAndPost` 21 ms） | 2026-11-14 ctor 打点 |
-| `IsTextTrimmedChanged`（Skia） | 事件会触发（自检第 9 条，1.5 s 内） | 2026-11-14 自检 |
+| `IsTextTrimmedChanged`（Skia） | 真机触发；xvfb 下可能不触发。自检只断言「挂事件 + 强制布局不抛异常」 | 2026-11-14 自检 + CI |
 
 ---
 
@@ -591,7 +591,7 @@ CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1
 | RG-02 UI 线程不许同步 fork | `wine reg query` 在 UI 线程，切 bh3/hk4e/hkrpg 整窗静止 4.1–4.2 s（`wine reg query` 4159 ms / 看门狗 4212 ms） | `*.xaml.cs` 里不出现 `WaitForExit` / `.GetAwaiter().GetResult()` / `.Wait()` | L2 lint | ✅ `lint-ui-thread.sh` 规则 A |
 | RG-03 事件处理器不许是空 stub | `IsTextTrimmedChanged` 加了、处理器是 `{ }`，事件触发也不做事（`ScreenshotSetting.Linux.cs:121`、`InstallGameDialog.Linux.cs`） | `*.Linux.cs` 里没有单行空事件处理器；故意不接管的必须写 `// LINT-ALLOW: 原因` | L2 lint | ✅ 规则 B |
 | RG-04 命令白名单与 DevSwitches 同源 | `--page` 被「未知命令」守卫拦掉（回归自 F-20 的修法） | DevSwitches 的每个参数都在 `Program.Linux.cs` 的 `guiFlags` 里 | L2 lint | ✅ 规则 C |
-| RG-05 截断事件真的会触发 | L-24 误判「Uno 没有该事件」→ 7 处自适应被删；恢复后要证明它有效 | 现场造超长文本 + 极窄宽度，1.5 s 内事件必须触发 | L1.5 | ✅ 第 9 条 |
+| RG-05 截断事件不抛异常 | L-24 误判「Uno 没有该事件」→ 7 处自适应被删 | 现场造超长文本 + 极窄宽度，改宽度并强制布局，不许抛异常；触发结果写进 detail（CI 的 xvfb 不保证触发，见 L-134） | L1.5 | ✅ 第 9 条 |
 | RG-06 `.reg` 必须带 BOM | `wine reg import` 吃无 BOM 的 UTF-16LE 时返回 0 却什么都没写（L-128） | `BuildRegFileBytes` 前两字节是 `FF FE`，且解码含 `Windows Registry Editor Version 5.00` | L1 | ✅ `RegistryFormatTests` |
 | RG-07 备份不得自我嵌套 | 手动备份把整个 `DatabaseBackup` 目录打进 zip（历次 `.zip` 套娃） | 归档内只有一个 `.db` 条目 | L1/L2 | ⬜ 待补（需把 `DatabaseService.CreateArchive` 链进测试工程） |
 | RG-08 进度文案不吞 0.0% | `StartGameButton` 用 `progress > 0`，`0.0%` 那一帧显示为空 | 进度为 0 时文本是 `0.0%` 而不是空串 | L1 | ⬜ 待补（把百分号格式化抽成纯函数） |
