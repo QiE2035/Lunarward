@@ -37,6 +37,7 @@
 7. **不留临时插桩**：`[xx-diag]` 日志、`LUNARWARD_DEV_*` 钩子、临时脚本，提交前删掉或降级为 `Debug`。
 8. **不要 `pkill -f`**：会杀掉自己的 shell；用 `pkill -x Lunarward`。
 9. **用完随手关**：手动启动的实例、`--selftest-ui` 进程、cli-smoke 起的假服务，验证一结束就关（`pkill -x Lunarward`），不要留在用户桌面上吃资源、抢单实例锁、继续写日志。下一轮动手前先 `pgrep -x Lunarward` 确认干净。
+10. **UI 线程不许 fork 外部进程**（`Process.Start` + `WaitForExit`）：wine 冷启动 4 秒会整窗冻住（L-127）。注册表/前缀/预检一律走后台线程 + 异步 API。
 
 ---
 
@@ -120,9 +121,9 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 ## 6. 文档地图（`docs/linux-port/`）
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D70 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D72 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-125 坑与复现方法（唯一）
+- `13-lessons.md` — L-01…L-128 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
 - `19-test-plan.md` — 测试计划（唯一，210 条用例）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
 - `16-runtime-components.md` / `17-runtime-environment-ui.md` — 运行环境设计与 UI

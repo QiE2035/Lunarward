@@ -417,7 +417,7 @@ public sealed partial class GameBannerAndPost : UserControl
 
 
     [RelayCommand]
-    private void OpenGameNoticeWindow()
+    private async Task OpenGameNoticeWindowAsync()
     {
         try
         {
@@ -425,7 +425,7 @@ public sealed partial class GameBannerAndPost : UserControl
             // 窗口里给不出内容。这里按方案 A 直接交给系统浏览器打开（D40 的延续）：
             // 内嵌窗口留待以后换成外部 WebKitGTK 再启用。
             var service = AppConfig.GetService<GameNoticeService>();
-            string url = service.GetGameNoticeUrl(CurrentGameId.GameBiz);
+            string url = await service.GetGameNoticeUrlAsync(CurrentGameId.GameBiz);
             if (!Helpers.OpenUrl.Open(url))
             {
                 Helpers.InAppToast.MainWindow?.Warning("没能打开公告：系统里没有可用的浏览器？", null, 6000);

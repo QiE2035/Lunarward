@@ -874,3 +874,32 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **代价**：每次切换多两次属性赋值；标签页选中项回到第一个（上游行为也是每次换游戏默认第一个）。
 
 **验证**：真机切 4 次游戏，`Starward_261113.log` 里 pid 87809 的 `EROR` 行数 = 0（修复前同一操作 20 次异常）。
+
+
+## D72 · 切游戏卡 4 秒：UI 线程不得 fork wine（注册表访问改异步 + 整键批量 + 缓存）
+
+**现象**（用户口径）：切到绝区零秒切，切到原神/星穹/崩坏3 整窗静止几秒后恢复。
+
+**证据链**：
+- `LUNARWARD_UI_WATCHDOG=1` 看门狗：启动 1024 + 4224 ms，切原神 4047 ms，切星穹 4346 ms，切绝区零 **0 次**。
+- 临时打点抓到元凶：`[tempdiag] wine "reg query HKCU\Software\miHoYo\崩坏：星穹铁道 /v App_LastUserID_h2841727341" took 4159 ms (rc=1)`，紧随 `[watchdog] UI 线程卡顿 4212 ms`。
+- 调用链：`GameBannerAndPost.UpdateGameNoticeAlertAsync()` → `GameNoticeService.IsNoticeAlertAsync()` → `GetUidFromRegistry()` → `WineRegistry.GetValue()` → `Process.Start("wine reg query") + WaitForExit()`（同步）。
+- **为什么绝区零不卡**：`GameNoticeService.GetUidFromRegistry` 只有 `bh3/hk4e/hkrpg` 三个分支，`nap` 直接 `return 0`，根本不碰注册表。对照改 `CurrentGameBiz` 重启各一次：`hkrpg_cn` 1 次 wine 调用 4159 ms + 卡 4212 ms；`nap_cn` 0 次调用、0 卡顿。
+- wine 冷启动本身就要 ~4 s（`wineserver` 未起时），shell 里同样 4.199 s；这不是我们的开销，但绝不能放在 UI 线程。
+
+**决定**：
+1. `WineRegistry` 全量改异步：`GetKeyValuesAsync/GetValueAsync/SetValueAsync/SetValuesAsync`，`RunAsync` 用 `WaitForExitAsync` + 15 s 超时 + 并行排空 stdout/stderr；同步 API 保留为 `.GetAwaiter().GetResult()` 包装（CLI 用）。
+2. **一次 `reg query` 取整键**（原来一个值一次 fork），`N 个值只 fork 一次`。
+3. 结果按 `prefix|归一化键` 缓存：命中 5 分钟，键不存在缓存 60 s（游戏刚写入票据能读到）；写操作后失效对应键。
+4. 写多值改用 `wine reg import` + 临时 `.reg`（UTF-16LE **带 BOM**），一次 fork 写完整键。
+5. `UsePrefix` 是 `[ThreadStatic]`，异步续体可能换线程 → 前缀必须在任何 `await` 之前取出，并沿参数传递；`SetGenshinEnableHDRAsync` 显式传 prefix。
+6. 调用方全部改真异步：`GameNoticeService`、`GameAccountService`、`GameAccountSwitcher`、`GameBannerAndPost`、`GameSettingService`（写设置六处）、`GameSettingPage.ApplySettingAsync`、`GenshinHDRLuminanceSettingDialog.SaveAsync`、`ScreenCaptureService`（HDR 亮度）。
+7. 顺带把「创建/检查前缀」挪出 UI 线程：`GameLauncherPage` 两处 `PrefixManager.EnsurePrefix` 与 `GameLauncherService.StartGameAsync` 的 `LaunchPreflight.Check` + `CreateGameProcessStartInfo` 包进 `Task.Run`（wineboot 十几秒）。
+
+**验证**：
+- 看门狗重启后：启动只剩 1 次 1019–1266 ms 的平台渲染卡顿，切原神/星穹不再出现 4 秒卡顿，切绝区零仍 0 次（行为不变）。
+- 日志里 `wine reg query … 耗时 4235/4506 ms` 仍在，但**不再伴随 `[watchdog] UI 线程卡顿`** —— 说明它们在后台线程。
+- `tests/Lunarward.Tests/RegistryFormatTests.cs` 12 条覆盖 `ParseValues/ParseLine/BuildRegFile/NormalizeKey`（`(Default)` 行必须跳过，长 hex 行可解析）。
+- 真机 `reg import` 端到端：用与代码完全相同的字节组装（BOM + UTF-16LE）导入 `HKCU\Software\LunarwardSelfTest`，rc=0 且回读到 `Flag REG_DWORD 0x1`、`Name REG_SZ 自检`；400 字节的 hex 行也能一次导入。
+
+**代价**：注册表值最多滞后 5 分钟（游戏内改的账号要在 5 分钟后才反映，或重启启动器）；写操作会失效缓存，所以启动器自己写的立刻可见。

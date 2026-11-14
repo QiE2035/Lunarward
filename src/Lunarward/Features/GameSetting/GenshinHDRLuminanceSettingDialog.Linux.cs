@@ -34,9 +34,8 @@ public sealed partial class GenshinHDRLuminanceSettingDialog : ContentDialog
     private async Task SaveAsync()
     {
         // 与上游一致：写游戏注册表里的 HDR 亮度（Linux 下由 WineRegistry 落到 wine prefix）
-        GameSettingService.SetGenshinHDRLuminance(CurrentGameBiz, MaxLuminance, SceneLuminance, UILuminance);
+        await GameSettingService.SetGenshinHDRLuminanceAsync(CurrentGameBiz, MaxLuminance, SceneLuminance, UILuminance);
         Hide();
-        await Task.CompletedTask;
     }
 
     [RelayCommand]

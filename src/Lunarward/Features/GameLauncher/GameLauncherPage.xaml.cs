@@ -750,7 +750,11 @@ public sealed partial class GameLauncherPage : PageBase
                     {
                         Directory.Delete(prefix, true);
                     }
-                    string created = PrefixManager.EnsurePrefix(profile, string.IsNullOrEmpty(gameKey) ? CurrentGameBiz.Value : gameKey, _logger);
+                    // 创建前缀 = 一次 wineboot（十几秒）或 cp 克隆，必须在后台线程跑（L-127）
+                    string created = await Task.Run(() => PrefixManager.EnsurePrefix(
+                        profile,
+                        string.IsNullOrEmpty(gameKey) ? CurrentGameBiz.Value : gameKey,
+                        _logger));
                     Helpers.InAppToast.MainWindow?.Success($"前缀已重建：{created}", null, 5000);
                     return;
                 }
@@ -853,7 +857,10 @@ public sealed partial class GameLauncherPage : PageBase
         {
             string? exe = await ResolveCurrentExePathAsync();
             string gameKey = Path.GetFileNameWithoutExtension(exe ?? "").ToLowerInvariant();
-            return PrefixManager.EnsurePrefix(profile, string.IsNullOrEmpty(gameKey) ? CurrentGameBiz.Value : gameKey, _logger);
+            return await Task.Run(() => PrefixManager.EnsurePrefix(
+                profile,
+                string.IsNullOrEmpty(gameKey) ? CurrentGameBiz.Value : gameKey,
+                _logger));
         }
         catch (Exception ex)
         {

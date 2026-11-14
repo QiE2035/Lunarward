@@ -508,7 +508,7 @@ public sealed partial class GameSettingPage : PageBase
 
 
     [RelayCommand]
-    private void ApplySetting()
+    private async Task ApplySettingAsync()
     {
         try
         {
@@ -526,23 +526,23 @@ public sealed partial class GameSettingPage : PageBase
                     Width = ResolutionWidth,
                     Height = ResolutionHeight,
                 };
-                GameSettingService.SetGameResolutionSetting(CurrentGameBiz, model);
+                await GameSettingService.SetGameResolutionSettingAsync(CurrentGameBiz, model);
                 AppConfig.SetUsePopupWindow(CurrentGameBiz, UsePopupWindow);
             }
             if (IsLanguageSettingEnable)
             {
-                GameSettingService.SetGameVoiceLanguageSetting(CurrentGameBiz, LanguageIndex);
+                await GameSettingService.SetGameVoiceLanguageSettingAsync(CurrentGameBiz, LanguageIndex);
             }
             if (IsGraphicsSettingEnable)
             {
                 if (CurrentGameBiz.Game is GameBiz.hkrpg)
                 {
-                    GameSettingService.SetStarRailFPSIndex(CurrentGameBiz, StarRailFpsIndex);
+                    await GameSettingService.SetStarRailFPSIndexAsync(CurrentGameBiz, StarRailFpsIndex);
                 }
                 if (CurrentGameBiz.Game is GameBiz.hk4e)
                 {
                     AppConfig.EnableGenshinHDR = EnableGenshinHDR;
-                    GameSettingService.SetGenshinEnableHDR(CurrentGameBiz, EnableGenshinHDR);
+                    await GameSettingService.SetGenshinEnableHDRAsync(CurrentGameBiz, EnableGenshinHDR);
                 }
             }
             // 游戏运行时应用的设置无法生效

@@ -19,6 +19,7 @@
     <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/GameVersionMarker.cs" Link="Linked/GameVersionMarker.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/PrefixPath.cs" Link="Linked/PrefixPath.cs" />
     <Compile Include="../../src/Lunarward/Helpers/JsonFile.cs" Link="Linked/JsonFile.cs" />
+    <Compile Include="../../src/Lunarward/Features/GameAccount/RegistryFormat.cs" Link="Linked/RegistryFormat.cs" />
   </ItemGroup>
 
   <ItemGroup>

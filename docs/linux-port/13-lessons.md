@@ -1020,3 +1020,25 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 **解法**：赋值前后把 `SelectedIndex` 设成 `-1`（改完再设回 0）。`-1` 命中守卫第一项直接返回。
 
 **验证方法**：`grep -c ArgumentOutOfRangeException ~/.local/share/lunarward/log/Starward_*.log` 在切游戏前后计数，修复后不再增长。
+
+
+## L-127 · 在 UI 线程上 fork 外部进程 = 整窗静止（wine 冷启动 4 秒）
+
+**现象**：切到原神/星穹/崩坏3 时整窗静止 4 秒（鼠标能动、点什么都没反应），切绝区零秒切。
+
+**根因**：`WineRegistry.GetValue` 同步 `Process.Start("wine","reg","query",…)` + `WaitForExit()`；`wine` 在 `wineserver` 未起时要 4 秒，而它在 UI 线程上跑。绝区零不卡是因为那条代码路径对 `nap` 直接返回 0。
+
+**教训**：
+- 判断「卡顿」不要看日志停不停（日志停只说明没有新事件），用看门狗（`queue.TryEnqueue` + 计时）测 UI 线程真实占用。
+- 任何 `Process.Start` + `WaitForExit` 只能出现在后台线程；UI 路径必须 `WaitForExitAsync`。
+- 捕获式 API 要提供异步重载并且**调用方一起改**，只加异步版不换调用方等于没改。
+- `[ThreadStatic]` 的隐式上下文（这里是 `UsePrefix`）在 `async` 里会失效，必须在第一个 `await` 之前取出来用参数传。
+
+
+## L-128 · `wine reg import` 不吃没有 BOM 的 UTF-16LE 文件（而且不报错）
+
+**现象**：手写的 `.reg`（UTF-16LE 无 BOM）`wine reg import` 返回 0，随后 `reg query` 说「找不到指定的注册表项或值」。
+
+**原因**：`reg.exe` 靠 BOM 判断「这是 UTF-16」，没有 BOM 就按 ANSI 解析，整份文件被当成无效内容跳过，退出码仍是 0。
+
+**做法**：写 `.reg` 时显式拼 `Encoding.Unicode.GetPreamble() + Encoding.Unicode.GetBytes(text)` 落盘（`File.WriteAllBytesAsync`），不要指望默认行为；写完用一次 `reg query` 回读确认。

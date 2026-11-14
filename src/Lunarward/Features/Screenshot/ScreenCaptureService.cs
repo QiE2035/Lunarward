@@ -402,7 +402,7 @@ internal class ScreenCaptureService
             float outputMaxLuminance = captureItem.SdrWhiteLevel;
             if (runningGame.GameBiz.Game is GameBiz.hk4e)
             {
-                (_, outputMaxLuminance, _) = GameSettingService.GetGenshinHDRLuminance(runningGame.GameBiz);
+                (_, outputMaxLuminance, _) = await GameSettingService.GetGenshinHDRLuminanceAsync(runningGame.GameBiz).ConfigureAwait(false);
             }
             using var ms = new MemoryStream();
             await ImageSaver.SaveAsUhdrAsync(captureItem.CanvasBitmap, ms, captureItem.MaxCLL, outputMaxLuminance).ConfigureAwait(false);

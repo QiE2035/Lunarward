@@ -393,7 +393,8 @@ internal partial class GameLauncherService
             if (!OperatingSystem.IsWindows())
             {
                 launchProfile = Features.Runtime.ProfileBinding.Resolve(gameId.GameBiz);
-                preflight = LaunchPreflight.Check(gameId.GameBiz, exe, launchProfile, _logger);
+                // 预检要探测前缀/占用（会 spawn fuser、wine），创建前缀更可能要 wineboot 十几秒（L-127）
+                preflight = await Task.Run(() => LaunchPreflight.Check(gameId.GameBiz, exe, launchProfile, _logger));
                 if (!preflight.CanLaunch)
                 {
                     throw new LaunchPreflightException(preflight);
@@ -401,7 +402,13 @@ internal partial class GameLauncherService
             }
             // Lunarward：Windows 用 ShellExecute + runas 提权启动；Linux 改为直接 exec wine，
             // 保证「游戏是 wine 的第一个进程」（见 docs/linux-port/03-runtime-model.md）。
-            var info = CreateGameProcessStartInfo(exe, arg, out bool viaWine);
+            (ProcessStartInfo Info, bool ViaWine) launch = await Task.Run(() =>
+            {
+                var psi = CreateGameProcessStartInfo(exe, arg, out bool vw);
+                return (psi, vw);
+            });
+            var info = launch.Info;
+            bool viaWine = launch.ViaWine;
             _logger.LogInformation("Linux launch: {file} {args}", info.FileName, string.Join(" ", info.ArgumentList));
             if (!OperatingSystem.IsWindows())
             {

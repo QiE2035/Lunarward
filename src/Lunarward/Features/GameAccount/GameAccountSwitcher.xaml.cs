@@ -33,9 +33,9 @@ public sealed partial class GameAccountSwitcher : UserControl
 
 
 
-    private void GameAccountSwitcher_Loaded(object sender, RoutedEventArgs e)
+    private async void GameAccountSwitcher_Loaded(object sender, RoutedEventArgs e)
     {
-        UpdateGameAccount();
+        await UpdateGameAccountAsync();
     }
 
 
@@ -70,11 +70,11 @@ public sealed partial class GameAccountSwitcher : UserControl
     public bool CanChangeGameAccount { get; set => SetProperty(ref field, value); }
 
 
-    public void UpdateGameAccount()
+    public async Task UpdateGameAccountAsync()
     {
         try
         {
-            GameAccountList = _gameAccountService.GetGameAccounts(CurrentGameBiz);
+            GameAccountList = await _gameAccountService.GetGameAccountsAsync(CurrentGameBiz);
             SelectGameAccount = GameAccountList.FirstOrDefault();
             CanChangeGameAccount = false;
         }
@@ -86,13 +86,13 @@ public sealed partial class GameAccountSwitcher : UserControl
 
 
     [RelayCommand]
-    private void ChangeGameAccount()
+    private async Task ChangeGameAccountAsync()
     {
         try
         {
             if (SelectGameAccount is not null)
             {
-                _gameAccountService.ChangeGameAccount(SelectGameAccount);
+                await _gameAccountService.ChangeGameAccountAsync(SelectGameAccount);
                 CanChangeGameAccount = false;
             }
         }
@@ -143,14 +143,14 @@ public sealed partial class GameAccountSwitcher : UserControl
 
 
     [RelayCommand]
-    private void DeleteGameAccount()
+    private async Task DeleteGameAccountAsync()
     {
         try
         {
             if (SelectGameAccount is not null)
             {
                 _gameAccountService.DeleteGameAccount(SelectGameAccount);
-                UpdateGameAccount();
+                await UpdateGameAccountAsync();
             }
         }
         catch (Exception ex)
