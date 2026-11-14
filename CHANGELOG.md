@@ -1,3 +1,13 @@
+## 2026-11-14（七）——运行环境阶段 1：组件层（D73）
+
+- 新增受管组件层：`manifest.json`（布局/来源/digest）+ 布局归一化（`bin` / `files-bin` / `bare-exe`），导入后由 `ComponentStore` 直接读 manifest，不再靠猜目录结构。
+- 组件下载：HEAD 探 `Accept-Ranges` → 8 MiB 分片 × 4 连接并行（`.part.<n>` 可续传）→ 429/403 连续两次自动降级单流 → 合并后校验 SHA-256 → 原子改名。实测 DXVK 17 MB / 4 连接 / digest 一致。
+- 组件导入：系统 `tar` 解压（先自动识别，失败再 `--zstd`），只有一层同名目录时摊平，非运行器/非图形层的归档直接拒绝并说明原因。
+- 组件健康：一句话结论 + 等宽可复制的 stdout/stderr 原文 + 退出码，不做发行版包名映射（用户明确要求）。
+- CLI：`--component-scan` / `--component-health` / `--component-import` / `--component-download`。
+- 顺带修掉两个既有问题：图形层扫描不解析符号链接导致同一组件列两遍（`~/.local/share/Lunarward` 是链接）；`--component-health` 名字匹配区分大小写。
+- L1 新增 23 条（分片边界、镜像前缀、三种布局、manifest 往返、命名规则），单测 62 → 85；L2 新增 `T-CL-36/37/38/39`（源清单 / 导入 / 健康 / 缺参数），cli-extra 16 → 19。
+
 ## 2026-11-14（六）——数据库备份 CLI、启动卡顿进基线
 
 - 新增 `--database-backup <输出.zip>`：Vacuum + 单文件归档，归档里只有一个 `LunarwardDatabase_<时间>.db`，临时目录用完即删（`DatabaseService.BackupToArchive`）。这条同时补上 RG-07 的自动化入口。

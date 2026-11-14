@@ -161,7 +161,8 @@ public static class ComponentStore
         List<Component> list = new();
         HashSet<string> seen = new(StringComparer.Ordinal);
 
-        void AddRunner(string path, ComponentKind kind, string name, bool managed, string? source = null)
+        void AddRunner(string path, ComponentKind kind, string name, bool managed, string? source = null,
+            string? version = null)
         {
             string full;
             try
@@ -184,6 +185,7 @@ public static class ComponentStore
                 Path = full,
                 Managed = managed,
                 Layout = DetectLayout(full),
+                Version = version ?? "",
                 Source = source ?? ComponentSource.Guess(full, managed),
             });
         }
@@ -218,8 +220,16 @@ public static class ComponentStore
         {
             foreach (string dir in SafeDirs(managed))
             {
-                string wine = Path.Combine(dir, "bin", "wine");
-                AddRunner(wine, ComponentKind.Wine, Path.GetFileName(dir), true);
+                // 受管组件优先读 manifest（D73）：布局、名字、版本都来自导入/下载时写下的记录
+                ComponentManifest? manifest = ComponentManifestStore.TryRead(dir);
+                string wine = ComponentLayouts.WinePath(dir, manifest?.Layout ?? "");
+                if (string.IsNullOrEmpty(wine))
+                {
+                    wine = Path.Combine(dir, "bin", "wine");
+                }
+                AddRunner(wine, manifest?.Kind == "proton" ? ComponentKind.Proton : ComponentKind.Wine,
+                    string.IsNullOrWhiteSpace(manifest?.Name) ? Path.GetFileName(dir) : manifest!.Name,
+                    true, null, string.IsNullOrWhiteSpace(manifest?.Version) ? null : manifest!.Version);
             }
         }
 
@@ -266,12 +276,14 @@ public static class ComponentStore
         List<Component> list = new();
         HashSet<string> seen = new(StringComparer.Ordinal);
 
-        void AddGraphics(string dir, ComponentKind kind)
+        void AddGraphics(string dir, ComponentKind kind, ComponentManifest? manifest = null)
         {
             string full;
             try
             {
-                full = Path.GetFullPath(dir);
+                // 必须解析符号链接：~/.local/share/Lunarward 是本程序数据目录的链接，
+                // 不解析就会把同一个组件列两遍（2026-11-14 实测）。
+                full = RealPath(dir);
             }
             catch
             {
@@ -295,9 +307,10 @@ public static class ComponentStore
             {
                 Kind = kind,
                 Id = full,
-                Name = Path.GetFileName(full.TrimEnd('/')),
+                Name = string.IsNullOrWhiteSpace(manifest?.Name) ? Path.GetFileName(full.TrimEnd('/')) : manifest!.Name,
                 Path = full,
                 Managed = full.StartsWith(ComponentsFolder, StringComparison.Ordinal),
+                Version = manifest?.Version ?? "",
                 Source = ComponentSource.Guess(full, full.StartsWith(ComponentsFolder, StringComparison.Ordinal)),
             });
         }
@@ -308,7 +321,7 @@ public static class ComponentStore
             AddGraphics(root, ComponentKind.Dxvk);
         }
         // 本程序管理目录
-        foreach (string sub in new[] { "dxvk", "vkd3d-proton" })
+        foreach (string sub in new[] { "dxvk", "vkd3d-proton", "graphics" })
         {
             string root = Path.Combine(ComponentsFolder, sub);
             if (!Directory.Exists(root))
@@ -317,7 +330,15 @@ public static class ComponentStore
             }
             foreach (string dir in SafeDirs(root))
             {
-                AddGraphics(dir, sub == "dxvk" ? ComponentKind.Dxvk : ComponentKind.Vkd3dProton);
+                ComponentKind kind = sub switch
+                {
+                    "dxvk" => ComponentKind.Dxvk,
+                    "vkd3d-proton" => ComponentKind.Vkd3dProton,
+                    _ => File.Exists(Path.Combine(dir, "x64", "d3d12.dll")) || File.Exists(Path.Combine(dir, "d3d12.dll"))
+                        ? ComponentKind.Vkd3dProton
+                        : ComponentKind.Dxvk,
+                };
+                AddGraphics(dir, kind, ComponentManifestStore.TryRead(dir));
             }
         }
         // 特征探测：扫描根下任何含 x64/d3d11.dll（或 d3d12.dll）的目录（D56）

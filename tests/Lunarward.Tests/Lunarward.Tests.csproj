@@ -20,6 +20,8 @@
     <Compile Include="../../src/Lunarward/Features/Runtime/PrefixPath.cs" Link="Linked/PrefixPath.cs" />
     <Compile Include="../../src/Lunarward/Helpers/JsonFile.cs" Link="Linked/JsonFile.cs" />
     <Compile Include="../../src/Lunarward/Features/GameAccount/RegistryFormat.cs" Link="Linked/RegistryFormat.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/ComponentManifest.cs" Link="Linked/ComponentManifest.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/ComponentDownloader.cs" Link="Linked/ComponentDownloader.cs" />
   </ItemGroup>
 
   <ItemGroup>

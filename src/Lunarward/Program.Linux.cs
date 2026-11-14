@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 // Lunarward：Linux 桌面入口点。
@@ -50,6 +51,11 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                                    在方案环境里跑一次程序
   --shell-plan                     打印每个方案的调试 Shell 命令
   --graphics-list
+  --component-scan                 列出下载源（可用的受管组件清单）
+  --component-health <id|名字>     健康检查：一句结论 + 可复制的原文
+  --component-import <归档> --kind wine|graphics
+                                   导入归档为受管组件
+  --component-download <源 id>     下载并导入最新版本（4 连接分片）
   --graphics-install <前缀> <名字|id|路径>
   --graphics-verify <前缀>
   --graphics-remove <前缀>
@@ -1315,6 +1321,161 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
             return;
         }
 
+        // 受管组件（D73 阶段 1）：清单 / 健康 / 导入 / 下载
+        if (args.Length >= 1 && args[0] is "--component-scan" or "--component-health" or "--component-import" or "--component-download")
+        {
+            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            string kindOf(string[] argv)
+            {
+                for (int i = 0; i < argv.Length - 1; i++)
+                {
+                    if (argv[i] is "--kind")
+                    {
+                        return argv[i + 1];
+                    }
+                }
+                return "";
+            }
+
+            if (args[0] is "--component-scan")
+            {
+                Console.WriteLine($"受管目录：{Starward.Features.Runtime.ComponentStore.ComponentsFolder}");
+                Console.WriteLine($"下载源：{Starward.Features.Runtime.ComponentSources.FilePath}");
+                foreach (Starward.Features.Runtime.ComponentSourceEntry entry in Starward.Features.Runtime.ComponentSources.Load())
+                {
+                    Console.WriteLine($"  [{entry.Kind}] {entry.Id,-14} {entry.DisplayName}  ({entry.Owner}/{entry.Repo})");
+                }
+                return;
+            }
+
+            if (args[0] is "--component-health")
+            {
+                if (args.Length < 2)
+                {
+                    Console.WriteLine("用法：--component-health <组件 id|名字>");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                string wanted = args[1];
+                Starward.Features.Runtime.Component? target = Starward.Features.Runtime.ComponentStore
+                    .GetRunners(false).Concat(Starward.Features.Runtime.ComponentStore.GetGraphics(false))
+                    .FirstOrDefault(x => string.Equals(x.Id, wanted, StringComparison.OrdinalIgnoreCase)
+                                         || string.Equals(x.Name, wanted, StringComparison.OrdinalIgnoreCase)
+                                         || string.Equals(x.DisplayName, wanted, StringComparison.OrdinalIgnoreCase));
+                if (target is null)
+                {
+                    Console.WriteLine($"没有这个组件：{wanted}（用 --list-components 或 --component-scan 看可用的）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                Starward.Features.Runtime.ComponentHealthResult health = Starward.Features.Runtime.ComponentHealth
+                    .CheckAsync(target).GetAwaiter().GetResult();
+                Console.WriteLine($"{health.Name}：{health.Summary}（耗时 {health.Elapsed.TotalMilliseconds:F0} ms）");
+                Console.Write(health.Output);
+                Environment.ExitCode = health.Ok ? 0 : 1;
+                return;
+            }
+
+            if (args[0] is "--component-import")
+            {
+                if (args.Length < 2)
+                {
+                    Console.WriteLine("用法：--component-import <归档路径> [--kind wine|graphics]");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                string kind = kindOf(args);
+                if (kind is not ("wine" or "graphics" or "proton"))
+                {
+                    Console.WriteLine("需要 --kind wine|graphics（proton 归档用 wine）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                try
+                {
+                    Starward.Features.Runtime.ComponentManifest manifest = Starward.Features.Runtime.ComponentImporter
+                        .ImportAsync(args[1], kind, logger: new ConsoleLogger()).GetAwaiter().GetResult();
+                    Console.WriteLine($"已导入：{manifest.Id}（{manifest.Name} {manifest.Version}，layout={manifest.Layout}）");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"导入失败：{ex.Message}");
+                    Environment.ExitCode = 1;
+                }
+                return;
+            }
+
+            // --component-download
+            if (args.Length < 2)
+            {
+                Console.WriteLine("用法：--component-download <源 id>（用 --component-scan 看源）");
+                Environment.ExitCode = 1;
+                return;
+            }
+            Starward.Features.Runtime.ComponentSourceEntry? source = Starward.Features.Runtime.ComponentSources
+                .Load().FirstOrDefault(x => x.Id == args[1]);
+            if (source is null)
+            {
+                Console.WriteLine($"没有这个源：{args[1]}");
+                Environment.ExitCode = 1;
+                return;
+            }
+            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(20) };
+            // 警告要能看见（例如 HTTP 403 / 限流），否则只会得到一句「没有可用归档」
+            Microsoft.Extensions.Logging.ILogger consoleLogger = new ConsoleLogger();
+            IReadOnlyList<Starward.Features.Runtime.ComponentReleaseAsset> assets = Starward.Features.Runtime.ComponentSources
+                .ListAssetsAsync(http, source, 8, consoleLogger).GetAwaiter().GetResult();
+            if (assets.Count == 0)
+            {
+                Console.WriteLine($"源 {source.Id} 没有可用归档（网络或过滤规则问题）");
+                Environment.ExitCode = 1;
+                return;
+            }
+            Starward.Features.Runtime.ComponentReleaseAsset asset = assets[0];
+            Console.WriteLine($"下载 {asset.Name}（{asset.Size / 1024 / 1024} MB）← {asset.Url}");
+            string downloadDir = Path.Combine(Starward.Features.Runtime.ComponentStore.ComponentsFolder, ".download");
+            Directory.CreateDirectory(downloadDir);
+            try
+            {
+                Starward.Features.Runtime.ComponentDownloadResult result = Starward.Features.Runtime.ComponentDownloader
+                    .DownloadAsync(http, new Uri(Starward.Features.Runtime.ComponentDownloader.ApplyMirror(new Uri(asset.Url), source.MirrorPrefix)),
+                        downloadDir, asset.Name, asset.Sha256, 4,
+                        Starward.Features.Runtime.ComponentDownloader.DefaultChunkSize, consoleLogger,
+                        new Progress<Starward.Features.Runtime.ComponentDownloadProgress>(p =>
+                        {
+                            if (p.Total is long total and > 0)
+                            {
+                                Console.Write($"\r  {p.Received * 100 / total}%  {p.BytesPerSecond / 1024 / 1024:F1} MB/s  ({p.ActiveConnections} 连接)   ");
+                            }
+                        })).GetAwaiter().GetResult();
+                Console.WriteLine();
+                Console.WriteLine($"下载完成：{result.Bytes} 字节，连接 {result.Connections}{(result.DegradedToSingle ? "（已降级单流）" : "")}，digest {(result.DigestMatched ? "一致" : "未校验")}");
+                Starward.Features.Runtime.ComponentManifest manifest = Starward.Features.Runtime.ComponentImporter
+                    .ImportAsync(result.FilePath, source.Kind == "graphics" ? "graphics" : "wine",
+                        null, null, result.Sha256, asset.Url, source.MirrorPrefix, consoleLogger).GetAwaiter().GetResult();
+                try
+                {
+                    File.Delete(result.FilePath);
+                }
+                catch
+                {
+                    // 归档删不掉不影响结果
+                }
+                Console.WriteLine($"已导入：{manifest.Id}（{manifest.Name} {manifest.Version}）");
+            }
+            catch (IOException ex) when (ex.Message.StartsWith("组件目录已存在", StringComparison.Ordinal))
+            {
+                // 同名同版本已经导过了：不是失败，别让脚本以为出错
+                Console.WriteLine($"跳过：{ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"下载失败：{ex.Message}");
+                Environment.ExitCode = 1;
+            }
+            return;
+        }
+
         if (args.Length >= 1 && args[0] is "--list-components")
         {
             AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
@@ -1581,4 +1742,32 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
 
     private static string GetEnv(System.Diagnostics.ProcessStartInfo info, string key)
         => info.Environment.TryGetValue(key, out string? value) ? value ?? "" : "";
+}
+
+
+/// <summary>
+/// CLI 用的极简 logger：把 Warning/Error 原样打到 stdout，方便脚本排错。
+/// </summary>
+internal sealed class ConsoleLogger : Microsoft.Extensions.Logging.ILogger
+{
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel)
+        => logLevel >= Microsoft.Extensions.Logging.LogLevel.Warning;
+
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel,
+        Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        if (!IsEnabled(logLevel))
+        {
+            return;
+        }
+        string message = formatter(state, exception);
+        Console.WriteLine($"[{logLevel.ToString().ToLowerInvariant()}] {message}");
+        if (exception is not null)
+        {
+            Console.WriteLine(exception.Message);
+        }
+    }
 }

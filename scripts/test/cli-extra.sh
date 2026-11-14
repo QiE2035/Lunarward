@@ -152,4 +152,31 @@ else
     case_start "T-CL-35" "--database-backup 缺参数（缺少 unzip）"; skip_case "缺少 unzip"
 fi
 
+# ── 受管组件（D73 阶段 1）────────────────────────────────────────────
+case_start "T-CL-36" "--component-scan 列出下载源"
+lw --component-scan >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "wine-staging" \
+    && expect_contains "$(text)" "dxvk"; then pass_case; fi
+
+case_start "T-CL-37" "--component-import 把归档导入为受管组件并写入 manifest"
+IMP="$ROOT/imp"
+rm -rf "$IMP"; mkdir -p "$IMP/wine-z-9.9/files/bin" "$IMP/wine-z-9.9/files/share"
+printf '#!/bin/sh\necho "wine-z 9.9"\n' >"$IMP/wine-z-9.9/files/bin/wine"
+chmod +x "$IMP/wine-z-9.9/files/bin/wine"
+echo x >"$IMP/wine-z-9.9/files/share/x.dat"
+tar -C "$IMP" -czf "$IMP/wine-z-9.9.tar.gz" wine-z-9.9
+lw --component-import "$IMP/wine-z-9.9.tar.gz" --kind wine >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "已导入" \
+    && find "$LW_DATA/lunarward/components/wine" -name manifest.json -print -quit | grep -q .; then
+    pass_case
+fi
+
+case_start "T-CL-38" "--component-health 对导入的组件给出原文与退出码"
+lw --component-health wine-z >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "wine-z 9.9" && expect_contains "$(text)" "exit: 0"; then pass_case; fi
+
+case_start "T-CL-39" "--component-import 缺 --kind 时返回 1"
+lw --component-import "$IMP/wine-z-9.9.tar.gz" >"$out" 2>&1; rc=$?
+if expect_rc 1 "$rc" && expect_contains "$(text)" "--kind"; then pass_case; fi
+
 summary

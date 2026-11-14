@@ -437,3 +437,29 @@ wine 不允许 root 运行。启动时若 `geteuid() == 0` 直接拒绝并说明
 3. `wrappers` 是否支持带参数的项（`gamescope -W 2560 -H 1440 --`）——倾向支持，存字符串数组 + 拼接时不加 shell 解释。
 4. ~~组件下载的并发与限速~~ → 已定案，见 §2.3「并发下载」（分片并行 4 连接 + 断点续传 + 限速降级）。
 5. 前缀侧写 `<prefix>/lunarward.toml` 是否改成 JSON（与其它文件一致）。
+
+---
+
+## 12 · 阶段 1 实施记录（组件层，2026-11-14）
+
+对应 §10 验收 A1–A8。文件：
+
+| 文件 | 职责 |
+| --- | --- |
+| `src/Lunarward/Features/Runtime/ComponentManifest.cs` | `manifest.json` 读写（`SchemaVersion=1`）+ `ComponentLayouts.FindRunnerRoot` 布局归一化（`bin` / `files-bin` / `bare-exe`） |
+| `src/Lunarward/Features/Runtime/ComponentDownloader.cs` | HEAD 探 Range → 8 MiB 分片 × 4 连接并行 → 250 ms 采样进度 → 429/403 降级单流 → 合并后 SHA-256 → 原子改名 |
+| `src/Lunarward/Features/Runtime/ComponentSources.cs` | 五个默认源（wine-staging / wine-tkg / GE-Proton / DXVK / VKD3D-Proton）+ 用户覆盖 `components-sources.json` |
+| `src/Lunarward/Features/Runtime/ComponentImporter.cs` | 系统 `tar` 解压 → 单层目录摊平 → 布局识别 → 搬进 `components/<wine|graphics>/<名字>-<版本>` → 写 manifest |
+| `src/Lunarward/Features/Runtime/ComponentHealth.cs` | 一句话结论 + stdout/stderr 原文 + 退出码（不映射发行版包名） |
+| `ComponentStore.cs`（改） | 受管目录优先读 manifest（名字/版本/布局），图形层扫描补 `components/graphics`，`AddGraphics` 也走 `RealPath` 去重 |
+
+CLI：`--component-scan`、`--component-health <id|名字>`、`--component-import <归档> --kind wine|graphics`、`--component-download <源 id>`。
+
+实测（2026-11-14，本机 CachyOS）：
+
+- `--component-download dxvk` → `dxvk-3.1.1.tar.gz` 18,041,512 字节，4 连接，`digest 一致`，导入为 `graphics/dxvk-3.1.1`，`x64/d3d11.dll` 就位。
+- 归档若只包一层同名目录，会被摊平（否则会得到 `graphics/dxvk-3.1.1/dxvk-3.1.1/`）。
+- 同一组件经 `~/.local/share/Lunarward`（数据目录符号链接）曾列两遍 → `AddGraphics` 改走 `RealPath` 后合并。
+- `--component-health` 对假运行器与真 wine 均给出原文：`wine-11.19-1-g78e32ba1d3d (Staging)`。
+
+尚未做（进入阶段 2 前）：下载取消按钮与磁盘空间预检（§2.3）、首次选用时的自动自检时机（§2.5）、`components-sources.json` 的编辑界面。
