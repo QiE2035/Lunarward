@@ -54,6 +54,7 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
   --graphics-list
   --component-scan                 列出下载源（可用的受管组件清单）
   --component-list <源 id>          列出某个源的可用归档（名称 / 大小 / 版本）
+  --image-info <图片路径>           看某个图片能不能解（Skia / Magick 两条后端各报一行）
   --component-health <id|名字>     健康检查：一句结论 + 可复制的原文
   --component-import <归档> --kind wine|graphics
                                    导入归档为受管组件
@@ -1326,6 +1327,47 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 bool removed = Starward.Features.Runtime.GraphicsInstaller.Remove(prefix);
                 Console.WriteLine(removed ? "已移除图形层" : "没有找到图形层记录");
             }
+            return;
+        }
+
+        // 图像解码自检（24 号 P4）：Skia / Magick 两条后端各报一句，便于验收 AVIF / JXL
+        if (args.Length >= 1 && args[0] is "--image-info")
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("用法：lunarward --image-info <图片路径>");
+                Environment.ExitCode = 1;
+                return;
+            }
+            string imagePath = args[1];
+            if (!System.IO.File.Exists(imagePath))
+            {
+                Console.WriteLine($"找不到文件：{imagePath}");
+                Environment.ExitCode = 1;
+                return;
+            }
+            using SkiaSharp.SKBitmap? bitmap = Starward.Helpers.ImageDecode.Load(imagePath, 256);
+            Console.WriteLine($"文件：{imagePath}");
+            bool skia = false;
+            try
+            {
+                using var probeStream = System.IO.File.OpenRead(imagePath);
+                using SkiaSharp.SKCodec? probeCodec = SkiaSharp.SKCodec.Create(probeStream);
+                skia = probeCodec?.Info.Width > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[debug] Skia 探测异常：{ex.GetType().Name}");
+            }
+            Console.WriteLine($"Skia 可解码：{(skia ? "是" : "否")}");
+            Console.WriteLine($"Magick 可用：{(Starward.Helpers.MagickCodec.IsAvailable ? "是" : "否")}");
+            if (bitmap is null)
+            {
+                Console.WriteLine("结果：两种后端都解不开");
+                Environment.ExitCode = 1;
+                return;
+            }
+            Console.WriteLine($"结果：{bitmap.Width}x{bitmap.Height}（长边限 256）");
             return;
         }
 

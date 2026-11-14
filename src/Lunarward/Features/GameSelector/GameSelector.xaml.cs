@@ -586,6 +586,10 @@ public sealed partial class GameSelector : UserControl
     }
 
 
+    /// <summary>关闭游戏选择层（Esc 用；只收层，不动主窗口）。</summary>
+    public void CloseLayer() => HideFullBackground();
+
+
     private void HideFullBackground()
     {
         Border_FullBackground.Opacity = 0;

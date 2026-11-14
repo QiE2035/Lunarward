@@ -1,5 +1,9 @@
-// Lunarward：Linux 下用 portal 原生对话框（zenity/kdialog），替代 Windows FileOpenPicker/SaveFilePicker。
-// 若两者都不存在，退化为返回 null（上层已处理「用户取消」）。
+// Lunarward：Linux 下的文件对话框。
+//
+// 顺序（24 号 P3）：xdg-desktop-portal 的 FileChooser → kdialog → zenity。
+// portal 优先是因为沙盒（flatpak / 纯 Wayland）里 kdialog 系工具可能根本看不见宿主文件；
+// portal 不可用时才用 kdialog/zenity 这类「有就用」的兜底。
+// 全都不存在返回 null（上层按「用户取消」处理）。
 using Microsoft.UI.Xaml;
 using System;
 using System.Collections.Generic;
@@ -48,6 +52,12 @@ public static partial class FileDialogHelper
 
     private static async Task<string?> PickSingleFileAsync((string Name, string Extension)[] filter)
     {
+        PortalPickResult picked = await Portal.PickFilesAsync("打开文件", multiple: false, save: false,
+            globs: ToGlobs(filter), acceptLabel: filter.Length > 0 ? filter[0].Name : null).ConfigureAwait(false);
+        if (picked.Handled)
+        {
+            return picked.Paths.Length > 0 ? picked.Paths[0] : null;
+        }
         var args = DialogTool == "kdialog"
             ? new List<string> { "--getopenfilename", AppConfig.UserDataFolder ?? "HOME" }
             : new List<string> { "--file-selection" };
@@ -64,6 +74,12 @@ public static partial class FileDialogHelper
 
     private static async Task<List<string>> PickMultipleFilesAsync((string Name, string Extension)[] filter)
     {
+        PortalPickResult picked = await Portal.PickFilesAsync("选择文件", multiple: true, save: false,
+            globs: ToGlobs(filter), acceptLabel: filter.Length > 0 ? filter[0].Name : null).ConfigureAwait(false);
+        if (picked.Handled)
+        {
+            return picked.Paths.ToList();
+        }
         var args = DialogTool == "kdialog"
             ? new List<string> { "--getopenfilename", AppConfig.UserDataFolder ?? "HOME", "--multiple", "--separate-output" }
             : new List<string> { "--file-selection", "--multiple", "--separator=\\n" };
@@ -80,6 +96,12 @@ public static partial class FileDialogHelper
 
     private static async Task<string?> OpenSaveFileDialogAsync(string? fileName, (string Name, string Extension)[] filter)
     {
+        PortalPickResult picked = await Portal.PickFilesAsync("保存文件", multiple: false, save: true,
+            suggestedName: fileName, globs: ToGlobs(filter), acceptLabel: filter.Length > 0 ? filter[0].Name : null).ConfigureAwait(false);
+        if (picked.Handled)
+        {
+            return picked.Paths.Length > 0 ? picked.Paths[0] : null;
+        }
         var start = string.IsNullOrWhiteSpace(fileName)
             ? AppConfig.UserDataFolder ?? "HOME"
             : System.IO.Path.Combine(AppConfig.UserDataFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), fileName);
@@ -91,13 +113,40 @@ public static partial class FileDialogHelper
         return FirstLine(output);
     }
 
-    public static Task<string?> PickFolderAsync(XamlRoot? xamlRoot)
+    public static async Task<string?> PickFolderAsync(XamlRoot? xamlRoot)
     {
+        PortalPickResult picked = await Portal.PickFilesAsync("选择目录", multiple: false, save: false, directory: true).ConfigureAwait(false);
+        if (picked.Handled)
+        {
+            return picked.Paths.Length > 0 ? picked.Paths[0] : null;
+        }
         var args = DialogTool == "kdialog"
             ? new List<string> { "--getexistingdirectory", AppConfig.UserDataFolder ?? "HOME" }
             : new List<string> { "--file-selection", "--directory" };
-        return RunAsync(args).ContinueWith(t => FirstLine(t.Result));
+        var output = await RunAsync(args).ConfigureAwait(false);
+        return FirstLine(output);
     }
+
+
+    /// <summary>`(".png")` → `"*.png"`；portal 的 filters 用 glob。</summary>
+    private static string[] ToGlobs((string Name, string Extension)[] filter)
+    {
+        if (filter.Length == 0)
+        {
+            return Array.Empty<string>();
+        }
+        var globs = new List<string>(filter.Length);
+        foreach (var (_, ext) in filter)
+        {
+            if (string.IsNullOrWhiteSpace(ext))
+            {
+                continue;
+            }
+            globs.Add(ext.Contains('*') ? ext : $"*{ext}");
+        }
+        return globs.ToArray();
+    }
+
 
     private static void AppendFilters(List<string> args, (string Name, string Extension)[] filter)
     {

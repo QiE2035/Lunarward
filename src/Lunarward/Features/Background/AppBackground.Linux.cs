@@ -306,8 +306,8 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     /// <summary>SkiaSharp 合成：底图铺满 + 主题图按上游语义整幅拉伸叠加，输出 PNG。</summary>
     private static byte[] ComposeBackgroundPng(string backgroundPath, string themePath)
     {
-        using var background = SkiaSharp.SKBitmap.Decode(backgroundPath);
-        using var theme = SkiaSharp.SKBitmap.Decode(themePath);
+        using var background = Starward.Helpers.ImageDecode.Load(backgroundPath);
+        using var theme = Starward.Helpers.ImageDecode.Load(themePath);
         if (background is null || theme is null)
         {
             throw new InvalidOperationException("decode background/theme failed");

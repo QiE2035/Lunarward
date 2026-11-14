@@ -55,13 +55,17 @@
             <StaticResource x:Key="ContentDialogTopOverlay" ResourceKey="ControlFillColorTransparentBrush" />
 
             <Style BasedOn="{StaticResource DefaultContentDialogStyle}" TargetType="ContentDialog">
-                <Setter Property="Background" Value="{ThemeResource CustomAcrylicBrush}" />
+                <Setter Property="Background" Value="{ThemeResource LunarwardSurfaceBrush}" />
             </Style>
 
             <Style BasedOn="{StaticResource DefaultFlyoutPresenterStyle}" TargetType="FlyoutPresenter">
                 <Setter Property="BorderThickness" Value="0" />
-                <Setter Property="Background" Value="{ThemeResource CustomAcrylicBrush}" />
+                <Setter Property="Background" Value="{ThemeResource LunarwardSurfaceBrush}" />
             </Style>
+
+            <!--  右键菜单 / 下拉菜单同样要实底：半透明时底层文字会透过来，浅色壁纸上根本读不清  -->
+            <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="LunarwardSurfaceBrush" />
+            <StaticResource x:Key="MenuFlyoutSeparatorBackground" ResourceKey="LunarwardSurfaceBrush" />
 
             <FontFamily x:Key="SegoeFluentIcons">ms-appx:///Assets/Font/Segoe Fluent Icons.ttf#Segoe Fluent Icons</FontFamily>
             <Style TargetType="FontIcon">
@@ -81,6 +85,7 @@
                     <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="{ThemeResource SystemAccentColorDark2}" />
                     <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="{ThemeResource SystemAccentColorDark3}" />
                     <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="{ThemeResource SystemAccentColorDark1}" />
+                    <SolidColorBrush x:Key="LunarwardSurfaceBrush" Color="#FFF3F3F3" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <Color x:Key="SystemAccentColor">#CBAD8E</Color>
@@ -93,6 +98,7 @@
                     <SolidColorBrush x:Key="AccentTextFillColorPrimaryBrush" Color="{ThemeResource SystemAccentColorLight3}" />
                     <SolidColorBrush x:Key="AccentTextFillColorSecondaryBrush" Color="{ThemeResource SystemAccentColorLight3}" />
                     <SolidColorBrush x:Key="AccentTextFillColorTertiaryBrush" Color="{ThemeResource SystemAccentColorLight2}" />
+                    <SolidColorBrush x:Key="LunarwardSurfaceBrush" Color="#FF202020" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 

@@ -955,3 +955,21 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **代价**：①「临时环境」不再有一键语义，需要临时前缀时手动填一个路径、用完自己删（或建完复制一份）；②旧 JSON 的 `PrefixMode` 只读不写；③模板复用要靠「从现有前缀复制」，复制 650 MB 大约 0.2 秒（btrfs reflink）。
 
 **验证**：`--launch-plan` 在迁移后的真实配置上打印出正确的前缀与命令行；5 条 `MigrateFromLegacy` 单测覆盖上述规则。
+
+## D75 外部能力先走 portal，视觉上「弹层必须实底」
+
+**背景**：两件事在同一批里暴露出来。①24 号盘点发现打开链接、选文件、截图、桌面通知都是 fork 外部命令（`xdg-open` / `kdialog` / `spectacle` / `notify-send`），在 flatpak 沙盒与纯 Wayland 会话里会静默失败；②Skia 后端没有系统模糊，`AcrylicBrush` 退化成半透明灰，对话框里壁纸文字直接透上来，浅色壁纸区基本读不清。
+
+**决定**：
+
+1. 打开链接、选文件、桌面通知 → **xdg-desktop-portal 优先**（`OpenURI` / `FileChooser` / `org.freedesktop.Notifications`），外部命令只做兜底；全部是 D-Bus 异步往返，不 fork。
+2. 截图 → **外部工具优先**（spectacle / grim / gnome-screenshot），portal `Screenshot` 兜底。理由：静默全屏是热键体验的核心，portal 在部分桌面会弹授权/选区。
+3. 弹层与对话框统一用不透明表面 `LunarwardSurfaceBrush`（Dark `#FF202020` / Light `#FFF3F3F3`），覆盖 `ContentDialog`、`FlyoutPresenter`、`MenuFlyoutPresenterBackground`、`GameLauncherSettingDialog`；叠在应用背景上的页面类面板保留半透明。
+4. AVIF / JXL / HEIC 编解码交给 `Magick.NET-Q8-AnyCPU`（Skia 无对应 delegate），统一入口 `Helpers.ImageDecode`；登录窗**不改** GirCore：本机与目标环境都没有 `libwebkitgtk-6.0`，且进程内 GTK4 主循环与 Uno 的 X11 主机共存风险高于收益，保留 python3 + WebKitGTK 4.1 助手（D32）。
+
+**代价**：①AppImage / 安装体积增加约 40 MB（Magick 的 linux-x64 native，publish 只留本机 RID）；②portal 调用失败时多一跳兜底，日志里会看到两条记录；③portal 的 `FileChooser` 对话框外观由桌面决定，和 kdialog 不完全一致。
+
+**验证**（区分实测与待验收，D46）：
+
+- 实测通过：`--image-info` 对 `.avif` / `.jxl` 报「Skia 否 / Magick 是」并给出尺寸（64×48）；Magick 往返编码 Avif 296 B / Jxl 85 B / WebP 82 B；`cli-extra` T-CL-44 覆盖 `--image-info` 失败路径（rc=1 + 「找不到文件」）；游戏设置对话框已是实底（真机截图）；游戏选择层展开时按 Esc 只收层、进程仍在（真机核对）；本机 portal 版本 `FileChooser 4 / OpenURI 5 / Screenshot 2 / Notification 1`，通知服务 `Plasma 6.8.2`。
+- **待验收**：应用内「打开链接 / 选文件 / 保存 / 选目录」四条走 portal 的实际弹窗（本机 portal 可用，但未逐条点击核对）；`FlyoutPresenter` / `MenuFlyout` 的实底（同一主题资源，只核对了 `ContentDialog` 与游戏设置对话框）；桌面通知在 KDE 上的实际显示。

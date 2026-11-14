@@ -294,6 +294,12 @@ public sealed partial class MainWindow : WindowEx
     {
         if (e.Key is Windows.System.VirtualKey.Escape)
         {
+            // 先收选择层 / 浮出菜单；都没有才隐藏到托盘
+            if (MainContentHost?.TryCloseGameSelector() == true)
+            {
+                e.Handled = true;
+                return;
+            }
             Hide();
         }
     }

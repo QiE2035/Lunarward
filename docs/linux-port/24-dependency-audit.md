@@ -98,6 +98,16 @@
 | --- | --- | --- |
 | P1 tar/xz 换库 | ✅ 2026-11-14 | 新增 `ArchiveExtractor`（BCL `TarReader` + `GZipStream` + `ZstdSharp` + `SharpCompress` for xz + `ZipFile`），删除 `ComponentImporter` 里的 `tar` / `xz` 子进程与 `TryKill`；解压现在可取消、有进度、拦路径逃逸（23 号 §13.8） |
 | P1 下载入口/进度/取消/空间预检 | ✅ 2026-11-14 | 页面「下载组件…」/「导入归档…」；取消=暂停（`.part.N` 续传）；GitHub 限流时给可操作提示 + 支持 `LUNARWARD_GITHUB_TOKEN` |
-| P2 待定（portal 化 `xdg-open` / `spectacle`） | ⬜ | 需要多一条兜底路径，等 24 号 §5 的判定 |
-| P3 Magick.NET 图片编解码 | ⬜ | 目前 SkiaSharp 够用，未到必须换的程度 |
-| P4 GirCore 登录助手 | ⬜ | 版本未确认（`flatcontainer` 404），落地前再核 |
+| P2 桌面通知 / 打开链接 portal 化 | ✅ 2026-11-14 | `DesktopNotification` 不再 fork `notify-send`，直接 D-Bus `org.freedesktop.Notifications`（失败才退外部命令）；`OpenUrl` 先走 `org.freedesktop.portal.OpenURI`，不可用才 `xdg-open` → `gio open` |
+| P3 文件对话框 portal 化 | ✅ 2026-11-14 | `FileDialogHelper` 先走 `org.freedesktop.portal.FileChooser`（含 filters / multiple / directory / 保存建议名），portal 不可用才 kdialog → zenity |
+| P4 截图 portal 化 | ✅ 2026-11-14 | `ScreenCapture.Linux` 在 spectacle / grim / gnome-screenshot 全失败后走 `org.freedesktop.portal.Screenshot`；**外部工具优先**的理由见下 |
+| P4 AVIF / JXL 编解码（Magick.NET） | ✅ 2026-11-14 | 新增 `Helpers/MagickCodec.cs` + `Helpers/ImageDecode.cs`（Skia 优先、AVIF/JXL/HEIC 走 Magick）；`ComponentDownloader` 之外的四个解码点统一走 `ImageDecode`；`--image-info` 可自检。**体积代价**：`Magick.NET-Q8-AnyCPU` 输出里 4 个 RID native 共 ~146 MB，publish 单个 RID 只留一个（linux-x64 ~40 MB） |
+| P4 登录窗 GirCore 化 | ⛔ 不改（有据） | 本机 `libwebkitgtk-6.0.so` 不存在（`pacman -Qo` 无、`/usr/lib/libwebkitgtk*` 只有 4.1），GirCore 的 `WebKit-6.0` 绑定要求 6.0 运行时；且进程内 GTK4 主循环要与 Uno 自己的 X11 主机共存，风险高于收益。当前 python3 + WebKitGTK 4.1 助手可用（D32），保留 |
+| 顺手：`xdotool` → 进程内 xcb | ✅ 2026-11-14 | 新增 `X11Window.Activate`（EWMH `_NET_ACTIVE_WINDOW`），`X11KeyState.ActivateWindow` 先走它，`xdotool` 仅兜底 |
+| 顺手：`ProcessQuery` 改扫 `/proc` | ✅ 2026-11-14 | 不再 fork `fuser` / `lsof`：读 `/proc/*/fd` 的符号链接按路径前缀匹配（跳过无权限进程，可取消） |
+
+### 执行说明：为什么 portal 优先，但截图不优先
+
+- **打开链接 / 选文件：portal 优先**。理由：沙盒（flatpak、纯 Wayland）里 fork 出去的 `xdg-open` 看不到宿主文件系统，`kdialog` 也不一定有；portal 是这些场景唯一的正规通道，而原生安装下 portal 也几乎必然存在（KDE/GNOME 都自带 `xdg-desktop-portal`）。
+- **截图：外部工具优先，portal 兜底**。理由：`spectacle -b -n -f` 是静默全屏，按一次热键就出图；portal 的 `Screenshot` 在部分桌面上会弹授权或选区，把「静默截图」变成「每次都要点一下」。只有外部工具都不在（沙盒 / 精简系统）时才用 portal。
+- 两者都保留兜底路径，任何一侧失败都不会静默：失败会写日志并在返回值上体现。

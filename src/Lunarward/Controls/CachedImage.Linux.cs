@@ -172,11 +172,11 @@ public sealed partial class CachedImage : Image
     }
 
     /// <summary>按 DecodePixelWidth 做高质量降采样；失败时返回 null（调用方退回原图）。</summary>
-    private static Stream? DownscaleToStream(byte[] data, int targetWidth)
+    private static Stream? DownscaleToStream(byte[] data, int targetWidth, string? path = null)
     {
         try
         {
-            using var src = SkiaSharp.SKBitmap.Decode(data);
+            using var src = Starward.Helpers.ImageDecode.Load(data, path);
             if (src is null || src.Width <= targetWidth)
             {
                 return null;
@@ -210,7 +210,7 @@ public sealed partial class CachedImage : Image
         int target = DecodePixelWidth;
         if (target > 0)
         {
-            using Stream? scaled = DownscaleToStream(data, target);
+            using Stream? scaled = DownscaleToStream(data, target, path);
             if (scaled is not null)
             {
                 using var scaledRas = scaled.AsRandomAccessStream();

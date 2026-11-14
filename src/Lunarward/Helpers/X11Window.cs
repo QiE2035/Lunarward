@@ -135,6 +135,41 @@ public static class X11Window
         }
     }
 
+    /// <summary>
+    /// 请求窗口管理器激活窗口（EWMH `_NET_ACTIVE_WINDOW`）：把窗口从最小化/隐藏恢复并置前。
+    /// 和 Show 的区别是不碰映射状态——窗口已经显示、只是被别的窗口盖住时用这个。
+    /// </summary>
+    public static bool Activate(string? title)
+    {
+        lock (Gate)
+        {
+            EnsureInitialized();
+            if (!_available)
+            {
+                return false;
+            }
+            uint window = FindWindow(title);
+            if (window == 0)
+            {
+                Log.Warning("X11Window.Activate: 找不到窗口（title={Title}）", title);
+                return false;
+            }
+            try
+            {
+                SendActiveWindow(window);
+                xcb_flush(_connection);
+                Log.Information("X11Window: activate 0x{Window:X}", window);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "X11Window.Activate failed");
+                return false;
+            }
+        }
+    }
+
+
     /// <summary>取 X 屏幕（root window）的像素尺寸；失败返回 false。</summary>
     public static bool TryGetScreenSize(out int width, out int height)
     {

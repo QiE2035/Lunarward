@@ -57,7 +57,7 @@ internal static class AccentColorHelper
     /// <summary>按「饱和度×明度」加权统计色相直方图，取占比最高的色相作为主色。</summary>
     public static Color? PickColor(string imagePath)
     {
-        using SKBitmap? bitmap = SKBitmap.Decode(imagePath);
+        using SKBitmap? bitmap = ImageDecode.Load(imagePath);
         if (bitmap is null)
         {
             return null;

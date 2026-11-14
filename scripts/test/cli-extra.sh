@@ -196,6 +196,10 @@ case_start "T-CL-42" "--component-list 缺参数时返回 1 并给用法"
 lw --component-list >"$out" 2>&1; rc=$?
 if expect_rc 1 "$rc" && expect_contains "$(text)" "--component-list <源 id>"; then pass_case; fi
 
+case_start "T-CL-44" "--image-info 文件不存在时返回 1 并说明"
+lw --image-info /nonexistent/nope.avif >"$out" 2>&1; rc=$?
+if expect_rc 1 "$rc" && expect_contains "$(text)" "找不到文件"; then pass_case; fi
+
 case_start "T-CL-43" "--component-list 未知源时返回 1"
 lw --component-list no-such-source >"$out" 2>&1; rc=$?
 if expect_rc 1 "$rc" && expect_contains "$(text)" "没有这个源"; then pass_case; fi

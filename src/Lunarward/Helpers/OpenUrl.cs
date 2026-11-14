@@ -2,6 +2,9 @@
 //
 // 上游到处用 `Windows.System.Launcher.LaunchUriAsync`，Uno 的 X11 后端没有实现它
 // （运行时里搜不到任何 xdg-open / gio 调用痕迹，调用会静默失败），所以在 Linux 上统一走这里。
+//
+// 24 号 P2：优先 xdg-desktop-portal 的 OpenURI（沙盒 / 纯 Wayland 下唯一正规通道），
+// portal 不可用才退回 `xdg-open` → `gio open`。
 using System;
 using System.Diagnostics;
 
@@ -19,6 +22,11 @@ internal static class OpenUrl
         if (string.IsNullOrWhiteSpace(target))
         {
             return false;
+        }
+        // portal 优先：沙盒里 fork 出去的 xdg-open 没有宿主文件系统视图，会什么都不开
+        if (Portal.TryOpenUri(ToUri(target)))
+        {
+            return true;
         }
         WarnIfDefaultHandlerMissing(target);
         // xdg-open 是 freedesktop 标准入口，KDE/GNOME/XFCE 都装了；失败再退 gio（部分精简环境只留 gio）。
@@ -74,6 +82,26 @@ internal static class OpenUrl
         catch (Exception ex)
         {
             Serilog.Log.Debug(ex, "probe default handler failed");
+        }
+    }
+
+
+    /// <summary>本地路径补成 file:// URI（portal 只接受 URI），已是 URI 的原样返回。</summary>
+    private static string ToUri(string target)
+    {
+        if (Uri.TryCreate(target, UriKind.Absolute, out Uri? parsed)
+            && (parsed.Scheme is "http" or "https" or "file" or "mailto" or "lunarward" or "steam"))
+        {
+            return target;
+        }
+        try
+        {
+            return new Uri(System.IO.Path.GetFullPath(target)).AbsoluteUri;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "ToUri failed: {Target}", target);
+            return target;
         }
     }
 

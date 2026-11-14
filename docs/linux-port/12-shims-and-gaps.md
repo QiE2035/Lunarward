@@ -245,6 +245,7 @@
 | 2026-11-14 | 运行环境阶段 1（D73）落地：受管组件 `manifest.json` + 布局归一化、4 连接分片下载（可续传/自动降级）、`tar` 导入与摊平、健康检查只给原文；CLI `--component-scan/health/import/download`；顺带修掉图形层符号链接去重与大小写匹配 |
 | 2026-11-14 | 24 号 P1：解压改进程内（`ArchiveExtractor`：BCL `TarReader` + `GZipStream` + `ZstdSharp` + `SharpCompress` 处理 `.tar.xz` + `ZipFile`，可取消/有进度/拦路径逃逸），删掉 `tar`/`xz` 子进程；运行环境页加「下载组件…」（选源→列版本→下载，取消=暂停可续传，下载前空间预检）与「导入归档…」；GitHub 限流 403 改为可操作提示并支持 `LUNARWARD_GITHUB_TOKEN`；新增 `--component-list` |
 | 2026-11-14 | 运行环境阶段 2/3（D74）：取消 `PrefixMode` 全部枚举，前缀只是路径（空=默认，首次启动创建）；配置迁到 `~/.config/lunarward/env/<id>.json` 并自动搬移旧 `profiles/`；`LaunchRecipeBuilder` 成为 argv/env 唯一生成处（启动/预览/`--launch-plan` 共用）；运行环境页加状态灯、占用、文本视图与启动预览；`--launch-plan` 支持 `--profile` |
+| 2026-11-14 | 24 号 P2/P3/P4：portal 优先（打开链接 / 选文件 / 通知）、截图 portal 兜底、Magick.NET 解 AVIF/JXL、弹层实底、Esc 只退一层、`xdotool`→xcb、`ProcessQuery`→`/proc`（D75、L-145～L-148） |
 
 - 2026-11-06：`#1` 图标码位替换（E62E→E769 等 7 处，L-88）、`#2` 暂停静态图预加载、`#3` 窗口底座统一（D49）；图库窗口 1500×845 且有系统标题栏（真机几何 + `_NET_FRAME_EXTENTS` 验证）。
 

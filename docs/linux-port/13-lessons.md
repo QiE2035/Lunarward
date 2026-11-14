@@ -1162,3 +1162,30 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 事实（实测，2026-11-14）：BCL `System.Formats.Tar.TarReader` 只处理未压缩 tar 流，`.tar.gz` 套 `GZipStream` 即可，`.tar.zst` 套 `ZstdSharp.DecompressionStream`（项目已有）即可，**`.tar.xz` 没有 BCL 方案** → 用 `SharpCompress` 的 `ReaderFactory.Open(...)` + `MoveToNextEntry`/`WriteEntryTo`（1.0.0，MIT，活跃）。`.zip` 走 `System.IO.Compression.ZipFile`。
 - 路径安全必须在解压**之前**判定：`ResolveTarget` 对绝对路径与含 `..` 的条目直接抛 `InvalidDataException`，不要指望「解完再查」。
 - 结果：三种格式（`.tar.gz` / `.tar.xz` / `.tar.zst`）真机导入均成功，且都能被同一个 `IProgress<ArchiveProgress>` 报进度、被同一个 token 打断。
+
+## L-145 「portal 优先」不是教条，静默性优先于沙盒纯度
+
+- 现象：24 号 P2/P3 把 `xdg-open` / `kdialog` 换成 xdg-desktop-portal 之后，要不要连截图也一起 portal 化？
+- 判定：**分两类对待**。
+  - 打开链接、选文件 → portal 优先。沙盒里 fork 的外部命令看不到宿主文件系统；原生安装下 portal 也几乎必然存在，成本只是几十毫秒 D-Bus 往返。
+  - 截图 → 外部工具优先、portal 兜底。`spectacle -b -n -f` 是静默全屏，热键按一次就出图；portal 的 `Screenshot` 在部分桌面会弹授权/选区，把「静默」变成「每次点一下」。沙盒里天然没有 spectacle，会自动落到 portal。
+- 教训：换依赖时先问「这个调用的关键体验是什么」。截图的关键体验是「按下就出图」，不是「走官方通道」。
+
+## L-146 Skia 没有 AVIF/JXL delegate；Magick.NET 的 native 是按 RID 打包的
+
+- `SKCodec.Create` 对 `.avif` / `.jxl` 返回 null（SkiaSharp 默认不带这两个解码器），表现为「图片打开是空白」而不是报错。
+- Magick.NET 的 `MagickNET.SupportedFormats` 里格式名是 `Avif` / `Jxl`（不是 `AVIF`），用 `Contains("AVIF")` 过滤会得到空列表 → 会误判成「不支持」。
+- `Magick.NET-Q8-AnyCPU` 的 nupkg 里带 linux-x64 / linux-musl-x64 / linux-arm64 / linux-musl-arm64 四份 native（输出目录约 146 MB），`publish -r linux-x64` 只保留一份（约 40 MB）。选 AnyCPU 是为了让 AUR 在 aarch64 上源码构建也能跑，体积代价记在 24 号。
+- 用法：`ImageDecode.Load(path)` 统一入口 —— 先 Skia，解不开且扩展名属于 `.avif/.jxl/.heic` 才走 Magick；纯扩展名判断放在 `MagickCodec.NeedsMagick`，便于单测。
+
+## L-147 Esc 的语义是「退一层」，不是「关窗口」
+
+- 现象：游戏选择层展开时按 Esc，窗口直接消失到托盘（用户以为程序崩了）。
+- 修法：`Content_KeyDown` 里先问 `MainContentHost.TryCloseGameSelector()`（先关打开的下拉/浮出 Popup，再收选择层），都没有才 `Hide()`；`GameSelector.CloseLayer()` 复用原来的 `HideFullBackground()`。
+- 教训：桌面应用里 Esc 是「退一层」；把 Esc 直接绑到窗口隐藏，等于把「返回」和「退出」混成一个键。
+
+## L-148 半透明弹层在 Skia 上是「脏」而不是「毛玻璃」
+
+- 现象：`AcrylicBrush` 在 Windows 上靠系统模糊，在 Skia 后端只是把 `TintColor` 按 `TintOpacity` 叠上去 —— 背景壁纸的文字直接透到对话框里，浅色壁纸区灰白字几乎读不清。
+- 修法：给弹层/对话框单独一套**不透明表面** `LunarwardSurfaceBrush`（Dark `#FF202020` / Light `#FFF3F3F3`），`ContentDialog`、`FlyoutPresenter`、`MenuFlyoutPresenterBackground`、`GameLauncherSettingDialog` 都换成它；页面里叠在应用背景上的面板仍保留原来的半透明观感（那里没有「文字压在别的文字上」的问题）。
+- 教训：判断标准不是「像不像 Windows」，而是「文字背后有没有别的内容」。有就必须实底。

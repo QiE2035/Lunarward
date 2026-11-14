@@ -22,6 +22,7 @@ using Starward.Helpers;
 using System;
 using System.Net.Http;
 using System.Threading;
+using System.Linq;
 using System.Threading.Tasks;
 
 
@@ -97,6 +98,33 @@ public sealed partial class MainView : UserControl
     public void NavigateToGameSettings()
     {
         MainView_Frame.Navigate(typeof(GameSettingPage), CurrentGameId, new Microsoft.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+    }
+
+
+    /// <summary>
+    /// Esc 的第一优先级：先把「游戏选择层」或打开的下拉/浮出菜单收掉，
+    /// 都收掉了才轮到把窗口隐藏到托盘（否则用户只是想退出选择层，窗口却消失了）。
+    /// </summary>
+    public bool TryCloseGameSelector()
+    {
+        try
+        {
+            if (Microsoft.UI.Xaml.Media.VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).FirstOrDefault() is Microsoft.UI.Xaml.Controls.Primitives.Popup popup)
+            {
+                popup.IsOpen = false;
+                return true;
+            }
+            if (GameSelector is not null && GameSelector.FullBackgroundVisible)
+            {
+                GameSelector.CloseLayer();
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "TryCloseGameSelector failed");
+        }
+        return false;
     }
 
 

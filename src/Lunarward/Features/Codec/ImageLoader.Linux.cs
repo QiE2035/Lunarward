@@ -14,12 +14,17 @@ public static partial class ImageLoader
         {
             using var stream = File.OpenRead(filePath);
             using var codec = SKCodec.Create(stream);
-            if (codec is null)
+            if (codec is not null)
             {
-                return (0u, 0u);
+                var info = codec.Info;
+                return ((uint)info.Width, (uint)info.Height);
             }
-            var info = codec.Info;
-            return ((uint)info.Width, (uint)info.Height);
+            // Skia 没有 AVIF / JXL delegate，这两类走 Magick（24 号 P4）
+            if (Starward.Helpers.MagickCodec.TryGetPixelSize(filePath, out int width, out int height))
+            {
+                return ((uint)width, (uint)height);
+            }
+            return (0u, 0u);
         });
     }
 }

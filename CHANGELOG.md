@@ -1,3 +1,13 @@
+## 2026-11-14（十三）——外部能力走 portal、图片格式补齐、弹层实底
+
+- **打开链接 / 选文件 / 桌面通知改走 xdg-desktop-portal**（D75）：`OpenUrl` 先发 `org.freedesktop.portal.OpenURI`，`FileDialogHelper` 先发 `FileChooser`（filters / 多选 / 目录 / 保存建议名），`DesktopNotification` 直接 D-Bus `org.freedesktop.Notifications`；外部命令（`xdg-open` / `kdialog` / `zenity` / `notify-send`）全部降级为兜底。
+- **截图 portal 兜底**：`spectacle` / `grim` / `gnome-screenshot` 都不在时走 `org.freedesktop.portal.Screenshot`，出图后搬进截图目录。
+- **AVIF / JXL / HEIC 支持**：新增 `Helpers/MagickCodec.cs`（Magick.NET）与 `Helpers/ImageDecode.cs`（Skia 优先，AVIF/JXL 走 Magick）；壁纸、缩略图、取色、截图转换、`GetImagePixelSizeAsync` 全部统一到这个入口。新增 `--image-info <图片>` 自检。
+- **弹层与对话框改成实底**（L-148）：`ContentDialog` / `FlyoutPresenter` / `MenuFlyoutPresenter` / 游戏设置对话框用新的 `LunarwardSurfaceBrush`（Dark `#FF202020` / Light `#FFF3F3F3`），不再让壁纸文字透上来。
+- **Esc 只退一层**（L-147）：选择层或下拉浮层打开时 Esc 先关它们，都关掉才把窗口隐藏到托盘。
+- **顺手项**：`xdotool` 唤醒窗口改用进程内 xcb（`X11Window.Activate`，EWMH `_NET_ACTIVE_WINDOW`），`xdotool` 仅兜底；`ProcessQuery` 不再 fork `fuser`/`lsof`，改为扫 `/proc/*/fd`。
+- 测试：`cli-extra` 24 → 25（新增 `T-CL-44`）；单测 142 不变；lint 三绿。文档：24 号执行记录、D75、L-145～L-148。
+
 ## 2026-11-14（十二）——解压换库 + 组件下载/导入入口（24 号 P1）
 
 - 解压不再 fork `tar`/`xz`：新增 `ArchiveExtractor`（BCL `TarReader` + `GZipStream` + `ZstdSharp` + `SharpCompress` 处理 `.tar.xz` + `ZipFile`），支持 `.tar` / `.tar.gz` / `.tgz` / `.tar.zst` / `.tar.xz` / `.zip`，可取消、有进度、解压前拦路径逃逸（L-144）。

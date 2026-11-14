@@ -204,12 +204,23 @@ internal static class X11KeyState
     /// </summary>
 
     /// <summary>
-    /// 通过 `xdotool` 唤醒窗口。
-    /// 教训（L-45）：不要在本进程里做 XQueryTree/XFetchName/XSendEvent —— Xlib 不是线程安全的，
-    /// 在计时器线程上与 GTK 并发使用会直接 `free(): invalid pointer` 崩掉进程；只读的 XQueryKeymap 不分配内存所以侥幸没事。
-    /// xdotool 自己维护连接，用子进程隔离最安全；没有 xdotool 时返回 false，调用方降级。
+    /// 唤醒窗口。优先走进程内 libxcb（`X11Window.Activate`，24 号 §4「顺手做」），
+    /// xdotool 只作为 libxcb 不可用时的兜底。
+    /// 教训（L-45）：Xlib 不是线程安全的，历史做法是用 xdotool 子进程隔离；
+    /// 现在用的是自建 xcb 连接 + 串行化调用，不会和 Uno/GTK 的 Xlib 连接打架。
     /// </summary>
-    public static bool ActivateWindowWithXdotool(string title, int timeoutMs = 1500)
+    public static bool ActivateWindow(string title, int timeoutMs = 1500)
+    {
+        if (X11Window.Activate(title))
+        {
+            return true;
+        }
+        return ActivateWindowWithXdotool(title, timeoutMs);
+    }
+
+
+    /// <summary>xdotool 兜底路径（没有 libxcb / xcb 连接失败时）。</summary>
+    private static bool ActivateWindowWithXdotool(string title, int timeoutMs)
     {
         try
         {

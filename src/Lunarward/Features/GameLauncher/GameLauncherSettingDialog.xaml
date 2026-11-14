@@ -9,7 +9,7 @@
                xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                xmlns:sc="using:Starward.Controls"
                x:DefaultBindMode="OneWay"
-               Background="{ThemeResource CustomAcrylicBrush}"
+               Background="{ThemeResource LunarwardSurfaceBrush}"
                BorderThickness="0"
                CornerRadius="8"
                Style="{ThemeResource DefaultContentDialogStyle}"

@@ -80,7 +80,34 @@ public static class ScreenCaptureLinux
             }
             TryDelete(file);
         }
-        Serilog.Log.Warning("截图失败：spectacle / grim / gnome-screenshot 都不可用或无输出");
+        // 24 号 P4：外部工具都不可用（沙盒 / 精简系统）时走 xdg-desktop-portal。
+        // 顺序是「外部工具优先」而不是 portal 优先，理由是观感：
+        // spectacle -b -n -f 是静默全屏，portal 的 Screenshot 在 KDE 上可能弹一次授权/选区。
+        // 沙盒里的进程看不到宿主的 spectacle/grim，自然就落到 portal。
+        string? viaPortal = await Helpers.Portal.ScreenshotAsync(interactive: false, cancellation).ConfigureAwait(false);
+        if (!string.IsNullOrEmpty(viaPortal) && File.Exists(viaPortal))
+        {
+            try
+            {
+                File.Move(viaPortal, file, overwrite: true);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "把 portal 截图搬到截图目录失败：{source} → {file}", viaPortal, file);
+                if (notify)
+                {
+                    Helpers.DesktopNotification.Show("截图已保存", Path.GetFileName(viaPortal), "lunarward", 4000);
+                }
+                return viaPortal;
+            }
+            Serilog.Log.Information("截图完成（portal）：{file}", file);
+            if (notify)
+            {
+                Helpers.DesktopNotification.Show("截图已保存", Path.GetFileName(file), "lunarward", 4000);
+            }
+            return file;
+        }
+        Serilog.Log.Warning("截图失败：spectacle / grim / gnome-screenshot / portal 都不可用或被拒绝");
         return null;
     }
 
