@@ -27,4 +27,10 @@
     </UnoFeatures>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- B 方案 spike：把 Gtk4 + WebKitGTK 6.0 塞进同一个 Uno 进程 -->
+    <PackageReference Include="GirCore.Gtk-4.0" Aliases="gir" />
+    <PackageReference Include="GirCore.WebKit-6.0" Aliases="gir" />
+  </ItemGroup>
+
 </Project>
