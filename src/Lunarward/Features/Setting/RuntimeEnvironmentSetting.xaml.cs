@@ -64,6 +64,175 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
 
 
+    /// <summary>红黄绿灯：一眼看出这份配方现在能不能启动（D73 §7.1）。</summary>
+    private (string Dot, string Text) DescribeHealth(RuntimeProfile profile, PrefixManager.PrefixInspection inspection)
+    {
+        Component? runner = EnvironmentResolver.ResolveRunner(profile);
+        if (runner is null)
+        {
+            return ("#C42B1C", "没有可用的运行器");
+        }
+        if (runner.Usable != true)
+        {
+            return ("#C42B1C", $"运行器不可用：{runner.UsabilityReason}");
+        }
+        if (inspection.Exists && !inspection.HasDriveC)
+        {
+            return ("#C42B1C", "前缀目录不像 Wine 前缀（缺少 drive_c）");
+        }
+        if (inspection.Exists && inspection.Locked)
+        {
+            return ("#9D5D00", "前缀正被占用（另一个实例在运行）");
+        }
+        if (!inspection.Exists)
+        {
+            return ("#9D5D00", "前缀尚未创建，首次启动时会建");
+        }
+        return ("#0F7B0F", "可用");
+    }
+
+
+    /// <summary>启动参数与命令包装只在这两栏非空时才显示。</summary>
+    private static string DescribeLaunchExtras(RuntimeProfile profile)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(profile.Args))
+        {
+            parts.Add($"启动参数：{profile.Args}");
+        }
+        if (profile.Wrappers.Count > 0)
+        {
+            parts.Add($"包装：{string.Join(" ", profile.Wrappers)}");
+        }
+        return string.Join("   ", parts);
+    }
+
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+        double kb = bytes / 1024.0;
+        if (kb < 1024)
+        {
+            return $"{kb:0.#} KB";
+        }
+        double mb = kb / 1024.0;
+        return mb < 1024 ? $"{mb:0.#} MB" : $"{mb / 1024.0:0.##} GB";
+    }
+
+
+    /// <summary>前缀体积要遍历整个目录，放后台算（D72：UI 线程不做阻塞 IO），算完再回填文案。</summary>
+    private async Task FillPrefixSizeAsync(TextBlock target, string prefix)
+    {
+        try
+        {
+            PrefixManager.PrefixInspection? computed = await Task.Run(() => PrefixManager.Inspect(prefix));
+            if (computed is { Exists: true, SizeBytes: > 0 })
+            {
+                target.Text = $"前缀占用：{FormatSize(computed.SizeBytes)}";
+            }
+            else
+            {
+                target.Text = "前缀占用：—";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "compute prefix size failed");
+            target.Text = "前缀占用：—";
+        }
+    }
+
+
+    /// <summary>只读文本视图：显示这份配方的完整 JSON，可复制、可导出（D73 §7.4）。</summary>
+    private async void Button_TextView_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: RuntimeProfile profile })
+        {
+            return;
+        }
+        string json = System.Text.Json.JsonSerializer.Serialize(profile, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        });
+        var box = new TextBox
+        {
+            Text = json,
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.NoWrap,
+            FontFamily = new FontFamily("monospace"),
+            FontSize = 12,
+            MinWidth = 620,
+            MaxHeight = 420,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+        };
+        ScrollViewer.SetHorizontalScrollBarVisibility(box, ScrollBarVisibility.Auto);
+        var dialog = new ContentDialog
+        {
+            Title = $"{profile.Name} · 配置文本（只读）",
+            Content = new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = $"文件：{Path.Combine(RuntimeProfileStore.EnvironmentsFolder, profile.Id + ".json")}",
+                        FontSize = 12,
+                        Opacity = 0.65,
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    box,
+                },
+            },
+            PrimaryButtonText = "复制",
+            SecondaryButtonText = "导出…",
+            CloseButtonText = Lang.Lunarward_RuntimeEnv_Close,
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+        ContentDialogResult result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            try
+            {
+                var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                package.SetText(json);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+                Helpers.InAppToast.MainWindow?.Success((string?)null, "已复制到剪贴板", 3000);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "copy profile json failed");
+                Helpers.InAppToast.MainWindow?.Error((string?)null, "复制失败");
+            }
+        }
+        else if (result == ContentDialogResult.Secondary)
+        {
+            try
+            {
+                string? target = await Helpers.FileDialogHelper.OpenSaveFileDialogAsync(XamlRoot, profile.Name + ".json", ("JSON", ".json"));
+                if (!string.IsNullOrWhiteSpace(target))
+                {
+                    await File.WriteAllTextAsync(target!, json);
+                    Helpers.InAppToast.MainWindow?.Success((string?)null, "已导出", 3000);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "export profile json failed");
+                Helpers.InAppToast.MainWindow?.Error(ex, "导出失败");
+            }
+        }
+    }
+
+
     /// <summary>这个配置最终会用哪个图形组件、现在装没装（M2 组件层的状态展示）。</summary>
     private static string DescribeGraphics(RuntimeProfile profile)
     {
@@ -72,9 +241,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             return "图形组件：沿用前缀里已有的";
         }
         string prefix = profile.PrefixPath;
-        bool prefixKnown = !string.IsNullOrWhiteSpace(prefix)
-            && profile.PrefixMode is "external" or "dedicated"
-            && Directory.Exists(prefix);
+        bool prefixKnown = !string.IsNullOrWhiteSpace(prefix) && Directory.Exists(prefix);
         if (!prefixKnown)
         {
             return $"图形组件：{profile.GraphicsId}（启动前安装到前缀）";
@@ -142,6 +309,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttons.Children.Add(shellButton);
 
+        // D73 §7.4：文本视图只读——要手改就去 env/<id>.json，界面上不维护第二个编辑器
+        var textButton = new Button { Content = Lang.Lunarward_RuntimeEnv_TextView, Tag = profile };
+        textButton.Click += Button_TextView_Click;
+        buttons.Children.Add(textButton);
+
         // 「在这个方案下运行」的第二种形态：不启动游戏，用同一套环境跑一次工具（D64）
         var runButton = new Button { Content = "运行程序…", Tag = profile };
         runButton.Click += Button_RunOnce_Click;
@@ -157,6 +329,63 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         buttons.Children.Add(cloneButton);
         buttons.Children.Add(deleteButton);
 
+        PrefixManager.PrefixInspection inspection = PrefixManager.Inspect(EnvironmentResolver.EffectivePrefixPath(profile), computeSize: false);
+        (string dotColor, string healthText) = DescribeHealth(profile, inspection);
+
+        var statusDot = new Microsoft.UI.Xaml.Shapes.Ellipse
+        {
+            Width = 8,
+            Height = 8,
+            Fill = new SolidColorBrush(Windows.UI.Color.FromArgb(
+                255,
+                Convert.ToByte(dotColor[1..3], 16),
+                Convert.ToByte(dotColor[3..5], 16),
+                Convert.ToByte(dotColor[5..7], 16))),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var statusText = new TextBlock
+        {
+            Text = healthText,
+            FontSize = 12,
+            Opacity = 0.75,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var statusRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            Children = { statusDot, statusText },
+        };
+
+        var graphicsLine = new TextBlock
+        {
+            Text = DescribeGraphics(profile),
+            FontSize = 12,
+            Opacity = 0.6,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        var launchLine = new TextBlock
+        {
+            Text = DescribeLaunchExtras(profile),
+            FontSize = 12,
+            Opacity = 0.6,
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = string.IsNullOrWhiteSpace(DescribeLaunchExtras(profile)) ? Visibility.Collapsed : Visibility.Visible,
+        };
+        var prefixLine = new TextBlock
+        {
+            Text = inspection.Exists
+                ? (inspection.SizeBytes > 0 ? $"前缀占用：{FormatSize(inspection.SizeBytes)}" : "前缀占用：计算中…")
+                : "前缀占用：—（尚未创建）",
+            FontSize = 12,
+            Opacity = 0.6,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        if (inspection.Exists && inspection.SizeBytes <= 0)
+        {
+            _ = FillPrefixSizeAsync(prefixLine, inspection.Path);
+        }
+
         Starward.Features.Runtime.LastGoodEntry? lastGood = Starward.Features.Runtime.LastKnownGoodStore.Get(profile.Id);
         var lastLine = new TextBlock
         {
@@ -169,9 +398,16 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             TextWrapping = TextWrapping.Wrap,
         };
 
-        var content = new StackPanel { Spacing = 8 };
+        var content = new StackPanel { Spacing = 6 };
         content.Children.Add(name);
+        content.Children.Add(statusRow);
         content.Children.Add(summary);
+        content.Children.Add(graphicsLine);
+        if (launchLine.Visibility == Visibility.Visible)
+        {
+            content.Children.Add(launchLine);
+        }
+        content.Children.Add(prefixLine);
         content.Children.Add(lastLine);
         content.Children.Add(buttons);
 
@@ -266,9 +502,25 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         else
         {
-            foreach (Component runner in runners)
+            // D73 §7.2：受管组件（本程序下载/导入）与外部组件（系统 / Steam / 其它启动器）分两段，
+            // 因为前者归我们管、后者只做发现，混在一起会让人以为「删了也会自动补回来」。
+            List<Component> managedRunners = runners.Where(x => x.Managed).ToList();
+            List<Component> externalRunners = runners.Where(x => !x.Managed).ToList();
+            if (managedRunners.Count > 0)
             {
-                StackPanel_Runners.Children.Add(CreateComponentRow(runner, CountProfilesUsingRunner(runner)));
+                StackPanel_Runners.Children.Add(GroupTitle($"受管运行器（本程序下载/导入，{managedRunners.Count}）"));
+                foreach (Component runner in managedRunners)
+                {
+                    StackPanel_Runners.Children.Add(CreateComponentRow(runner, CountProfilesUsingRunner(runner)));
+                }
+            }
+            if (externalRunners.Count > 0)
+            {
+                StackPanel_Runners.Children.Add(GroupTitle($"外部运行器（系统 / Steam / 其它启动器，{externalRunners.Count}）"));
+                foreach (Component runner in externalRunners)
+                {
+                    StackPanel_Runners.Children.Add(CreateComponentRow(runner, CountProfilesUsingRunner(runner)));
+                }
             }
         }
 
@@ -279,9 +531,24 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         else
         {
             // 同内容的多个副本折叠成一行（本机实测 3.1.1 有 3 份），避免看起来像 5 个不同版本
-            foreach (List<Component> group in Starward.Features.Runtime.ComponentStore.GroupGraphics(graphics))
+            List<List<Component>> groups = Starward.Features.Runtime.ComponentStore.GroupGraphics(graphics).ToList();
+            List<List<Component>> managedGroups = groups.Where(g => g[0].Managed).ToList();
+            List<List<Component>> externalGroups = groups.Where(g => !g[0].Managed).ToList();
+            if (managedGroups.Count > 0)
             {
-                StackPanel_Components.Children.Add(CreateComponentRow(group[0], 0, group.Count, group));
+                StackPanel_Components.Children.Add(GroupTitle($"受管图形层（{managedGroups.Count} 组）"));
+                foreach (List<Component> group in managedGroups)
+                {
+                    StackPanel_Components.Children.Add(CreateComponentRow(group[0], 0, group.Count, group));
+                }
+            }
+            if (externalGroups.Count > 0)
+            {
+                StackPanel_Components.Children.Add(GroupTitle($"外部图形层（{externalGroups.Count} 组）"));
+                foreach (List<Component> group in externalGroups)
+                {
+                    StackPanel_Components.Children.Add(CreateComponentRow(group[0], 0, group.Count, group));
+                }
             }
         }
     }
@@ -579,14 +846,15 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     private ComboBox? _editorRunner;
     private ComboBox? _editorDxvk;
 
-    private RadioButton? _editorPrefixNew;
-    private RadioButton? _editorPrefixCopy;
-    private RadioButton? _editorPrefixExternal;
-    private RadioButton? _editorPrefixEphemeral;
     private TextBox? _editorPrefixPath;
     private TextBox? _editorEnv;
+    private TextBox? _editorArgs;
+    private TextBox? _editorWrappers;
+    private TextBox? _editorNotes;
     private TextBox? _editorShell;
     private TextBlock? _editorPrefixInfo;
+    private TextBlock? _editorPreview;
+    private TextBlock? _editorEnvInfo;
     private Button? _editorBrowse;
     private List<Component> _editorRunners = new();
     private List<Component> _editorGraphics = new();
@@ -645,57 +913,74 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         StackPanel_Editor.Children.Add(Row("DXVK", _editorDxvk));
         StackPanel_Editor.Children.Add(Hint("图形层要装进前缀后才生效：保存后到「前缀」段点安装/重装/移除。"));
 
-        // 3) 前缀
+        // 3) 前缀（D73 §3.1：只是路径；新建/指向/复制是动作，不是模式）
         StackPanel_Editor.Children.Add(SectionTitle("前缀"));
-        _editorPrefixNew = new RadioButton { Content = "新建一个（推荐）", GroupName = "prefix" };
-        _editorPrefixCopy = new RadioButton { Content = "复制自现有前缀…", GroupName = "prefix" };
-        _editorPrefixExternal = new RadioButton { Content = "使用已有目录", GroupName = "prefix" };
-        _editorPrefixEphemeral = new RadioButton { Content = "临时（退出即删，调试组合用）", GroupName = "prefix" };
-        string mode = profile?.PrefixMode ?? "dedicated";
-        switch (mode)
-        {
-            case "external": _editorPrefixExternal.IsChecked = true; break;
-            case "template": _editorPrefixCopy.IsChecked = true; break;
-            case "ephemeral": _editorPrefixEphemeral.IsChecked = true; break;
-            default: _editorPrefixNew.IsChecked = true; break;
-        }
-        // 「临时」属于调试用途，放进高级折叠，避免和「新建/复制自现有」并列时选错（D63 §2 精简）
-        foreach (RadioButton radio in new[] { _editorPrefixNew, _editorPrefixCopy, _editorPrefixExternal })
-        {
-            radio.Checked += (_, _) => UpdateEditorPrefixRow();
-            StackPanel_Editor.Children.Add(radio);
-        }
         var pathRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         _editorPrefixPath = new TextBox
         {
             MinWidth = 420,
             Text = profile?.PrefixPath ?? "",
-            PlaceholderText = "留空 = 默认位置",
+            PlaceholderText = "留空 = ~/.local/share/lunarward/prefixes/<名字>",
         };
-        _editorBrowse = new Button { Content = "浏览…" };
+        _editorBrowse = new Button { Content = "选择目录…" };
         _editorBrowse.Click += Button_EditorBrowsePrefix_Click;
+        var copyPrefix = new Button { Content = "从现有前缀复制…" };
+        copyPrefix.Click += Button_EditorCopyPrefix_Click;
         pathRow.Children.Add(_editorPrefixPath);
         pathRow.Children.Add(_editorBrowse);
+        pathRow.Children.Add(copyPrefix);
         StackPanel_Editor.Children.Add(pathRow);
         _editorPrefixInfo = new TextBlock { FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap };
         StackPanel_Editor.Children.Add(_editorPrefixInfo);
-        StackPanel_Editor.Children.Add(Hint("换运行器后，现有前缀会在下次启动时走一次 wine 更新（wineboot -u）。"));
+        StackPanel_Editor.Children.Add(Hint("路径不存在时，首次启动会用 wineboot 新建；两个方案填同一个路径就是共用。换运行器后会在下次启动走一次 wineboot -u。"));
 
-        // 4) 高级
+        // 4) 启动预览：和真启动同一套解析（D73 §4），改哪一项都能立刻看到结果
+        StackPanel_Editor.Children.Add(SectionTitle("启动预览"));
+        _editorPreview = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            FontFamily = new FontFamily("monospace"),
+            FontSize = 12,
+            IsTextSelectionEnabled = true,
+            Opacity = 0.9,
+        };
+        StackPanel_Editor.Children.Add(_editorPreview);
+        _editorEnvInfo = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 196, 43, 28)),
+        };
+        StackPanel_Editor.Children.Add(_editorEnvInfo);
+
+        // 5) 高级
         var expander = new Expander { Header = "高级", IsExpanded = false, HorizontalAlignment = HorizontalAlignment.Stretch };
         var advanced = new StackPanel { Spacing = 6 };
-        _editorPrefixEphemeral.Checked += (_, _) => UpdateEditorPrefixRow();
-        advanced.Children.Add(new TextBlock { Text = "前缀（调试用）", FontSize = 12, Opacity = 0.7 });
-        advanced.Children.Add(_editorPrefixEphemeral);
-        advanced.Children.Add(new TextBlock { Text = "环境变量（每行 KEY=VALUE）", FontSize = 12, Opacity = 0.7 });
+        advanced.Children.Add(new TextBlock { Text = "环境变量（每行 KEY=VALUE；覆盖自动注入的项会标红）", FontSize = 12, Opacity = 0.7 });
         _editorEnv = new TextBox
         {
             AcceptsReturn = true,
             Height = 96,
             TextWrapping = TextWrapping.Wrap,
-            Text = profile is null ? "" : string.Join(Environment.NewLine, profile.Environment.Select(x => $"{x.Key}={x.Value}")),
+            Text = profile is null ? "" : string.Join(Environment.NewLine, profile.Env.Select(x => $"{x.Key}={x.Value}")),
         };
         advanced.Children.Add(_editorEnv);
+        advanced.Children.Add(new TextBlock { Text = "启动参数（原样拼在游戏 exe 之后）", FontSize = 12, Opacity = 0.7 });
+        _editorArgs = new TextBox { Text = profile?.Args ?? "", PlaceholderText = "-windowed -nologo" };
+        advanced.Children.Add(_editorArgs);
+        advanced.Children.Add(new TextBlock { Text = "命令包装（每行一条，按顺序排在 wine 前面）", FontSize = 12, Opacity = 0.7 });
+        _editorWrappers = new TextBox
+        {
+            AcceptsReturn = true,
+            Height = 72,
+            TextWrapping = TextWrapping.Wrap,
+            Text = profile is null ? "" : string.Join(Environment.NewLine, profile.Wrappers),
+            PlaceholderText = "gamemoderun\nmangohud --dlsym",
+        };
+        advanced.Children.Add(_editorWrappers);
+        advanced.Children.Add(new TextBlock { Text = "备注", FontSize = 12, Opacity = 0.7 });
+        _editorNotes = new TextBox { Text = profile?.Notes ?? "", PlaceholderText = "给这套组合留一句说明" };
+        advanced.Children.Add(_editorNotes);
         advanced.Children.Add(new TextBlock { Text = "调试 Shell（留空 = 跟随系统）", FontSize = 12, Opacity = 0.7 });
         _editorShell = new TextBox { Text = profile?.Shell ?? "", PlaceholderText = "/bin/bash" };
         advanced.Children.Add(_editorShell);
@@ -712,7 +997,14 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         actions.Children.Add(cancel);
         StackPanel_Editor.Children.Add(actions);
 
+        _editorRunner.SelectionChanged += (_, _) => UpdateEditorPreview();
+        _editorPrefixPath.TextChanged += (_, _) => UpdateEditorPreview();
+        _editorArgs.TextChanged += (_, _) => UpdateEditorPreview();
+        _editorWrappers.TextChanged += (_, _) => UpdateEditorPreview();
+        _editorEnv.TextChanged += (_, _) => UpdateEditorPreview();
+
         UpdateEditorPrefixRow();
+        UpdateEditorPreview();
         ScrollViewer_Content.Visibility = Visibility.Collapsed;
         ScrollViewer_Editor.Visibility = Visibility.Visible;
     }
@@ -732,6 +1024,17 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         Text = text,
         Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
         Margin = new Thickness(0, 12, 0, 0),
+    };
+
+
+    private static TextBlock GroupTitle(string text) => new()
+    {
+        Text = text,
+        FontWeight = FontWeights.SemiBold,
+        FontSize = 12,
+        Margin = new Thickness(0, 10, 0, 2),
+        Opacity = 0.8,
+        TextWrapping = TextWrapping.Wrap,
     };
 
 
@@ -773,28 +1076,99 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
+    /// <summary>按当前编辑内容算一遍启动命令（与真启动同源），并标出会被配方覆盖的自动环境变量。</summary>
+    private void UpdateEditorPreview()
+    {
+        try
+        {
+            if (_editorPreview is null || _editorEnvInfo is null)
+            {
+                return;
+            }
+            Component? runner = _editorRunner is { SelectedIndex: >= 0 } && _editorRunner.SelectedIndex < _editorRunners.Count
+                ? _editorRunners[_editorRunner.SelectedIndex]
+                : null;
+            var draft = new RuntimeProfile
+            {
+                Name = string.IsNullOrWhiteSpace(_editorName?.Text) ? "新方案" : _editorName!.Text,
+                Args = _editorArgs?.Text ?? "",
+                Wrappers = ParseWrappers(_editorWrappers?.Text),
+                Env = ParseEnv(_editorEnv?.Text),
+            };
+            string prefix = Starward.Features.Runtime.PrefixManager.ExpandPath(_editorPrefixPath?.Text)
+                ?? EnvironmentResolver.EffectivePrefixPath(draft);
+            if (runner is null)
+            {
+                _editorPreview.Text = "(没有可用运行器，启动时退回系统 wine)";
+                _editorEnvInfo.Text = "";
+                return;
+            }
+            var auto = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["WINEPREFIX"] = prefix,
+                ["WINEDEBUG"] = "-all",
+            };
+            LaunchRecipe recipe = LaunchRecipeBuilder.Build(draft, runner.Path, prefix, "<游戏>.exe", null, auto);
+            _editorPreview.Text = recipe.CommandLine;
+            _editorEnvInfo.Text = recipe.Overrides.Count == 0
+                ? ""
+                : "会被配方覆盖：" + string.Join("；", recipe.Overrides.Select(x => $"{x.Key}（自动 {x.AutoValue} → 配方 {x.RecipeValue}）"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "update launch preview failed");
+            if (_editorPreview is not null)
+            {
+                _editorPreview.Text = "(预览失败，详见日志)";
+            }
+        }
+    }
+
+
     private void UpdateEditorPrefixRow()
     {
-        if (_editorPrefixInfo is null || _editorPrefixPath is null || _editorBrowse is null)
+        if (_editorPrefixInfo is null || _editorPrefixPath is null)
         {
             return;
         }
-        bool external = _editorPrefixExternal?.IsChecked == true;
-        bool ephemeral = _editorPrefixEphemeral?.IsChecked == true;
-        _editorPrefixPath.IsEnabled = !ephemeral;
-        _editorBrowse.IsEnabled = !ephemeral;
         string? path = Starward.Features.Runtime.PrefixManager.ExpandPath(_editorPrefixPath.Text);
         if (string.IsNullOrWhiteSpace(path))
         {
-            _editorPrefixInfo.Text = ephemeral
-                ? "临时前缀：从复制源克隆一份，游戏退出后删除。"
-                : "留空则使用默认位置：~/.local/share/lunarward/prefix/<游戏>";
+            _editorPrefixInfo.Text = "留空则使用默认位置：~/.local/share/lunarward/prefixes/<名字>（首次启动创建）";
             return;
         }
         Starward.Features.Runtime.PrefixManager.PrefixInspection info =
             Starward.Features.Runtime.PrefixManager.Inspect(path, computeSize: false);
-        string state = !info.Exists ? "不存在" : !info.HasDriveC ? "缺少 drive_c" : info.Locked ? "正被占用" : "健康";
-        _editorPrefixInfo.Text = $"{state}{(external ? "（外部目录，我们不会修改它的内容）" : "")} · {path}";
+        string state = !info.Exists ? "不存在（首次启动时创建）" : !info.HasDriveC ? "缺少 drive_c，不像 Wine 前缀" : info.Locked ? "正被占用" : "健康";
+        _editorPrefixInfo.Text = $"{state} · {path}";
+    }
+
+
+    /// <summary>把一份现有前缀复制到编辑框里的路径（reflink，同卷几乎瞬时）。</summary>
+    private async void Button_EditorCopyPrefix_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string? source = await Helpers.FileDialogHelper.PickFolderAsync(XamlRoot);
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                return;
+            }
+            string target = Starward.Features.Runtime.PrefixManager.ExpandPath(_editorPrefixPath?.Text)
+                ?? Starward.Features.Runtime.EnvironmentResolver.EffectivePrefixPath(_editingProfile);
+            if (_editorPrefixPath is not null && string.IsNullOrWhiteSpace(_editorPrefixPath.Text))
+            {
+                _editorPrefixPath.Text = target;
+            }
+            await Task.Run(() => Starward.Features.Runtime.PrefixManager.ClonePrefix(source, target, _logger));
+            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已复制到 {target}", 4000);
+            UpdateEditorPrefixRow();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "copy prefix failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, "复制前缀失败");
+        }
     }
 
 
@@ -831,28 +1205,21 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 Helpers.InAppToast.MainWindow?.Warning((string?)null, $"这个运行器不可用：{runner.UsabilityReason}", 6000);
                 return;
             }
-            string mode = _editorPrefixExternal?.IsChecked == true ? "external"
-                : _editorPrefixCopy?.IsChecked == true ? "template"
-                : _editorPrefixEphemeral?.IsChecked == true ? "ephemeral"
-                : "dedicated";
             string prefixPath = _editorPrefixPath?.Text?.Trim() ?? "";
-            if (mode is "external" or "template" && string.IsNullOrWhiteSpace(prefixPath))
-            {
-                Helpers.InAppToast.MainWindow?.Warning((string?)null, "这个前缀来源需要填一个目录。", 4000);
-                return;
-            }
 
             List<RuntimeProfile> all = RuntimeProfileStore.LoadAll(_logger).ToList();
             RuntimeProfile profile = _editingProfile is null
                 ? new RuntimeProfile { Id = Guid.NewGuid().ToString("N")[..8] }
                 : all.FirstOrDefault(x => x.Id == _editingProfile.Id) ?? _editingProfile;
             profile.Name = string.IsNullOrWhiteSpace(_editorName?.Text) ? (profile.Name.Length > 0 ? profile.Name : "新方案") : _editorName.Text.Trim();
-            profile.RunnerType = runner.Kind == ComponentKind.Proton ? "proton" : "wine";
+            profile.RunnerId = runner.Id;
             profile.RunnerPath = runner.Path;
             profile.GraphicsId = SelectedGraphicsId(_editorDxvk);
-            profile.PrefixMode = mode;
-            profile.PrefixPath = prefixPath;
-            profile.Environment = ParseEnv(_editorEnv?.Text);
+            profile.PrefixPath = string.IsNullOrWhiteSpace(prefixPath) ? null : prefixPath;
+            profile.Env = ParseEnv(_editorEnv?.Text);
+            profile.Args = _editorArgs?.Text?.Trim() ?? "";
+            profile.Wrappers = ParseWrappers(_editorWrappers?.Text);
+            profile.Notes = string.IsNullOrWhiteSpace(_editorNotes?.Text) ? null : _editorNotes.Text.Trim();
             profile.Shell = _editorShell?.Text?.Trim() ?? "";
 
             RuntimeProfileStore.Save(profile, _logger);
@@ -867,6 +1234,25 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             _logger.LogError(ex, "save profile failed");
             Helpers.InAppToast.MainWindow?.Error(ex, "保存失败");
         }
+    }
+
+
+    private static List<string> ParseWrappers(string? text)
+    {
+        var list = new List<string>();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return list;
+        }
+        foreach (string line in text.Split('\n'))
+        {
+            string trimmed = line.Trim();
+            if (trimmed.Length > 0)
+            {
+                list.Add(trimmed);
+            }
+        }
+        return list;
     }
 
 
@@ -1279,12 +1665,17 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         RuntimeProfile clone = new()
         {
             Name = profile.Name + " 副本",
-            RunnerType = profile.RunnerType,
+            RunnerId = profile.RunnerId,
             RunnerPath = profile.RunnerPath,
-            PrefixMode = profile.PrefixMode,
+            GraphicsId = profile.GraphicsId,
             PrefixPath = profile.PrefixPath,
-            Environment = new Dictionary<string, string>(profile.Environment),
+            Env = new Dictionary<string, string>(profile.Env),
+            Args = profile.Args,
+            Wrappers = new List<string>(profile.Wrappers),
+            Notes = profile.Notes,
+            PrefixArch = profile.PrefixArch,
             Shell = profile.Shell,
+            GameOutput = profile.GameOutput,
         };
         RuntimeProfileStore.Save(clone, _logger);
         LoadProfiles();

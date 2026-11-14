@@ -1117,3 +1117,22 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 修法：先 `grep -n` 打印两端锚点之间的成员清单再替换；替换后立即 `dotnet build`（不要攒着改完再编）。
 - 通用规则：脚本化改代码时，锚点只负责定位，落盘的内容必须以「该区间原有全部成员」为基线做增删，而不是只写想加的那部分。
 
+
+## L-138 「自动注入的 env」不是冲突
+
+- 现象：`LaunchRecipeBuilder.Build` 一开始把「自动注入的 `WINEPREFIX`」也算进覆盖清单，于是每次启动都打一行「环境变量 WINEPREFIX 被覆盖」，而用户什么都没配。
+- 修法：只在**配方自己显式写了**同名键且值不同时才记 `EnvOverride`；自动层与配方层值相同也不记。
+- 通用规则：三层 env（自动注入 → 配方 → 进程）里，「来源不同」不等于「冲突」，只有「同一键在不同层有不同值」才是冲突。判断冲突要比值，不要比来源。
+
+## L-139 迁移没清干净 = 每次启动都写回旧字段
+
+- 现象：迁移后 `profiles/<id>.json` 里仍一直出现 `EnsureGraphics: true` 和 `Environment: {}`，看起来像迁移没生效。
+- 根因：`LegacyEnsureGraphics` 是 `bool`，默认 `false`，但旧文件里是 `true`，所以每次序列化都写回；`LegacyEnvironment` 是空字典同理。
+- 修法：`LegacyEnsureGraphics` 改 `bool?`（`null` = 已迁移，配 `JsonIgnoreCondition.WhenWritingNull` 不落盘）；`LegacyEnvironment` 迁移后置 `null`，空字典不能留。
+- 通用规则：做「旧字段 → 新字段」迁移时，迁移完成后必须把旧字段变成「不存在」而不是「默认值」，否则序列化会把它写回去，形成永久残留。
+
+## L-140 预览与实际启动必须共用同一个构造函数
+
+- 现象：编辑器里的「启动预览」和真正启动是两段代码时，改了一处另处不改，用户看到「预览说 A、启动做 B」。
+- 修法：`LaunchRecipeBuilder.Build` 是唯一入口，启动、预览、`--launch-plan` 三处都调它；冲突检测也在里面做。
+- 通用规则：任何「给用户看的预测」都必须来自「真正执行的那份数据」，不要复制一份生成逻辑。

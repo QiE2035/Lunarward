@@ -167,7 +167,7 @@ echo x >"$IMP/wine-z-9.9/files/share/x.dat"
 tar -C "$IMP" -czf "$IMP/wine-z-9.9.tar.gz" wine-z-9.9
 lw --component-import "$IMP/wine-z-9.9.tar.gz" --kind wine >"$out" 2>&1; rc=$?
 if expect_rc 0 "$rc" && expect_contains "$(text)" "已导入" \
-    && find "$LW_DATA/lunarward/components/wine" -name manifest.json -print -quit | grep -q .; then
+    && find "${LW_DATA:-$ROOT/data}/lunarward/components/wine" -name manifest.json -print -quit | grep -q .; then
     pass_case
 fi
 
@@ -178,5 +178,17 @@ if expect_rc 0 "$rc" && expect_contains "$(text)" "wine-z 9.9" && expect_contain
 case_start "T-CL-39" "--component-import 缺 --kind 时返回 1"
 lw --component-import "$IMP/wine-z-9.9.tar.gz" >"$out" 2>&1; rc=$?
 if expect_rc 1 "$rc" && expect_contains "$(text)" "--kind"; then pass_case; fi
+
+# ── 运行环境（D73 阶段 2/3）：配方 → argv/env 预览 ─────────────────────
+case_start "T-CL-40" "--launch-plan 打印配方/命令/env"
+mkdir -p "$IMP"
+printf 'MZ\0\0' >"$IMP/game.exe"
+lw --launch-plan "$IMP/game.exe" >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "配方" && expect_contains "$(text)" "命令" \
+    && expect_contains "$(text)" "WINEPREFIX="; then pass_case; fi
+
+case_start "T-CL-41" "--launch-plan --profile <不存在> 时明确说找不到配方"
+lw --launch-plan "$IMP/game.exe" --profile 不存在的配方 >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "找不到"; then pass_case; fi
 
 summary

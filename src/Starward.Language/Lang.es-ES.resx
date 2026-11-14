@@ -2804,6 +2804,12 @@ Puede enviar los datos exportados al siguiente repositorio:</value>
   <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
     <value>Abrir consola de depuración</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>Texto de configuración</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
     <value>Clonar</value>
   </data>

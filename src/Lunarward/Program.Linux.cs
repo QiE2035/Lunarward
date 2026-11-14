@@ -41,7 +41,8 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
   --diagnose [--out DIR] [--game BIZ]
                                    生成诊断包 zip（默认 ~/Downloads）
   --preflight <biz>                启动前预检六项
-  --launch-plan <exe> [args]       只解析不启动：打印 wine/前缀/argv
+  --launch-plan <exe> [args] [--profile <id|名字>]
+                                   只解析不启动：打印配方/argv/env/覆盖
 
 运行环境
   --list-runners [--json]          列出发现的运行器（布局/可用性/原因）
@@ -164,7 +165,13 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 Environment.ExitCode = 1;
                 return;
             }
-            Console.WriteLine(Features.GameLauncher.GameLauncherService.DescribeLaunchPlan(args[1], args.Length > 2 ? args[2] : null));
+            string? hint = null;
+            int planIdx = Array.IndexOf(args, "--profile");
+            if (planIdx > 0 && planIdx + 1 < args.Length)
+            {
+                hint = args[planIdx + 1];
+            }
+            Console.WriteLine(Features.GameLauncher.GameLauncherService.DescribeLaunchPlan(args[1], args.Length > 2 && args[2] is not "--profile" ? args[2] : null, hint));
             return;
         }
 
@@ -1664,7 +1671,7 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 Console.WriteLine("还没有任何运行配置。");
                 return;
             }
-            Console.WriteLine($"profile : {prof.Name}  模式={prof.PrefixMode}  模板/路径={prof.PrefixPath}");
+            Console.WriteLine($"profile : {prof.Name}  运行器={prof.RunnerId ?? prof.RunnerPath ?? "(未指定)"}  前缀={prof.PrefixPath ?? "(默认)"}");
             try
             {
                 var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -1672,7 +1679,7 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 sw.Stop();
                 var meta = Features.Runtime.PrefixManager.GetMetadata(prefix);
                 Console.WriteLine($"prefix  : {prefix}  ({sw.ElapsedMilliseconds} ms)");
-                Console.WriteLine($"meta    : game={meta?.GameKey} mode={meta?.Mode} template={meta?.TemplatePath}");
+                Console.WriteLine($"meta    : game={meta?.GameKey} profile={meta?.ProfileId} since={meta?.CreatedAt:yyyy-MM-dd HH:mm}");
                 Console.WriteLine($"exists  : {System.IO.Directory.Exists(System.IO.Path.Combine(prefix, "drive_c"))} (drive_c)");
             }
             catch (Exception ex)

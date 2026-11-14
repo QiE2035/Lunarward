@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Starward.Core;
+using Starward.Features.Runtime;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -99,10 +100,6 @@ internal partial class GameLauncherService
     /// 构造启动游戏的 ProcessStartInfo。
     /// <paramref name="exe"/> 为 .exe 时经 wine 启动，为原生可执行文件时直接启动（兼容第三方工具）。
     /// </summary>
-    /// <summary>本次启动用到的临时前缀（ephemeral 模式下退出即删）。</summary>
-    private static string? _ephemeralPrefix;
-
-
     /// <summary>游戏运行期间持有的前缀锁（同一前缀不允许两个实例同时跑）。</summary>
     private static FileStream? _prefixLockStream;
 
@@ -157,11 +154,11 @@ internal partial class GameLauncherService
 
 
     /// <summary>
-    /// 游戏进程退出后：丢弃临时前缀（ephemeral）、释放前缀锁，并触发 on_game_exit 的后启动程序（D24）。
+    /// 游戏进程退出后：释放前缀锁，并触发 on_game_exit 的后启动程序（D24）。
+    /// 前缀不再有「临时模式」（D73 §3.1），想用完即弃就让路径落在临时目录、自己删。
     /// </summary>
-    private static void AttachEphemeralPrefixCleanup(Process? process)
+    private static void AttachSessionCleanup(Process? process)
     {
-        string? ephemeral = Interlocked.Exchange(ref _ephemeralPrefix, null);
         _ = Task.Run(async () =>
         {
             try
@@ -182,10 +179,6 @@ internal partial class GameLauncherService
             }
             finally
             {
-                if (ephemeral is not null)
-                {
-                    Features.Runtime.PrefixManager.DiscardEphemeralPrefix(ephemeral);
-                }
                 ReleasePrefixLock();
                 RunExitCompanions();
             }
@@ -249,22 +242,13 @@ internal partial class GameLauncherService
         {
             try
             {
-                // dedicated/shared 前缀首次初始化要跑 wineboot（约十几秒），先给用户一个明确提示
-                bool willInitialize = profile.PrefixMode is "dedicated"
-                    && !Directory.Exists(string.IsNullOrWhiteSpace(profile.PrefixPath)
-                        ? Path.Combine(Features.Runtime.PrefixManager.PrefixRoot, key.ToLowerInvariant())
-                        : profile.PrefixPath);
-                if (willInitialize)
+                // 前缀不存在就要跑 wineboot（约十几秒），先给用户一个明确提示（D73 §3.1：前缀只是路径）
+                string expected = Features.Runtime.EnvironmentResolver.EffectivePrefixPath(profile);
+                if (!Directory.Exists(expected))
                 {
                     Helpers.InAppToast.MainWindow?.Information("首次启动：正在初始化 Wine 前缀，可能需要十几秒…", null, 8000);
                 }
-                // 按 Profile 的前缀模式解析：external 直接用、dedicated/shared 缺失则 wineboot 初始化、
-                // template/ephemeral 用 reflink 克隆（见 PrefixManager）
                 prefix = Features.Runtime.PrefixManager.EnsurePrefix(profile, key.ToLowerInvariant(), _logger);
-                if (profile.PrefixMode is "ephemeral")
-                {
-                    _ephemeralPrefix = prefix;
-                }
                 TryLockPrefix(prefix);
             }
             catch (Exception ex)
@@ -314,21 +298,39 @@ internal partial class GameLauncherService
             _logger.LogDebug("Profile has no graphics component selected; skip install.");
         }
 
-        info.FileName = wine;
-        info.ArgumentList.Add(exe);
-        if (!string.IsNullOrWhiteSpace(arg))
-        {
-            foreach (var a in SplitArguments(arg))
-            {
-                info.ArgumentList.Add(a);
-            }
-        }
         info.Environment["WINEPREFIX"] = prefix;
         // 记录本次真正用的运行器：记录子进程靠它挑对的 wineserver（自定义运行器 + 系统 wineserver 混用会让 -w 立刻返回）。
         Features.PlayTime.PlayTimeSession.ActiveWine = wine;
         // 不接管 wine 的输出：游戏日志独立，避免阻塞 GUI 线程（D27 输出可见性模型）。
         info.Environment["WINEDEBUG"] = info.Environment.TryGetValue("WINEDEBUG", out var dbg) ? dbg : "-all";
         ApplyWineRuntimeEnvironment(info, wine);
+
+        // D73 §4.3/§4.4：配方 env 覆盖运行器自动注入的值（覆盖要留痕），wrappers 按顺序排在 wine 前面。
+        var autoEnvironment = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in info.Environment)
+        {
+            autoEnvironment[pair.Key] = pair.Value ?? "";
+        }
+        string effectiveArgs = string.IsNullOrWhiteSpace(profile?.Args) ? (arg ?? "") : profile!.Args;
+        Features.Runtime.LaunchRecipe recipe = Features.Runtime.LaunchRecipeBuilder.Build(
+            profile, wine, prefix, exe, effectiveArgs, autoEnvironment);
+        if (profile?.Env is { Count: > 0 })
+        {
+            foreach ((string envKey, string envValue) in profile.Env)
+            {
+                info.Environment[envKey] = envValue;
+            }
+        }
+        foreach (Features.Runtime.EnvOverride overridden in recipe.Overrides)
+        {
+            _logger.LogWarning("环境变量 {key} 被配方覆盖：自动注入 {auto} → 配方 {recipe}", overridden.Key, overridden.AutoValue, overridden.RecipeValue);
+        }
+        info.FileName = recipe.Argv[0];
+        info.ArgumentList.Clear();
+        for (int i = 1; i < recipe.Argv.Count; i++)
+        {
+            info.ArgumentList.Add(recipe.Argv[i]);
+        }
         return info;
     }
 
@@ -382,41 +384,71 @@ internal partial class GameLauncherService
     /// 只解析不启动：给 CLI（`lunarward --launch-plan &lt;exe&gt;`）与调试 shell 用，
     /// 用来确认 wine / prefix / 参数解析结果，不产生任何副作用。
     /// </summary>
-    internal static string DescribeLaunchPlan(string exe, string? arg)
+    internal static string DescribeLaunchPlan(string exe, string? arg, string? profileHint = null)
     {
-        string? wine = ResolveWine();
-        string key = Path.GetFileNameWithoutExtension(exe);
-        string? prefix = ResolvePrefix(key.ToLowerInvariant());
         var sb = new StringBuilder();
         sb.AppendLine($"exe     : {exe}");
         sb.AppendLine($"exists  : {File.Exists(exe)}");
-        sb.AppendLine($"wine    : {wine ?? "(未找到)"}");
-        sb.AppendLine($"prefix  : {prefix ?? "(未找到)"}");
-        sb.AppendLine($"args    : {arg}");
-        if (wine is not null && prefix is not null && File.Exists(exe))
+
+        // 和真启动走同一套解析：绑定 → 配方 → argv/env 覆盖（D73 §4）。
+        RuntimeProfile? profile = null;
+        if (!string.IsNullOrWhiteSpace(profileHint))
         {
-            var info = CreateLaunchPlanStatic(exe, arg, wine, prefix);
-            sb.AppendLine($"argv    : {info.FileName} {string.Join(" ", info.ArgumentList.Select(a => a.Contains(' ') ? $"\"{a}\"" : a))}");
-            sb.AppendLine($"env     : WINEPREFIX={prefix} WINEDEBUG={info.Environment["WINEDEBUG"]}");
+            profile = Features.Runtime.RuntimeProfileStore.LoadAll()
+                .FirstOrDefault(x => string.Equals(x.Id, profileHint, StringComparison.OrdinalIgnoreCase)
+                                  || string.Equals(x.Name, profileHint, StringComparison.OrdinalIgnoreCase));
+            if (profile is null)
+            {
+                sb.AppendLine($"配方    : 找不到「{profileHint}」");
+            }
+        }
+        else
+        {
+            profile = Features.Runtime.ProfileBinding.Resolve(AppConfig.CurrentGameBiz);
+        }
+
+        if (profile is null)
+        {
+            sb.AppendLine("配方    : (没有可用的运行环境，按系统 wine 兜底)");
+            string? bareWine = ResolveWine();
+            sb.AppendLine($"wine    : {bareWine ?? "(未找到)"}");
+            string? barePrefix = ResolvePrefix(Path.GetFileNameWithoutExtension(exe).ToLowerInvariant());
+            sb.AppendLine($"prefix  : {barePrefix ?? "(未找到)"}");
+            return sb.ToString();
+        }
+
+        IReadOnlyList<Component> runners = ComponentStore.GetRunners();
+        Component? runner = Features.Runtime.EnvironmentResolver.ResolveRunner(profile, runners);
+        string? wine = runner?.Path ?? ResolveWine();
+        string prefix = Features.Runtime.EnvironmentResolver.EffectivePrefixPath(profile);
+
+        sb.AppendLine($"配方    : {profile.Name} ({profile.Id})");
+        sb.AppendLine($"运行器  : {runner?.DisplayName ?? "(未找到，退系统 wine)"}");
+        sb.AppendLine($"wine    : {wine ?? "(未找到)"}");
+        sb.AppendLine($"前缀    : {prefix}{(Directory.Exists(prefix) ? "" : " （不存在，启动时创建）")}");
+        if (wine is null)
+        {
+            return sb.ToString();
+        }
+
+        var auto = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["WINEPREFIX"] = prefix,
+            ["WINEDEBUG"] = "-all",
+        };
+        LaunchRecipe recipe = LaunchRecipeBuilder.Build(profile, wine, prefix, exe, arg, auto);
+        sb.AppendLine($"命令    : {recipe.CommandLine}");
+        foreach ((string key, string value) in recipe.SortedEnvironment)
+        {
+            sb.AppendLine($"env     : {key}={value}");
+        }
+        foreach (EnvOverride item in recipe.Overrides)
+        {
+            sb.AppendLine($"覆盖    : {item.Key} 自动={item.AutoValue} → 配方={item.RecipeValue}");
         }
         return sb.ToString();
     }
 
-    private static ProcessStartInfo CreateLaunchPlanStatic(string exe, string? arg, string wine, string prefix)
-    {
-        var info = new ProcessStartInfo { FileName = wine, UseShellExecute = false };
-        info.ArgumentList.Add(exe);
-        if (!string.IsNullOrWhiteSpace(arg))
-        {
-            foreach (var a in SplitArguments(arg))
-            {
-                info.ArgumentList.Add(a);
-            }
-        }
-        info.Environment["WINEPREFIX"] = prefix;
-        info.Environment["WINEDEBUG"] = "-all";
-        return info;
-    }
 
     /// <summary>按 shell 规则粗略切分参数串（支持 "与 ' 包裹）。</summary>
     internal static IEnumerable<string> SplitArguments(string raw)

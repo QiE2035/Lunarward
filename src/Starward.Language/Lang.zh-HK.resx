@@ -2806,6 +2806,12 @@
   <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
     <value>開啟除錯 Shell</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>設定文字</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>關閉</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
     <value>複製</value>
   </data>

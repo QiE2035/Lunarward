@@ -2827,6 +2827,12 @@ ChatGPT может допускать ошибки. Проверьте важн�
   <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
     <value>Открыть отладочную оболочку</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>Текст конфигурации</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
     <value>Клонировать</value>
   </data>

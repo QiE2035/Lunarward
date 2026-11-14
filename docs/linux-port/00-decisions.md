@@ -936,4 +936,22 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 
 **代价**：磁盘（wine 构建 400–700 MB、GE-Proton ~1 GB；换版本时提示保留/删除）；组件更新需手动；Proton 在自洽模式下仍需 Steam 或 umu（界面必须写明）。
 
-**状态**：方向已确认，**未开工**。实现前需在本文档 §11 补完 5 条待定细节，并由用户在对话中明确授权。
+**状态**：阶段 1/2/3 均已落地（见 `23-runtime-env-design.md` §12、§13）。实现前需在本文档 §11 补完 5 条待定细节，并由用户在对话中明确授权。
+
+---
+
+## D74 前缀只是路径：取消 template / ephemeral / shared 三种「模式」
+
+**背景**：D63 引入的 `PrefixMode` 把「前缀从哪来」编码成枚举（`template` / `dedicated` / `shared` / `external` / `ephemeral`），实际使用中它带来三类问题：①同一个前缀在不同模式下行为不同（例如 `shared` 与 `dedicated` 的差别只剩文案）；②`template` 需要额外维护模板库，而「从现有前缀复制」已经覆盖同样需求；③`ephemeral`（退出即删）与「路径存在与否」没有本质区别，却要额外记一份状态。
+
+**决定**：
+
+1. `RuntimeProfile.PrefixPath` 是唯一事实：**空** = 用默认路径 `PrefixRoot/<名字>`（首次启动时创建）；**有值** = 用这个路径，存在就复用、不存在就创建。
+2. 取消 `PrefixMode` 与 `EnsureGraphics`，删除 `template` 模板库、`ephemeral` 退出清理、`shared` 语义（D64 已先合并 `shared`）。
+3. 共享前缀 = 两份环境填同一个路径；隔离前缀 = 两份环境填不同路径。界面不再出现「模式」这种词。
+4. 迁移：`LoadAll` 时读旧 `profiles/*.json`，`dedicated` / `external` / `shared` 保留 `PrefixPath`；`template` / `ephemeral` 清空 `PrefixPath`（回到默认路径）并把原值写进 `Notes`，旧目录整体改名为 `profiles.migrated-<时间戳>`。
+5. 前缀被谁占用、占地多少、是不是 `drive_c` 齐全，一律现查（`PrefixManager.Inspect`）而不是存状态。
+
+**代价**：①「临时环境」不再有一键语义，需要临时前缀时手动填一个路径、用完自己删（或建完复制一份）；②旧 JSON 的 `PrefixMode` 只读不写；③模板复用要靠「从现有前缀复制」，复制 650 MB 大约 0.2 秒（btrfs reflink）。
+
+**验证**：`--launch-plan` 在迁移后的真实配置上打印出正确的前缀与命令行；5 条 `MigrateFromLegacy` 单测覆盖上述规则。

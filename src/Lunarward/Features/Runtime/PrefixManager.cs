@@ -28,7 +28,6 @@ public sealed class PrefixMetadata
 
     public string Mode { get; set; } = "";
 
-    public string? TemplatePath { get; set; }
 
     public DateTime CreatedAt { get; set; }
 }
@@ -279,74 +278,30 @@ public static class PrefixManager
     }
 
 
-    /// <summary>解析该游戏该 Profile 应当使用的前缀；必要时创建或克隆。失败抛异常（由调用方决定降级）。</summary>
+    /// <summary>
+    /// 解析该配方使用的前缀；不存在就按默认架构新建（<c>wineboot -u</c>）。
+    /// D73 §3.1：前缀只是路径——两个配方指同一路径就是共享，用完删就是临时，不再有「模式」。
+    /// 失败抛异常（由调用方决定是否降级）。
+    /// </summary>
     public static string EnsurePrefix(RuntimeProfile profile, string gameKey, ILogger? logger = null)
     {
-        string key = gameKey.ToLowerInvariant();
-        switch (profile.PrefixMode)
+        string path = EnvironmentResolver.EffectivePrefixPath(profile);
+        if (!Directory.Exists(path))
         {
-            case "external":
+            // 上级目录可能是「前缀根目录」或随便一个文件夹：wine 会安静地在里面建空前缀，
+            if (Directory.Exists(Path.GetDirectoryName(path)) && IsUnderPrefixRoot(path) is false)
             {
-                string path = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
-                    ? throw new DirectoryNotFoundException("external 前缀模式需要指定前缀路径。")
-                    : ExpandPath(profile.PrefixPath)!;
-                if (!Directory.Exists(path))
-                {
-                    throw new DirectoryNotFoundException($"前缀不存在：{path}");
-                }
-                return path;
+                logger?.LogInformation("Prefix {path} 不存在，将新建（配方未指定路径时落在默认目录）", path);
             }
-            case "dedicated":
-            {
-                string path = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
-                    ? Path.Combine(PrefixRoot, key)
-                    : ExpandPath(profile.PrefixPath)!;
-                if (!Directory.Exists(path))
-                {
-                    CreateWithWineboot(profile, path, logger);
-                    TightenPermissions(path);
-                }
-                WriteMetadata(path, key, profile, "dedicated", null);
-                return path;
-            }
-            case "template":
-            {
-                string template = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
-                    ? throw new DirectoryNotFoundException("template 前缀模式需要指定模板前缀路径。")
-                    : ExpandPath(profile.PrefixPath)!;
-                if (!Directory.Exists(template))
-                {
-                    throw new DirectoryNotFoundException($"模板前缀不存在：{template}");
-                }
-                string path = Path.Combine(PrefixRoot, $"{key}-{profile.Id}");
-                if (!Directory.Exists(path))
-                {
-                    ClonePrefix(template, path, logger);
-                    TightenPermissions(path);
-                }
-                WriteMetadata(path, key, profile, "template", template);
-                return path;
-            }
-            case "ephemeral":
-            {
-                string template = string.IsNullOrWhiteSpace(ExpandPath(profile.PrefixPath))
-                    ? throw new DirectoryNotFoundException("ephemeral 前缀模式需要指定模板前缀路径。")
-                    : ExpandPath(profile.PrefixPath)!;
-                if (!Directory.Exists(template))
-                {
-                    throw new DirectoryNotFoundException($"模板前缀不存在：{template}");
-                }
-                // 精确到秒会在同一秒内连点两次时撞名（克隆到一半被第二个实例当成已存在）；
-                // 用「时间戳 + pid + 短随机」保证唯一，同时仍可看出是哪次会话。
-                string path = Path.Combine(PrefixRoot, $".ephemeral-{key}-{profile.Id}-{DateTime.Now:yyyyMMddHHmmss}-{Environment.ProcessId}");
-                ClonePrefix(template, path, logger);
-                TightenPermissions(path);
-                WriteMetadata(path, key, profile, "ephemeral", template);
-                return path;
-            }
-            default:
-                throw new NotSupportedException($"未知的前缀模式：{profile.PrefixMode}");
+            CreateWithWineboot(profile, path, logger);
+            TightenPermissions(path);
         }
+        else if (!Directory.Exists(Path.Combine(path, "drive_c")))
+        {
+            throw new IOException($"目录存在但不像 Wine 前缀（缺少 drive_c）：{path}。请换一个路径，或删掉该目录后重试。");
+        }
+        WriteMetadata(path, gameKey, profile);
+        return path;
     }
 
 
@@ -372,35 +327,13 @@ public static class PrefixManager
 
 
     /// <summary>
-    /// 只解析「已经存在」的前缀，不创建、不克隆、不写元数据。
+    /// 只解析「已经存在」的前缀，不创建、不写元数据。
     /// 设置类操作（例如写 HDR 注册表）用它，避免为了改一个开关就凭空造出一个前缀（L-62）。
     /// </summary>
     public static string? TryGetExistingPrefix(RuntimeProfile profile, string gameKey)
     {
-        string key = gameKey.ToLowerInvariant();
-        switch (profile.PrefixMode)
-        {
-            case "external":
-            {
-                string? external = ExpandPath(profile.PrefixPath);
-                return external is not null && Directory.Exists(external) ? external : null;
-            }
-            case "dedicated":
-            {
-                string path = string.IsNullOrWhiteSpace(profile.PrefixPath) ? Path.Combine(PrefixRoot, key) : ExpandPath(profile.PrefixPath)!;
-                return Directory.Exists(path) ? path : null;
-            }
-            case "template":
-            {
-                string path = Path.Combine(PrefixRoot, $"{key}-{profile.Id}");
-                return Directory.Exists(path) ? path : null;
-            }
-            case "ephemeral":
-                // 临时前缀按会话创建，设置阶段没有可写的目标。
-                return null;
-            default:
-                return null;
-        }
+        string path = EnvironmentResolver.EffectivePrefixPath(profile);
+        return Directory.Exists(path) ? path : null;
     }
 
 
@@ -471,59 +404,6 @@ public static class PrefixManager
     }
 
 
-    /// <summary>删除临时前缀（ephemeral 模式用；只删带 `.ephemeral-` 前缀的目录，防误删）。</summary>
-    public static bool DiscardEphemeralPrefix(string path, ILogger? logger = null)
-    {
-        try
-        {
-            string name = Path.GetFileName(path);
-            if (!name.StartsWith(".ephemeral-", StringComparison.Ordinal) || !Directory.Exists(path))
-            {
-                return false;
-            }
-            Directory.Delete(path, recursive: true);
-            logger?.LogInformation("Discarded ephemeral prefix: {path}", path);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Discard ephemeral prefix failed: {path}", path);
-            return false;
-        }
-    }
-
-
-    /// <summary>清理超过指定小时数的临时前缀（启动时调用，避免磁盘越积越多）。</summary>
-    public static int CleanupStaleEphemeralPrefixes(int olderThanHours = 24, ILogger? logger = null)
-    {
-        if (!Directory.Exists(PrefixRoot))
-        {
-            return 0;
-        }
-        int removed = 0;
-        foreach (string dir in Directory.EnumerateDirectories(PrefixRoot, ".ephemeral-*"))
-        {
-            try
-            {
-                if (DateTime.Now - Directory.GetCreationTime(dir) > TimeSpan.FromHours(olderThanHours))
-                {
-                    Directory.Delete(dir, recursive: true);
-                    removed++;
-                }
-            }
-            catch (Exception ex)
-            {
-                logger?.LogDebug(ex, "Cleanup ephemeral prefix failed: {dir}", dir);
-            }
-        }
-        if (removed > 0)
-        {
-            logger?.LogInformation("Cleaned {n} stale ephemeral prefixes", removed);
-        }
-        return removed;
-    }
-
-
     public static PrefixMetadata? GetMetadata(string prefix)
     {
         try
@@ -540,12 +420,15 @@ public static class PrefixManager
     }
 
 
-    private static void WriteMetadata(string prefix, string gameKey, RuntimeProfile profile, string mode, string? template)
+    /// <summary>
+    /// 在前缀里留一份侧写（D73 §3.5）：只记「谁用过、什么时候建的」，不碰注册表结构、不改目录名。
+    /// </summary>
+    private static void WriteMetadata(string prefix, string gameKey, RuntimeProfile profile)
     {
         try
         {
             PrefixMetadata? existing = GetMetadata(prefix);
-            if (existing is not null && existing.GameKey == gameKey && existing.Mode == mode && existing.TemplatePath == template)
+            if (existing is not null && existing.GameKey == gameKey && existing.ProfileId == profile.Id)
             {
                 return;
             }
@@ -555,13 +438,13 @@ public static class PrefixManager
             {
                 GameKey = gameKey,
                 ProfileId = profile.Id,
-                Mode = mode,
-                TemplatePath = template,
+                Mode = "environment",
                 CreatedAt = existing?.CreatedAt ?? DateTime.Now,
             }, new JsonSerializerOptions { WriteIndented = true });
         }
         catch
         {
+            // 侧写失败不影响启动
         }
     }
 

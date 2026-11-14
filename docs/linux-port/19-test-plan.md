@@ -255,6 +255,8 @@
 | T-CL-37 | `--component-import` | 归档导入为受管组件、写入 `manifest.json`、布局识别正确 | L2 | P0 |
 | T-CL-38 | `--component-health` | 一句结论 + stdout/stderr 原文 + 退出码，不映射包名 | L2 | P1 |
 | T-CL-39 | 组件命令缺参数 | 缺 `--kind` 时说明用法并 rc=1 | L2 | P2 |
+| T-CL-40 | `--launch-plan` 配方预览 | 打印配方名、完整命令、每个 env；缺失前缀标注「启动时创建」 | L2 | P0 |
+| T-CL-41 | `--launch-plan --profile` | 指定不存在的配方时明确说「找不到」，不静默退兜底 | L2 | P1 |
 
 ### 5.9 恢复与容错 RC（12 条）
 

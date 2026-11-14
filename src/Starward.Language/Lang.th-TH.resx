@@ -2801,6 +2801,12 @@
   <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
     <value>เปิดเชลล์สำหรับดีบัก</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>ข้อความการกำหนดค่า</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>ปิด</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
     <value>โคลน</value>
   </data>

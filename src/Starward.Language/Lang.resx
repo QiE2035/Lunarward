@@ -2807,6 +2807,12 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
     <value>Open Debug Shell</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>Config Text</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
     <value>Clone</value>
   </data>

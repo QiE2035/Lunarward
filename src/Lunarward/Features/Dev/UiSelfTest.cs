@@ -98,7 +98,7 @@ internal static class UiSelfTest
                 Starward.Features.Runtime.RuntimeProfile profile =
                     Starward.Features.Runtime.ProfileBinding.Resolve(null);
                 bool ok = !string.IsNullOrEmpty(profile.Id) && !string.IsNullOrEmpty(profile.Name);
-                return Task.FromResult((ok, $"{profile.Name} ({profile.RunnerType})"));
+                return Task.FromResult((ok, $"{profile.Name} ({profile.RunnerId ?? "无运行器"})"));
             }),
 
             new("IsTextTrimmedChanged 不抛异常（触发与否取决于后端）", async () =>

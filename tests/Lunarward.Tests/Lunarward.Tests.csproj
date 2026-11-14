@@ -23,6 +23,8 @@
     <Compile Include="../../src/Lunarward/Features/Runtime/ComponentManifest.cs" Link="Linked/ComponentManifest.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/ComponentDownloadMath.cs" Link="Linked/ComponentDownloadMath.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/ComponentSources.cs" Link="Linked/ComponentSources.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/LaunchRecipe.cs" Link="Linked/LaunchRecipe.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/RuntimeProfile.cs" Link="Linked/RuntimeProfile.cs" />
   </ItemGroup>
 
   <ItemGroup>

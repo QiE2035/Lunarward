@@ -26,6 +26,16 @@ public enum PreflightAction
 }
 
 
+/// <summary>检查分层（D73 §6）：组件 / 前缀 / 图形 / 启动，四项归并成一张清单。</summary>
+public enum PreflightLayer
+{
+    Component,
+    Prefix,
+    Graphics,
+    Launch,
+}
+
+
 public enum PreflightStatus
 {
     Ok,
@@ -46,6 +56,9 @@ public sealed class PreflightItem
 
     /// <summary>能直接执行的动作；UI 据此放一个按钮，而不是只写「请去设置里改」。</summary>
     public PreflightAction Action { get; init; }
+
+    /// <summary>所属层（D73 §6 四层检查）。</summary>
+    public PreflightLayer Layer { get; set; }
 }
 
 
@@ -128,12 +141,12 @@ public static class LaunchPreflight
                 : GameLauncherService.ResolvePrefix(gameKey);
             if (prefix is null)
             {
-                result.Items.Add(profile is { PrefixMode: "dedicated" or "template" or "ephemeral" }
+                result.Items.Add(profile is not null
                     ? new PreflightItem
                     {
                         Name = "Wine 前缀",
                         Status = PreflightStatus.Ok,
-                        Detail = "尚未准备，启动时按配置创建/克隆",
+                        Detail = $"尚未准备，启动时创建：{PrefixManagerShort(profile)}",
                     }
                     : new PreflightItem
                     {
@@ -156,7 +169,7 @@ public static class LaunchPreflight
                 Name = "Wine 前缀",
                 Status = PreflightStatus.Failed,
                 Detail = ex.Message,
-                Fix = "在「运行环境」里检查该配置的前缀模式与路径",
+                Fix = "在「运行环境」里检查该配置的前缀路径",
                 Action = PreflightAction.OpenRuntimeSettings,
             });
         }
@@ -211,7 +224,7 @@ public static class LaunchPreflight
                     Name = "前缀占用",
                     Status = PreflightStatus.Failed,
                     Detail = "这个前缀正被另一个实例使用",
-                    Fix = "等它退出，或给该游戏换一个独占/模板前缀",
+                    Fix = "等它退出，或给这个游戏换一份独立的前缀",
                     Action = PreflightAction.ShowPrefixProcesses,
                 }
                 : new PreflightItem { Name = "前缀占用", Status = PreflightStatus.Ok, Detail = "未被占用" });
@@ -247,6 +260,7 @@ public static class LaunchPreflight
             }
         }
 
+        AssignLayers(result.Items);
         foreach (PreflightItem item in result.Items.Where(x => x.Status != PreflightStatus.Ok))
         {
             logger?.LogWarning("[preflight] {status} {name}: {detail}", item.Status, item.Name, item.Detail);
@@ -254,7 +268,48 @@ public static class LaunchPreflight
         return result;
     }
 
+
+    /// <summary>
+    /// 归并成一张清单：先按层（组件 → 前缀 → 图形 → 启动），层内按严重程度（失败 → 警告 → 通过）。
+    /// </summary>
+    private static void AssignLayers(List<PreflightItem> items)
+    {
+        foreach (PreflightItem item in items)
+        {
+            item.Layer = item.Name switch
+            {
+                "游戏可执行文件" or "Wine 运行器" => PreflightLayer.Component,
+                "Wine 前缀" or "前缀结构" or "前缀可写" or "前缀占用" => PreflightLayer.Prefix,
+                "图形组件" => PreflightLayer.Graphics,
+                _ => PreflightLayer.Launch,
+            };
+        }
+        items.Sort((a, b) =>
+        {
+            int byLayer = a.Layer.CompareTo(b.Layer);
+            if (byLayer != 0)
+            {
+                return byLayer;
+            }
+            return b.Status.CompareTo(a.Status);
+        });
+    }
+
+
+    private static string PrefixManagerShort(RuntimeProfile profile)
+    {
+        try
+        {
+            return EnvironmentResolver.EffectivePrefixPath(profile);
+        }
+        catch (Exception)
+        {
+            return profile.PrefixPath ?? "(默认目录)";
+        }
+    }
+
 }
+
 
 /// <summary>预检未通过：带完整结果，UI 可以逐项展示而不是只给一句「启动失败」。</summary>
 public sealed class LaunchPreflightException : Exception

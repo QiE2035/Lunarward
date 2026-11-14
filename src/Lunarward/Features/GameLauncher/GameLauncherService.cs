@@ -419,7 +419,7 @@ internal partial class GameLauncherService
                 }
             }
             Process? process = Process.Start(info);
-            AttachEphemeralPrefixCleanup(process);
+            AttachSessionCleanup(process);
             if (process != null)
             {
                 // D58：进程真的起来了才记「上次能用的组合」——之后换运行器坏了可以一键切回

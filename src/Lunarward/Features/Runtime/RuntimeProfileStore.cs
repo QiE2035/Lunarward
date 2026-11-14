@@ -1,15 +1,14 @@
-// Lunarward：Profile 的落盘与默认值（D28：设置 → 运行环境（全局））。
-// 位置：$XDG_CONFIG_HOME|~/.config/lunarward/profiles/<id>.json
-using Starward.Helpers;
+// Lunarward：运行环境（配方）的落盘与迁移（D73 §8）。
+// 位置：$XDG_CONFIG_HOME|~/.config/lunarward/env/<id>.json（每份一个文件，删除/分享/回滚粒度自然）。
+// 旧位置（profiles/<id>.json，带 PrefixMode 字段）在本文件里一次性迁移过来。
 using Microsoft.Extensions.Logging;
+using Starward.Helpers;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 
-
-using Starward.Language;
 
 namespace Starward.Features.Runtime;
 
@@ -21,6 +20,7 @@ public static class RuntimeProfileStore
     {
         WriteIndented = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
     };
 
 
@@ -37,39 +37,57 @@ public static class RuntimeProfileStore
     }
 
 
-    public static string ProfilesFolder
+    private static string ConfigHome
     {
         get
         {
             string configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } custom
                 ? custom
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
-            return Path.Combine(configHome, "lunarward", "profiles");
+            return Path.Combine(configHome, "lunarward");
         }
     }
 
 
-    /// <summary>读取全部 Profile；为空时创建一个基于系统现状的默认 Profile。</summary>
+    /// <summary>配方目录（D73 §8 的 <c>env/</c>）。</summary>
+    public static string EnvironmentsFolder => Path.Combine(ConfigHome, "env");
+
+
+    /// <summary>旧配方目录（profiles/），只用于迁移。</summary>
+    public static string LegacyProfilesFolder => Path.Combine(ConfigHome, "profiles");
+
+
+    /// <summary>兼容别名：部分老代码/诊断包仍按这个名字取目录，等价于 <see cref="EnvironmentsFolder"/>。</summary>
+    public static string ProfilesFolder => EnvironmentsFolder;
+
+
+    /// <summary>读取全部配方；为空时创建一份基于系统现状的默认配方。</summary>
     public static List<RuntimeProfile> LoadAll(ILogger? logger = null)
     {
-        Directory.CreateDirectory(ProfilesFolder);
+        Directory.CreateDirectory(EnvironmentsFolder);
+        MigrateFromLegacyFolder(logger);
+
         var profiles = new List<RuntimeProfile>();
-        foreach (string file in Directory.EnumerateFiles(ProfilesFolder, "*.json"))
+        foreach (string file in Directory.EnumerateFiles(EnvironmentsFolder, "*.json"))
         {
             try
             {
                 RuntimeProfile? profile = JsonSerializer.Deserialize<RuntimeProfile>(File.ReadAllText(file), JsonOptions);
                 if (profile is not null)
                 {
-                    MigrateLegacy(profile, logger);
+                    bool changed = MigrateLegacy(profile, logger);
                     profiles.Add(profile);
+                    if (changed)
+                    {
+                        Save(profile, logger);
+                    }
                 }
             }
             catch (Exception ex)
             {
                 // 静默跳过会让人以为「我建的配置丢了」，但目录里其实躺着半截 JSON。
                 // 改名留证据，再记一条警告（L-62）。
-                logger?.LogWarning(ex, "Load runtime profile failed, moving aside: {file}", file);
+                logger?.LogWarning(ex, "Load runtime environment failed, moving aside: {file}", file);
                 try
                 {
                     File.Move(file, $"{file}.corrupt-{DateTime.Now:yyyyMMddHHmmss}", overwrite: true);
@@ -90,26 +108,71 @@ public static class RuntimeProfileStore
 
 
     /// <summary>
-    /// 旧配置的语义归一（D63）：`shared` 已取消——「多个游戏共用一个前缀」改成「多个游戏绑同一个方案」，
-    /// 读到时按 `dedicated` 处理并保留原来的路径，避免让用户的前缀突然换地方。
+    /// 把旧 <c>profiles/</c> 迁移到 <c>env/</c>：读完即改名，避免下次再迁一遍（也可作为用户回滚的证据）。
     /// </summary>
-    private static void MigrateLegacy(RuntimeProfile profile, ILogger? logger)
+    private static void MigrateFromLegacyFolder(ILogger? logger)
     {
-        // 旧的「自动安装图形层」开关已并入 GraphicsId：关着的话就把选中的 Id 清掉（D64）
-        if (!profile.LegacyEnsureGraphics && !string.IsNullOrWhiteSpace(profile.GraphicsId))
+        try
         {
-            profile.GraphicsId = null;
-            logger?.LogInformation("Migrated legacy EnsureGraphics=false: cleared GraphicsId for {id}", profile.Id);
-        }
-        if (string.Equals(profile.PrefixMode, "shared", StringComparison.OrdinalIgnoreCase))
-        {
-            profile.PrefixMode = "dedicated";
-            if (string.IsNullOrWhiteSpace(profile.PrefixPath))
+            if (!Directory.Exists(LegacyProfilesFolder))
             {
-                profile.PrefixPath = Path.Combine(PrefixManager.PrefixRoot, "shared");
+                return;
             }
-            logger?.LogInformation("Migrated legacy prefix mode shared -> dedicated: {id}", profile.Id);
+            string[] files = Directory.GetFiles(LegacyProfilesFolder, "*.json");
+            int migrated = 0;
+            foreach (string file in files)
+            {
+                string id = Path.GetFileNameWithoutExtension(file);
+                string target = Path.Combine(EnvironmentsFolder, id + ".json");
+                if (File.Exists(target))
+                {
+                    continue;
+                }
+                try
+                {
+                    RuntimeProfile? profile = JsonSerializer.Deserialize<RuntimeProfile>(File.ReadAllText(file), JsonOptions);
+                    if (profile is null)
+                    {
+                        continue;
+                    }
+                    MigrateLegacy(profile, logger);
+                    JsonFile.WriteAtomic(target, profile, JsonOptions);
+                    migrated++;
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "Migrate legacy profile failed: {file}", file);
+                }
+            }
+            string archive = LegacyProfilesFolder + ".migrated-" + DateTime.Now.ToString("yyyyMMddHHmmss");
+            Directory.Move(LegacyProfilesFolder, archive);
+            logger?.LogInformation("Migrated {count} legacy profiles to env/, old folder -> {archive}", migrated, archive);
         }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Migrate legacy profiles folder failed.");
+        }
+    }
+
+
+    /// <summary>
+    /// 旧字段归一（D73 阶段 2）：模型层的纯内存规则在 <see cref="RuntimeProfile.MigrateFromLegacy"/>，
+    /// 这里只补「依赖环境」的两步——前缀路径规范化、运行器解析。
+    /// </summary>
+    private static bool MigrateLegacy(RuntimeProfile profile, ILogger? logger)
+    {
+        bool changed = profile.MigrateFromLegacy();
+        if (!string.IsNullOrWhiteSpace(profile.PrefixPath))
+        {
+            string? normalizedPrefix = PrefixManager.ExpandPath(profile.PrefixPath);
+            if (!string.Equals(normalizedPrefix, profile.PrefixPath, StringComparison.Ordinal))
+            {
+                profile.PrefixPath = normalizedPrefix;
+                changed = true;
+            }
+        }
+        EnvironmentResolver.Refresh(profile, null, logger);
+        return changed;
     }
 
 
@@ -120,21 +183,39 @@ public static class RuntimeProfileStore
             // 存盘前规范化前缀路径：带尾斜杠的 WINEPREFIX 会让 wine 认为「不是同一个前缀」
             // 而直接退出（实测 `wine: launching from steam.exe stub!`）。
             profile.PrefixPath = PrefixManager.ExpandPath(profile.PrefixPath);
-            Directory.CreateDirectory(ProfilesFolder);
-            string file = Path.Combine(ProfilesFolder, profile.Id + ".json");
+            Directory.CreateDirectory(EnvironmentsFolder);
+            string file = Path.Combine(EnvironmentsFolder, profile.Id + ".json");
             JsonFile.WriteAtomic(file, profile, JsonOptions);
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Save runtime profile failed: {id}", profile.Id);
+            logger?.LogWarning(ex, "Save runtime environment failed: {id}", profile.Id);
         }
     }
 
 
-    /// <summary>按系统现状生成默认 Profile：优先 Proton 的 wine，其次 PATH 里的 wine。</summary>
+    public static void Delete(RuntimeProfile profile, ILogger? logger = null)
+    {
+        try
+        {
+            string file = Path.Combine(EnvironmentsFolder, profile.Id + ".json");
+            if (File.Exists(file))
+            {
+                File.Delete(file);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Delete runtime environment failed: {id}", profile.Id);
+        }
+    }
+
+
+    /// <summary>按系统现状生成默认配方：优先已发现的运行器，前缀用 LUNARWARD_WINEPREFIX 或 ~/.wine。</summary>
     private static RuntimeProfile CreateDefault()
     {
-        string? wine = Features.GameLauncher.GameLauncherService.ResolveWine();
+        Component? runner = ComponentStore.GetRunners().FirstOrDefault(x => x.Usable == true)
+            ?? ComponentStore.GetRunners().FirstOrDefault();
         string? prefix = Environment.GetEnvironmentVariable("LUNARWARD_WINEPREFIX");
         if (string.IsNullOrWhiteSpace(prefix))
         {
@@ -144,27 +225,12 @@ public static class RuntimeProfileStore
         }
         return new RuntimeProfile
         {
-            Name = string.IsNullOrWhiteSpace(wine) ? Lang.Lunarward_Profile_DefaultNameNoWine : string.Format(Lang.Lunarward_Profile_DefaultName, GetRunnerName(wine)),
-            RunnerType = wine?.Contains("Proton", StringComparison.OrdinalIgnoreCase) == true ? "proton" : "wine",
-            RunnerPath = wine,
-            PrefixMode = "external",
+            SchemaVersion = 2,
+            Name = string.IsNullOrWhiteSpace(runner?.Name) ? "默认" : runner!.Name,
+            RunnerId = runner?.Id,
+            RunnerPath = runner?.Path,
             PrefixPath = prefix,
         };
-    }
-
-
-    private static string GetRunnerName(string wine)
-    {
-        try
-        {
-            // .../Proton - Experimental/files/bin/wine → Proton - Experimental
-            DirectoryInfo? bin = new FileInfo(wine).Directory;
-            return bin?.Parent?.Parent?.Name ?? Path.GetFileName(wine);
-        }
-        catch (Exception)
-        {
-            return Path.GetFileName(wine);
-        }
     }
 
 }

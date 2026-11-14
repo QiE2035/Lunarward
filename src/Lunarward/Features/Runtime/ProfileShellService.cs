@@ -106,7 +106,7 @@ public static class ProfileShellService
         env["WINEDEBUG"] = "-all";
         env["LUNARWARD_PROFILE"] = profile.Name;
         env["LUNARWARD_PROFILE_ID"] = profile.Id;
-        foreach ((string key, string value) in profile.Environment)
+        foreach ((string key, string value) in profile.Env)
         {
             if (!string.IsNullOrWhiteSpace(key))
             {

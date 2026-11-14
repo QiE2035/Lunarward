@@ -2806,6 +2806,12 @@
   <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
     <value>デバッグシェルを開く</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>設定テキスト</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
     <value>複製</value>
   </data>

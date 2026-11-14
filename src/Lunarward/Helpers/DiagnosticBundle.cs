@@ -146,7 +146,7 @@ public static class DiagnosticBundle
         {
             foreach (RuntimeProfile profile in RuntimeProfileStore.LoadAll())
             {
-                sb.AppendLine($"=== {profile.Name} ({profile.Id}) mode={profile.PrefixMode} path={profile.PrefixPath}");
+                sb.AppendLine($"=== {profile.Name} ({profile.Id}) mode={profile.PrefixText} path={profile.PrefixPath}");
                 string? prefix = TryResolveAnyPrefix(profile);
                 if (prefix is null)
                 {

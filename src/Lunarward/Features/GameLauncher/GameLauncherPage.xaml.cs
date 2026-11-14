@@ -722,9 +722,10 @@ public sealed partial class GameLauncherPage : PageBase
                         Helpers.InAppToast.MainWindow?.Warning("这个游戏还没有绑定运行配置。", null, 4000);
                         return;
                     }
-                    if (profile.PrefixMode == "external")
+                    string prefixForRebuild = Features.Runtime.EnvironmentResolver.EffectivePrefixPath(profile);
+                    if (!prefixForRebuild.StartsWith(Features.Runtime.PrefixManager.PrefixRoot, StringComparison.Ordinal))
                     {
-                        Helpers.InAppToast.MainWindow?.Warning("当前配置使用的是已有目录，启动器不会删除它。要重建请先在「运行环境」里改成新建。", null, 6000);
+                        Helpers.InAppToast.MainWindow?.Warning("这个前缀目录不在启动器管理范围内（像是你自己指定的位置），不会替你删除。要重建请先把它改成启动器目录下的路径。", null, 6000);
                         return;
                     }
                     var confirm = new ContentDialog

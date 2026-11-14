@@ -8,6 +8,10 @@ public partial class Lang
         public static string Lunarward_RuntimeEnv_Description => ResourceManager.GetString("Lunarward_RuntimeEnv_Description", resourceCulture) ?? "Lunarward_RuntimeEnv_Description";
         public static string Lunarward_RuntimeEnv_New => ResourceManager.GetString("Lunarward_RuntimeEnv_New", resourceCulture) ?? "Lunarward_RuntimeEnv_New";
         public static string Lunarward_RuntimeEnv_OpenShell => ResourceManager.GetString("Lunarward_RuntimeEnv_OpenShell", resourceCulture) ?? "Lunarward_RuntimeEnv_OpenShell";
+        public static string Lunarward_RuntimeEnv_TextView => ResourceManager.GetString("Lunarward_RuntimeEnv_TextView", resourceCulture) ?? "Lunarward_RuntimeEnv_TextView";
+
+        public static string Lunarward_RuntimeEnv_Close => ResourceManager.GetString("Lunarward_RuntimeEnv_Close", resourceCulture) ?? "Lunarward_RuntimeEnv_Close";
+
         public static string Lunarward_RuntimeEnv_Clone => ResourceManager.GetString("Lunarward_RuntimeEnv_Clone", resourceCulture) ?? "Lunarward_RuntimeEnv_Clone";
         public static string Lunarward_RuntimeEnv_Components => ResourceManager.GetString("Lunarward_RuntimeEnv_Components", resourceCulture) ?? "Lunarward_RuntimeEnv_Components";
         public static string Lunarward_RuntimeEnv_ImportGraphics => ResourceManager.GetString("Lunarward_RuntimeEnv_ImportGraphics", resourceCulture) ?? "Lunarward_RuntimeEnv_ImportGraphics";

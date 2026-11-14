@@ -463,3 +463,49 @@ CLI：`--component-scan`、`--component-health <id|名字>`、`--component-impor
 - `--component-health` 对假运行器与真 wine 均给出原文：`wine-11.19-1-g78e32ba1d3d (Staging)`。
 
 尚未做（进入阶段 2 前）：下载取消按钮与磁盘空间预检（§2.3）、首次选用时的自动自检时机（§2.5）、`components-sources.json` 的编辑界面。
+
+---
+
+## 13. 阶段 2/3 实施记录（2026-11-14）
+
+### 13.1 模型层
+
+| 文件 | 变化 |
+| --- | --- |
+| `Features/Runtime/RuntimeProfile.cs`（重写） | 八字段落地：`RunnerId` / `GraphicsId` / `PrefixPath` / `env` / `Args` / `Wrappers` / `Notes`（+ `Shell` / `GameOutput` / `PrefixArch`）。旧字段降级为迁移用 `Legacy*`，`MigrateFromLegacy()` 纯内存、可单测 |
+| `Features/Runtime/LaunchRecipe.cs`（新） | `LaunchRecipeBuilder.SplitArgs / BuildArgv / MergeEnvironment / Build / JoinCommandLine`：argv 与 env 的唯一构造函数，启动、预览、`--launch-plan` 三处共用 |
+| `Features/Runtime/EnvironmentResolver.cs`（新） | `ResolveRunner`（id → 路径 → 首个可用）/ `Refresh` / `EffectivePrefixPath`（显式路径优先，否则 `PrefixRoot/<名字>`） |
+| `Features/Runtime/RuntimeProfileStore.cs`（重写） | 存到 `~/.config/lunarward/env/<id>.json`；`LoadAll` 自动把 `profiles/` 迁过来并改名为 `profiles.migrated-<时间戳>` |
+| `Features/Runtime/PrefixManager.cs` | `EnsurePrefix(profile, gameKey, logger)` 改成路径式：不存在就 `wineboot -u` 建，存在但缺 `drive_c` 直接抛可读异常（不再猜「模式」）。`PrefixMode` 已无引用 |
+
+### 13.2 启动链路
+
+- `GameLauncherService.Linux.cs` 一律经 `LaunchRecipeBuilder.Build` 生成 `ProcessStartInfo`；配方里显式写了 `WINEPREFIX` 且与真实前缀不同时，保留真实前缀并把这次覆盖记进 `LaunchReport` + 一行 `LogWarning`。
+- `LaunchReport` 的 Profile 段改记 `RunnerId/RunnerPath/PrefixPath/PrefixArch/GraphicsId/Args/Wrappers`。
+- `LaunchPreflight` 增加 `PreflightLayer{Component,Prefix,Graphics,Launch}`；清单按「层 → 严重程度」排序，前缀项统一说「启动时创建」。
+- `--launch-plan <exe> [--profile <id|名字>]` 打印配方、运行器、wine 路径、前缀（不存在时标「启动时创建」）、完整命令行、每个 env 与覆盖项。
+
+### 13.3 页面
+
+- 卡片四行：名称 + 状态灯（红 = 运行器不可用或前缀缺 `drive_c`；黄 = 前缀未创建/被占用；绿 = 可启动）、摘要、图形层与启动参数/包装、前缀占用（后台 `Task.Run(PrefixManager.Inspect)` 回填）+ 上次启动 + 按钮。
+- 组件区拆「受管 / 外部」两段（运行器与图形层都拆），来源标签保留。
+- 编辑器：「启动预览」段显示将要执行的命令行与冲突 env（红色），文本视图对话框显示完整 JSON（等宽、只读、可复制、可导出）。
+- 游戏设置页沿用既有「运行环境」下拉 + 绑定失效 InfoBar。
+
+### 13.4 验证
+
+| 项 | 结果 |
+| --- | --- |
+| `dotnet test` | 119 通过（新增 5 条迁移用例） |
+| `scripts/test/cli-extra.sh` | 22/22（新增 T-CL-40 `--launch-plan`、T-CL-41 `--profile` 不存在） |
+| `scripts/test/cli-smoke.sh` | 40/0/1 |
+| `scripts/test/lint-ui-thread.sh` | 三规则 PASS |
+| `scripts/test/coverage.sh` | 行 88.50%（1679/1897）、分支 71.02% |
+| `--selftest-ui` | 10/10 |
+| 真机 `--launch-plan` | 旧 `profiles/` 自动迁移到 `env/8db5b3e2.json`，旧目录改名 `profiles.migrated-20261114124806` |
+
+### 13.5 仍未做
+
+- 下载取消按钮、磁盘空间预检、首次选用时的自动自检（阶段 1 遗留）。
+- 「使用环境」在游戏内的检查清单是否按 §6 四层归并再收一遍：现有 `LaunchPreflight` + 可点修复已覆盖，验收时按体感决定。
+- 前缀体积只在卡片上显示（后台算），没有做「按前缀分组统计总占用」的汇总页。

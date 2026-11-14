@@ -2807,6 +2807,12 @@
   <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
     <value>디버그 셸 열기</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>설정 텍스트</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>닫기</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
     <value>복제</value>
   </data>

@@ -2804,6 +2804,12 @@ Bạn có chấp nhận rủi ro và tiếp tục?</value>
   <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
     <value>Mở shell gỡ lỗi</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>Văn bản cấu hình</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>Đóng</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
     <value>Nhân bản</value>
   </data>
