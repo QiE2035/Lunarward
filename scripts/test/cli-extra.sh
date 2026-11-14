@@ -119,4 +119,37 @@ else
     case_start "T-CL-32" "--update-run（缺少 python3/zstd）"; skip_case "缺少 python3 或 zstd"
 fi
 
+# —— RG-07 数据库备份不得自我嵌套（2026-11-14 修过：把整个 DatabaseBackup 目录打进 zip）——
+if command -v unzip >/dev/null; then
+    BK="$ROOT/backup"
+    rm -rf "$BK"; mkdir -p "$BK"
+
+    case_start "T-CL-33" "--database-backup 生成只含一个 .db 的归档"
+    lw --database-backup "$BK/one.zip" >"$out" 2>&1; rc=$?
+    entries="$(unzip -Z1 "$BK/one.zip" 2>/dev/null)"
+    count="$(printf '%s\n' "$entries" | grep -c . || true)"
+    if expect_rc 0 "$rc" && expect_file "$BK/one.zip" \
+        && [ "$count" = "1" ] && printf '%s' "$entries" | grep -qE '^LunarwardDatabase_[0-9]{8}_[0-9]{6}\.db$'; then
+        pass_case
+    fi
+
+    case_start "T-CL-34" "连续备份不把上一次的 .zip 套进新归档"
+    lw --database-backup "$BK/two.zip" >"$out" 2>&1; rc=$?
+    entries2="$(unzip -Z1 "$BK/two.zip" 2>/dev/null)"
+    if expect_rc 0 "$rc" \
+        && [ "$(printf '%s\n' "$entries2" | grep -c . || true)" = "1" ] \
+        && ! printf '%s' "$entries2" | grep -qi '\.zip$' \
+        && [ -z "$(find "$BK" -maxdepth 1 -name '.lwdb_*' -print -quit)" ]; then
+        pass_case
+    fi
+
+    case_start "T-CL-35" "--database-backup 缺参数时报错并返回 1"
+    lw --database-backup >"$out" 2>&1; rc=$?
+    if expect_rc 1 "$rc" && expect_contains "$(text)" "用法"; then pass_case; fi
+else
+    case_start "T-CL-33" "--database-backup（缺少 unzip）"; skip_case "缺少 unzip"
+    case_start "T-CL-34" "连续备份（缺少 unzip）"; skip_case "缺少 unzip"
+    case_start "T-CL-35" "--database-backup 缺参数（缺少 unzip）"; skip_case "缺少 unzip"
+fi
+
 summary

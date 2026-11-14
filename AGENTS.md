@@ -57,7 +57,7 @@ dotnet test Starward.slnx -c Debug
 # 进程内 UI 自检（10 条断言，CI 里跑在 xvfb 上）
 LUNARWARD_SELFTEST=1 ./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward --selftest-ui
 
-# L2 CLI 冒烟（cli-smoke 34 条 + cli-extra 13 条，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
+# L2 CLI 冒烟（cli-smoke 34 条 + cli-extra 16 条，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-smoke.sh
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-extra.sh
 
@@ -128,7 +128,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
 - `13-lessons.md` — L-01…L-135 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
-- `19-test-plan.md` — 测试计划（唯一，210 条用例）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
+- `19-test-plan.md` — 测试计划（唯一，221 条：209 条功能用例 T-* + 12 条回归用例 RG-*）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
 - `16-runtime-components.md` / `17-runtime-environment-ui.md` — 运行环境设计与 UI
 - `09` / `11` / `15` — **历史文档**，不要据此改代码
 - `docs/user/` — 给用户的 FAQ 与运行环境说明

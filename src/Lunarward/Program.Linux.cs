@@ -65,6 +65,7 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
 
 窗口 / 协议 / 其它
   --hide / --show                  启动即隐藏 / 唤回主窗口
+  --database-backup <输出.zip>     把数据库备份成单文件归档（RG-07）
   --screenshot                     截图并存到设置目录
   --update-check                   查询 AUR 版本
   --register-protocol / --unregister-protocol / --protocol-status
@@ -1358,6 +1359,32 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 string version = string.IsNullOrWhiteSpace(r.Version) ? "(无版本)" : r.Version;
                 string reason = string.IsNullOrWhiteSpace(r.UsabilityReason) ? "" : "  ← " + r.UsabilityReason;
                 Console.WriteLine($"  {mark} {r.DisplayName,-14} {version,-20} {r.LayoutText,-9} {r.Path}{reason}");
+            }
+            return;
+        }
+
+        // 数据库备份：`lunarward --database-backup <输出.zip>`（RG-07 的自动化入口）
+        if (args.Contains("--database-backup"))
+        {
+            int backupIndex = Array.IndexOf(args, "--database-backup");
+            string? backupTarget = backupIndex + 1 < args.Length ? args[backupIndex + 1] : null;
+            if (string.IsNullOrWhiteSpace(backupTarget) || backupTarget.StartsWith("--"))
+            {
+                Console.Error.WriteLine("用法：lunarward --database-backup <输出.zip>");
+                Environment.ExitCode = 1;
+                return;
+            }
+            try
+            {
+                AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+                string fullPath = Path.GetFullPath(backupTarget);
+                Starward.Features.Database.DatabaseService.BackupToArchive(fullPath);
+                Console.WriteLine($"已备份到 {fullPath}（{new FileInfo(fullPath).Length} 字节）");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"备份失败：{ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
             }
             return;
         }

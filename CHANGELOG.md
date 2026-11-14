@@ -1,3 +1,10 @@
+## 2026-11-14（六）——数据库备份 CLI、启动卡顿进基线
+
+- 新增 `--database-backup <输出.zip>`：Vacuum + 单文件归档，归档里只有一个 `LunarwardDatabase_<时间>.db`，临时目录用完即删（`DatabaseService.BackupToArchive`）。这条同时补上 RG-07 的自动化入口。
+- `perf.sh` 新增 `startup_stall_ms`（看门狗测冷启动卡顿，绝对上限 1500 ms），并修掉「基线格式漂移导致比较恒为真」——`perf-baseline.json` 早先是扁平结构，比较分支只读 `envs[host]`，取不到就「只记录不判定」，这条 Perf smoke 从建立起就没可能失败（L-135）；没有 `/usr/bin/time` 时不再让 `awk` 报错，没有 xvfb 但有 `DISPLAY` 时直接跑真实显示。
+- L2 新增 `T-CL-33/34/35`（备份单文件 / 连续备份不套娃 / 缺参数返回 1），cli-extra 13 → 16 条。
+- 自检第 9 条改为「IsTextTrimmedChanged 不抛异常」，不再把 xvfb 下不触发判成失败（L-134）。
+
 ## 2026-11-14（五）——把真实缺陷钉成回归用例
 
 - 新增 **lint 层**：`scripts/test/lint-ui-thread.sh`（3 条规则，<1 s，进 CI）。A：`*.xaml.cs` 不许 `WaitForExit` / `.GetAwaiter().GetResult()` / `.Wait()`（D72 那 4 秒的根源）；B：`*.Linux.cs` 不许留单行空事件处理器（L-132 那两处空 stub），故意不接管的写 `// LINT-ALLOW: 原因`；C：`DevSwitches` 的每个参数必须在 `Program.Linux.cs` 的 `guiFlags` 里（`--page` 曾被守卫拦掉）。

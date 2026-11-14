@@ -1067,6 +1067,35 @@ internal static class DatabaseService
     /// Lunarward：上游用 7z.dll（SharpSevenZip，Windows COM）压缩备份，Linux 无对应实现，
     /// 改用 .NET 内置 ZipArchive，备份文件扩展名随之改为 .zip。
     /// </summary>
+    /// <summary>
+    /// 把当前数据库备份成一个 zip（RG-07：归档里只能有一个 .db 条目，
+    /// 不许像 <see cref="AutoBackupToAppDataLocal"/> 早期那样把整个备份目录打进去、套出历次 .zip）。
+    /// 临时文件都放在目标目录里并用唯一名，失败也会清干净。
+    /// </summary>
+    public static void BackupToArchive(string archivePath)
+    {
+        string full = Path.GetFullPath(archivePath);
+        string dir = Path.GetDirectoryName(full) ?? ".";
+        Directory.CreateDirectory(dir);
+        // 临时目录里放一个"好看的"文件名：归档里看到的是 LunarwardDatabase_20261114_094500.db，
+        // 而不是 .out_<guid>_tmp.db（CreateArchive 用源文件名当条目名）。
+        string tempDir = Path.Combine(dir, $".lwdb_{Guid.NewGuid():N}");
+        string tempDb = Path.Combine(tempDir, $"LunarwardDatabase_{DateTime.Now:yyyyMMdd_HHmmss}.db");
+        string tempZip = full + "_tmp";
+        try
+        {
+            Directory.CreateDirectory(tempDir);
+            BackupDatabase(tempDb);
+            CreateArchive(tempZip, tempDb);
+            File.Move(tempZip, full, true);
+        }
+        finally
+        {
+            if (File.Exists(tempZip)) File.Delete(tempZip);
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
+
     internal static void CreateArchive(string archivePath, string sourceFile)
     {
         using var zip = ZipFile.Open(archivePath, ZipArchiveMode.Create);
