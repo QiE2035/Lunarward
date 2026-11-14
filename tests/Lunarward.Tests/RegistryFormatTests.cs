@@ -83,4 +83,17 @@ public class RegistryFormatTests
     [Fact]
     public void ToHex_UsesLowercaseTwoDigits()
         => Assert.Equal("00,0f,ff", RegistryFormat.ToHex(new byte[] { 0, 15, 255 }));
+
+    [Fact]
+    public void BuildRegFileBytes_StartsWithUtf16LeBom()
+    {
+        // L-128 回归：没有 BOM 时 wine reg import 返回 0 却什么都不写，这个断言钉死编码约定。
+        byte[] bytes = RegistryFormat.BuildRegFileBytes(
+            @"HKCU\Software\LunarwardSelftest",
+            new Dictionary<string, object> { ["Flag"] = 1, ["Name"] = "自检" });
+        Assert.Equal(new byte[] { 0xFF, 0xFE }, bytes[..2]);
+        string text = System.Text.Encoding.Unicode.GetString(bytes[2..]);
+        Assert.Contains("Windows Registry Editor Version 5.00", text);
+        Assert.Contains("LunarwardSelftest", text);
+    }
 }

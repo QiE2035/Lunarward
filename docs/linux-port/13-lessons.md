@@ -1076,3 +1076,16 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 推论：lessons 里的「框架不支持 X」要带版本号，并在升级 Uno 时复查；判定能力是否存在用 `strings`/`ildasm` 查程序集，比查旧结论可靠。
 - 附带一条：上游实现所在 `.xaml.cs` 被 `<Compile Remove>` 时，事件处理器要在 `*.Linux.cs` 里补**真实逻辑**而不是空 stub，否则事件会触发但什么也不做（`ScreenshotSetting.Linux.cs` 与 `InstallGameDialog.Linux.cs` 本轮各补一处）。
 
+### L-133 · Uno `Pivot` 换 `ItemsSource` 的两种崩法：越界与 NRE
+
+- 真机触发：切游戏时 `GameBannerAndPost.UpdateGameContentAsync` 换 `Pivot_Posts.ItemsSource`，`Pivot.SynchronizeSelectedItem()`（6.7 的 `Pivot.cs:295-301`）在 `SelectedIndex >= 0` 时用夹取后的索引去取 `_staticHeader.Children[...]`：容器已重建→`ArgumentOutOfRangeException`，容器尚未重建→`NullReferenceException`（同一方法，`Pivot.cs:301`）。
+- 最小复现（`--selftest-ui` 里现成可跑）：
+  ```csharp
+  pivot.ItemsSource = new List<string> { "a", "b", "c" };
+  pivot.SelectedIndex = 2;
+  pivot.ItemsSource = new List<string> { "x" };   // ← 崩
+  ```
+- 约定顺序（`GameBannerAndPost` 与自检第 10 条都按这个写）：
+  `SelectedIndex = -1` → `ItemsSource = null` → 赋新集合 → `SelectedIndex = 0`。
+- 教训：框架方法里的 `HasItems` 这类守卫不等于安全，真正的崩溃点是它后面那行取头；这类问题要用**最小复现**定稿，再把它钉成 L1.5 断言（RG-01），否则下次重构又会把 `-1` 那两行当冗余删掉。
+

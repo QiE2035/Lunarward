@@ -1509,8 +1509,14 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
         // 允许的「纯 GUI 开关」只有下面几个，其余以 - 开头的首参数一律判为未知命令。
         if (args.Length > 0 && args[0].StartsWith('-'))
         {
-            // --page 是 DEBUG 下的调试入口（直接打开某一页），也属于「纯 GUI 开关」
-            string[] guiFlags = { "--hide", "--show", "--new-instance", "--selftest-ui", "--page" };
+            // 纯 GUI 开关 = 不需要子命令、直接决定「开窗后落到哪个状态」的那批。
+            // DevSwitches 里的调试参数（--page/--subpage/--game/--scroll/--viewer/--profile-editor/--window-action）
+            // 也必须放行，否则 `lunarward --subpage RuntimeEnvironmentSetting` 会被当成未知命令（2026-11-14 回归）。
+            string[] guiFlags =
+            {
+                "--hide", "--show", "--new-instance", "--selftest-ui",
+                "--page", "--subpage", "--game", "--scroll", "--viewer", "--profile-editor", "--window-action",
+            };
             if (!guiFlags.Contains(args[0]))
             {
                 Console.WriteLine($"未知命令或不完整：{string.Join(' ', args)}");

@@ -142,7 +142,10 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     }
 
 
-    private void GridView_Images_DragItemsStarting(object sender, DragItemsStartingEventArgs e) { }
+    private void GridView_Images_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
+    {
+        // LINT-ALLOW: Uno 没有拖拽重排，改为多选 + 批量命令（L-48 家族）
+    }
     private void OpenViewerIfRequested(List<ScreenshotItem> items)
     {
         // 验证用：--viewer N 直接打开查看器（L-36：UI 点击在 XWayland 下不可靠）
@@ -211,7 +214,10 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
             Serilog.Log.Warning(ex, "打开截图失败");
         }
     }
-    private void MenuFlyoutItem_ScreenshotInfo_Loading(Microsoft.UI.Xaml.FrameworkElement sender, object e) { }
+    private void MenuFlyoutItem_ScreenshotInfo_Loading(Microsoft.UI.Xaml.FrameworkElement sender, object e)
+    {
+        // LINT-ALLOW: 信息项在 Linux 版打开菜单前就同步填好了，不需要延迟加载回调
+    }
 
     /// <summary>上游是 CollectionViewSource；x:Bind 走 .View 取视图集合。</summary>
     public sealed class ScreenshotViewSourceModel

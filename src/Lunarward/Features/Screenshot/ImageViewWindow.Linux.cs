@@ -36,5 +36,8 @@ public sealed partial class ImageViewWindow : WindowEx
     public CommunityToolkit.Mvvm.Input.IRelayCommand RotateCommand { get; } = new CommunityToolkit.Mvvm.Input.RelayCommand(() => { });
     public CommunityToolkit.Mvvm.Input.IRelayCommand ZoomInCommand { get; } = new CommunityToolkit.Mvvm.Input.RelayCommand(() => { });
     public CommunityToolkit.Mvvm.Input.IRelayCommand ZoomOutCommand { get; } = new CommunityToolkit.Mvvm.Input.RelayCommand(() => { });
-    private void _Image_ImageOpened(object sender, EventArgs e) { }
+    private void _Image_ImageOpened(object sender, EventArgs e)
+    {
+        // LINT-ALLOW: Linux 走 SKBitmap 直接赋值解码（L-54），不需要 ImageOpened 里的后处理
+    }
 }

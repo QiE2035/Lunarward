@@ -80,12 +80,24 @@ public sealed partial class LoginPage : PageBase
     }
 
 
-    private void Button_GoBack_Click(object sender, RoutedEventArgs e) { }
+    private void Button_GoBack_Click(object sender, RoutedEventArgs e)
+    {
+        // LINT-ALLOW: Linux 用外部 WebKitGTK 助手窗口登录（D32），页面内没有可后退的浏览器
+    }
 
-    private void Button_GoForward_Click(object sender, RoutedEventArgs e) { }
+    private void Button_GoForward_Click(object sender, RoutedEventArgs e)
+    {
+        // LINT-ALLOW: 同上，导航由助手窗口自己的工具栏承担
+    }
 
-    private void Button_RefreshOrCancel_Click(object sender, RoutedEventArgs e) { }
+    private void Button_RefreshOrCancel_Click(object sender, RoutedEventArgs e)
+    {
+        // LINT-ALLOW: 助手窗口可以随时关掉重开，页面内没有「刷新/取消」这一步
+    }
 
-    private void TextBox_Uri_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e) { }
+    private void TextBox_Uri_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        // LINT-ALLOW: Linux 版不给用户手输 URL（登录地址固定），地址栏只做展示
+    }
 
 }

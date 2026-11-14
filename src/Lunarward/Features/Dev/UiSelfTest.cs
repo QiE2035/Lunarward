@@ -14,6 +14,7 @@ using Starward.Features.Setting;
 using Starward.Features.ViewHost;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Starward.Features.Dev;
@@ -126,6 +127,46 @@ internal static class UiSelfTest
                 }
                 bool ok = done == tcs.Task;
                 return (ok, ok ? "事件已触发" : "1.5 s 内没有触发（Skia 后端可能不实现该事件）");
+            }),
+
+            new("Pivot 换源按约定顺序不抛异常", () =>
+            {
+                // 回归（D71 / L-126）：切游戏时 GameBannerAndPost 要给 Pivot_Posts 换 ItemsSource。
+                // Uno 6.7 的 Pivot.SynchronizeSelectedItem（Pivot.cs:295-301）在 SelectedIndex >= 0 时
+                // 换源会抛 ArgumentOutOfRangeException；容器还没重建时甚至会 NRE。
+                // 约定顺序：SelectedIndex = -1 → ItemsSource = null → 赋新集合 → SelectedIndex = 0。
+                // 这个断言钉的是「顺序」本身：谁把 -1 那两行删了，这里就会红。
+                var host = new Grid { Width = 200, Height = 40 };
+                var pivot = new Pivot();
+                host.Children.Add(pivot);
+                if (window.Content is Panel panel)
+                {
+                    panel.Children.Add(host);
+                }
+                bool ok;
+                string detail;
+                try
+                {
+                    pivot.ItemsSource = new List<string> { "a", "b", "c" };
+                    pivot.SelectedIndex = 2;
+                    // —— 约定顺序 ——
+                    pivot.SelectedIndex = -1;
+                    pivot.ItemsSource = null;
+                    pivot.ItemsSource = new List<string> { "x", "y" };
+                    pivot.SelectedIndex = 0;
+                    ok = true;
+                    detail = "按 -1 → null → 新集合 → 0 的顺序换源未抛异常";
+                }
+                catch (Exception ex)
+                {
+                    ok = false;
+                    detail = ex.GetType().Name + ": " + ex.Message;
+                }
+                if (window.Content is Panel owner)
+                {
+                    owner.Children.Remove(host);
+                }
+                return Task.FromResult((ok, detail));
             }),
 
             new("主窗口标题正确", () =>

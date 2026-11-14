@@ -243,7 +243,7 @@ internal static class WineRegistry
         {
             tempFile = Path.Combine(Path.GetTempPath(), $"lunarward-{Guid.NewGuid():N}.reg");
             // 必须带 UTF-16LE BOM：wine 的 reg import 靠 BOM 判定编码，没有 BOM 会当成 ANSI 并「导入成功但一个值都没写」（实测）。
-            byte[] regBytes = [.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes(BuildRegFile(key, values))];
+            byte[] regBytes = RegistryFormat.BuildRegFileBytes(key, values);
             await File.WriteAllBytesAsync(tempFile, regBytes, cancellationToken).ConfigureAwait(false);
             string? output = await RunAsync(winePrefix ?? WinePrefix, cancellationToken, "reg", "import", tempFile).ConfigureAwait(false);
             return output is not null;

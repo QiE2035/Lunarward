@@ -115,9 +115,18 @@ public sealed partial class ScreenshotSetting : PageBase
     }
 
 
-    private void HotkeyInput_HotkeyDeleted(object sender, HotkeyInputEventArg e) { }
-    private void HotkeyInput_HotkeyEditFinished(object sender, HotkeyEditFinishedEventArg e) { }
-    private void HotkeyInput_HotkeyEditing(object sender, HotkeyInputEventArg e) { }
+    private void HotkeyInput_HotkeyDeleted(object sender, HotkeyInputEventArg e)
+    {
+        // LINT-ALLOW: 热键由 HotkeyManager 统一接管（X11 轮询），输入控件只做展示
+    }
+    private void HotkeyInput_HotkeyEditFinished(object sender, HotkeyEditFinishedEventArg e)
+    {
+        // LINT-ALLOW: 同上，注册在 HotkeyManager.Register 里完成
+    }
+    private void HotkeyInput_HotkeyEditing(object sender, HotkeyInputEventArg e)
+    {
+        // LINT-ALLOW: 编辑中的实时预览对 X11 轮询没有意义
+    }
     // Lunarward：上游这段逻辑在 ScreenshotSetting.xaml.cs（本工程 <Compile Remove>），
     // 这里补回来：文字被截断一次就缩小一号（最小 12），避免长路径被硬切（D46 复核结论 1）。
     private void TextBlock_IsTextTrimmedChanged(Microsoft.UI.Xaml.Controls.TextBlock sender, IsTextTrimmedChangedEventArgs e)

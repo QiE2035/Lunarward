@@ -38,6 +38,9 @@ jobs:
     - name: Build
       run: dotnet build Starward.slnx -c Release --no-restore
 
+    - name: Lint (UI 线程 / 空 stub / 命令白名单)
+      run: bash scripts/test/lint-ui-thread.sh
+
     - name: Test (L1 单测)
       run: dotnet test Starward.slnx -c Release --no-build
 

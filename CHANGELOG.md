@@ -1,3 +1,11 @@
+## 2026-11-14（五）——把真实缺陷钉成回归用例
+
+- 新增 **lint 层**：`scripts/test/lint-ui-thread.sh`（3 条规则，<1 s，进 CI）。A：`*.xaml.cs` 不许 `WaitForExit` / `.GetAwaiter().GetResult()` / `.Wait()`（D72 那 4 秒的根源）；B：`*.Linux.cs` 不许留单行空事件处理器（L-132 那两处空 stub），故意不接管的写 `// LINT-ALLOW: 原因`；C：`DevSwitches` 的每个参数必须在 `Program.Linux.cs` 的 `guiFlags` 里（`--page` 曾被守卫拦掉）。
+- 修正 3 处既有违规：`guiFlags` 补上 `--subpage/--game/--scroll/--viewer/--profile-editor/--window-action`，10 个原本是 `{ }` 的事件处理器按「为什么不管」写清注释。
+- L1.5 新增第 10 条断言「Pivot 换源按约定顺序不抛异常」（RG-01）；顺带用最小复现确认 Uno 在容器未重建时抛的是 **NRE**（`Pivot.cs:301`），与真机上的越界异常同源，记 L-133。
+- L1 新增 `BuildRegFileBytes` 的 BOM 回归（RG-06），`WineRegistry` 改用它，单测 61 → 62。
+- `19-test-plan.md` 新增 §12「由真实缺陷反推的回归用例」：12 条 RG 用例，标明断言/层/自动化状态（9 条已自动化，3 条待补）。
+
 ## 2026-11-14（四）——截断自适应回加、三处文案入 i18n
 
 - **`IsTextTrimmedChanged` 全部回加（7 处）**：`ScreenshotSetting.xaml`、`GachaStatsCard.xaml`、`ZZZGachaStatsCard.xaml`、`InstallGameDialog.xaml`、`ApocalypticShadowPage.xaml`、`ForgottenHallPage.xaml`、`PureFictionPage.xaml`。L-24 当年判定「Uno 没有这个事件」已过时：Uno 6.7.359 的程序集里有 `add_IsTextTrimmedChanged`，且自检第 9 条实测**事件在 Skia 后端会触发**。

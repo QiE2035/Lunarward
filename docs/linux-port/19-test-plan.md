@@ -578,3 +578,30 @@ CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1
 | --- | --- | --- |
 | F-20 | 不完整/未知的 `--xxx` 子命令**静默启动 GUI**（`--companion-run` 少传一个 id，表现为「命令没反应、反而弹出窗口」） | `Program.Linux.cs` 在进 GUI 前检查首参数，未知命令打印「未知命令或不完整」并返回 1；GUI 只允许 `--hide/--show/--new-instance/--selftest-ui` |
 | F-22 | `--preflight` 结论为「不要启动」时退出码仍是 0，脚本没法当门禁 | 不可启动时 `Environment.ExitCode = 1`（与 `--launch-plan` 一致） |
+
+---
+
+## 12. 由真实缺陷反推的回归用例（2026-11-14）
+
+原则：**每抓到一个真缺陷，都要问「哪一层用例本来能抓住它」，然后补那一层**。只加「人工记得点一下」不算完。
+
+| 用例 | 真实缺陷 | 断言 | 层 | 自动化 |
+|---|---|---|---|---|
+| RG-01 Pivot 换源顺序 | 切游戏抛 `ArgumentOutOfRangeException`；最小复现还会抛 `NullReferenceException`（`Uno Pivot.cs:301`，容器未重建时取头为空） | 按 `SelectedIndex=-1 → ItemsSource=null → 新集合 → SelectedIndex=0` 换源不抛异常 | L1.5 | ✅ `--selftest-ui` 第 10 条 |
+| RG-02 UI 线程不许同步 fork | `wine reg query` 在 UI 线程，切 bh3/hk4e/hkrpg 整窗静止 4.1–4.2 s（`wine reg query` 4159 ms / 看门狗 4212 ms） | `*.xaml.cs` 里不出现 `WaitForExit` / `.GetAwaiter().GetResult()` / `.Wait()` | L2 lint | ✅ `lint-ui-thread.sh` 规则 A |
+| RG-03 事件处理器不许是空 stub | `IsTextTrimmedChanged` 加了、处理器是 `{ }`，事件触发也不做事（`ScreenshotSetting.Linux.cs:121`、`InstallGameDialog.Linux.cs`） | `*.Linux.cs` 里没有单行空事件处理器；故意不接管的必须写 `// LINT-ALLOW: 原因` | L2 lint | ✅ 规则 B |
+| RG-04 命令白名单与 DevSwitches 同源 | `--page` 被「未知命令」守卫拦掉（回归自 F-20 的修法） | DevSwitches 的每个参数都在 `Program.Linux.cs` 的 `guiFlags` 里 | L2 lint | ✅ 规则 C |
+| RG-05 截断事件真的会触发 | L-24 误判「Uno 没有该事件」→ 7 处自适应被删；恢复后要证明它有效 | 现场造超长文本 + 极窄宽度，1.5 s 内事件必须触发 | L1.5 | ✅ 第 9 条 |
+| RG-06 `.reg` 必须带 BOM | `wine reg import` 吃无 BOM 的 UTF-16LE 时返回 0 却什么都没写（L-128） | `BuildRegFileBytes` 前两字节是 `FF FE`，且解码含 `Windows Registry Editor Version 5.00` | L1 | ✅ `RegistryFormatTests` |
+| RG-07 备份不得自我嵌套 | 手动备份把整个 `DatabaseBackup` 目录打进 zip（历次 `.zip` 套娃） | 归档内只有一个 `.db` 条目 | L1/L2 | ⬜ 待补（需把 `DatabaseService.CreateArchive` 链进测试工程） |
+| RG-08 进度文案不吞 0.0% | `StartGameButton` 用 `progress > 0`，`0.0%` 那一帧显示为空 | 进度为 0 时文本是 `0.0%` 而不是空串 | L1 | ⬜ 待补（把百分号格式化抽成纯函数） |
+| RG-09 启动耗时不回归 | 冷启动 1.04 s 由「XAML 通胀 0.58 s + 首帧 0.46 s」构成 | 分段基线与 §9 偏差 ≤20% | L3+看门狗 | ⬜ 半自动（`LUNARWARD_UI_WATCHDOG=1` 人工比对） |
+| RG-10 未知命令不得静默进 GUI | `--companion-run hk4e_cn` 少一个参数 → 直接弹窗 | 首参数以 `-` 开头且不在白名单 → 打印提示 + `exit 1` | L2 | ✅ `cli-extra.sh` |
+| RG-11 预检结论要反映到退出码 | `--preflight` 判定不可启动仍 `rc=0` | 不可启动时 `rc=1` | L2 | ✅ `cli-extra.sh` |
+| RG-12 安装路径不依赖 config.json | `--install-fetch` 说「没有记录安装路径」，实际存 SQLite | 传 `--install-dir` 后能完成规划 | L2 | ✅ `cli-extra.sh` |
+
+落地位置汇总：`tests/Lunarward.Tests/*`（L1，62 条）、`Features/Dev/UiSelfTest.cs`（L1.5，10 条）、`scripts/test/{cli-smoke,cli-extra,chunk-smoke,lint-ui-thread}.sh`（L2）。
+
+### 12.1 关于「lint」这一层
+
+lint 不是替代用例，而是**把已经踩过的坑钉成机械检查**：跑一次不到 1 秒、不需要显示器、不需要 wine，进 CI 卡在构建之后。规则只加「已经被真实缺陷验证过」的条目，避免变成空喊。当前 3 条规则的来源见上表 RG-02 / RG-03 / RG-04。

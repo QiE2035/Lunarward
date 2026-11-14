@@ -135,4 +135,19 @@ internal static class RegistryFormat
         }
         return builder.ToString();
     }
+
+    /// <summary>
+    /// 生成可以直接交给 `wine reg import` 的完整字节流：**UTF-16LE + BOM**。
+    /// L-128：无 BOM 的 UTF-16LE 会让 `reg import` 返回 0 但什么都没写进去，
+    /// 这个 BOM 不允许被任何「清理」动作删掉。
+    /// </summary>
+    internal static byte[] BuildRegFileBytes(string key, IReadOnlyDictionary<string, object> values)
+    {
+        byte[] preamble = System.Text.Encoding.Unicode.GetPreamble();
+        byte[] body = System.Text.Encoding.Unicode.GetBytes(BuildRegFile(key, values));
+        byte[] result = new byte[preamble.Length + body.Length];
+        preamble.CopyTo(result, 0);
+        body.CopyTo(result, preamble.Length);
+        return result;
+    }
 }
