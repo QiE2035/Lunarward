@@ -133,6 +133,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
 - `19-test-plan.md` — 测试计划（唯一，227 条：215 条功能用例 T-* + 12 条回归用例 RG-*）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
 - `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 八字段 / 四层检查 / 页面）
+- `24-dependency-audit.md` — 依赖盘点（48 处外部进程判定、可换库项、建议批次）：换依赖前先看这张表，别重复论证
 - `16-runtime-components.md` / `17-runtime-environment-ui.md` — **历史**（已被 23 号取代）
 - `09` / `11` / `15` — **历史文档**，不要据此改代码
 - `docs/user/` — 给用户的 FAQ 与运行环境说明
