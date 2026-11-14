@@ -45,7 +45,7 @@
 | `10-xaml-compat.md` | 参考 | 上游 XAML 与 Uno 的兼容性体检 |
 | `11-m1-0-api-gaps.md` | **历史** | M1-0 首编译缺口快照；现状以 `12` 为准 |
 | `12-shims-and-gaps.md` | **当前（唯一状态登记表）** | 每处替身/缺口的真实状态（D33） |
-| `13-lessons.md` | **当前（唯一坑记录）** | L-01…L-125 的实测结论与复现方法 |
+| `13-lessons.md` | **当前（唯一坑记录）** | L-01…L-137 的实测结论与复现方法 |
 | `15-performance.md` | **历史** | 早期性能基线；现以 `19` §9 + `perf-baseline.json` + `21` 为准 |
 | `16-runtime-components.md` | 历史 | 运行组件 v2 极简（D58）：**已被 23 取代** |
 | `17-runtime-environment-ui.md` | 历史 | 运行环境 UI 三段式（D63）：**已被 23 取代** |
