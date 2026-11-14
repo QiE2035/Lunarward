@@ -160,19 +160,24 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
             DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
         });
-        var box = new TextBox
+        // 只读展示用 ScrollViewer + TextBlock：不用 TextBox（Uno/Skia 下多行只画出第一行，实测只显示 "{"），
+        // 也不指定 FontFamily（"monospace" 在本机不是可用族名，会导致整段文字不渲染）
+        var box = new ScrollViewer
         {
-            Text = json,
-            IsReadOnly = true,
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.NoWrap,
-            FontFamily = new FontFamily("monospace"),
-            FontSize = 12,
+            Height = 320,
             MinWidth = 620,
-            MaxHeight = 420,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollMode = ScrollMode.Enabled,
+            VerticalScrollMode = ScrollMode.Enabled,
+            Content = new TextBlock
+            {
+                Text = json,
+                IsTextSelectionEnabled = true,
+                FontSize = 12,
+                TextWrapping = TextWrapping.NoWrap,
+            },
         };
-        ScrollViewer.SetHorizontalScrollBarVisibility(box, ScrollBarVisibility.Auto);
         var dialog = new ContentDialog
         {
             Title = $"{profile.Name} · 配置文本（只读）",
@@ -681,7 +686,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         content.Children.Add(pathText);
         content.Children.Add(new TextBlock
         {
-            Text = status.Text,
+            Text = $"图形层：{status.Text}",
             FontSize = 12,
             Opacity = status.IsGuardBroken ? 1 : 0.7,
             Foreground = status.IsGuardBroken
@@ -939,7 +944,6 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         _editorPreview = new TextBlock
         {
             TextWrapping = TextWrapping.Wrap,
-            FontFamily = new FontFamily("monospace"),
             FontSize = 12,
             IsTextSelectionEnabled = true,
             Opacity = 0.9,

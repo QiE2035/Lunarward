@@ -1136,3 +1136,16 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 现象：编辑器里的「启动预览」和真正启动是两段代码时，改了一处另处不改，用户看到「预览说 A、启动做 B」。
 - 修法：`LaunchRecipeBuilder.Build` 是唯一入口，启动、预览、`--launch-plan` 三处都调它；冲突检测也在里面做。
 - 通用规则：任何「给用户看的预测」都必须来自「真正执行的那份数据」，不要复制一份生成逻辑。
+
+## L-141 代码里 new 出来的多行 TextBox 在 Skia 后端只画第一行
+
+- 现象：「配置文本（只读）」对话框里的 JSON 只显示了一个 `{`，其余行全空；点「复制」拿到的却是完整 JSON → 说明数据正确，是渲染问题。
+- 试过并排除：给 `TextBox` 补 `Height=320` 无效；去掉 `FontFamily("monospace")`（本机不是可用族名）也无效。
+- 做法：只读展示改用 `ScrollViewer` + `TextBlock`（`IsTextSelectionEnabled=true`、`TextWrapping=NoWrap`、横竖滚动条 Auto），高度给在 ScrollViewer 上 → 14 行 JSON 完整显示。
+- 通用规则：Uno/Skia 下「代码创建 + `AcceptsReturn` 的多行 `TextBox`」不可靠，展示类场景直接用 `TextBlock`；要可编辑再考虑 XAML 里声明（XAML 声明的多行 TextBox 目前正常）。
+
+## L-142 截图坐标在不同后端之间不通用，滚动/键盘行为也不一样
+
+- 现象：`cu_screenshot`（spectacle 后端）返回的是**物理像素**（1500×880，`frame` 是 1200×704 逻辑像素，scale 1.25），直接拿截图像素当全局坐标点会偏；另外同一个 ScrollViewer 上「鼠标滚轮」时灵时不灵，而 `Page_Down` / `Tab` 触发 focus-into-view 一定有效。
+- 做法：全局坐标 = `frame.origin + 截图像素 / scale`；滚动优先用 `Page_Down`/`Page_Up`/`End`，滚轮只在必要时用，且每次先重新取图确认位置。
+- 通用规则：用截图定位点击前，先确认「截图尺寸是否等于窗口逻辑尺寸」，不等就必须按 scale 换算；页面滚动优先键盘，不要假设滚轮一次一定生效。
