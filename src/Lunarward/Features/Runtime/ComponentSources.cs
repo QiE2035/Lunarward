@@ -204,6 +204,31 @@ public static class ComponentSources
     /// 列出某个源的候选 asset（新的在前）。走 GitHub Releases API，不爬网页。
     /// 单个仓库失败只影响它自己，不抛给调用方。
     /// </summary>
+    /// <summary>
+    /// 把 GitHub 的错误响应翻译成一句人能看懂的话（不猜、不改写原文，只补上下文）。
+    /// 纯函数，单独可测。
+    /// </summary>
+    public static string DescribeFailure(int statusCode, string? body)
+    {
+        string trimmed = (body ?? "").Trim();
+        if (trimmed.Length > 200)
+        {
+            trimmed = trimmed[..200] + "…";
+        }
+        if (statusCode is 403 or 429)
+        {
+            return $"GitHub 拒绝了这个请求（HTTP {statusCode}）。匿名访问每小时只有 60 次，共享出口（代理 / NAT）很容易被算满；"
+                + "可以设置环境变量 LUNARWARD_GITHUB_TOKEN，或在 components-sources.json 里给该源配镜像前缀后重试。"
+                + (trimmed.Length > 0 ? $"\n原文：{trimmed}" : "");
+        }
+        if (statusCode == 404)
+        {
+            return $"这个仓库或 API 地址不存在（HTTP 404）：核对源配置里的 Owner / Repo。" + (trimmed.Length > 0 ? $"\n原文：{trimmed}" : "");
+        }
+        return $"列版本失败（HTTP {statusCode}）。" + (trimmed.Length > 0 ? $"原文：{trimmed}" : "");
+    }
+
+
     public static async Task<IReadOnlyList<ComponentReleaseAsset>> ListAssetsAsync(
         HttpClient http, ComponentSourceEntry source, int releases = 8, ILogger? logger = null,
         CancellationToken ct = default)
@@ -219,11 +244,30 @@ public static class ComponentSources
             using var request = new HttpRequestMessage(HttpMethod.Get, api);
             request.Headers.UserAgent.ParseAdd("Lunarward/0.1 (+https://github.com/QiE2035/Lunarward)");
             request.Headers.Accept.ParseAdd("application/vnd.github+json");
+            // 匿名请求每 IP 每小时 60 次，共享出口（代理/NAT）很容易被限流；
+            // 有 token 就用上，没有就明说，别让用户对着「没有可用归档」猜。
+            string? token = Environment.GetEnvironmentVariable("LUNARWARD_GITHUB_TOKEN")
+                ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN")
+                ?? Environment.GetEnvironmentVariable("GH_TOKEN");
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            }
             using HttpResponseMessage response = await http.SendAsync(request, ct).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                logger?.LogWarning("[components] 列源 {Source} 失败：HTTP {Code}", source.Id, (int)response.StatusCode);
-                return result;
+                int code = (int)response.StatusCode;
+                string body = "";
+                try
+                {
+                    body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogDebug(ex, "[components] 读取失败响应体失败");
+                }
+                logger?.LogWarning("[components] 列源 {Source} 失败：HTTP {Code} {Hint}", source.Id, code, body);
+                throw new ComponentSourceException(DescribeFailure(code, body));
             }
             await using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
             using JsonDocument document = await JsonDocument.ParseAsync(stream, cancellationToken: ct)
@@ -283,9 +327,14 @@ public static class ComponentSources
         {
             throw;
         }
+        catch (ComponentSourceException)
+        {
+            throw; // 已经是一句给用户看的话，别在外面再裹一层
+        }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "[components] 列源 {Source} 异常（按无候选处理）", source.Id);
+            logger?.LogWarning(ex, "[components] 列源 {Source} 异常", source.Id);
+            throw new ComponentSourceException($"列版本失败：{ex.Message}");
         }
         return result;
     }
@@ -315,3 +364,7 @@ public static class ComponentSources
         return string.IsNullOrWhiteSpace(tag) ? "" : tag.TrimStart('v');
     }
 }
+
+
+/// <summary>列版本 / 下载准备工作失败时抛这个，消息是给用户看的一句话。</summary>
+public sealed class ComponentSourceException(string message) : Exception(message);

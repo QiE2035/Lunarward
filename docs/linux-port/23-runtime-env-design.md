@@ -522,3 +522,15 @@ CLI：`--component-scan`、`--component-health <id|名字>`、`--component-impor
 - 点开是一个对话框：标题「健康检查 · <名字>」，第一行是一句概括（`可用 (wine-11.19-… (Staging))` / `不可用：<原因>`），第二行是 `退出码 · 耗时 · 路径`，下面是等宽、只读、可复制的原文（命令行 + `exit:` + `stdout:` / `stderr:`），按钮「复制原文 / 关闭」。
 - 按 m21977 的口径：**不做发行版包名映射**，只给原文，避免映射误差把关键信息吃掉；检查是后台线程跑的（`ComponentHealth.CheckAsync` 用 `WaitForExitAsync` + 15 s 超时），不占 UI 线程（硬规则 10）。
 - 实测（系统 Wine）：概括 `可用 (wine-11.19-1-g78e32ba1d3d (Staging))`、`退出码 0 · 耗时 4 ms`、原文含 `$ /opt/spritz-wine-tkg/bin/wine --version` 与 `stdout: wine-11.19-…`。
+
+### 13.8 解压换库 + 下载/导入入口（2026-11-14 补，24 号 P1）
+
+- **解压不再是外部进程**：新增 `src/Lunarward/Features/Runtime/ArchiveExtractor.cs`，`.tar` / `.tar.gz` / `.tgz` / `.tar.zst` 用 BCL `TarReader` + `GZipStream` / `ZstdSharp.DecompressionStream`，`.tar.xz` 走 `SharpCompress` 的 `ReaderFactory`，`.zip` 走 `ZipFile`。行为差异：可取消（`CancellationToken` 逐块生效）、有进度（`ArchiveProgress(Entries, Bytes)`）、路径逃逸在解压前就被拒（`ResolveTarget` 对绝对路径与 `..` 抛 `InvalidDataException`）。这同时满足硬规则 10（UI 线程不 fork 外部进程）。
+- **`ComponentImporter` 语义不变**：签名加一个 `IProgress<ArchiveProgress>? progress`，其余（单层目录摊平、`FindRunnerRoot` 判定布局、写 manifest、`ComponentStore.Invalidate()`）原样。
+- **页面补上两个入口**（`RuntimeEnvironmentSetting.xaml` 组件区按钮行）：
+  - 「下载组件…」：选源 → `加载版本列表`（`ComponentSources.ListAssetsAsync`）→ 选归档 → `开始下载`。下载前做空间预检（归档 ×2 + 64 MB 余量，`DriveInfo.AvailableFreeSpace`）；下载中显示「已下 / 总量 / 连接数 / 速度」；**取消 = 暂停**（`.part.N` 保留，下次同一版本接着下，`Resumed` 会显示「续传」）；下完自动解压导入并删归档。
+  - 「导入归档…」：选本地归档 → 校验扩展名 → 问「运行器 / 图形层」→ 导入。对应 m21977「手动已经覆盖到了吗」那条：不新增概念，只是让「添加路径」这类动作也吃得下压缩包。
+- **限流要说人话**：GitHub API 匿名每小时 60 次，共享出口（代理 / NAT）很容易被算满。`ComponentSources.ListAssetsAsync` 现在把非 2xx 变成 `ComponentSourceException`，`DescribeFailure(403, …)` 给出「设 `LUNARWARD_GITHUB_TOKEN` 或给源配镜像前缀」的建议并附原文；UI 与 `--component-list` 都显示这段话，而不是笼统的「没有可用归档」。支持 `LUNARWARD_GITHUB_TOKEN` / `GITHUB_TOKEN` / `GH_TOKEN`。
+- 新增 CLI `--component-list <源 id>`（打印名称 / MB / 版本），便于在无法用 GUI 时确认源是否可用。
+- 验证：单测 119 → 142（`ArchiveExtractor` 往返/逃逸/取消/不支持格式、`DescribeFailure` 四种）；`cli-extra` 22 → 24；真机三种归档（`.tar.gz` / `.tar.xz` / `.tar.zst`）导入成功；真机「导入归档…」走 `kdialog` 选 `/tmp/wine-localtest-1.0.tar.gz` → 选「运行器」→ 磁盘出现 `components/wine/wine-localtest-1.0/{bin,manifest.json}`；真机「下载组件…」在 GymHub 限流的网络下正确显示 403 的说明文字（见 L-143）。
+- 仍未做：下载队列（多组件排队）、镜像自动测速、断点续传的「暂存列表」界面（当前靠分片文件名隐式续传）。

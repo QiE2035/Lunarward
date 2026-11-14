@@ -1149,3 +1149,16 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 现象：`cu_screenshot`（spectacle 后端）返回的是**物理像素**（1500×880，`frame` 是 1200×704 逻辑像素，scale 1.25），直接拿截图像素当全局坐标点会偏；另外同一个 ScrollViewer 上「鼠标滚轮」时灵时不灵，而 `Page_Down` / `Tab` 触发 focus-into-view 一定有效。
 - 做法：全局坐标 = `frame.origin + 截图像素 / scale`；滚动优先用 `Page_Down`/`Page_Up`/`End`，滚轮只在必要时用，且每次先重新取图确认位置。
 - 通用规则：用截图定位点击前，先确认「截图尺寸是否等于窗口逻辑尺寸」，不等就必须按 scale 换算；页面滚动优先键盘，不要假设滚轮一次一定生效。
+
+### L-143 GitHub API 匿名限流会把「网络能用」伪装成「源里没东西」
+
+- 现象：`--component-list dxvk` 与页面「加载版本列表」都返回空，界面说「这个源没有可用归档」；实际是 `HTTP 403 API rate limit exceeded for <共享出口 IP>`。匿名限额每 IP 每小时 60 次，用代理/NAT 的用户极容易踩满，而 `curl` 直接打同一个仓库也一样 403。
+- 处理：①`ListAssetsAsync` 不再把非 2xx 吞成「空列表」，而是抛 `ComponentSourceException`（消息是 `DescribeFailure` 生成的人话）；②`403/429` 的文案直接说清「限流 + 两条出路（`LUNARWARD_GITHUB_TOKEN` / 镜像前缀）+ 原文」；③`404` 提示核对 `Owner/Repo`；④其余状态码保留原文前 200 字。
+- 教训：**「没有候选」和「没拿到候选」是两件事**，前者是数据问题、后者是环境问题，界面别用一个说法糊过去。打不通时要让人知道「打不通」以及「怎么办」。
+
+### L-144 解压可以进程内做，别为图省事 fork `tar`
+
+- 需求：下载必须能取消，而「取消」若解压仍由外部 `tar`/`xz` 子进程完成，就只是取消了一半（子进程不跟 `CancellationToken`，还得杀进程树，且违反硬规则 10）。
+- 事实（实测，2026-11-14）：BCL `System.Formats.Tar.TarReader` 只处理未压缩 tar 流，`.tar.gz` 套 `GZipStream` 即可，`.tar.zst` 套 `ZstdSharp.DecompressionStream`（项目已有）即可，**`.tar.xz` 没有 BCL 方案** → 用 `SharpCompress` 的 `ReaderFactory.Open(...)` + `MoveToNextEntry`/`WriteEntryTo`（1.0.0，MIT，活跃）。`.zip` 走 `System.IO.Compression.ZipFile`。
+- 路径安全必须在解压**之前**判定：`ResolveTarget` 对绝对路径与含 `..` 的条目直接抛 `InvalidDataException`，不要指望「解完再查」。
+- 结果：三种格式（`.tar.gz` / `.tar.xz` / `.tar.zst`）真机导入均成功，且都能被同一个 `IProgress<ArchiveProgress>` 报进度、被同一个 token 打断。

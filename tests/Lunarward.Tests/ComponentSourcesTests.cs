@@ -155,4 +155,42 @@ public class ComponentSourcesTests : IDisposable
         Assert.Equal("9-20", ComponentSources.GuessVersion("GE-Proton.tar.gz", "v9-20"));
         Assert.Equal("", ComponentSources.GuessVersion("wine.tar.gz", ""));
     }
+
+    [Fact]
+    public void DescribeFailure_RateLimit_MentionsTokenAndMirror()
+    {
+        string message = ComponentSources.DescribeFailure(403, "{\"message\":\"API rate limit exceeded\"}");
+        Assert.Contains("60", message);
+        Assert.Contains("LUNARWARD_GITHUB_TOKEN", message);
+        Assert.Contains("镜像", message);
+        Assert.Contains("原文", message);
+    }
+
+
+    [Fact]
+    public void DescribeFailure_NotFound_PointsToRepo()
+    {
+        string message = ComponentSources.DescribeFailure(404, "Not Found");
+        Assert.Contains("Owner", message);
+        Assert.Contains("Repo", message);
+    }
+
+
+    [Fact]
+    public void DescribeFailure_Other_KeepsStatusCodeAndBody()
+    {
+        string message = ComponentSources.DescribeFailure(503, "service unavailable");
+        Assert.Contains("503", message);
+        Assert.Contains("service unavailable", message);
+    }
+
+
+    [Fact]
+    public void DescribeFailure_TruncatesLongBody()
+    {
+        string body = new string('x', 400);
+        string message = ComponentSources.DescribeFailure(500, body);
+        Assert.Contains("…", message);
+        Assert.DoesNotContain(new string('x', 250), message);
+    }
 }

@@ -53,6 +53,7 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
   --shell-plan                     打印每个方案的调试 Shell 命令
   --graphics-list
   --component-scan                 列出下载源（可用的受管组件清单）
+  --component-list <源 id>          列出某个源的可用归档（名称 / 大小 / 版本）
   --component-health <id|名字>     健康检查：一句结论 + 可复制的原文
   --component-import <归档> --kind wine|graphics
                                    导入归档为受管组件
@@ -1329,7 +1330,7 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
         }
 
         // 受管组件（D73 阶段 1）：清单 / 健康 / 导入 / 下载
-        if (args.Length >= 1 && args[0] is "--component-scan" or "--component-health" or "--component-import" or "--component-download")
+        if (args.Length >= 1 && args[0] is "--component-scan" or "--component-list" or "--component-health" or "--component-import" or "--component-download")
         {
             AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
             string kindOf(string[] argv)
@@ -1351,6 +1352,49 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 foreach (Starward.Features.Runtime.ComponentSourceEntry entry in Starward.Features.Runtime.ComponentSources.Load())
                 {
                     Console.WriteLine($"  [{entry.Kind}] {entry.Id,-14} {entry.DisplayName}  ({entry.Owner}/{entry.Repo})");
+                }
+                return;
+            }
+
+            if (args[0] is "--component-list")
+            {
+                if (args.Length < 2)
+                {
+                    Console.WriteLine("用法：--component-list <源 id>（用 --component-scan 看源）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                Starward.Features.Runtime.ComponentSourceEntry? listSource = Starward.Features.Runtime.ComponentSources
+                    .Load().FirstOrDefault(x => x.Id == args[1]);
+                if (listSource is null)
+                {
+                    Console.WriteLine($"没有这个源：{args[1]}");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                using var listHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+                IReadOnlyList<Starward.Features.Runtime.ComponentReleaseAsset> listAssets;
+                try
+                {
+                    listAssets = Starward.Features.Runtime.ComponentSources
+                        .ListAssetsAsync(listHttp, listSource, 10, new ConsoleLogger()).GetAwaiter().GetResult();
+                }
+                catch (Starward.Features.Runtime.ComponentSourceException ex)
+                {
+                    Console.WriteLine(ex.Message);
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                if (listAssets.Count == 0)
+                {
+                    Console.WriteLine($"源 {listSource.Id} 没有可用归档（没有匹配的资产，检查 AssetPattern）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                Console.WriteLine($"源 {listSource.Id}（{listSource.DisplayName}）共 {listAssets.Count} 个归档：");
+                foreach (Starward.Features.Runtime.ComponentReleaseAsset item in listAssets)
+                {
+                    Console.WriteLine($"  {item.Name,-44} {item.Size / 1048576,6} MB  {item.Version}");
                 }
                 return;
             }

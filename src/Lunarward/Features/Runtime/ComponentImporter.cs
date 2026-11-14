@@ -3,13 +3,12 @@
 // 与「手动路径」的区别只有一点：这里由我们解压、归一化布局、写 manifest，
 // 所以后续能校验、能删除、能算占用。下载完的归档也走同一条路。
 //
-// 解压用系统 tar（后台线程），不用托管解压库：xz 解压是 CPU 密集的，
-// 托管实现普遍单线程且慢，而且多一个依赖。
+// 解压走 ArchiveExtractor（进程内、可取消、有进度）：.tar / .tar.gz / .tar.zst / .tar.xz / .zip。
+// 2026-11-14 起不再调用系统 tar/xz 外部进程（见 24 号依赖盘点 P1）。
 using Microsoft.Extensions.Logging;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -20,10 +19,6 @@ namespace Starward.Features.Runtime;
 
 public static class ComponentImporter
 {
-    /// <summary>解压超时：几百 MB 的 xz 在慢盘上也要几分钟。</summary>
-    private static readonly TimeSpan ExtractTimeout = TimeSpan.FromMinutes(15);
-
-
     /// <summary>
     /// 导入一个归档到受管目录，返回写好的 manifest。
     /// <paramref name="kind"/>：wine / proton / graphics。
@@ -37,6 +32,7 @@ public static class ComponentImporter
         string? sourceUrl = null,
         string? mirrorPrefix = null,
         ILogger? logger = null,
+        IProgress<ArchiveProgress>? progress = null,
         CancellationToken ct = default)
     {
         if (!File.Exists(archivePath))
@@ -59,7 +55,7 @@ public static class ComponentImporter
         Directory.CreateDirectory(temp);
         try
         {
-            await ExtractAsync(archivePath, temp, logger, ct).ConfigureAwait(false);
+            await ExtractAsync(archivePath, temp, logger, ct, progress).ConfigureAwait(false);
 
             // 大多数归档把内容包在一层同名目录里（dxvk-3.1.1/、wine-staging-9.22/）：
             // 只有一层且是目录时，把它当作组件根，避免变成 components/graphics/dxvk-3.1.1/dxvk-3.1.1/。
@@ -136,61 +132,12 @@ public static class ComponentImporter
 
 
     /// <summary>
-    /// 用系统 tar 解压。先试自动识别（bsdtar 能认 zstd），失败再显式 <c>--zstd</c>，
-    /// 再失败把 tar 的 stderr 原样抛出去——不猜、不翻译（D73 §2.5）。
+    /// 解压归档到 <paramref name="destination"/>（进程内完成，可取消、有进度）。
+    /// 不支持的格式会抛 <see cref="NotSupportedException"/>，条目路径逃逸会抛 <see cref="InvalidDataException"/>。
     /// </summary>
-    public static async Task ExtractAsync(string archivePath, string destination, ILogger? logger,
-        CancellationToken ct = default)
-    {
-        string[] attempts =
-        {
-            "-xf",
-            "--zstd -xf",
-        };
-        string lastError = "";
-        foreach (string mode in attempts)
-        {
-            string[] parts = mode.Split(' ');
-            var startInfo = new ProcessStartInfo("tar")
-            {
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-            };
-            foreach (string part in parts)
-            {
-                startInfo.ArgumentList.Add(part);
-            }
-            startInfo.ArgumentList.Add(archivePath);
-            startInfo.ArgumentList.Add("-C");
-            startInfo.ArgumentList.Add(destination);
-
-            using var process = new Process { StartInfo = startInfo };
-            process.Start();
-            Task<string> stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
-            Task<string> stdout = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            timeout.CancelAfter(ExtractTimeout);
-            try
-            {
-                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                TryKill(process);
-                throw new TimeoutException($"解压超时：{archivePath}");
-            }
-            string err = await stderr.ConfigureAwait(false);
-            _ = await stdout.ConfigureAwait(false);
-            if (process.ExitCode == 0)
-            {
-                return;
-            }
-            lastError = string.IsNullOrWhiteSpace(err) ? $"tar 退出码 {process.ExitCode}" : err.Trim();
-            logger?.LogWarning("[components] tar {Mode} 失败（{Code}）：{Error}", mode, process.ExitCode, lastError);
-        }
-        throw new InvalidOperationException($"解压失败：{archivePath}\n{lastError}");
-    }
+    public static Task ExtractAsync(string archivePath, string destination, ILogger? logger,
+        CancellationToken ct = default, IProgress<ArchiveProgress>? progress = null)
+        => ArchiveExtractor.ExtractAsync(archivePath, destination, progress, logger, ct);
 
 
     public static string FolderFor(string kind) => kind == "graphics" ? "graphics" : "wine";
@@ -228,18 +175,4 @@ public static class ComponentImporter
     }
 
 
-    private static void TryKill(Process process)
-    {
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
-        }
-        catch
-        {
-            // 已经退出或没权限，忽略
-        }
-    }
 }

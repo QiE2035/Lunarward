@@ -52,6 +52,7 @@
     <PackageReference Include="NuGet.Versioning" Version="7.9.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="SharpCompress" Version="1.0.0" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.14" />
     <PackageReference Include="ZiggyCreatures.FusionCache" Version="2.9.0" />
   </ItemGroup>

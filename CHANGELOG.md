@@ -1,3 +1,12 @@
+## 2026-11-14（十二）——解压换库 + 组件下载/导入入口（24 号 P1）
+
+- 解压不再 fork `tar`/`xz`：新增 `ArchiveExtractor`（BCL `TarReader` + `GZipStream` + `ZstdSharp` + `SharpCompress` 处理 `.tar.xz` + `ZipFile`），支持 `.tar` / `.tar.gz` / `.tgz` / `.tar.zst` / `.tar.xz` / `.zip`，可取消、有进度、解压前拦路径逃逸（L-144）。
+- 运行环境页新增「下载组件…」：选源 → 列版本 → 下载（显示已下/总量/连接数/速度，**取消 = 暂停**，分片保留可续传）→ 自动解压导入；下载前做磁盘空间预检。
+- 新增「导入归档…」：选本地压缩包（`kdialog`），选「运行器 / 图形层」后导入，不新增概念。
+- GitHub API 匿名限流（403）不再伪装成「源里没有归档」：改为抛 `ComponentSourceException`，界面与 `--component-list` 都显示「限流 + 设 `LUNARWARD_GITHUB_TOKEN` 或配镜像前缀 + 原文」（L-143）；顺带支持 `GITHUB_TOKEN` / `GH_TOKEN`。
+- 新增 CLI `--component-list <源 id>`（名称 / MB / 版本）。
+- 测试：单测 142、`cli-extra` 24（新增 T-CL-42/43）。
+
 ## 2026-11-14（十一）——组件健康进页面
 
 - 运行环境页的每一行组件（受管/外部运行器、图形层）右侧加「检查」按钮：后台跑 `ComponentHealth`，弹「健康检查 · <名字>」对话框，给一句概括 + 退出码/耗时/路径 + 等宽只读可复制的原文，按钮「复制原文 / 关闭」。

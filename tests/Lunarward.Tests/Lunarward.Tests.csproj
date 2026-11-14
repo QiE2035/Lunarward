@@ -25,6 +25,7 @@
     <Compile Include="../../src/Lunarward/Features/Runtime/ComponentSources.cs" Link="Linked/ComponentSources.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/LaunchRecipe.cs" Link="Linked/LaunchRecipe.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/RuntimeProfile.cs" Link="Linked/RuntimeProfile.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/ArchiveExtractor.cs" Link="Linked/ArchiveExtractor.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -38,6 +39,9 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
     <!-- JsonFile 链接了主工程的日志调用；测试里只用来编译，不初始化 Sink -->
     <PackageReference Include="Serilog" Version="4.3.0" />
+    <!-- ArchiveExtractor 用到的解压实现（与主工程同版本） -->
+    <PackageReference Include="SharpCompress" Version="1.0.0" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
   </ItemGroup>
 
 </Project>

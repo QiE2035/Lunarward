@@ -48,7 +48,7 @@
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 119 条）
+# 单元测试（当前 142 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）
@@ -57,7 +57,7 @@ dotnet test Starward.slnx -c Debug
 # 进程内 UI 自检（10 条断言，CI 里跑在 xvfb 上）
 LUNARWARD_SELFTEST=1 ./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward --selftest-ui
 
-# L2 CLI 冒烟（cli-smoke 34 条 + cli-extra 22 条，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
+# L2 CLI 冒烟（cli-smoke 34 条 + cli-extra 24 条，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-smoke.sh
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-extra.sh
 
@@ -129,9 +129,9 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - `README.md` — 总览与状态（**先看这个**）
 - `00-decisions.md` — D0–D74 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-140 坑与复现方法（唯一）
+- `13-lessons.md` — L-01…L-144 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
-- `19-test-plan.md` — 测试计划（唯一，227 条：215 条功能用例 T-* + 12 条回归用例 RG-*）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
+- `19-test-plan.md` — 测试计划（唯一，229 条：217 条功能用例 T-* + 12 条回归用例 RG-*）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
 - `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 八字段 / 四层检查 / 页面）
 - `24-dependency-audit.md` — 依赖盘点（48 处外部进程判定、可换库项、建议批次）：换依赖前先看这张表，别重复论证
 - `16-runtime-components.md` / `17-runtime-environment-ui.md` — **历史**（已被 23 号取代）

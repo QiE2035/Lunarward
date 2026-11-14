@@ -191,4 +191,13 @@ case_start "T-CL-41" "--launch-plan --profile <不存在> 时明确说找不到�
 lw --launch-plan "$IMP/game.exe" --profile 不存在的配方 >"$out" 2>&1; rc=$?
 if expect_rc 0 "$rc" && expect_contains "$(text)" "找不到"; then pass_case; fi
 
+# ── 受管组件下载入口（P1）：列版本的前置校验 ──────────────────────
+case_start "T-CL-42" "--component-list 缺参数时返回 1 并给用法"
+lw --component-list >"$out" 2>&1; rc=$?
+if expect_rc 1 "$rc" && expect_contains "$(text)" "--component-list <源 id>"; then pass_case; fi
+
+case_start "T-CL-43" "--component-list 未知源时返回 1"
+lw --component-list no-such-source >"$out" 2>&1; rc=$?
+if expect_rc 1 "$rc" && expect_contains "$(text)" "没有这个源"; then pass_case; fi
+
 summary

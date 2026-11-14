@@ -89,3 +89,15 @@
 - `cp --reflink=auto`：要的就是文件系统语义。
 - 用户自己的程序（调试 Shell、一次性运行、后启动程序、游戏本体）。
 - 原子写、注册表文本解析、SNI 托盘协议、X11 热键轮询：没有等价且维护中的库。
+
+---
+
+## 执行记录
+
+| 批次 | 状态 | 说明 |
+| --- | --- | --- |
+| P1 tar/xz 换库 | ✅ 2026-11-14 | 新增 `ArchiveExtractor`（BCL `TarReader` + `GZipStream` + `ZstdSharp` + `SharpCompress` for xz + `ZipFile`），删除 `ComponentImporter` 里的 `tar` / `xz` 子进程与 `TryKill`；解压现在可取消、有进度、拦路径逃逸（23 号 §13.8） |
+| P1 下载入口/进度/取消/空间预检 | ✅ 2026-11-14 | 页面「下载组件…」/「导入归档…」；取消=暂停（`.part.N` 续传）；GitHub 限流时给可操作提示 + 支持 `LUNARWARD_GITHUB_TOKEN` |
+| P2 待定（portal 化 `xdg-open` / `spectacle`） | ⬜ | 需要多一条兜底路径，等 24 号 §5 的判定 |
+| P3 Magick.NET 图片编解码 | ⬜ | 目前 SkiaSharp 够用，未到必须换的程度 |
+| P4 GirCore 登录助手 | ⬜ | 版本未确认（`flatcontainer` 404），落地前再核 |
