@@ -1,6 +1,8 @@
 # 16 · 运行组件模块（V2 · 极简）
 
 > 状态：**v2 已定稿并开始实施**（2026-11-11，用户拍板 m15086「先按这个来吧，先做出来偷体验一下」）。
+> ⚠️ **已被 `23-runtime-env-design.md`（v3，D73，2026-11-14）取代**：本文保留作历史记录，概念与页面结构以 23 号为准。
+
 > **v1（依赖解析 + 锁文件 + 可达性 GC + 组件市场）已撤回**：那套设计按「频繁试组合」优化，与真实使用方式不符——组合一旦定下就长期不动，变动来源是 pacman/AUR。
 > 相关决议：D58（本文）、D1/D2（单头 Linux）、D30（兼容层边界）、D39（并发与占用）、D52（启动链路缺陷）、D35（开发入口不进发行版）。
 > 现状实现：`Features/Runtime/{RuntimeProfile,RuntimeProfileStore,PrefixManager,ComponentStore,GraphicsInstaller,ProfileBinding,LastKnownGoodStore}.cs`、`Features/GameLauncher/{LaunchPreflight,GameLauncherService}.cs`。

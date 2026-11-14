@@ -910,3 +910,28 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 3. `RuntimeEnvironmentSetting.LoadComponents` 改为 `LoadComponentsAsync`：`ComponentStore.GetRunners/GetGraphics` 的首次扫描（PATH + 所有 Steam 库 + `compatibilitytools.d`）在后台跑，扫完再回 UI 线程建行。
 
 验证：`--page setting --subpage RuntimeEnvironmentSetting` 冷启动看门狗只剩启动那 1 次平台渲染卡顿（1244 ms），页面组件行正常渲染（截图 `RuntimeEnvironmentSetting` 6 个运行器、来源标签齐全）；`dotnet test` 61 通过。
+
+## D73 · 运行环境模块 v3：三概念 + 自洽硬目标（设计定稿，未开工）
+
+**背景**：用户 m21954「先搁置（实现），我们讨论下 Linux 补充部分如何设计，例如这个"运行环境"模块」；m21958「不要过度封装/傻瓜式，不要局限在我说的原始痛点」；m21961「配置文件只在极特殊状况手改」；m21966「实际不会有那么多环境配置，多数是一个游戏一份，甚至多个游戏共用一份」；m21973「倾向于带（wine 下载），至少确保启动器自洽」；m21984「你的建议都不错，按你的建议来吧」。
+
+**决定**（全部写进 `23-runtime-env-design.md`，取代表 16/17 两份 v2 文档）：
+
+1. **只留三个概念**：组件 / 环境（配方）/ 绑定。前缀**不是**概念，是环境里的一个路径字段 + 一段只读检查。
+2. **自洽是硬性目标**：干净 Arch 上装完本程序，不依赖 Steam、不依赖别的启动器、不依赖发行版 wine，仅靠程序内操作就能跑起来。三样必需物全由本程序提供：运行器（受管下载）+ 图形层（受管下载）+ 前缀（`wineboot`）。**边界**：32 位库/Vulkan loader/驱动在系统里，不代装、不假装能装。
+3. **组件三类 `kind`**：`wine` / `proton` / `graphics`；来源 `managed`/`system`/`steam`/`umu`/`manual`。非 managed 只读引用（不复制、不修改、不删除、不算占用）。
+4. **受管目录 + manifest**：`~/.local/share/lunarward/components/{wine,graphics}/<name>-<version>/` 旁边 `manifest.json`（记录 url/时间/SHA-256/layout/root）；**布局归一化**（`bin-wine` / `files-bin-wine` / `bare-exe`）是必须步骤。
+5. **下载源可配置不写死**：默认 wine-staging（一键项）→ wine-tkg → GE-Proton，走 GitHub Releases API；条目带 `mirrorPrefix`；有 API `digest` 用它，否则 TOFU 记 SHA-256；可取消、解压前 `df` 校验空间、失败打真实 URL。**不自动更新运行器**，只标「有新版本」。
+6. **报错给原文，不映射发行版包名**（用户 m21977 明确要求）：健康状态只放一句概括，点开是等宽、只读、可全选复制的原始 stderr + 复制按钮。
+7. **前缀去枚举化**：删 `template/dedicated/shared/external/ephemeral`，只剩三个动作（新建 / 指向已有 / 从…复制）。`WINEARCH` 新建时选一次，之后只读。root 运行拒绝。占用沿用 `FileShare.None` 锁 + 界面表达「正在被 X 使用」。
+8. **环境八个字段**：name / runnerId / graphicsId / prefixPath / env / args / wrappers / notes。`env` 三层优先级（自动注入 → 配方 → 进程），**配方覆盖自动注入且冲突要标红说明**；`WINEDLLOVERRIDES=mscoree,mshtml=` 是可见默认值。`wrappers` 是有序命令前缀列表，拼在 `wine` 前，`--launch-plan` 为唯一真相。
+9. **绑定按 id**（重命名不影响），多对一是正常用法；新游戏首次启动**自动建同名环境**并提示。
+10. **检查四层归并成一张清单**（组件/前缀/图形/启动），每项带动作（复用 `PreflightAction`）；额外检测游戏目录自带 `d3d11/dxgi/d3d12.dll` 并提示（不自动删）。`last-good` 只存**单条**记录 + 「用上次能跑的组合重新启动」。
+11. **持久化两条硬规则**：保存即全量（不做增量合并、不顺手修正未触碰字段）；没有隐藏字段（界面可影响运行的项必须能在导出 JSON 里看到，反之亦然）。派生数据全放 `~/.cache/lunarward/`，可随时删。
+12. **明确不做**：`extends` 覆盖层、矩阵试跑、Run 历史、导入 CLI、自动更新运行器、包名映射、向导、前缀进左栏、模板库、`ephemeral` 模式。
+
+**验证**：`23-runtime-env-design.md` §10 给出 A1–A6 / B1–B5 / C1–C5 / D1–D4 / E1–E3 验收项。
+
+**代价**：磁盘（wine 构建 400–700 MB、GE-Proton ~1 GB；换版本时提示保留/删除）；组件更新需手动；Proton 在自洽模式下仍需 Steam 或 umu（界面必须写明）。
+
+**状态**：方向已确认，**未开工**。实现前需在本文档 §11 补完 5 条待定细节，并由用户在对话中明确授权。

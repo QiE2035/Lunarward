@@ -47,14 +47,15 @@
 | `12-shims-and-gaps.md` | **当前（唯一状态登记表）** | 每处替身/缺口的真实状态（D33） |
 | `13-lessons.md` | **当前（唯一坑记录）** | L-01…L-125 的实测结论与复现方法 |
 | `15-performance.md` | **历史** | 早期性能基线；现以 `19` §9 + `perf-baseline.json` + `21` 为准 |
-| `16-runtime-components.md` | 当前 | 运行组件 v2 极简（D58）：只管清单与选择 |
-| `17-runtime-environment-ui.md` | 当前 | 运行环境 UI 三段式与图形层（D63） |
+| `16-runtime-components.md` | 历史 | 运行组件 v2 极简（D58）：**已被 23 取代** |
+| `17-runtime-environment-ui.md` | 历史 | 运行环境 UI 三段式（D63）：**已被 23 取代** |
 | `18-upstream-deviations.md` | 当前 | 移植偏差原则、登记标记、上游同步流程 |
 | `18-upstream-table.md` | 当前 | 81 个同名差异文件的自动分类与复核进度 |
 | `19-test-plan.md` | **当前（唯一测试计划）** | 221 条用例（209 T-* + 12 RG-*）、L1/L1.5/L2/L3 分层、性能预算、缺陷流程 |
 | `20-l3-report.md` | 进行中 | L3 真机用例首轮结果与证据 |
 | `21-ui-audit.md` | 进行中 | UI 审查与性能记录（含撤回条目） |
 | `22-port-verification.md` | 进行中 | 纯移植部分验证（布局/交互/性能） |
+| `23-runtime-env-design.md` | **当前（D73 定稿）** | 运行环境从头设计：三概念 / 自洽硬目标 / 受管组件 / 八字段 / 验收项 |
 | `screenshots/` | 证据 | 截图证据（文件名即场景） |
 | `perf-baseline.json` | 数据 | 性能基线快照 |
 
