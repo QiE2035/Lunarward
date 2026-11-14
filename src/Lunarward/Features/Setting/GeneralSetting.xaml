@@ -59,8 +59,6 @@
                           OnContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}" />
 
 
-            <MenuFlyoutSeparator Margin="0,20,0,0" />
-
             <!--  Linux：透明/动画效果是 Windows 系统设置项，Linux 下无对应开关，整段移除（D61）。  -->
 
         </StackPanel>

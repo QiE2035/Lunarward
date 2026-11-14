@@ -403,6 +403,9 @@
 | chunk 复用下载 | 14 MB/s（8 并发） | D41 |
 | 安装计划估算 | 1211 文件 / 23.81 GB，2.3 s | D41 |
 | 组件扫描（6 运行器 + 5 图形层） | ~0.6 s | 本轮实测 |
+| 冷启动分段 | 总 1.04–1.24 s = XAML 通胀 0.58 s（`MainWindow` ctor→`InitializeComponent` done）+ 窗口激活与首帧布局/光栅 0.46 s（无日志事件的纯 measure/arrange + Skia 光栅） | 2026-11-14 打点实测 |
+| 冷启动 watchdog 其它卡顿 | 1 次 312–328 ms（托盘注册、`Accent color applied` 之后） | 同上 |
+| 游戏设置对话框首次打开 | 170 ms（XAML 通胀 81 ms + 首帧布局 89 ms）；同一会话再次打开 45 ms（17+28） | 同上 |
 
 ---
 

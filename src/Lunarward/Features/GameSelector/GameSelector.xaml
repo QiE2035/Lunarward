@@ -106,7 +106,7 @@
                 <StackPanel Margin="0,0,12,12" Spacing="40">
 
                     <!--  游戏展示和选择  -->
-                    <ItemsControl x:Name="ItemsControl_GameBizs" ItemsSource="{x:Bind GameBizDisplays}">
+                    <ItemsControl ItemsSource="{x:Bind GameBizDisplays}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" Spacing="16" />

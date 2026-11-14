@@ -272,12 +272,12 @@ public sealed partial class StartGameButton : UserControl
                                ? (double)task.Progress_WriteFinishBytes / task.Progress_WriteTotalBytes
                                : 0;
                 ProgressRingValue = Math.Clamp((int)(progress * 100), 0, 100);
-                ProgressPercentText = progress > 0 ? $"{progress:P1}" : "";
+                ProgressPercentText = total > 0 ? $"{progress:P1}" : "";
             }
             else
             {
                 ProgressRingValue = Math.Clamp((int)(progress * 100), 0, 100);
-                ProgressPercentText = progress > 0 ? $"{progress:P1}" : "";
+                ProgressPercentText = total > 0 ? $"{progress:P1}" : "";
             }
         }
         else if (InstallState is GameInstallState.Decompressing or GameInstallState.Merging)

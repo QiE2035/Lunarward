@@ -1067,7 +1067,7 @@ internal static class DatabaseService
     /// Lunarward：上游用 7z.dll（SharpSevenZip，Windows COM）压缩备份，Linux 无对应实现，
     /// 改用 .NET 内置 ZipArchive，备份文件扩展名随之改为 .zip。
     /// </summary>
-    private static void CreateArchive(string archivePath, string sourceFile)
+    internal static void CreateArchive(string archivePath, string sourceFile)
     {
         using var zip = ZipFile.Open(archivePath, ZipArchiveMode.Create);
         zip.CreateEntryFromFile(sourceFile, Path.GetFileName(sourceFile), CompressionLevel.SmallestSize);

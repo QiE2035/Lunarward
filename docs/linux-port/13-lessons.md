@@ -1057,3 +1057,15 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 **判断标准**（本次结论）：CLI 主线程、退出路径、`<Compile Remove>` 掉的死文件、先判 `IsCompletedSuccessfully` 的取结果、异步续体里的 `.Result`、解析 1 px 图的静态构造——都可以留着；只有「UI 线程 + 可能上百毫秒」才必须改。
 
 **改法固定**：调用点包 `await Task.Run(...)`；页面初始化改成 `private void X() { _ = XAsync(); }` + `XAsync` 里先 `Task.Run` 取数据、`await` 之后再碰控件。
+
+### L-130 · 复核结论也要自己验证；`partial` 不一定是装饰
+
+- 复核结论来自 diff + 静态阅读时，「这行没有作用」这类判断必须跑一次反向验证（去掉再编译）。
+- 实例：`src/Lunarward/Helpers/PointerCursor.cs:7` 的 `partial` 被复核判为「无伙伴文件、纯装饰，建议回退」，实际去掉后编译报 `CS0260 类型缺少 partial 修饰符；存在此类型的其他分部声明`。同一编译单元里另有一处分部声明，来源尚未查明（`Compile` 项只列出本文件一份），因此这一行是必需的。
+- 推论：把 `partial`、`using`、`#pragma` 这类「看起来没作用」的行当作可清理的噪声很危险，尤其在本项目这种「上游源码 + 移植目录同名单文件并存」的结构下。
+
+### L-131 · 一次性成本要分层打点，别拿单个看门狗数字当根因
+
+- 冷启动 1.04 s、游戏设置对话框首次 170 ms，前者由 XAML 通胀 + 首帧布局/光栅两段构成，后者是「通胀 81 ms + 首帧 89 ms」；只有分层打点（ctor / InitializeComponent done / 首次 `LayoutUpdated`）才能说清钱花在哪。
+- 看门狗只回答「UI 线程被占住了多久」，不回答「谁占的」；`dotnet-stack` 只回答「采样那一瞬间在谁身上」。三者要给同一条时间线对齐才有结论。
+- 反例教训：`AppBackground.xaml.cs` 里的看门狗初始化写了却没日志——因为该文件在 `<Compile Remove>` 里根本不编译（L-41 家族），这种「什么都没发生」最容易被误读成「功能不生效」。

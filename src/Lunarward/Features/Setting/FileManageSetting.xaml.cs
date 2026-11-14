@@ -203,12 +203,9 @@ public sealed partial class FileManageSetting : PageBase
                     string file = Path.Combine(folder, $"StarwardDatabase_{time:yyyyMMdd_HHmmss}.db");
                     string archive = Path.ChangeExtension(file, ".zip");
                     DatabaseService.BackupDatabase(file);
-                    // Lunarward: 上游用 7z.dll 压缩备份；Linux 侧改用 System.IO.Compression（SharpCompress 亦可）
-                    System.IO.Compression.ZipFile.CreateFromDirectory(
-                        Path.GetDirectoryName(file)!,
-                        archive,
-                        System.IO.Compression.CompressionLevel.SmallestSize,
-                        includeBaseDirectory: false);
+                    // Lunarward: 上游用 7z.dll 压缩备份；Linux 侧复用 DatabaseService 的单文件 zip（只压当次 .db，
+                    // 不要把整个 DatabaseBackup 目录打进去——那会把历次 .zip 一起套进去，D46 复核发现的真 bug）
+                    DatabaseService.CreateArchive(archive, file);
                     DatabaseService.SetValue("LastBackupDatabase", Path.GetFileName(archive), time);
                     File.Delete(file);
                 });

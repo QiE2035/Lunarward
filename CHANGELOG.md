@@ -1,3 +1,12 @@
+## 2026-11-14（三）——偏差复核与两处真实缺陷
+
+- 26 个「小改动」上游偏差全部复核完（A×19 / B×4 / C×3，死文件 0），结论落 `docs/linux-port/18-upstream-table.md`。
+- 修：手动备份把整个 `DatabaseBackup` 目录打进 zip（历次备份自我嵌套、`.db` 多一层）→ 改为 `DatabaseService.CreateArchive` 单文件压缩。
+- 修：`StartGameButton` 用 `progress > 0` 吞掉 `0.0%` 那一帧 → 统一为 `total > 0`（与 `PreDownloadButton` 一致）。
+- 修：`GeneralSetting` 悬空分隔线、`GameSelector` 无人使用的 `x:Name`。
+- 记：`Helpers/PointerCursor.cs` 的 `partial` 是必需的（去掉报 CS0260），复核建议「回退」不成立，见 L-130。
+- 测：冷启动 1.04–1.24 s 分层（XAML 通胀 0.58 s + 首帧 0.46 s）；游戏设置对话框首次 170 ms / 再次 45 ms。基线已入 `19-test-plan.md` §9。
+
 ## 2026-11-14（二）——同类同步重活收口（D72 补充 / L-129）
 
 - 按六类清完「该异步没异步」，剩下三处「一次点击卡一下」也挪到后台：导入图形组件时的整目录拷贝（~100 MB）、`GraphicsInstaller.EnsureInstalled` 的三个 UI 调用点（拷 5 个 DLL + SHA-256）、`ComponentStore` 首次扫描 PATH 与所有 Steam 库。
