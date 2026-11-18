@@ -29,6 +29,9 @@ public sealed partial class RuntimeEnvironmentSetting
     /// <summary>右栏正在看哪一份（删掉/改名之后按 Id 校验）。</summary>
     private string? _selectedProfileId;
 
+    /// <summary>详情页「运行器」卡片里那个名字的 TextBlock：组件扫描完成后要就地更新（D87）。</summary>
+    private TextBlock? _detailRunnerName;
+
 
     // ───────────────────────────── 左列清单 ─────────────────────────────
 
@@ -208,6 +211,7 @@ public sealed partial class RuntimeEnvironmentSetting
         IReadOnlyList<GameBiz> bindings = ProfileBinding.Usages(profile.Id);
 
         StackPanel_ProfileDetail.Children.Add(CreateProfileHeader(profile, inspection, bindings, prefixPath));
+        _detailRunnerName = null;
         StackPanel_ProfileDetail.Children.Add(CreateRunnerSection(profile));
         StackPanel_ProfileDetail.Children.Add(CreateGraphicsSection(profile, inspection, prefixPath));
         StackPanel_ProfileDetail.Children.Add(CreatePrefixSection(profile, inspection, prefixPath, bindings));
@@ -301,14 +305,40 @@ public sealed partial class RuntimeEnvironmentSetting
     }
 
 
+    /// <summary>
+    /// 详情页的运行器名字：优先用组件扫描结果里的 <see cref="Component.DisplayName"/>（带版本，
+    /// 和编辑器下拉里那一行一字不差）；还没扫过或找不到（运行器被删 / 配置指向已不存在的路径）
+    /// 才回落到配置里的旧名字。原来直接用 <c>profile.RunnerName</c>，于是
+    /// `/opt/spritz-wine-tkg/bin/wine` 在详情页显示 `wine`、在下拉里显示「系统 Wine …」，
+    /// 同一个文件两个名字（2026-11-18 实测，D87）。
+    /// 只用缓存，不在这里触发扫描——扫描要 fork `wine --version`，不能在 UI 线程上做（L-127）。
+    /// </summary>
+    private static string ResolveRunnerDisplay(RuntimeProfile profile)
+    {
+        string fallback = string.IsNullOrWhiteSpace(profile.RunnerName)
+            ? Lang.Lunarward_RuntimeEnv_NoUsableRunner
+            : profile.RunnerName!;
+        if (ComponentStore.TryGetCachedRunners(out IReadOnlyList<Component> runners))
+        {
+            Component? match = runners.FirstOrDefault(x => MatchesComponent(x, profile.RunnerPath, profile.RunnerId));
+            if (match is not null)
+            {
+                return match.DisplayName;
+            }
+        }
+        return fallback;
+    }
+
+
     private Border CreateRunnerSection(RuntimeProfile profile)
     {
         var body = new StackPanel { Spacing = 4 };
-        body.Children.Add(new TextBlock
+        _detailRunnerName = new TextBlock
         {
-            Text = string.IsNullOrWhiteSpace(profile.RunnerName) ? Lang.Lunarward_RuntimeEnv_NoUsableRunner : profile.RunnerName!,
+            Text = ResolveRunnerDisplay(profile),
             TextWrapping = TextWrapping.Wrap,
-        });
+        };
+        body.Children.Add(_detailRunnerName);
         if (!string.IsNullOrWhiteSpace(profile.RunnerPath))
         {
             body.Children.Add(Hint(profile.RunnerPath!));

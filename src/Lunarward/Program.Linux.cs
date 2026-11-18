@@ -1588,7 +1588,7 @@ internal class LunarwardProgram
             {
                 var payload = runners.Select(r => new
                 {
-                    name = r.DisplayName,
+                    name = r.Name,
                     path = r.Path,
                     version = r.Version,
                     layout = r.Layout,
@@ -1605,7 +1605,8 @@ internal class LunarwardProgram
                 string mark = r.Usable == true ? "✓" : "✗";
                 string version = string.IsNullOrWhiteSpace(r.Version) ? "(无版本)" : r.Version;
                 string reason = string.IsNullOrWhiteSpace(r.UsabilityReason) ? "" : "  ← " + r.UsabilityReason;
-                Console.WriteLine($"  {mark} {r.DisplayName,-14} {version,-20} {r.LayoutText,-9} {r.Path}{reason}");
+                // 名字列用 Name（不加版本）：版本已经有单独一列，DisplayName 会让它出现两次
+                Console.WriteLine($"  {mark} {r.Name,-14} {version,-20} {r.LayoutText,-9} {r.Path}{reason}");
             }
             return;
         }

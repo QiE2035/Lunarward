@@ -1,3 +1,18 @@
+## 2026-11-18（二）—— 运行器名字对不上的问题（D87）
+
+用户反馈「运行环境那页操作逻辑不够好」，实机取证到两条硬证据：
+
+- **有两对完全同名的运行器**：`spritz-wine-tkg-staging-wow64-11.19-1` 与 `spritz-wine-cachyos-wow64-10.0-11` 各出现两次（`~/.local/share/sleepy-launcher/runners/` 与 `~/.local/share/anime-game-launcher/runners/` 各带一份）。编辑器下拉里就是两行一模一样的字，选哪个全靠猜。
+- **同一个文件两个名字**：`/opt/spritz-wine-tkg/bin/wine` 被命名成「系统 Wine」，而详情页按配置猜出来是 `wine`。
+
+改法：
+
+- 新增 `RunnerNaming`：PATH 里那个 wine 只有装在 `/usr`、`/bin`、`/sbin` 才叫「系统 Wine」，其余用目录名（`/opt/spritz-wine-tkg/bin/wine` → `spritz-wine-tkg`）；**只在真的重名时**才追加来源后缀（`x（anime-game-launcher）`），不重名的名字保持原样。
+- 详情页的运行器名字优先用组件扫描结果里的 `DisplayName`（带版本，与下拉一字不差），找不到才回落配置里的旧名；组件列表扫完后就地更新，不重建整页。
+- `--list-runners` 的名字列改用 `Name`——版本已经单独一列，`DisplayName` 会让版本号显示两遍。
+
+验证：单测 **264 / 0**（新增 12 例覆盖命名与来源消歧）；`--list-runners` 实际输出 6 条、`/opt` 那条显示为 `spritz-wine-tkg`、两对重名分别带 `（sleepy-launcher）`/`（anime-game-launcher）`；截图确认详情页与编辑器下拉是同一个名字；`cli-smoke` 40/0/1、`cli-extra` 32/0、`--selftest-ui` 11/0、两个 lint 全 PASS。
+
 ## 2026-11-18 —— 丝滑度修复：查注册表不再 fork wine，提示不再每次重启重来（D86）
 
 用户反馈「整体用起来很怪，不如 Windows 原版丝滑，每次打开都弹一次自动识别」。取证后按 A（卡）→ B（烦）→ C/D（一致性/日志）修了一版：

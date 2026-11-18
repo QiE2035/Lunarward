@@ -6,7 +6,7 @@
 
 - 最后更新：2026-11-15（新增 `T-CL-45..50`、`CliSpec`/`SteamLibrary`/`PeArchitecture` 单测，加 `lint-cli-help.sh`；D78/D79）
 - 对应代码：`src/Lunarward`（`main`），单头 Linux，不改 `src/Starward/`
-- 现状（2026-11-18 实测）：L1 单测 **252 条**；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **40 条** + `cli-extra.sh` **32 条** + `chunk-smoke.sh` **6 条** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `perf.sh`；L3 真机只跑过一部分（见 `20` / `22`，未跑完的用例在其中写明原因）
+- 现状（2026-11-18 实测）：L1 单测 **264 条**；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **40 条** + `cli-extra.sh` **32 条** + `chunk-smoke.sh` **6 条** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `perf.sh`；L3 真机只跑过一部分（见 `20` / `22`，未跑完的用例在其中写明原因）
 
 ---
 

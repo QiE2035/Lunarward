@@ -3,7 +3,7 @@
 > 这里只记「踩过一次就不该再踩」的东西。每条都给出证据位置与处理方式。
 > 目的：让后来者（或几个月后的我们）不用重新发现一遍。
 
-- 最后更新：2026-11-18（L-160）
+- 最后更新：2026-11-18（L-161）
 
 ---
 
@@ -1273,6 +1273,25 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 
 - XAML 里已经放了返回按钮，代码里又拼了一个 header 返回键 → 截图里出现两个「← 返回」。同一段 UI 只在一处生成。
 - 页签/按钮「点了没反应」先量坐标：`logical = origin + px * (frame 宽 / 截图宽)`，本次是把 900px 宽的截图当成 1240 逻辑宽算，点到了空白处（差 150px）。
+
+---
+
+## L-161 「一个文件两个名字」必然来自两处各自计算
+
+**现象**：同一个 `/opt/spritz-wine-tkg/bin/wine`，方案详情页显示 `wine`，编辑器下拉显示「系统 Wine wine-11.19-1-g78e32ba1d3d (Staging) …」。用户的第一反应是「我是不是选错了」。
+
+**根因**：显示名有两处独立来源——`RuntimeProfile.RunnerName` 从路径猜（`…/bin/wine` → 取文件名 → `wine`），`ComponentStore` 的 PATH 扫描分支硬编码 `"系统 Wine"`。两处算法不同、输入不同，**必然会漂移**，不是偶发。
+
+**规则**：
+
+1. 同一个东西的显示名只留**一个来源**。能拿到组件对象的地方优先用组件的名字；配置里存的旧名字只当回落。
+2. 配置里存的是「用户当初选的那条路径」，不等于「现在扫出来的那条」；用 `MatchesComponent` 的四路比对（`Id` / `Path` / 目录前缀 / 末两段）把两者接上。
+3. 列表里出现**两行一样的字**，说明命名没消歧。目录名天然相同（两个第三方启动器各带一份 `spritz-wine-*`）时用来源区分；**不重名就不要动**——否则「系统 Wine」会变成「系统 Wine（系统包）」这种噪音。
+4. `Component.Name` 原本是 `init`，想在后处理阶段改必须先把属性改成 `set`。
+
+**顺带的坑**：`DisplayName` 已经是 `Name (Version)` 拼好的，CLI 再单独打一列版本就重复两遍。打印时名字用 `Name`、版本用 `Version`。
+
+**怎么进单测**：`ComponentStore.cs` 太大（依赖 Serilog / `ILogger` / 文件系统），没链接进测试工程（D37）。纯字符串逻辑（命名、消歧）拆到 `Features/Runtime/RunnerNaming.cs` 才能测——和 `ComponentDownloadMath.cs`、`PrefixPath.cs` 是同一个模式。
 
 ---
 

@@ -24,7 +24,8 @@ public sealed class Component
     /// <summary>稳定标识，写进 Profile。</summary>
     public string Id { get; init; } = "";
 
-    public string Name { get; init; } = "";
+    /// <summary>显示名。重名时会被追加来源后缀（见 <see cref="RunnerNaming.Origin"/>）。</summary>
+    public string Name { get; set; } = "";
 
     /// <summary>版本号，取不到时为空。</summary>
     public string Version { get; set; } = "";
@@ -196,7 +197,7 @@ public static class ComponentStore
             string? found = FindInPath(exe);
             if (found is not null)
             {
-                AddRunner(found, ComponentKind.Wine, exe == "wine" ? "系统 Wine" : "系统 Wine (64)", false);
+                AddRunner(found, ComponentKind.Wine, RunnerNaming.WineDisplayName(TryRealPath(found), exe), false);
             }
         }
 
@@ -267,10 +268,23 @@ public static class ComponentStore
             runner.Usable = usable;
             runner.UsabilityReason = reason;
         }
+        DisambiguateRunnerNames(list);
         _runners = list;
         logger?.LogInformation("Found {count} runner(s)", list.Count);
         return list;
     }
+
+    /// <summary>
+    /// 只读已缓存的运行器列表，不触发扫描。给「必须在 UI 线程上显示名字」的地方用：
+    /// <see cref="GetRunners"/> 首次要遍历 PATH / Steam / compatibilitytools.d 并跑
+    /// `wine --version`，在 UI 线程上做会卡（L-127）。返回 false 表示还没扫过。
+    /// </summary>
+    public static bool TryGetCachedRunners(out IReadOnlyList<Component> runners)
+    {
+        runners = _runners!;
+        return _runners is not null;
+    }
+
 
     /// <summary>扫描可用的 DXVK / VKD3D-Proton（目录里要有 d3d11.dll 或 d3d12.dll）。</summary>
     public static IReadOnlyList<Component> GetGraphics(bool force = false, ILogger? logger = null)
@@ -454,6 +468,42 @@ public static class ComponentStore
             return (false, "找不到配套的 wineserver（游玩时长与前缀锁会不准）");
         }
         return (true, "");
+    }
+
+
+    /// <summary>解析符号链接，失败就返回原路径（命名用，不需要抛）。</summary>
+    private static string TryRealPath(string path)
+    {
+        try
+        {
+            return RealPath(path);
+        }
+        catch (Exception)
+        {
+            return path;
+        }
+    }
+
+
+    /// <summary>
+    /// 同名运行器补来源后缀（D87）。`~/.local/share/sleepy-launcher/runners/x` 与
+    /// `~/.local/share/anime-game-launcher/runners/x` 的目录名完全相同，直接列出来在编辑器
+    /// 下拉里就是两行一模一样的字，选哪个全靠猜（2026-11-18 实测有两对）。
+    /// 只在真的重名时才改，不重名的名字保持原样。
+    /// </summary>
+    private static void DisambiguateRunnerNames(List<Component> list)
+    {
+        foreach (IGrouping<string, Component> group in list.GroupBy(x => x.Name, StringComparer.Ordinal))
+        {
+            if (group.Count() < 2)
+            {
+                continue;
+            }
+            foreach (Component item in group)
+            {
+                item.Name = RunnerNaming.WithOrigin(item.Name, item.Path);
+            }
+        }
     }
 
 

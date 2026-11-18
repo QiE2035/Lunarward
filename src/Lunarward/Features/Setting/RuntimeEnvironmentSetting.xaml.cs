@@ -516,6 +516,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 }
             }
         }
+        // 运行器列表就绪：详情页那个名字要换成带版本的显示名，和编辑器下拉保持一致（D87）
+        if (_detailRunnerName is not null && SelectedProfileOrNull() is { } selectedProfile)
+        {
+            _detailRunnerName.Text = ResolveRunnerDisplay(selectedProfile);
+        }
     }
 
 

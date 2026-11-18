@@ -31,6 +31,7 @@
     <Compile Include="../../src/Lunarward/Features/Runtime/ArchiveExtractor.cs" Link="Linked/ArchiveExtractor.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/SteamLibrary.cs" Link="Linked/SteamLibrary.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/PeArchitecture.cs" Link="Linked/PeArchitecture.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/RunnerNaming.cs" Link="Linked/RunnerNaming.cs" />
     <Compile Include="../../src/Lunarward/Helpers/CliSpec.cs" Link="Linked/CliSpec.cs" />
   </ItemGroup>
 

@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D86）
+- **状态**：生效中（D0–D87）
 - **最后更新**：2026-11-18
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **确认方式**：
@@ -967,6 +967,30 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - **cookie 怎么拿**：`CookieManager.SetPersistentStorage(<output>.db, Sqlite)` + 每 2 秒读 `moz_cookies`（`name`/`value`）。之所以不调 `GetCookies`：GirCore 0.8.1 只生成了 `*Finish`，没有 `GetCookiesAsync` 这类异步入。命中标记（同 python 的 `LOGIN_MARKERS`）即导出并关窗；关窗也导出；兜底超时导出。
 - **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 包 `packaging/PKGBUILD` 已把 `webkitgtk-6.0` 并入 `depends`（pkgrel 2），原 `webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
 - **验证**（实测，2026-11-14）：本地起 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，`--webkit-login` 开窗后 2 秒内即输出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0；`moz_cookies` 里两条与页面一致。**待验收**：真实米游社登录（需用户操作）。
+
+## D87 运行器显示名：单一来源，重名才加来源
+
+**背景**：用户 m02653「运行环境那个页面，问题不是卡，而是操作逻辑设计的不够好」。实机取证拿到两条硬证据（2026-11-18）：
+
+- `--list-runners` 的真实输出里有两对**完全同名**的运行器：`spritz-wine-tkg-staging-wow64-11.19-1` 与 `spritz-wine-cachyos-wow64-10.0-11` 各出现两次，分别来自 `~/.local/share/sleepy-launcher/runners/` 与 `~/.local/share/anime-game-launcher/runners/`。在编辑器下拉里就是两行一模一样的字，选哪个全靠猜。
+- `/opt/spritz-wine-tkg/bin/wine` 被命名成「系统 Wine」（PATH 扫描分支里硬编码的），而方案详情页走 `RuntimeProfile.RunnerName`，从路径猜出来是 `wine` —— **同一个文件两个名字**，用户会以为选错了。
+
+**决定**（用户 m02813「这也算一个吧，先修一下提交」）：
+
+1. **PATH 里那个 wine 按路径命名**：新增 `Features/Runtime/RunnerNaming.cs`（纯字符串、可单测）的 `WineDisplayName(path, exe)` —— 只有 `/usr/`、`/bin/`、`/sbin/` 下的才叫「系统 Wine」，其余取 `bin` 的上一级目录名；入参先解析符号链接（`/usr/local/bin/wine → /opt/x/bin/wine` 算 /opt 的）。
+2. **重名才加来源后缀**：`WithOrigin(name, path)` / `Origin(path)` —— `~/.local/share/<x>/…` → x，`/opt/<x>/…` → x。`ComponentStore.GetRunners` 返回前统一过一遍，**不重名的名字保持原样**（不把「系统 Wine」写成「系统 Wine（系统包）」）。
+3. **详情页优先用组件名**：`ResolveRunnerDisplay` 先查 `ComponentStore.TryGetCachedRunners`（只读缓存，**不在 UI 线程触发扫描**，L-127），命中就用 `DisplayName`（带版本，与下拉一字不差），找不到才回落 `RunnerName`。组件列表扫完后（`LoadComponentsAsync` 末尾）就地更新那个 `TextBlock`，不重建整页、不闪。
+4. **CLI 名字列改 `Name`**：`--list-runners` 原来打 `DisplayName` 又单独打一列版本，同一个版本号显示两遍。
+
+**代价**：
+
+- `Component.Name` 从 `init` 改成 `set`（重名消歧要后处理）。
+- 首次进详情页时组件缓存可能还没就绪，会短暂显示配置里的旧名，随后自动刷成 `DisplayName`。
+- 重名项名字变长（`x（anime-game-launcher）`），列宽要容得下。
+
+**验证**：`--list-runners` 实际输出 6 条，`/opt/spritz-wine-tkg/bin/wine` → `spritz-wine-tkg`，两对重名分别带 `（sleepy-launcher）` / `（anime-game-launcher）`；截图确认详情页与编辑器下拉显示同一个名字；`ComponentNamingTests` 12 例；单测 264/0。
+
+---
 
 ## D86 卡顿与「每次重启都重来」的根因修复：注册表改读文件、一次性提示持久化
 
