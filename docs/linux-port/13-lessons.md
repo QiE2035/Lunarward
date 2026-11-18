@@ -3,7 +3,7 @@
 > 这里只记「踩过一次就不该再踩」的东西。每条都给出证据位置与处理方式。
 > 目的：让后来者（或几个月后的我们）不用重新发现一遍。
 
-- 最后更新：2026-11-18（L-161）
+- 最后更新：2026-11-18（L-162）
 
 ---
 
@@ -1310,3 +1310,20 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 **顺带**：C# 的 verbatim 字符串 `@"...\"..."` 里 `\"` **不是转义**，双引号会提前结束字符串 —— 写测试里带引号的样例时要改用普通字符串 `"a\\nb\\0c\\rd\\\"e"`。
 
 ---
+
+## L-162 打包清单与源码各写一遍，必然漂移；`gitignore` 的 `dir/` 会吃掉同名包目录
+
+**背景**：用户 m02959「arch打包是不是还是有问题」。核对三份 PKGBUILD 时挖出三个不同层次的坑：
+
+1. **依赖清单写三遍 = 一定漏**。`webkitgtk-6.0` 在 `d095922`（D76）只补进了 `packaging/PKGBUILD`，`packaging/aur/` 下两份从 11-11 起就没再动过 —— 同一个仓库里，同一份依赖，三种状态。而且三份的 `depends` 都缺 `libxcb`（`X11Window.cs:17` 的 `libxcb.so.1` 是运行时 P/Invoke，`libx11` 不覆盖它）与 `xdg-utils`（`GameSettingPage.xaml.cs:771` 的 `xdg-open`）。**修法**：`scripts/test/lint-pkgbuild.sh` 从源码反查（扫 `DllImport`/`lib*.so*` 常量与 `ProcessStartInfo("cmd")`），再校验三份 `depends` 一致 —— 清单不再靠人记。
+
+2. **`.gitignore` 里的 `dir/`（无前导斜杠）匹配任意层级**，`packaging/.gitignore` 写了 `lunarward/`（本意是 makepkg 的构建目录），把 `packaging/aur/lunarward/` 整份目录也忽略了。后果：`git ls-files packaging/` 里没有它，这份包定义**从来没进过仓库**，「改一处忘两处」根本没人看得见。**规则**：想只忽略某一层，就写 `/dir/`；写完用 `git check-ignore -v <path>` 验一遍。
+
+3. **`pkgver` 不能直接喂 `-p:Version`**。git 包的 `pkgver()` 产出 `0.1.0.r123.gabc`，而 `AssemblyVersion` 只认 `major.minor[.build[.rev]]`，带字母就构建失败。**修法**：`-p:Version="${pkgver%%.r*}"`。
+
+4. **`source` 里的分支/标签指向必须能和 `git` 对上**：`#branch=linux-port` 指向一个 11-13 就停用的分支（构建出五天前的代码）；`archive/v0.1.0.tar.gz` 指向一个不存在的 tag（`git tag -l` 为空 → 404）。lint 的 C 段专门查这个：git 源才允许 `sha256sums=('SKIP')`，`#tag=` 源要求 tag 真实存在。
+
+**验证手法**：`makepkg --printsrcinfo -p PKGBUILD` 不联网也不构建，能立刻验出依赖表达式与字段错误；三份的输出直接 `diff` 就能看出漂移。
+
+---
+

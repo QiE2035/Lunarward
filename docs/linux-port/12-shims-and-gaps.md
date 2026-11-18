@@ -2,14 +2,14 @@
 
 > 这份文档回答一个问题：**Linux 版里，哪些地方是「真的做了」，哪些只是「先让它编译过」？**
 >
-> **最后校准**：2026-11-18（D87 + L-161）。UI 层的逐页复核与缺陷记录在 `21-ui-audit.md` / `22-port-verification.md`；本文只回答「实现了没有、还是只是替身」。
+> **最后校准**：2026-11-18（D88 + L-162）。UI 层的逐页复核与缺陷记录在 `21-ui-audit.md` / `22-port-verification.md`；本文只回答「实现了没有、还是只是替身」。
 >
 > 维护规则（强制）：每新增一个 `*.Linux.cs`、每新增一处 `Compat/` 兼容层、每把一个上游文件加入
 > `<Compile Remove>`，都必须同步更新本表。没有登记的替身视为缺陷（D33）。
 >
 > **本表是唯一登记处。** 其它文档只描述机制，不描述状态。
 
-- 最后更新：2026-11-18（D86：注册表改读文件 + 一次性提示持久化；无新增替身）
+- 最后更新：2026-11-18（D88：Arch 打包依赖清单单一来源 + `lint-pkgbuild.sh`；D87 运行器显示名；D86 注册表改读文件）
 - 对应代码：`src/Lunarward/`（`main` 分支，106 提交；`linux-port` 已于 2026-11-13 停用）
 - 规模：36 个 `*.Linux.cs`、7 个 `*.LinuxAuto.cs`、`Compat/` 兼容层 2 项（`NotifyIcon`、`VanaraHotkeyCompat`）、53 条 `<Compile Remove>`（`find` / `grep` 实测）
 
@@ -255,5 +255,6 @@
 | 2026-11-15 | 运行环境收尾（D77）：删环境列引用+清绑定、受管组件删除（分类目录判定在先）、root 拒跑（预检+建前缀双道）、游戏自带 dll 提示、首次使用自动建环境（`EnsureFor` 四级）、保存后自动自检、下载队列/镜像测速/暂存列表/组件源编辑/前缀占用汇总；CLI 新增 `--profile-ensure`；单测 145、L2 cli-smoke 40 / cli-extra 28 
 | 2026-11-16 | 运行环境 UI 重做（D80/D81/D82）：footer 一级页 + 五页签自绘（`Pivot` 页签头点不动，L-153）+ 概览统计与失效绑定提示 + 增强页（HUD/gamemode/gamescope，schema 3）+ 图形层可选 VKD3D-Proton + gamescope 参数体检；预检 10 → 11 项；`SettingPage` 少一个子导航项 ||
 | 2026-11-16 | 运行环境可用性打磨（D84）：一致性比对 + 同步到前缀、组件「清理未使用」、共用前缀提示 + 为游戏克隆、启动历史（`logs/launch-history.jsonl`）、编辑器常用变量、页签键盘切换、删方案可选删前缀、HUD/分辨率预设与 HDR/VRR；单测 241 ||
+| 2026-11-18 | D88 Arch 打包：三份 PKGBUILD 的 `depends` 统一为 6 项（新增 `libxcb`、`xdg-utils`，AUR 两份补 `webkitgtk-6.0`；删 `gtk3`/`zstd`），`source` 分支从 `linux-port` 改 `main`、`aur/lunarward` 改 `#tag=v$pkgver`，`packaging/.gitignore` 的 `lunarward/` 改 `/lunarward/`（此前整份 AUR 包定义被忽略、从未进仓库），新增 `scripts/test/lint-pkgbuild.sh`（L-162） |
 | 2026-11-18 | D87 运行器显示名单一来源：`/opt` 下的定制 wine 不再叫「系统 Wine」，重名运行器补来源后缀（`RunnerNaming`），详情页优先显示组件名（`DisplayName`）与下拉对齐（L-161） |
 | 2026-11-18 | D86 卡顿与「每次重启都重来」：注册表读取改走文件（`WineRegistryFiles`，同一键 **95 ms** vs `reg query` 热 1843 ms / 冷 4128–5411 ms，顺带修好长 `REG_BINARY` 被首行截断与中文键名乱码）；三条提示改持久化一次性（`OneShotHints`）；失效绑定 warn 只一次；删 `[dbg]` 插桩、「识别到 N 个」改用 `KnownGames.Count`（L-160） |

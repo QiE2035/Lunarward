@@ -1,28 +1,52 @@
 # Maintainer: Lunarward contributors
-# 说明：本文件用于 Arch 系（AUR）构建。Release 产物是 framework-dependent 的
-# dotnet 应用，运行时依赖 dotnet-runtime；webkitgtk-6.0 是登录窗（D76）的强依赖，
-# wine/proton、libvlc、xdotool 等为可选依赖，缺失时应用按 D33 诚实降级（不静默假成功）。
+# 仓库内的 Arch 构建模板：source 跟随 GitHub 上的 main 分支。
+#
+# 要构建**本地未推送**的改动，把 source 换成：
+#   source=("$pkgname::git+file://${startdir}/..#branch=main")
+#
+# 正式 AUR 包在 packaging/aur/ 下：lunarward = 稳定版（跟 tag），lunarward-git = 开发版（跟 main）。
+#
+# 依赖清单由 scripts/test/lint-pkgbuild.sh 校验：它扫源码里的 P/Invoke 库名与外部命令，
+# 反查这里的 depends 有没有漏。改了源码里的原生依赖就同步三份 PKGBUILD，否则 lint 会红。
 
 pkgname=lunarward
 pkgver=0.1.0
-pkgrel=2
+pkgrel=1
 pkgdesc="Linux launcher for miHoYo/HoYoverse games, ported from Starward"
 arch=('x86_64')
-url="https://github.com/Scighost/Starward"
+url="https://github.com/QiE2035/Lunarward"
 license=('MIT')
-depends=('dotnet-runtime' 'gtk3' 'libx11' 'fontconfig' 'zstd' 'webkitgtk-6.0')
+
+# 硬依赖（缺了就不可用，不能靠降级兜住）：
+#   dotnet-runtime  框架依赖发布，运行时必需（Arch 上 dotnet-runtime-bin provides 它）
+#   fontconfig      Skia 文本渲染（ldd libSkiaSharp.so 要 libfontconfig/freetype/expat）
+#   libx11          X11KeyState 的 P/Invoke（libX11.so.6）
+#   libxcb          X11Window 的 P/Invoke（libxcb.so.1），窗口显隐与唤回
+#   xdg-utils       OpenUrl 走 xdg-open
+#   webkitgtk-6.0   登录窗（D76），缺了米游社/HoYoLAB 登录打不开
+depends=('dotnet-runtime>=10.0' 'fontconfig' 'libx11' 'libxcb' 'xdg-utils' 'webkitgtk-6.0')
 makedepends=('dotnet-sdk>=10.0' 'git')
 optdepends=(
   'wine: 使用系统 wine 作为运行器'
-  'libvlc: 视频壁纸（缺失时回退静态壁纸）'
-  'xdotool: 全局热键唤回最小化窗口'
-  'webkit2gtk-4.1: 登录窗的 Python 兜底路径（仅在没有 webkitgtk-6.0 时需要）'
-  'python-gobject: 上述兜底路径所需（python3 + PyGObject）'
-  'kdialog: 文件选择对话框（或 zenity）'
+  'proton: 用 Proton 作为运行器'
+  'vlc: 视频壁纸与视频预览（缺失时回退静态壁纸，D33）'
+  'xdotool: libxcb 不可用时唤回最小化窗口的兜底'
+  'webkit2gtk-4.1: 登录窗的 python3 + WebKitGTK 4.1 兜底路径（只在没有 webkitgtk-6.0 时用）'
+  'python-gobject: 上述兜底路径需要 python3 + PyGObject'
+  'kdialog: 文件/目录选择对话框（或 zenity）'
+  'zenity: 文件/目录选择对话框（GTK 环境的替代）'
   'spectacle: 截图（KDE；也支持 grim / gnome-screenshot）'
+  'grim: 截图（wlroots 系合成器）'
+  'xdg-desktop-portal: 截图与文件选择走 portal（D75）'
 )
-source=("$pkgname::git+file://${startdir}/..#branch=linux-port")
+
+source=("$pkgname::git+https://github.com/QiE2035/Lunarward.git#branch=main")
 sha256sums=('SKIP')
+
+pkgver() {
+  cd "$pkgname"
+  printf '0.1.0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
 
 prepare() {
   cd "$pkgname"
@@ -30,12 +54,13 @@ prepare() {
 
 build() {
   # 必须进到项目目录再执行：dotnet 从**当前工作目录**向上找 global.json，
-  # 仓库根的 global.json 钉的是 SDK 10.0.400（上游要求），而本地/发行环境是 10.0.302。
+  # 仓库根的 global.json 钉的是 SDK 10.0.300（上游要求）。
   cd "$pkgname/src/Lunarward"
   export DOTNET_CLI_TELEMETRY_OPTOUT=1
+  # pkgver 可能是 0.1.0.r123.gabc，AssemblyVersion 只认 major.minor[.build[.rev]]
   dotnet publish Lunarward.csproj \
     -c Release -r linux-x64 --self-contained false \
-    -p:Version="$pkgver" \
+    -p:Version="${pkgver%%.r*}" \
     -o "$srcdir/publish"
 }
 
@@ -48,10 +73,8 @@ package() {
 
   cp -a "$srcdir/publish/." "$pkgdir/usr/lib/lunarward/"
 
-  cat > "$pkgdir/usr/bin/lunarward" <<'SH'
-#!/bin/sh
-exec /usr/lib/lunarward/Lunarward "$@"
-SH
+  # 用 sh 包一层：publish 目录里的 apphost 叫 Lunarward（大写），包名是小写
+  printf '#!/bin/sh\nexec /usr/lib/lunarward/Lunarward "$@"\n' > "$pkgdir/usr/bin/lunarward"
   chmod 755 "$pkgdir/usr/bin/lunarward"
 
   install -m 644 "$srcdir/$pkgname/packaging/lunarward.desktop" "$pkgdir/usr/share/applications/lunarward.desktop"

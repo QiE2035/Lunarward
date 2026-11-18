@@ -1,3 +1,33 @@
+## 2026-11-18（三）—— Arch 打包的问题（D88）
+
+用户问「arch打包是不是还是有问题」。核对三份 PKGBUILD，确实是，而且有三层：
+
+**构建层**
+
+- `packaging/PKGBUILD` 的 `source` 指向 `#branch=linux-port` —— 这条分支 11-13 就停用了，构建出来是五天前的代码；`url` 还写的是上游仓库。
+- `packaging/aur/lunarward/PKGBUILD` 的 `source` 指向 `archive/v0.1.0.tar.gz`，而仓库 **0 个 tag** —— 必然 404。
+- `-p:Version="${pkgver}"` 对 git 包的 `0.1.0.r123.gabc` 不合法（`AssemblyVersion` 不吃字母）。
+
+**依赖层**
+
+- 三份都缺 `libxcb`（`X11Window.cs` 的运行时 P/Invoke，`libx11` 不覆盖它）与 `xdg-utils`（`xdg-open`）。
+- 两个 AUR 包缺 `webkitgtk-6.0` —— D76 登录窗打不开。
+- 多余的：`gtk3`（源码 0 引用，GirCore 用的是 Gtk-4.0）、`zstd`（产物自带 `libzstd.so`）。
+
+**根因层**
+
+- `packaging/.gitignore` 写的是 `lunarward/`，无前导斜杠 → 匹配任意层级 → 把 `packaging/aur/lunarward/` 整份目录忽略了。`git ls-files packaging/` 里没有它：**这份包定义从来没进过仓库**，所以没人发现它一直缺依赖。
+- 依赖清单在三个地方各写一遍，`d095922` 补 `webkitgtk-6.0` 时只改了其中一份。
+
+改法：
+
+- 三份 `depends` 统一为 `dotnet-runtime>=10.0`、`fontconfig`、`libx11`、`libxcb`、`xdg-utils`、`webkitgtk-6.0`，每项在注释里写明对应哪个 P/Invoke 或外部命令。
+- `source` 分别改为 `#branch=main` / `#tag=v$pkgver`，`url` 改本仓库，补 `pkgver()`。
+- `.gitignore` 改 `/lunarward/`，AUR 包定义得以纳入版本管理。
+- 新增 `scripts/test/lint-pkgbuild.sh`：A 扫源码反查 depends 覆盖、B 三份必须一致、C source 与 `sha256sums` 自洽（git 源才允许 `SKIP`，tag 源要求 tag 存在）。
+
+`packaging/README.md` 重写：三份包各自的定位、发版流程（先打 tag 再填 pkgver）、硬依赖表与「为什么不写 gtk3/zstd」。
+
 ## 2026-11-18（二）—— 运行器名字对不上的问题（D87）
 
 用户反馈「运行环境那页操作逻辑不够好」，实机取证到两条硬证据：

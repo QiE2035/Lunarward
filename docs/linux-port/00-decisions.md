@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D87）
+- **状态**：生效中（D0–D88）
 - **最后更新**：2026-11-18
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **确认方式**：
@@ -967,6 +967,33 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - **cookie 怎么拿**：`CookieManager.SetPersistentStorage(<output>.db, Sqlite)` + 每 2 秒读 `moz_cookies`（`name`/`value`）。之所以不调 `GetCookies`：GirCore 0.8.1 只生成了 `*Finish`，没有 `GetCookiesAsync` 这类异步入。命中标记（同 python 的 `LOGIN_MARKERS`）即导出并关窗；关窗也导出；兜底超时导出。
 - **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 包 `packaging/PKGBUILD` 已把 `webkitgtk-6.0` 并入 `depends`（pkgrel 2），原 `webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
 - **验证**（实测，2026-11-14）：本地起 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，`--webkit-login` 开窗后 2 秒内即输出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0；`moz_cookies` 里两条与页面一致。**待验收**：真实米游社登录（需用户操作）。
+
+## D88 Arch 打包：依赖清单单一来源，三份 PKGBUILD 对齐
+
+**背景**：用户 m02959「arch打包是不是还是有问题」。逐份核对三份 PKGBUILD（2026-11-18 实测）：
+
+- `packaging/PKGBUILD` 的 `source` 写着 `git+file://${startdir}/..#branch=linux-port` —— **`linux-port` 分支 2026-11-13 就停用了**（停在 `5d31bcd`），构建出来是五天前的代码，D78–D87 全都不在里面；而且 `file://` 本地路径别人无法复现。`url` 还指向上游 `Scighost/Starward`。
+- `packaging/aur/lunarward/PKGBUILD` 的 `source` 指向 `archive/v0.1.0.tar.gz`，而 `git tag -l` 的结果是 **0 个 tag** —— 必然 404，`makepkg` 直接失败。它注释写「跟随 main 最新提交」，与 source 自相矛盾。
+- 三个包的 `depends` 都缺 `libxcb`（`src/Lunarward/Helpers/X11Window.cs:17` `LibXcb = "libxcb.so.1"` 是运行时 P/Invoke）；两个 AUR 包还缺 `webkitgtk-6.0`（D76 登录窗）；都缺 `xdg-utils`（`src/Lunarward/Features/GameSetting/GameSettingPage.xaml.cs:771` 直接 `Process.Start("xdg-open")`）。
+- **更根本的一条**：`packaging/.gitignore` 写的是 `lunarward/`（无前导斜杠 → 匹配任意层级），把 `packaging/aur/lunarward/` **整份目录**忽略了。`git ls-files packaging/` 里没有它 —— 这份包定义**从来没进过仓库**，所以 `d095922` 补 `webkitgtk-6.0` 时只改了 `packaging/PKGBUILD`，没人发现 AUR 那两份还停在 11-11。
+
+**决定**（用户 m02984「可以，按你建议来吧」）：
+
+1. **依赖清单统一**为 `depends=('dotnet-runtime>=10.0' 'fontconfig' 'libx11' 'libxcb' 'xdg-utils' 'webkitgtk-6.0')`，三份一字不差，每项在注释里写明对应哪个 P/Invoke 或外部命令。
+2. **删掉 `gtk3`**（源码 0 引用；GirCore 用的是 Gtk-**4**.0 绑定，`webkitgtk-6.0` 会带 `gtk4`）与 **`zstd`**（产物自带 `Lib/linux-x64/libzstd.so`）。
+3. `packaging/PKGBUILD`：source 改 `git+https://github.com/QiE2035/Lunarward.git#branch=main`，`url` 改本仓库，补 `pkgver()`；注释写明「要构建本地未推送的改动就换回 `git+file://${startdir}/..#branch=main`」。
+4. `aur/lunarward`：source 改 `git+…#tag=v$pkgver`（git 源用 `sha256sums=('SKIP')` 才合规），注释写明「发布前必须先打 tag」；`aur/lunarward-git` 同步依赖。
+5. `-p:Version` 由 `"${pkgver}"` 改 `"${pkgver%%.r*}"` —— `0.1.0.r123.gabc` 不是合法的 `AssemblyVersion`，git 版构建会因为版本串带字母而失败。
+6. `packaging/.gitignore` 的 `lunarward/` 改 `/lunarward/`（只忽略 `packaging/` 根下的 makepkg 构建目录），并补 `/pkg/`、`/src/`、`/aur/*/lunarward*/`。
+7. 新增 **`scripts/test/lint-pkgbuild.sh`**（秒级、不联网、不构建）：A = 扫源码里的 P/Invoke 库名与 `ProcessStartInfo` 的命令，经「库名 → Arch 包名」表反查三份 `depends` 有没有漏（表外的库报 WARN，提示补表）；B = 三份 `depends` 必须完全一致；C = `source` 与 `sha256sums` 自洽（git 源才允许 `SKIP`；`#tag=` 源要求 tag 真实存在）。
+
+**代价**：
+
+1. `webkitgtk-6.0` 进硬依赖后，装包体积多约 200MB（拉 `gtk4` + `javascriptcoregtk`）——不装它登录窗就打不开，D76 已经定了这条线。
+2. `aur/lunarward` 依赖 tag 存在：**发版流程多一步** `git tag v$pkgver && git push origin v$pkgver`，忘了就构建失败（lint 会 WARN 提醒）。
+3. lint 的「库名 → 包名」表要人工维护：源码引入新的 `DllImport` 时先报 WARN，得有人判断要不要进 `depends`。
+
+**验证**（2026-11-18 实测）：`makepkg --printsrcinfo` 三份全部通过、`depends` 输出一致；`bash scripts/test/lint-pkgbuild.sh` 全 PASS（1 条 WARN 是「tag v$pkgver 还不存在」的预期提醒）。真实构建/安装未做（会装到系统 `/usr`，留给用户验收）。
 
 ## D87 运行器显示名：单一来源，重名才加来源
 

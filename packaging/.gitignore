@@ -1,3 +1,10 @@
-lunarward/
+# makepkg 在 packaging/ 下跑时生成的目录与产物。
+# 注意必须是 /lunarward/ 而不是 lunarward/ —— 后者会匹配任意层级，
+# 把 packaging/aur/lunarward/ 整份包定义也忽略掉（该文件因此长期没进过仓库，D88 修）。
+/lunarward/
+/pkg/
+/src/
+/aur/*/lunarward/
+/aur/*/lunarward-git/
 *.pkg.tar.zst
 *.src.tar.gz
