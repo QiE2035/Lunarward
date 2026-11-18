@@ -218,8 +218,10 @@ if expect_rc 0 "$rc" && expect_contains "$(text)" "created : False" \
 
 case_start "T-CL-47" "--profile-ensure 另一个游戏拿到独立环境（前缀留空）"
 lw --profile-ensure hkrpg_cn >"$out" 2>&1; rc=$?
+# 不断言环境名：它来自 GameBiz.ToGameName() → CoreLang 资源，CI 的 CurrentUICulture 是
+# en-US，名字会是 "Honkai: Star Rail" 而不是「崩坏：星穹铁道」（本地跑中文才通过）。
 if expect_rc 0 "$rc" && expect_contains "$(text)" "created : True" \
-    && expect_contains "$(text)" "崩坏：星穹铁道" && expect_contains "$(text)" "(启动时创建)" \
+    && expect_contains "$(text)" "配方" && expect_contains "$(text)" "(启动时创建)" \
     && [ "$(ls "$ROOT/cfg/lunarward/env" | wc -l)" -ge 2 ]; then pass_case; fi
 
 case_start "T-CL-48" "--help 覆盖全部开关（含本轮新增 --profile-ensure）"
@@ -228,7 +230,7 @@ if expect_rc 0 "$rc" && expect_contains "$(text)" "--profile-ensure" \
     && expect_contains "$(text)" "运行环境" && expect_contains "$(text)" "组件与图形层" \
     && expect_contains "$(text)" "--graphics-remove"; then pass_case; fi
 
-case_start "T-CL-48b" "--help 提到预检是九项（运行身份/架构在内）"
+case_start "T-CL-48b" "--help 提到预检含运行身份与架构（十项）"
 lw --help >"$out" 2>&1; rc=$?
 if expect_rc 0 "$rc" && expect_contains "$(text)" "游戏架构" \
     && expect_contains "$(text)" "运行身份"; then pass_case; fi
