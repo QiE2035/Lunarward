@@ -1,5 +1,6 @@
 // Lunarward：把选定的 DXVK / VKD3D-PROTON 装进 Wine 前缀（M2 组件层）。
 // 只做「复制 + 记录」，不下载、不联网：组件来源由用户放在系统目录或 ~/.local/share/lunarward/components。
+// DXVK 与 VKD3D-Proton 是两个独立层（d3d9/10/11 vs d3d12），同一个前缀里可以同时存在（D83）。
 using Starward.Helpers;
 using Microsoft.Extensions.Logging;
 using Starward.Features.GameLauncher;
@@ -12,7 +13,7 @@ using System.Text.Json;
 namespace Starward.Features.Runtime;
 
 
-/// <summary>前缀里当前安装的图形组件记录（&lt;prefix&gt;/.lunarward/graphics.json）。</summary>
+/// <summary>前缀里某个图形组件的安装记录（&lt;prefix&gt;/.lunarward/graphics.json 的一个元素）。</summary>
 public sealed class InstalledGraphics
 {
 
@@ -20,6 +21,7 @@ public sealed class InstalledGraphics
 
     public string Name { get; set; } = "";
 
+    /// <summary>组件类别：「DXVK」或「VKD3D-Proton」，与 <see cref="Component.KindText"/> 一致。</summary>
     public string Kind { get; set; } = "";
 
     public string Source { get; set; } = "";
@@ -47,26 +49,77 @@ public static class GraphicsInstaller
     private static string RecordPath(string prefix) => Path.Combine(prefix, ".lunarward", "graphics.json");
 
 
-    /// <summary>读前缀里已安装的组件记录；没有则返回 null。</summary>
-    public static InstalledGraphics? GetInstalled(string prefix)
+    /// <summary>把组件类别映射成记录里的 Kind 文案（与 <see cref="Component.KindText"/> 一致）。</summary>
+    public static string KindTextOf(ComponentKind kind) => kind switch
+    {
+        ComponentKind.Dxvk => "DXVK",
+        ComponentKind.Vkd3dProton => "VKD3D-Proton",
+        _ => kind.ToString(),
+    };
+
+
+    /// <summary>读前缀里已安装的全部图形组件记录；没有则返回空表。</summary>
+    public static List<InstalledGraphics> GetAllInstalled(string prefix)
     {
         try
         {
             string path = RecordPath(prefix);
             if (!File.Exists(path))
             {
-                return null;
+                return new();
             }
-            return JsonSerializer.Deserialize<InstalledGraphics>(File.ReadAllText(path));
+            string json = File.ReadAllText(path);
+            List<InstalledGraphics>? list = null;
+            try
+            {
+                list = JsonSerializer.Deserialize<List<InstalledGraphics>>(json);
+            }
+            catch (JsonException)
+            {
+                // 旧格式是单个对象（D83 之前的 schema）：读进来当一条，避免留下没人认领的 dll。
+                InstalledGraphics? one = JsonSerializer.Deserialize<InstalledGraphics>(json);
+                if (one is not null)
+                {
+                    list = new() { one };
+                }
+            }
+            return list?.Where(x => x is not null).ToList() ?? new();
         }
         catch
         {
-            return null;
+            return new();
         }
     }
 
 
-    /// <summary>把组件装进前缀；已装同一 Id 且文件齐全时直接跳过。</summary>
+    /// <summary>读某一类图形组件的记录（前缀里 DXVK 与 VKD3D 各一条）。</summary>
+    public static InstalledGraphics? GetInstalled(string prefix, ComponentKind kind)
+    {
+        string kindText = KindTextOf(kind);
+        return GetAllInstalled(prefix).FirstOrDefault(x => string.Equals(x.Kind, kindText, StringComparison.OrdinalIgnoreCase));
+    }
+
+
+    private static void SaveAll(string prefix, List<InstalledGraphics> records)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(RecordPath(prefix))!);
+        JsonFile.WriteAtomic(RecordPath(prefix), records, JsonOptions);
+    }
+
+
+    /// <summary>把一组组件装进前缀（DXVK / VKD3D 可各一个）；返回是否改动了磁盘。</summary>
+    public static bool EnsureInstalled(string prefix, IEnumerable<Component> components, ILogger? logger = null)
+    {
+        bool changed = false;
+        foreach (Component component in components)
+        {
+            changed |= EnsureInstalled(prefix, component, logger);
+        }
+        return changed;
+    }
+
+
+    /// <summary>把组件装进前缀；同类已装同一 Id 且文件齐全时直接跳过（不会动另一类）。</summary>
     public static bool EnsureInstalled(string prefix, Component component, ILogger? logger = null)
     {
         if (component.Kind is not (ComponentKind.Dxvk or ComponentKind.Vkd3dProton))
@@ -86,10 +139,13 @@ public static class GraphicsInstaller
             return false;
         }
 
-        InstalledGraphics? installed = GetInstalled(prefix);
-        if (installed is not null
-            && installed.Id == component.Id
-            && installed.Files.All(f => File.Exists(f)))
+        List<InstalledGraphics> records = GetAllInstalled(prefix);
+        string kindText = KindTextOf(component.Kind);
+        InstalledGraphics? existing = records.FirstOrDefault(x => string.Equals(x.Kind, kindText, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null
+            && existing.Id == component.Id
+            && existing.Files.Count > 0
+            && existing.Files.All(File.Exists))
         {
             logger?.LogDebug("Graphics already installed: {id}", component.Id);
             return false;
@@ -112,19 +168,38 @@ public static class GraphicsInstaller
             sizes[dest] = new FileInfo(dest).Length;
         }
 
-        InstalledGraphics record = new()
+        // 换版本时先删掉旧记录里、这次没再写的那几个文件（同类的 dll 名基本重合，剩下的就是真正的残留）。
+        if (existing is not null)
+        {
+            foreach (string stale in existing.Files.Where(f => !written.Contains(f, StringComparer.Ordinal)))
+            {
+                try
+                {
+                    if (File.Exists(stale))
+                    {
+                        File.Delete(stale);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "delete stale graphics file failed: {file}", stale);
+                }
+            }
+            records.Remove(existing);
+        }
+
+        records.Add(new InstalledGraphics
         {
             Id = component.Id,
             Name = component.Name,
-            Kind = component.KindText,
+            Kind = kindText,
             Source = component.Path,
             InstalledAt = DateTime.Now,
             Files = written,
             Sizes = sizes,
-        };
-        Directory.CreateDirectory(Path.GetDirectoryName(RecordPath(prefix))!);
-        JsonFile.WriteAtomic(RecordPath(prefix), record, JsonOptions);
-        logger?.LogInformation("Installed {name} ({kind}) into {prefix}: {count} files", component.Name, component.KindText, prefix, written.Count);
+        });
+        SaveAll(prefix, records);
+        logger?.LogInformation("Installed {name} ({kind}) into {prefix}: {count} files", component.Name, kindText, prefix, written.Count);
         return true;
     }
 
@@ -147,97 +222,134 @@ public static class GraphicsInstaller
     }
 
 
-    /// <summary>前缀里图形层的状态：记录 + 实际文件核对结果。</summary>
+    /// <summary>前缀里图形层的状态：每类组件的记录 + 实际文件核对结果。</summary>
     public sealed class GraphicsStatus
     {
-        public InstalledGraphics? Record { get; init; }
+        /// <summary>每一类已装的组件及其缺失文件数。</summary>
+        public List<(InstalledGraphics Record, int MissingFiles)> Items { get; init; } = new();
 
-        public int TotalFiles { get; init; }
+        public int TotalFiles => Items.Sum(x => x.Record.Files.Count);
 
-        public int MissingFiles { get; init; }
+        public int MissingFiles => Items.Sum(x => x.MissingFiles);
 
-        /// <summary>「已装 DXVK 3.1.1 · 与记录一致 / 不一致（N 个缺失）/ 未安装」。</summary>
+        public bool AnyInstalled => Items.Count > 0;
+
+        /// <summary>某一类是否已装且文件齐全。</summary>
+        public bool IsHealthy(ComponentKind kind)
+        {
+            (InstalledGraphics Record, int MissingFiles) item = Items
+                .FirstOrDefault(x => string.Equals(x.Record.Kind, KindTextOf(kind), StringComparison.OrdinalIgnoreCase));
+            return item.Record is not null && item.MissingFiles == 0;
+        }
+
+        /// <summary>某一类的记录（没装则 null）。</summary>
+        public InstalledGraphics? RecordOf(ComponentKind kind)
+            => Items.FirstOrDefault(x => string.Equals(x.Record.Kind, KindTextOf(kind), StringComparison.OrdinalIgnoreCase)).Record;
+
+        /// <summary>「DXVK 3.1.1 · VKD3D-Proton 2.14 · 与记录一致」/「未安装」。</summary>
         public string Text { get; init; } = "未安装";
 
-        public bool IsGuardBroken => Record is not null && MissingFiles > 0;
+        public bool IsGuardBroken => MissingFiles > 0;
     }
 
 
-    /// <summary>核对该前缀的图形层：文件是否还在、大小是否对得上（不做 SHA，D63 §5 第 4 条）。</summary>
+    /// <summary>核对该前缀的图形层：按各类记录看文件是否还在、大小是否对得上（不做 SHA，D63 §5 第 4 条）。</summary>
     public static GraphicsStatus Verify(string prefix)
     {
-        InstalledGraphics? record = GetInstalled(prefix);
-        if (record is null || record.Files.Count == 0)
+        List<InstalledGraphics> records = GetAllInstalled(prefix);
+        if (records.Count == 0)
         {
             return new GraphicsStatus { Text = "未安装" };
         }
-        int missing = 0;
-        foreach (string file in record.Files)
+        List<(InstalledGraphics, int)> items = new();
+        foreach (InstalledGraphics record in records)
         {
-            try
+            int missing = 0;
+            foreach (string file in record.Files)
             {
-                FileInfo info = new(file);
-                if (!info.Exists)
+                try
                 {
-                    missing++;
+                    FileInfo info = new(file);
+                    if (!info.Exists)
+                    {
+                        missing++;
+                    }
+                    else if (record.Sizes.TryGetValue(file, out long expected) && expected > 0 && info.Length != expected)
+                    {
+                        missing++;
+                    }
                 }
-                else if (record.Sizes.TryGetValue(file, out long expected) && expected > 0 && info.Length != expected)
+                catch
                 {
                     missing++;
                 }
             }
-            catch
-            {
-                missing++;
-            }
+            items.Add((record, missing));
         }
-        string name = string.IsNullOrWhiteSpace(record.Name) ? record.Id : record.Name;
-        string text = missing == 0
-            ? $"已装 {name} · 与记录一致"
-            : $"已装 {name} · 不一致（{missing} 个缺失）";
+        string parts = string.Join(" · ", items.Select(x => string.IsNullOrWhiteSpace(x.Item1.Name) ? x.Item1.Id : x.Item1.Name));
+        int totalMissing = items.Sum(x => x.Item2);
         return new GraphicsStatus
         {
-            Record = record,
-            TotalFiles = record.Files.Count,
-            MissingFiles = missing,
-            Text = text,
+            Items = items,
+            Text = totalMissing == 0 ? $"{parts} · 与记录一致" : $"{parts} · 不一致（{totalMissing} 个缺失）",
         };
     }
 
 
-    /// <summary>从前缀里移除图形层：按记录删文件、删记录（保留 .bak）。外部前缀默认不允许调用。</summary>
-    public static bool Remove(string prefix, ILogger? logger = null)
+    /// <summary>从前缀里移除某一类图形组件（kind 为空则全部移除）：按记录删文件、删记录（保留 .bak）。</summary>
+    public static bool Remove(string prefix, ComponentKind? kind = null, ILogger? logger = null)
     {
-        InstalledGraphics? record = GetInstalled(prefix);
-        if (record is null)
+        List<InstalledGraphics> records = GetAllInstalled(prefix);
+        if (records.Count == 0)
+        {
+            return false;
+        }
+        string? kindText = kind is null ? null : KindTextOf(kind.Value);
+        // 注意 targets 必须是副本：删完文件后要按它过滤 records，边遍历边 Remove 会抛「集合被修改」（L-157）
+        List<InstalledGraphics> targets = (kindText is null
+            ? records
+            : records.Where(x => string.Equals(x.Kind, kindText, StringComparison.OrdinalIgnoreCase))).ToList();
+        if (targets.Count == 0)
         {
             return false;
         }
         int removed = 0;
-        foreach (string file in record.Files)
+        foreach (InstalledGraphics record in targets)
         {
-            try
+            foreach (string file in record.Files)
             {
-                if (File.Exists(file))
+                try
                 {
-                    File.Delete(file);
-                    removed++;
+                    if (File.Exists(file))
+                    {
+                        File.Delete(file);
+                        removed++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "delete graphics file failed: {file}", file);
                 }
             }
-            catch (Exception ex)
-            {
-                logger?.LogWarning(ex, "delete graphics file failed: {file}", file);
-            }
+            logger?.LogInformation("Removed graphics {name} ({kind}) from {prefix}", record.Id, record.Kind, prefix);
         }
+        records = records.Where(x => !targets.Contains(x)).ToList();
         try
         {
-            File.Delete(RecordPath(prefix));
+            if (records.Count == 0)
+            {
+                File.Delete(RecordPath(prefix));
+            }
+            else
+            {
+                SaveAll(prefix, records);
+            }
         }
         catch (Exception ex)
         {
             logger?.LogWarning(ex, "delete graphics record failed: {prefix}", prefix);
         }
-        logger?.LogInformation("Removed graphics {name} from {prefix}: {count} files", record.Id, prefix, removed);
+        logger?.LogInformation("Removed graphics from {prefix}: {count} files", prefix, removed);
         return true;
     }
 

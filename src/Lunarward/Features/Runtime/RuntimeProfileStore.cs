@@ -53,10 +53,6 @@ public static class RuntimeProfileStore
     public static string EnvironmentsFolder => Path.Combine(ConfigHome, "env");
 
 
-    /// <summary>旧配方目录（profiles/），只用于迁移。</summary>
-    public static string LegacyProfilesFolder => Path.Combine(ConfigHome, "profiles");
-
-
     /// <summary>兼容别名：部分老代码/诊断包仍按这个名字取目录，等价于 <see cref="EnvironmentsFolder"/>。</summary>
     public static string ProfilesFolder => EnvironmentsFolder;
 
@@ -65,7 +61,6 @@ public static class RuntimeProfileStore
     public static List<RuntimeProfile> LoadAll(ILogger? logger = null)
     {
         Directory.CreateDirectory(EnvironmentsFolder);
-        MigrateFromLegacyFolder(logger);
 
         var profiles = new List<RuntimeProfile>();
         foreach (string file in Directory.EnumerateFiles(EnvironmentsFolder, "*.json"))
@@ -75,7 +70,7 @@ public static class RuntimeProfileStore
                 RuntimeProfile? profile = JsonSerializer.Deserialize<RuntimeProfile>(File.ReadAllText(file), JsonOptions);
                 if (profile is not null)
                 {
-                    bool changed = MigrateLegacy(profile, logger);
+                    bool changed = Normalize(profile, logger);
                     profiles.Add(profile);
                     if (changed)
                     {
@@ -108,60 +103,12 @@ public static class RuntimeProfileStore
 
 
     /// <summary>
-    /// 把旧 <c>profiles/</c> 迁移到 <c>env/</c>：读完即改名，避免下次再迁一遍（也可作为用户回滚的证据）。
+    /// 读入后归一：前缀路径展开、运行器解析（D83 起不再做旧字段迁移——开发阶段直接破坏式改，
+    /// 旧 JSON 里的 <c>GraphicsId</c> 会被忽略，方案需要重新选图形层）。
     /// </summary>
-    private static void MigrateFromLegacyFolder(ILogger? logger)
+    private static bool Normalize(RuntimeProfile profile, ILogger? logger)
     {
-        try
-        {
-            if (!Directory.Exists(LegacyProfilesFolder))
-            {
-                return;
-            }
-            string[] files = Directory.GetFiles(LegacyProfilesFolder, "*.json");
-            int migrated = 0;
-            foreach (string file in files)
-            {
-                string id = Path.GetFileNameWithoutExtension(file);
-                string target = Path.Combine(EnvironmentsFolder, id + ".json");
-                if (File.Exists(target))
-                {
-                    continue;
-                }
-                try
-                {
-                    RuntimeProfile? profile = JsonSerializer.Deserialize<RuntimeProfile>(File.ReadAllText(file), JsonOptions);
-                    if (profile is null)
-                    {
-                        continue;
-                    }
-                    MigrateLegacy(profile, logger);
-                    JsonFile.WriteAtomic(target, profile, JsonOptions);
-                    migrated++;
-                }
-                catch (Exception ex)
-                {
-                    logger?.LogWarning(ex, "Migrate legacy profile failed: {file}", file);
-                }
-            }
-            string archive = LegacyProfilesFolder + ".migrated-" + DateTime.Now.ToString("yyyyMMddHHmmss");
-            Directory.Move(LegacyProfilesFolder, archive);
-            logger?.LogInformation("Migrated {count} legacy profiles to env/, old folder -> {archive}", migrated, archive);
-        }
-        catch (Exception ex)
-        {
-            logger?.LogWarning(ex, "Migrate legacy profiles folder failed.");
-        }
-    }
-
-
-    /// <summary>
-    /// 旧字段归一（D73 阶段 2）：模型层的纯内存规则在 <see cref="RuntimeProfile.MigrateFromLegacy"/>，
-    /// 这里只补「依赖环境」的两步——前缀路径规范化、运行器解析。
-    /// </summary>
-    private static bool MigrateLegacy(RuntimeProfile profile, ILogger? logger)
-    {
-        bool changed = profile.MigrateFromLegacy();
+        bool changed = false;
         if (!string.IsNullOrWhiteSpace(profile.PrefixPath))
         {
             string? normalizedPrefix = PrefixManager.ExpandPath(profile.PrefixPath);
@@ -214,7 +161,14 @@ public static class RuntimeProfileStore
     /// <summary>按系统现状生成默认配方：优先已发现的运行器，前缀用 LUNARWARD_WINEPREFIX 或 ~/.wine。</summary>
     private static RuntimeProfile CreateDefault()
     {
-        Component? runner = ComponentStore.GetRunners().FirstOrDefault(x => x.Usable == true)
+        Component? runner = null;
+        string? preferred = RuntimeDefaults.DefaultRunnerId;
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            // D85：用户可以把某个运行器设为「新方案默认」，这里优先用它
+            runner = ComponentStore.GetRunners().FirstOrDefault(x => x.Id == preferred);
+        }
+        runner ??= ComponentStore.GetRunners().FirstOrDefault(x => x.Usable == true)
             ?? ComponentStore.GetRunners().FirstOrDefault();
         string? prefix = Environment.GetEnvironmentVariable("LUNARWARD_WINEPREFIX");
         if (string.IsNullOrWhiteSpace(prefix))
@@ -225,7 +179,6 @@ public static class RuntimeProfileStore
         }
         return new RuntimeProfile
         {
-            SchemaVersion = 2,
             Name = string.IsNullOrWhiteSpace(runner?.Name) ? "默认" : runner!.Name,
             RunnerId = runner?.Id,
             RunnerPath = runner?.Path,

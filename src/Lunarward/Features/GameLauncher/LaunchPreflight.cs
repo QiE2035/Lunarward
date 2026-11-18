@@ -23,6 +23,7 @@ public enum PreflightAction
     RebuildPrefix,
     InstallGraphics,
     ShowPrefixProcesses,
+    OpenGameFolder,
 }
 
 
@@ -80,6 +81,17 @@ public static class LaunchPreflight
     public static PreflightResult Check(GameBiz biz, string exePath, RuntimeProfile? profile, ILogger? logger = null)
     {
         PreflightResult result = new();
+
+        // 0) 运行身份：root 跑 wine 会建出属主 root 的前缀，之后普通用户既改不动也删不掉（§3.3）
+        result.Items.Add(Helpers.PosixIdentity.IsRoot
+            ? new PreflightItem
+            {
+                Name = "运行身份",
+                Status = PreflightStatus.Failed,
+                Detail = "当前以 root 运行：wine 会在前缀里写出 root 属主的文件，之后普通用户无法修改或删除",
+                Fix = "用普通用户账号启动本程序；需要装运行器时用发行版包管理器",
+            }
+            : new PreflightItem { Name = "运行身份", Status = PreflightStatus.Ok, Detail = Environment.UserName });
 
         // 1) 游戏可执行文件
         result.Items.Add(File.Exists(exePath)
@@ -230,33 +242,147 @@ public static class LaunchPreflight
                 : new PreflightItem { Name = "前缀占用", Status = PreflightStatus.Ok, Detail = "未被占用" });
         }
 
-        // 5) 图形组件
+        // 5) 图形组件（D83：DXVK 与 VKD3D 各查一遍，两类互不替代）
         if (profile is not null)
         {
-            if (string.IsNullOrWhiteSpace(profile.GraphicsId))
+            IReadOnlyList<Component> graphics = ComponentStore.GetGraphics();
+            List<string> missing = new();
+            List<string> found = new();
+            foreach ((string label, string? id) in new[] { ("DXVK", profile.DxvkId), ("VKD3D", profile.Vkd3dId) })
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    continue;
+                }
+                Component? component = graphics.FirstOrDefault(c => c.Id == id);
+                if (component is null)
+                {
+                    missing.Add($"{label} 组件已找不到：{id}");
+                }
+                else
+                {
+                    found.Add(component.DisplayName);
+                }
+            }
+            if (missing.Count > 0)
+            {
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "图形组件",
+                    Status = PreflightStatus.Failed,
+                    Detail = string.Join("；", missing),
+                    Fix = "重新选择图形组件",
+                    Action = PreflightAction.OpenRuntimeSettings,
+                });
+            }
+            else if (found.Count == 0)
             {
                 result.Items.Add(new PreflightItem
                 {
                     Name = "图形组件",
                     Status = PreflightStatus.Warning,
                     Detail = "未选择 DXVK/VKD3D，将沿用前缀里已有的实现",
-                    Fix = "在「运行环境」里选择组件（可选）",
+                    Fix = "在「运行环境 → 概览」里选择组件（DXVK 与 VKD3D 可以各选一个）",
                     Action = PreflightAction.OpenRuntimeSettings,
                 });
             }
             else
             {
-                Component? component = ComponentStore.GetGraphics().FirstOrDefault(c => c.Id == profile.GraphicsId);
-                result.Items.Add(component is null
-                    ? new PreflightItem
-                    {
-                        Name = "图形组件",
-                        Status = PreflightStatus.Failed,
-                        Detail = $"配置里选的组件已找不到：{profile.GraphicsId}",
-                        Fix = "重新选择图形组件",
-                        Action = PreflightAction.OpenRuntimeSettings,
-                    }
-                    : new PreflightItem { Name = "图形组件", Status = PreflightStatus.Ok, Detail = component.DisplayName });
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "图形组件",
+                    Status = PreflightStatus.Ok,
+                    Detail = string.Join(" · ", found),
+                });
+            }
+        }
+
+        // 6) 游戏目录自带的图形 dll（§6）：游戏根目录的 d3d11/dxgi 等会先于 DXVK/VKD3D 被加载，
+        //    于是「选了 DXVK 却没生效」——这是很常见的一类假故障，必须提前说清楚。
+        if (File.Exists(exePath))
+        {
+            string[] shadowing = FindShadowingDlls(Path.GetDirectoryName(exePath));
+            if (shadowing.Length > 0)
+            {
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "游戏自带图形 dll",
+                    Status = PreflightStatus.Warning,
+                    Detail = "游戏目录里有会覆盖图形组件的 dll：" + string.Join("、", shadowing),
+                    Fix = "这些是游戏或旧补丁自带的实现；不需要就在游戏目录里改名（加 .bak）再启动",
+                    Action = PreflightAction.OpenGameFolder,
+                });
+            }
+        }
+
+        // 7) 可执行文件位宽 vs 前缀架构（D78）：64 位 exe 塞进 WINEARCH=win32 的前缀会直接 BAD EXE FORMAT，
+        //    用户只看到 wine 一句英文报错。这里读 PE 头提前讲清楚。
+        if (File.Exists(exePath))
+        {
+            PeArch arch = PeArchitecture.Describe(exePath);
+            string prefixArch = PeArchitecture.NormalizePrefixArch(profile?.PrefixArch);
+            if (arch == PeArch.Unknown)
+            {
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "游戏架构",
+                    Status = PreflightStatus.Ok,
+                    Detail = "没读到 PE 头（可能是启动脚本或非 Windows 程序），跳过位宽检查",
+                });
+            }
+            else if (PeArchitecture.Conflict(arch, prefixArch) is { } conflict)
+            {
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "游戏架构",
+                    Status = PreflightStatus.Failed,
+                    Detail = $"{PeArchitecture.Text(arch)}，前缀是 {prefixArch}：{conflict.Problem}",
+                    Fix = conflict.Fix,
+                    Action = PreflightAction.OpenRuntimeSettings,
+                });
+            }
+            else
+            {
+                string? notice = PeArchitecture.SoftNotice(arch, prefixArch);
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "游戏架构",
+                    Status = notice is null ? PreflightStatus.Ok : PreflightStatus.Warning,
+                    Detail = notice is null
+                        ? $"{PeArchitecture.Text(arch)}（前缀 {prefixArch}）"
+                        : $"{PeArchitecture.Text(arch)}，前缀 {prefixArch}：{notice}",
+                    Fix = notice is null ? null : "启动报错时把前缀架构改成 win32",
+                    Action = notice is null ? PreflightAction.None : PreflightAction.OpenRuntimeSettings,
+                });
+            }
+        }
+
+        // 8) 增强开关（D81）：HUD / gamemode / gamescope 只是外层命令与环境变量，
+        //    缺程序不会让启动逻辑失败，但用户会看到「什么都没变」，所以点名警告而不是静默。
+        if (profile is not null)
+        {
+            List<string> missing = Enhancements.RequiredBinaries(profile)
+                .Where(x => Enhancements.FindInPath(x) is null)
+                .ToList();
+            if (missing.Count > 0)
+            {
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "增强开关",
+                    Status = PreflightStatus.Warning,
+                    Detail = "方案的「增强」里开了这些程序，但 PATH 里没找到：" + string.Join("、", missing),
+                    Fix = "装上（pacman -S mangohud gamescope gamemode）或到「运行环境 → 增强」把开关关掉",
+                    Action = PreflightAction.OpenRuntimeSettings,
+                });
+            }
+            else if (Enhancements.RequiredBinaries(profile).Count > 0)
+            {
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "增强开关",
+                    Status = PreflightStatus.Ok,
+                    Detail = Enhancements.Describe(profile),
+                });
             }
         }
 
@@ -278,9 +404,10 @@ public static class LaunchPreflight
         {
             item.Layer = item.Name switch
             {
-                "游戏可执行文件" or "Wine 运行器" => PreflightLayer.Component,
+                "游戏可执行文件" or "Wine 运行器" or "运行身份" or "游戏架构" => PreflightLayer.Component,
                 "Wine 前缀" or "前缀结构" or "前缀可写" or "前缀占用" => PreflightLayer.Prefix,
-                "图形组件" => PreflightLayer.Graphics,
+                "图形组件" or "游戏自带图形 dll" => PreflightLayer.Graphics,
+                "增强开关" => PreflightLayer.Launch,
                 _ => PreflightLayer.Launch,
             };
         }
@@ -293,6 +420,31 @@ public static class LaunchPreflight
             }
             return b.Status.CompareTo(a.Status);
         });
+    }
+
+
+    /// <summary>
+    /// 游戏目录里会与 DXVK/VKD3D 抢加载顺序的 dll（§6）。
+    /// 只查图形层的那几个：d3d9.dll 在不少老游戏里本来就自带，列出来只会制造噪音。
+    /// </summary>
+    private static readonly string[] ShadowingDllNames = ["d3d11.dll", "dxgi.dll", "d3d12.dll", "d3d10core.dll"];
+
+
+    private static string[] FindShadowingDlls(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+        {
+            return [];
+        }
+        List<string> hits = new();
+        foreach (string name in ShadowingDllNames)
+        {
+            if (File.Exists(Path.Combine(folder, name)))
+            {
+                hits.Add(name);
+            }
+        }
+        return hits.ToArray();
     }
 
 

@@ -200,15 +200,21 @@ public static class ComponentStore
             }
         }
 
-        // 2) Steam 的 Proton
+        // 2) Steam 的 Proton（含 libraryfolders.vdf 里的自定义库，D78）
         foreach (string root in SteamCompatRoots())
         {
             if (!Directory.Exists(root))
             {
                 continue;
             }
+            bool isCommon = string.Equals(Path.GetFileName(root), "common", StringComparison.Ordinal);
             foreach (string dir in SafeDirs(root))
             {
+                if (isCommon && !SteamLibrary.IsProtonFolder(dir))
+                {
+                    // steamapps/common 里绝大多数是游戏本体，只有 Proton* / GE-Proton* 是运行器
+                    continue;
+                }
                 string wine = Path.Combine(dir, "files", "bin", "wine");
                 AddRunner(wine, ComponentKind.Proton, Path.GetFileName(dir), false);
             }
@@ -580,14 +586,107 @@ public static class ComponentStore
     }
 
 
-    private static IEnumerable<string> SteamCompatRoots()
+    private static readonly string[] ManagedSubfolders = ["wine", "dxvk", "vkd3d-proton", "graphics"];
+
+
+    /// <summary>该目录是否「<c>components/</c> 下一层」或「<c>components/&lt;kind&gt;/</c> 下一层」——只有这两类才允许整目录删除。</summary>
+    public static bool IsManagedFolder(string? path)
     {
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        yield return Path.Combine(home, ".local/share/Steam/steamapps/common");
-        yield return Path.Combine(home, ".steam/steam/steamapps/common");
-        yield return Path.Combine(home, ".local/share/Steam/steamapps/compatibilitytools.d");
-        yield return Path.Combine(home, ".steam/steam/steamapps/compatibilitytools.d");
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+        try
+        {
+            string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+            string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(ComponentsFolder));
+            // 「components/wine」这种分类目录本身绝不能算可删对象——删掉就是整个运行器库没了
+            if (ManagedSubfolders.Contains(Path.GetFileName(full), StringComparer.Ordinal))
+            {
+                return false;
+            }
+            string? parent = Path.GetDirectoryName(full);
+            if (string.IsNullOrEmpty(parent))
+            {
+                return false;
+            }
+            parent = Path.TrimEndingDirectorySeparator(parent);
+            if (string.Equals(parent, root, StringComparison.Ordinal))
+            {
+                return true;
+            }
+            string? grand = Path.GetDirectoryName(parent);
+            return string.Equals(Path.TrimEndingDirectorySeparator(grand ?? ""), root, StringComparison.Ordinal)
+                && ManagedSubfolders.Contains(Path.GetFileName(parent), StringComparer.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
     }
+
+
+    /// <summary>受管组件的落盘根目录（<c>components/&lt;kind&gt;/&lt;dir&gt;</c>）；外部组件返回 null（只做引用，不给删）。</summary>
+    public static string? ManagedRootOf(Component? component)
+    {
+        if (component is null || !component.Managed || string.IsNullOrWhiteSpace(component.Path))
+        {
+            return null;
+        }
+        string dir = component.Path;
+        // 运行器的 Path 指向 bin/wine 或 files/bin/wine，往上走到「组件目录」那一层
+        for (int i = 0; i < 4 && !IsManagedFolder(dir); i++)
+        {
+            string? parent = Path.GetDirectoryName(dir);
+            if (string.IsNullOrEmpty(parent))
+            {
+                return null;
+            }
+            dir = parent;
+        }
+        return IsManagedFolder(dir) ? Path.GetFullPath(dir) : null;
+    }
+
+
+    /// <summary>
+    /// 删除受管组件的落盘目录（A6）。外部组件、组件根目录本身一律拒绝；
+    /// 返回是否真的删了，<paramref name="message"/> 给 UI 直接用（成功时是删掉的路径）。
+    /// 调用方负责放到后台线程（删几百 MB 不能压 UI 线程，L-127）。
+    /// </summary>
+    public static bool TryDeleteManaged(Component? component, out string message, ILogger? logger = null)
+    {
+        string? root = ManagedRootOf(component);
+        if (root is null)
+        {
+            message = "这个组件不在本程序的管理目录里（只做引用），不提供删除。";
+            return false;
+        }
+        try
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+            Invalidate();
+            logger?.LogInformation("删除受管组件：{name}（{kind}）-> {root}", component!.DisplayName, component.Kind, root);
+            message = root;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "删除受管组件失败：{root}", root);
+            message = ex.Message;
+            return false;
+        }
+    }
+
+
+    /// <summary>
+    /// Proton / 兼容工具的扫描根（D78）：由 <see cref="SteamLibrary"/> 给出「默认根 + VDF 里的自定义库」。
+    /// 同一个库经过符号链接（`~/.steam/steam` → `~/.local/share/Steam`）出现两次时，靠 `AddRunner` 的
+    /// RealPath 去重挡掉（L-38）。
+    /// </summary>
+    private static IEnumerable<string> SteamCompatRoots() => SteamLibrary.CompatRoots();
 
     /// <summary>默认扫描根（D56）：覆盖系统目录、Steam、Flatpak 与常见第三方启动器。</summary>
     public static string[] DefaultScanRoots()

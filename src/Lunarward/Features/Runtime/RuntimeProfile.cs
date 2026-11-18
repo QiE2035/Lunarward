@@ -1,6 +1,6 @@
 // Lunarward：运行环境（Environment，即「配方」）数据模型（D73 §4）。
 //
-// 八个字段：name / runnerId / graphicsId / prefixPath / env / args / wrappers / notes。
+// 字段：name / runnerId / dxvkId / vkd3dId / prefixPath / env / args / wrappers / notes（D83 把图形层拆成两个）。
 // 「前缀模式」不再是配置项——前缀就是 prefixPath 一个路径字段（D73 §3.1），
 // 两个配方指向同一路径就是共享，用完删就是临时。
 using System;
@@ -15,7 +15,7 @@ namespace Starward.Features.Runtime;
 public sealed class RuntimeProfile
 {
 
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 4;
 
 
     public string Id { get; set; } = Guid.NewGuid().ToString("n")[..8];
@@ -29,8 +29,17 @@ public sealed class RuntimeProfile
     public string? RunnerId { get; set; }
 
 
-    /// <summary>3) 图形组件 id；null = 不装图形层。</summary>
-    public string? GraphicsId { get; set; }
+    /// <summary>3a) DXVK 组件 id（d3d9/10/11 → Vulkan）；null = 不装。</summary>
+    public string? DxvkId { get; set; }
+
+
+    /// <summary>3b) VKD3D-Proton 组件 id（d3d12 → Vulkan）；null = 不装。与 <see cref="DxvkId"/> 互不影响。</summary>
+    public string? Vkd3dId { get; set; }
+
+
+    /// <summary>当前选中的图形组件 id（两类各自独立，这里只用于「有没有配图形层」这种粗判断）。</summary>
+    [JsonIgnore]
+    public bool HasGraphics => !string.IsNullOrWhiteSpace(DxvkId) || !string.IsNullOrWhiteSpace(Vkd3dId);
 
 
     /// <summary>4) 前缀目录（真值）；空则落到 <c>~/.local/share/lunarward/prefixes/&lt;name&gt;</c>。</summary>
@@ -54,6 +63,26 @@ public sealed class RuntimeProfile
     public string? Notes { get; set; }
 
 
+    /// <summary>HUD（D81）：off / dxvk / mangohud。展开成 DXVK_HUD 或 MANGOHUD 环境变量。</summary>
+    public string Hud { get; set; } = "off";
+
+
+    /// <summary>HUD 的自定义参数；空则用各家的默认值。</summary>
+    public string HudOptions { get; set; } = "";
+
+
+    /// <summary>用 gamemoderun 包一层（D81）。</summary>
+    public bool GameMode { get; set; }
+
+
+    /// <summary>用 gamescope 包一层（D81）：它必须是最外层，且开着时不注入 MANGOHUD，避免两层叠加。</summary>
+    public bool GameScope { get; set; }
+
+
+    /// <summary>gamescope 的参数；空则用 <c>-f</c>。</summary>
+    public string GameScopeArgs { get; set; } = "";
+
+
     /// <summary>新建前缀时选定的架构（只读展示，建完不能改）。</summary>
     public string PrefixArch { get; set; } = "win64";
 
@@ -72,98 +101,6 @@ public sealed class RuntimeProfile
     /// 目的是让 UI 绑定和已有调用点不必在属性里扫盘（D72：UI 线程不做阻塞 IO）。
     /// </summary>
     public string? RunnerPath { get; set; }
-
-
-    // ---- 以下字段只为读旧配置存在，迁移后会被清空或忽略（D73 阶段 2）----
-
-    /// <summary>旧字段：template | dedicated | shared | external | ephemeral。</summary>
-    [JsonPropertyName("PrefixMode")]
-    public string? LegacyPrefixMode { get; set; }
-
-
-    /// <summary>旧字段：与 <see cref="GraphicsId"/> 冗余的开关（null = 已迁移完毕，不再写盘）。</summary>
-    [JsonPropertyName("EnsureGraphics")]
-    public bool? LegacyEnsureGraphics { get; set; }
-
-
-    /// <summary>旧字段：wine | proton | umu | custom。</summary>
-    [JsonPropertyName("RunnerType")]
-    public string? LegacyRunnerType { get; set; }
-
-
-    /// <summary>旧字段：环境变量字典的旧键名。</summary>
-    [JsonPropertyName("Environment")]
-    public Dictionary<string, string>? LegacyEnvironment { get; set; }
-
-
-    /// <summary>
-    /// 把旧字段（PrefixMode / Environment / EnsureGraphics / RunnerType）归一到新字段。
-    /// 纯内存操作，方便单测；前缀路径规范化与运行器刷新由 <see cref="RuntimeProfileStore"/> 负责。
-    /// 返回 true 表示改过东西，需要回写。
-    /// </summary>
-    internal bool MigrateFromLegacy()
-    {
-        bool changed = false;
-
-        if (LegacyEnvironment is { Count: 0 })
-        {
-            LegacyEnvironment = null;
-            changed = true;
-        }
-        if (LegacyEnvironment is { Count: > 0 })
-        {
-            foreach ((string key, string value) in LegacyEnvironment)
-            {
-                Env.TryAdd(key, value);
-            }
-            LegacyEnvironment = null;
-            changed = true;
-        }
-
-        // 旧的「自动安装图形层」开关已并入 GraphicsId（D64）
-        if (LegacyEnsureGraphics is false && !string.IsNullOrWhiteSpace(GraphicsId))
-        {
-            GraphicsId = null;
-            changed = true;
-        }
-        if (LegacyEnsureGraphics is not null)
-        {
-            LegacyEnsureGraphics = null;
-            changed = true;
-        }
-
-        // 前缀模式取消（D73 §3.1）：前缀只是路径
-        if (!string.IsNullOrWhiteSpace(LegacyPrefixMode))
-        {
-            string mode = LegacyPrefixMode!.Trim().ToLowerInvariant();
-            if (mode is "template" or "ephemeral")
-            {
-                // 这两种模式的 Path 指向「模板」，直接当实例用会让游戏跑进模板里
-                if (!string.IsNullOrWhiteSpace(PrefixPath))
-                {
-                    Notes = string.IsNullOrWhiteSpace(Notes)
-                        ? $"原 {mode} 模式的模板前缀：{PrefixPath}"
-                        : Notes;
-                }
-                PrefixPath = null;
-            }
-            LegacyPrefixMode = null;
-            changed = true;
-        }
-
-        if (LegacyRunnerType is not null)
-        {
-            LegacyRunnerType = null;
-            changed = true;
-        }
-
-        if (SchemaVersion < 2)
-        {
-            SchemaVersion = 2;
-            changed = true;
-        }
-        return changed;
-    }
 
 
     [JsonIgnore]

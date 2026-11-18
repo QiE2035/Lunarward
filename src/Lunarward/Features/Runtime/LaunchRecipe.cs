@@ -170,7 +170,17 @@ public static class LaunchRecipeBuilder
         string? gameArgs,
         IReadOnlyDictionary<string, string> autoEnvironment)
     {
-        Dictionary<string, string> merged = MergeEnvironment(autoEnvironment, profile?.Env, out List<EnvOverride> overrides);
+        // 增强开关（D81）展开成「自动注入层」的同名变量：用户在配方 env 里手写 DXVK_HUD 依然能覆盖它，并会被标红。
+        var auto = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach ((string key, string value) in autoEnvironment)
+        {
+            auto[key] = value;
+        }
+        foreach ((string key, string value) in Enhancements.EnvironmentVariables(profile))
+        {
+            auto[key] = value;
+        }
+        Dictionary<string, string> merged = MergeEnvironment(auto, profile?.Env, out List<EnvOverride> overrides);
         if (!string.IsNullOrWhiteSpace(prefixPath))
         {
             // 配方自己写 WINEPREFIX 会和「前缀检查用的路径」打架：保留真实前缀，但把这次覆盖记下来。
@@ -188,7 +198,7 @@ public static class LaunchRecipeBuilder
         {
             RunnerPath = runnerPath,
             PrefixPath = prefixPath,
-            Argv = BuildArgv(profile?.Wrappers, runnerPath, exePath, string.IsNullOrWhiteSpace(profile?.Args) ? gameArgs : profile!.Args),
+            Argv = BuildArgv(Enhancements.Wrappers(profile), runnerPath, exePath, string.IsNullOrWhiteSpace(profile?.Args) ? gameArgs : profile!.Args),
             Environment = merged,
             Overrides = overrides,
         };

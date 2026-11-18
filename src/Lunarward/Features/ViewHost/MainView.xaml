@@ -138,6 +138,23 @@
                 </NavigationViewItem>
             </NavigationView.MenuItems>
 
+            <!--  Lunarward：全局域入口（D80）。上面六项全在当前游戏域（按 SupportedPages 显隐、跟着选中的游戏变），
+                  运行环境是跨游戏的（一个前缀可被多个游戏共用、一个游戏绑一个方案），因此放在 footer、齿轮正上方。  -->
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Name="NavigationViewItem_RuntimeEnv"
+                                    Tag="RuntimeEnvironmentSetting"
+                                    ToolTipService.ToolTip="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Title}">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7F8;" />
+                    </NavigationViewItem.Icon>
+                    <NavigationViewItem.Content>
+                        <Border Height="40">
+                            <TextBlock VerticalAlignment="Center" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Title}" />
+                        </Border>
+                    </NavigationViewItem.Content>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
             <Frame Name="MainView_Frame" Margin="0,48,0,0" />
 
         </NavigationView>

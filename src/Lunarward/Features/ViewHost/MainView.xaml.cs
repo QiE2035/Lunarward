@@ -82,9 +82,6 @@ public sealed partial class MainView : UserControl
 
 
 
-    private static bool _scanTipShown;
-
-
     /// <summary>托盘菜单「打开设置」用。</summary>
     /// <summary>导航到当前游戏的设置页（预检修复按钮用）。</summary>
     /// <summary>当前页类型（L1.5 UI 自检用）。</summary>
@@ -134,16 +131,19 @@ public sealed partial class MainView : UserControl
     }
 
 
-    private static bool _hotkeyHintShown;
+    /// <summary>打开「运行环境」（D80：它已是一级页，在 footer 里，不再走设置页的目标传递）。</summary>
+    public void NavigateToRuntimeEnvironment()
+    {
+        NavigateTo(typeof(Features.Setting.RuntimeEnvironmentSetting));
+    }
 
 
     private static void ShowHotkeyUnavailableHintOnce()
     {
-        if (_hotkeyHintShown || Helpers.X11KeyState.Available)
+        if (Helpers.X11KeyState.Available || !Helpers.OneShotHints.TryTake("hotkey-wayland"))
         {
             return;
         }
-        _hotkeyHintShown = true;
         // Wayland 原生会话里拿不到全局键盘状态（L-45），如实告诉用户怎么替代。
         Helpers.InAppToast.MainWindow?.Warning((string?)null, "当前会话下全局热键不可用（Wayland）。可在系统快捷键里把命令绑定到 `lunarward --show`。", 8000);
     }
@@ -167,6 +167,7 @@ public sealed partial class MainView : UserControl
                 "record" => typeof(GameRecordPage),
                 "selfquery" => typeof(SelfQueryPage),
                 "beyond" => typeof(GenshinBeyondGachaPage),
+                "runtimeenv" => typeof(Features.Setting.RuntimeEnvironmentSetting),
                 "setting" => typeof(SettingPage),
                 "login" => typeof(Features.GameRecord.LoginPage),
                 "predownload" => typeof(GameLauncherPage),
@@ -265,12 +266,11 @@ public sealed partial class MainView : UserControl
                 });
             }
         }
-        // Lunarward：首次启动扫描到游戏时给一次反馈（上游等价行为是「自动查找」后的提示）
-        if (!_scanTipShown && !OperatingSystem.IsWindows())
+        // D86：识别到游戏的提示只在「这台机器第一次」出现（原来用进程级 static，每次启动都弹一遍）。
+        if (!OperatingSystem.IsWindows())
         {
-            _scanTipShown = true;
             var known = Features.GameInstall.GameInstallScanner.KnownGames;
-            if (known.Count > 0)
+            if (known.Count > 0 && Helpers.OneShotHints.TryTake("auto-scan"))
             {
                 // 文案暂用中文直写；i18n 时再补 Lang 资源（12-shims-and-gaps 已登记）
                 string names = string.Join("、", System.Linq.Enumerable.Select(known, b => b.ToGameName()));
@@ -424,6 +424,7 @@ public sealed partial class MainView : UserControl
                         nameof(GameRecordPage) => typeof(GameRecordPage),
                         nameof(SelfQueryPage) => typeof(SelfQueryPage),
                         nameof(GenshinBeyondGachaPage) => typeof(GenshinBeyondGachaPage),
+                        nameof(Features.Setting.RuntimeEnvironmentSetting) => typeof(Features.Setting.RuntimeEnvironmentSetting),
                         _ => null,
                     };
                     NavigateTo(type);
@@ -442,13 +443,19 @@ public sealed partial class MainView : UserControl
         {
 
         }
-        else if (page.Name is not nameof(SettingPage) && !CurrentGameFeatureConfig.SupportedPages.Contains(page.Name))
+        else if (page.Name is not (nameof(SettingPage) or nameof(Features.Setting.RuntimeEnvironmentSetting))
+                 && !CurrentGameFeatureConfig.SupportedPages.Contains(page.Name))
         {
+            // 运行环境与设置页一样是全局页：不参与「当前游戏支持哪些页面」的白名单，否则会被静默换回启动器（L-152）
             page = typeof(GameLauncherPage);
         }
         if (page.Name is nameof(GameLauncherPage))
         {
             MainView_NavigationView.SelectedItem = NavigationViewItem_Launcher;
+        }
+        if (page.Name is nameof(Features.Setting.RuntimeEnvironmentSetting))
+        {
+            MainView_NavigationView.SelectedItem = NavigationViewItem_RuntimeEnv;
         }
         MainView_Frame.Navigate(page, param ?? CurrentGameId, infoOverride);
         if (page.Name is nameof(BlankPage) or nameof(GameLauncherPage))
@@ -559,7 +566,8 @@ public sealed partial class MainView : UserControl
         {
             await Task.Delay(1500);
             Uri? proxy = HttpClient.DefaultProxy.GetProxy(new Uri("https://starward.scighost.com"));
-            if (proxy is not null)
+            // D86：这条只提醒一次（原来每次启动都弹，配合系统代理的用户等于每次开机被念一遍）。
+            if (proxy is not null && Helpers.OneShotHints.TryTake("system-proxy"))
             {
                 InAppToast.MainWindow?.Information(Lang.MainView_CheckSystemProxy_SystemProxyIsEnabled, proxy.ToString(), 5000);
             }

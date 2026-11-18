@@ -11,130 +11,429 @@
     xmlns:sf="using:Starward.Frameworks"
     mc:Ignorable="d">
 
-    <Grid x:Name="RootGrid" Margin="32,24,32,24" RowSpacing="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <!--  D85：运行环境界面重排。
+          「方案」页 = 左列方案清单 + 右列详情（详情 / 编辑 / 增强三种状态在同一块地方切换），
+          「运行器 / 组件 / 前缀」= 全局库存页；原来的「增强」页签并进方案详情，改 HUD 不用先在下拉里挑方案。
+          列表一律 code-behind 生成（Uno 的 ListView 在星号行 + ScrollViewer 里会抽风，D58 v2）。  -->
+    <!--  Linux：与设置页一致给实底，否则游戏背景的大字会透到表单后面（D61 / D80）。  -->
+    <sf:PageBase.Resources>
+        <!--  L-153：Uno Skia 6.7 下 Pivot 的页签头收不到鼠标点击（实测：点不切换、方向键却能切），
+              所以页签改用普通 Button 自绘 + Visibility 切内容。  -->
+        <Style x:Key="TabButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Padding" Value="14,7" />
+        </Style>
+        <Style
+            x:Key="TabButtonSelectedStyle"
+            BasedOn="{StaticResource TabButtonStyle}"
+            TargetType="Button">
+            <Setter Property="Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+        </Style>
+        <!--  左列方案清单里的一行：整行可点，选中给底色  -->
+        <Style x:Key="ProfileListItemStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+    </sf:PageBase.Resources>
 
-            <StackPanel Grid.Row="0" Spacing="4">
-                <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Title}" />
-                <TextBlock
-                    Style="{ThemeResource CaptionTextBlockStyle}"
-                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                    Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Description}"
-                    TextWrapping="Wrap" />
-            </StackPanel>
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid
+            x:Name="RootGrid"
+            Margin="32,24,32,24"
+            RowSpacing="10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
-                <Button x:Name="Button_New" Click="Button_New_Click">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon FontSize="16" Glyph="&#xE710;" />
-                        <TextBlock Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_New}" />
-                    </StackPanel>
-                </Button>
-                <Button x:Name="Button_Refresh" Click="Button_Refresh_Click">
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
-                        <FontIcon FontSize="16" Glyph="&#xE72C;" />
-                        <TextBlock Text="{x:Bind lang:Lang.Common_Refresh}" />
-                    </StackPanel>
-                </Button>
-                <Button x:Name="Button_OpenFolder" Click="Button_OpenFolder_Click">
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
-                        <FontIcon FontSize="16" Glyph="&#xE8B7;" />
-                        <TextBlock Text="{x:Bind lang:Lang.Lunarward_Companion_OpenFolder}" />
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-
-            <Grid Grid.Row="2">
-            <ScrollViewer
-                x:Name="ScrollViewer_Content"
-                Grid.Row="2"
-                HorizontalScrollBarVisibility="Disabled"
-                HorizontalScrollMode="Disabled"
-                VerticalScrollBarVisibility="Auto">
+            <!--  标题行  -->
+            <Grid Grid.Row="0" ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
                 <StackPanel Spacing="4">
-                    <!--  运行器：只读清单 + 手动添加路径（D63 三段式第一段）  -->
-                    <TextBlock Style="{ThemeResource BodyStrongTextBlockStyle}" Text="运行器" />
+                    <TextBlock
+                        FontSize="20"
+                        Style="{ThemeResource BodyStrongTextBlockStyle}"
+                        Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Title}" />
                     <TextBlock
                         Style="{ThemeResource CaptionTextBlockStyle}"
                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Text="只读清单：启动器只发现和选择，不安装、不复制、不删除系统里的 wine。要固定某个版本请用包管理器装到独立目录，再用「添加路径…」指过来。"
+                        Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Description}"
                         TextWrapping="Wrap" />
-                    <StackPanel
-                        Margin="0,4,0,0"
-                        Orientation="Horizontal"
-                        Spacing="8">
-                        <Button x:Name="Button_AddRunner" Click="Button_AddRunner_Click" Content="添加路径…" />
-                    </StackPanel>
-                    <StackPanel x:Name="StackPanel_Runners" Margin="0,4,0,0" Spacing="4" />
-
-                    <!--  方案  -->
-                    <TextBlock
-                        Margin="0,16,0,0"
-                        Style="{ThemeResource BodyStrongTextBlockStyle}"
-                        Text="方案" />
-                    <StackPanel x:Name="StackPanel_Profiles" Margin="0,4,0,0" Spacing="4" />
-
-                    <!--  前缀：单独成段，看得到「谁在用它/多大/什么状态」  -->
-                    <TextBlock
-                        Margin="0,16,0,0"
-                        Style="{ThemeResource BodyStrongTextBlockStyle}"
-                        Text="前缀" />
-                    <TextBlock
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Text="wine 的 C 盘。会坏、会占几十 G、会被多个方案共用，所以单独列出来；外部前缀只显示不清理。"
-                        TextWrapping="Wrap" />
-                    <StackPanel x:Name="StackPanel_Prefixes" Margin="0,4,0,0" Spacing="4" />
-
-                    <!--  图形组件（DXVK / VKD3D）：仍放在组件区，P3 再按前缀收敛  -->
-                    <TextBlock
-                        Margin="0,16,0,0"
-                        Style="{ThemeResource BodyStrongTextBlockStyle}"
-                        Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Components}" />
-                    <TextBlock
-                        Style="{ThemeResource CaptionTextBlockStyle}"
-                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                        Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ComponentsNote}"
-                        TextWrapping="Wrap" />
-                    <StackPanel
-                        Margin="0,4,0,0"
-                        Orientation="Horizontal"
-                        Spacing="8">
-                        <Button
-                            x:Name="Button_DownloadComponent"
-                            Click="Button_DownloadComponent_Click"
-                            Content="下载组件…" />
-                        <Button
-                            x:Name="Button_ImportArchive"
-                            Click="Button_ImportArchive_Click"
-                            Content="导入归档…" />
-                        <Button
-                            x:Name="Button_ImportGraphics"
-                            Click="Button_ImportGraphics_Click"
-                            Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportGraphics}" />
-                    </StackPanel>
-                    <StackPanel x:Name="StackPanel_Components" Margin="0,4,0,0" Spacing="4" />
                 </StackPanel>
-            </ScrollViewer>
-
-            <!--  方案编辑（D63 §4）：整页视图，列表暂时隐藏，标题栏带「返回」  -->
-            <ScrollViewer
-                x:Name="ScrollViewer_Editor"
-                HorizontalScrollBarVisibility="Disabled"
-                HorizontalScrollMode="Disabled"
-                VerticalScrollBarVisibility="Auto"
-                Visibility="Collapsed">
                 <StackPanel
-                    x:Name="StackPanel_Editor"
-                    MaxWidth="760"
-                    HorizontalAlignment="Left"
-                    Spacing="8" />
-            </ScrollViewer>
+                    Grid.Column="1"
+                    VerticalAlignment="Top"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Button x:Name="Button_New" Click="Button_New_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon FontSize="16" Glyph="&#xE710;" />
+                            <TextBlock Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_New}" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="Button_Refresh" Click="Button_Refresh_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon FontSize="16" Glyph="&#xE72C;" />
+                            <TextBlock Text="{x:Bind lang:Lang.Common_Refresh}" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="Button_OpenFolder" Click="Button_OpenFolder_Click">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon FontSize="16" Glyph="&#xE8B7;" />
+                            <TextBlock Text="{x:Bind lang:Lang.Lunarward_Companion_OpenFolder}" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </Grid>
 
+            <!--  状态条：一眼看完，每个 chip 都能点进对应页签  -->
+            <StackPanel
+                x:Name="StackPanel_Chips"
+                Grid.Row="1"
+                Orientation="Horizontal"
+                Spacing="8" />
+
+            <Grid
+                x:Name="ContentHost"
+                Grid.Row="2"
+                RowSpacing="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel
+                    x:Name="TabStrip"
+                    Orientation="Horizontal"
+                    Spacing="4">
+                    <Button
+                        x:Name="Tab_Profiles"
+                        Click="Tab_Click"
+                        Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Profiles}"
+                        Style="{StaticResource TabButtonSelectedStyle}"
+                        Tag="0" />
+                    <Button
+                        x:Name="Tab_Runners"
+                        Click="Tab_Click"
+                        Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Runner}"
+                        Style="{StaticResource TabButtonStyle}"
+                        Tag="1" />
+                    <Button
+                        x:Name="Tab_Components"
+                        Click="Tab_Click"
+                        Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Components_2}"
+                        Style="{StaticResource TabButtonStyle}"
+                        Tag="2" />
+                    <Button
+                        x:Name="Tab_Prefixes"
+                        Click="Tab_Click"
+                        Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Prefix}"
+                        Style="{StaticResource TabButtonStyle}"
+                        Tag="3" />
+                </StackPanel>
+
+                <Grid Grid.Row="1">
+                    <!--  ============ 方案：左清单 + 右详情 ============  -->
+                    <Grid
+                        x:Name="Page_Profiles"
+                        RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!--  绑定失效提示（D80）：只影响启动时的回落，放这里不打断列表  -->
+                        <StackPanel
+                            x:Name="StackPanel_BindingNotice"
+                            Grid.Row="0"
+                            Spacing="8" />
+
+                        <Grid Grid.Row="1" ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="280" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--  左列：方案清单  -->
+                            <Border
+                                Padding="4"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                CornerRadius="8">
+                                <ScrollViewer
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    HorizontalScrollMode="Disabled"
+                                    VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="StackPanel_ProfileList" Spacing="2" />
+                                </ScrollViewer>
+                            </Border>
+
+                            <!--  右列：详情 / 编辑 / 增强 三态切换（同一块地方，左列一直可见）  -->
+                            <Grid Grid.Column="1">
+                                <ScrollViewer
+                                    x:Name="ScrollViewer_ProfileDetail"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    HorizontalScrollMode="Disabled"
+                                    VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="StackPanel_ProfileDetail" Spacing="8" />
+                                </ScrollViewer>
+
+                                <ScrollViewer
+                                    x:Name="ScrollViewer_ProfileEditor"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    HorizontalScrollMode="Disabled"
+                                    VerticalScrollBarVisibility="Auto"
+                                    Visibility="Collapsed">
+                                    <StackPanel Spacing="8">
+                                        <Button
+                                            x:Name="Button_EditorBack"
+                                            Click="Button_EditorBack_Click"
+                                            HorizontalAlignment="Left"
+                                            Style="{StaticResource TabButtonStyle}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon FontSize="14" Glyph="&#xE72B;" />
+                                                <TextBlock Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Back}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <StackPanel
+                                            x:Name="StackPanel_ProfileEditor"
+                                            MaxWidth="760"
+                                            HorizontalAlignment="Left"
+                                            Spacing="8" />
+                                    </StackPanel>
+                                </ScrollViewer>
+
+                                <ScrollViewer
+                                    x:Name="ScrollViewer_ProfileEnhance"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    HorizontalScrollMode="Disabled"
+                                    VerticalScrollBarVisibility="Auto"
+                                    Visibility="Collapsed">
+                                    <StackPanel
+                                        MaxWidth="760"
+                                        HorizontalAlignment="Left"
+                                        Spacing="8">
+                                        <Button
+                                            x:Name="Button_EnhanceBack"
+                                            Click="Button_EnhanceBack_Click"
+                                            HorizontalAlignment="Left"
+                                            Style="{StaticResource TabButtonStyle}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon FontSize="14" Glyph="&#xE72B;" />
+                                                <TextBlock Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Back}" />
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock
+                                            x:Name="Text_EnhanceTitle"
+                                            Style="{ThemeResource BodyStrongTextBlockStyle}"
+                                            Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Enhancements}" />
+                                        <TextBlock
+                                            Style="{ThemeResource CaptionTextBlockStyle}"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Enhance_Notice}"
+                                            TextWrapping="Wrap" />
+
+                                        <TextBlock
+                                            Margin="0,4,0,0"
+                                            Style="{ThemeResource BodyStrongTextBlockStyle}"
+                                            Text="HUD" />
+                                        <ComboBox
+                                            x:Name="Combo_Hud"
+                                            MinWidth="220"
+                                            SelectionChanged="Combo_Hud_SelectionChanged" />
+                                        <ComboBox
+                                            x:Name="Combo_HudPreset"
+                                            Header="{x:Bind lang:Lang.Lunarward_RuntimeEnv_HudPreset}"
+                                            SelectionChanged="Combo_HudPreset_SelectionChanged" />
+                                        <TextBox
+                                            x:Name="Box_HudOptions"
+                                            Header="{x:Bind lang:Lang.Lunarward_RuntimeEnv_HudOptions}"
+                                            PlaceholderText="fps,frametimes,gpuload"
+                                            TextChanged="Box_HudOptions_TextChanged" />
+                                        <TextBlock
+                                            x:Name="Text_HudHint"
+                                            FontSize="12"
+                                            Opacity="0.6"
+                                            TextWrapping="Wrap" />
+
+                                        <TextBlock
+                                            Margin="0,4,0,0"
+                                            Style="{ThemeResource BodyStrongTextBlockStyle}"
+                                            Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_OuterCommands}" />
+                                        <ToggleSwitch
+                                            x:Name="Toggle_GameMode"
+                                            Header="{x:Bind lang:Lang.Lunarward_RuntimeEnv_GameModeLabel}"
+                                            Toggled="Toggle_GameMode_Toggled" />
+                                        <ToggleSwitch
+                                            x:Name="Toggle_GameScope"
+                                            Header="{x:Bind lang:Lang.Lunarward_RuntimeEnv_GameScopeLabel}"
+                                            Toggled="Toggle_GameScope_Toggled" />
+                                        <ComboBox
+                                            x:Name="Combo_GameScopePreset"
+                                            Header="{x:Bind lang:Lang.Lunarward_RuntimeEnv_GameScopePreset}"
+                                            SelectionChanged="Combo_GameScopePreset_SelectionChanged" />
+                                        <ToggleSwitch
+                                            x:Name="Toggle_Hdr"
+                                            Header="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Hdr}"
+                                            Toggled="Toggle_Hdr_Toggled" />
+                                        <ToggleSwitch
+                                            x:Name="Toggle_Vrr"
+                                            Header="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Vrr}"
+                                            Toggled="Toggle_Vrr_Toggled" />
+                                        <TextBox
+                                            x:Name="Box_GameScopeArgs"
+                                            Header="{x:Bind lang:Lang.Lunarward_RuntimeEnv_GameScopeArgs}"
+                                            PlaceholderText="-f -W 1920 -H 1080"
+                                            TextChanged="Box_GameScopeArgs_TextChanged" />
+
+                                        <!--  命令预览固定在这里，改完立刻能看到会怎么拼（不随表单滚走）  -->
+                                        <Border
+                                            Padding="10,8"
+                                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                            CornerRadius="6">
+                                            <StackPanel Spacing="4">
+                                                <TextBlock
+                                                    Style="{ThemeResource CaptionTextBlockStyle}"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_LaunchPreview}" />
+                                                <TextBlock
+                                                    x:Name="Text_EnhancePreview"
+                                                    FontFamily="Consolas"
+                                                    FontSize="12"
+                                                    IsTextSelectionEnabled="True"
+                                                    TextWrapping="Wrap" />
+                                                <TextBlock
+                                                    x:Name="Text_EnhanceStatus"
+                                                    FontSize="12"
+                                                    Opacity="0.75"
+                                                    TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <StackPanel
+                                            Margin="0,4,0,0"
+                                            Orientation="Horizontal"
+                                            Spacing="8">
+                                            <Button
+                                                x:Name="Button_EnhanceSave"
+                                                Click="Button_EnhanceSave_Click"
+                                                Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_SaveToProfile}"
+                                                Style="{StaticResource AccentButtonStyle}" />
+                                            <Button x:Name="Button_EnhanceReload" Click="Button_EnhanceReload_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Revert}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+
+                    <!--  ============ 运行器：全局库存 ============  -->
+                    <ScrollViewer
+                        x:Name="ScrollViewer_Runners"
+                        HorizontalScrollBarVisibility="Disabled"
+                        HorizontalScrollMode="Disabled"
+                        VerticalScrollBarVisibility="Auto"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="4">
+                            <TextBlock
+                                Style="{ThemeResource CaptionTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Runners_Notice}"
+                                TextWrapping="Wrap" />
+                            <StackPanel
+                                Margin="0,4,0,0"
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <Button x:Name="Button_AddRunner" Click="Button_AddRunner_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddPath}" />
+                                <Button x:Name="Button_SetDefaultRunner" Click="Button_SetDefaultRunner_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_SetDefaultRunner}" />
+                            </StackPanel>
+                            <StackPanel x:Name="StackPanel_Runners" Margin="0,4,0,0" Spacing="4" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!--  ============ 组件：全局库存（高频一个按钮，低频进「更多」） ============  -->
+                    <ScrollViewer
+                        x:Name="ScrollViewer_Components"
+                        HorizontalScrollBarVisibility="Disabled"
+                        HorizontalScrollMode="Disabled"
+                        VerticalScrollBarVisibility="Auto"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="4">
+                            <TextBlock
+                                Style="{ThemeResource CaptionTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ComponentsNote}"
+                                TextWrapping="Wrap" />
+                            <StackPanel
+                                Margin="0,4,0,0"
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <Button
+                                    x:Name="Button_DownloadComponent"
+                                    Click="Button_DownloadComponent_Click"
+                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_DownloadComponents}"
+                                    Style="{StaticResource AccentButtonStyle}" />
+                                <Button x:Name="Button_ComponentMore" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_More}">
+                                    <Button.Flyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Click="Button_ImportArchive_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportArchive}" />
+                                            <MenuFlyoutItem Click="Button_ImportGraphics_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportGraphics}" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Click="Button_Sources_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Sources}" />
+                                            <MenuFlyoutItem Click="Button_SourceSpeed_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_MirrorSpeed}" />
+                                            <MenuFlyoutItem Click="Button_Staging_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Staging}" />
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem Click="Button_CleanupComponents_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_CleanupUnused}" />
+                                        </MenuFlyout>
+                                    </Button.Flyout>
+                                </Button>
+                                <ComboBox
+                                    x:Name="Combo_ComponentFilter"
+                                    MinWidth="150"
+                                    SelectionChanged="Combo_ComponentFilter_SelectionChanged"
+                                    VerticalAlignment="Center" />
+                            </StackPanel>
+                            <StackPanel x:Name="StackPanel_Components" Margin="0,4,0,0" Spacing="4" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!--  ============ 前缀：全局库存 + 占用条 ============  -->
+                    <ScrollViewer
+                        x:Name="ScrollViewer_Prefixes"
+                        HorizontalScrollBarVisibility="Disabled"
+                        HorizontalScrollMode="Disabled"
+                        VerticalScrollBarVisibility="Auto"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="4">
+                            <TextBlock
+                                Style="{ThemeResource CaptionTextBlockStyle}"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Prefixes_Notice}"
+                                TextWrapping="Wrap" />
+                            <StackPanel
+                                Margin="0,4,0,0"
+                                Orientation="Horizontal"
+                                Spacing="8">
+                                <Button x:Name="Button_PrefixUsage" Click="Button_PrefixUsage_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_UsageSummary}" />
+                            </StackPanel>
+                            <StackPanel x:Name="StackPanel_Prefixes" Margin="0,4,0,0" Spacing="4" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+        </Grid>
     </Grid>
 </sf:PageBase>

@@ -351,11 +351,10 @@ public sealed partial class MainWindow : WindowEx
     public void OpenSettings() => MainContentHost?.NavigateToSettings();
 
 
-    /// <summary>打开设置并直达「运行环境」（预检修复按钮用）。</summary>
+    /// <summary>打开「运行环境」（预检修复按钮用；D80 起它是一级页，不再需要 SettingNavigation 的一次性目标）。</summary>
     public void OpenRuntimeSettings()
     {
-        Features.Setting.SettingNavigation.SetTarget(typeof(Features.Setting.RuntimeEnvironmentSetting));
-        MainContentHost?.NavigateToSettings();
+        MainContentHost?.NavigateToRuntimeEnvironment();
     }
 
 

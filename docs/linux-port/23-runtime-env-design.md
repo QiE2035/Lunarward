@@ -223,7 +223,7 @@
 
 ### 3.3 属主与 root
 
-wine 不允许 root 运行。启动时若 `geteuid() == 0` 直接拒绝并说明原因（当前未实现）。
+wine 不允许 root 运行。**已实现（D77）**：`Helpers/PosixIdentity` 用 `geteuid()`（P/Invoke，失败退回 `Environment.UserName == "root"`）判定；预检第一项「运行身份」Failed 时直接拦住启动并给出可读原因（root 会在前缀里写出普通用户改不掉的文件）；`PrefixManager.EnsurePrefix` / `CreateWithWineboot` 里另有 `ThrowIfRoot` 兜底，CLI 走同一道门。
 
 ### 3.4 占用
 
@@ -233,7 +233,14 @@ wine 不允许 root 运行。启动时若 `geteuid() == 0` 直接拒绝并说明
 
 ### 3.5 前缀里的记录
 
-只写两样：装进去的 dll（已有 `graphics.json`）和一份 `<prefix>/lunarward.toml` 侧写（谁装的、能回滚）。除此之外不碰注册表结构、不改目录名。
+只写两样，都在 `<prefix>/.lunarward/` 下：
+
+| 文件 | 内容 |
+| --- | --- |
+| `prefix.json` | `GameKey` / `ProfileId` / `PrefixArch` / `CreatedAt`（谁建的、给哪个游戏） |
+| `graphics.json` | 装进去的图形层组件，**按类别一条的数组**（DXVK / VKD3D-Proton 各一条：`Id` / `Name` / `Kind` / `Files` / `Sizes` / `InstalledAt`），回滚靠它 |
+
+外加 `lock`（`FileShare.None` 的互斥文件，§3.4）。**早期设计里写的 `lunarward.toml` 从未实现**，以 JSON 为准（D77 第 6 条）。除此之外不碰注册表结构、不改目录名。
 
 ### 3.6 体积
 
@@ -249,7 +256,7 @@ wine 不允许 root 运行。启动时若 `geteuid() == 0` 直接拒绝并说明
 | --- | --- | --- | --- | --- |
 | 1 | `name` | string | 必填 | 展示名 |
 | 2 | `runnerId` | string | 首个可用运行器 | 引用的组件 id |
-| 3 | `graphicsId` | string? | `null` | `null` = 不装图形层 |
+| 3 | `dxvkId` / `vkd3dId` | string? ×2 | `null` | 两个独立的层，可同时装（D83，schema 4）；旧字段 `graphicsId` 不再读 |
 | 4 | `prefixPath` | path | `~/.local/share/lunarward/prefixes/<name>` | 前缀目录 |
 | 5 | `env` | map | `{ "WINEDLLOVERRIDES": "mscoree,mshtml=" }` | 见 §4.3，**可见可删** |
 | 6 | `args` | string | `""` | 启动参数（原样拼给游戏 exe） |
@@ -262,7 +269,7 @@ wine 不允许 root 运行。启动时若 `geteuid() == 0` 直接拒绝并说明
 
 保存 / 复制这份配方 / 删除配方 / 导出 JSON（**不提供导入 CLI**——一次复制 + 改两个字段就够）。
 
-删除时若被绑定引用：列出游戏名再确认，并把绑定清空（不静默改绑到别的环境）。
+删除时若被绑定引用：列出游戏名再确认，并把绑定清空（不静默改绑到别的环境）。**已实现（D77 第 1 条）**：`ProfileBinding.Usages(id)` 列出引用者 → 确认框逐行写游戏名 + 「前缀目录不动：<路径>」→ 删 `env/<id>.json` → `ProfileBinding.ClearFor(id)`，toast 追加「已清掉 N 个绑定」。
 
 ### 4.3 env 优先级（三层）
 
@@ -287,6 +294,12 @@ wine 不允许 root 运行。启动时若 `geteuid() == 0` 直接拒绝并说明
 - 绑定存 `gameBiz → environmentId`，按 **id**（不是名字），重命名配方不影响绑定。
 - 游戏设置页加一行「使用环境：`genshin` ▾」，默认就是同名那份。
 - **新游戏第一次启动**：自动建一份同名环境并提示「已为《原神》创建环境 `genshin`，可在运行环境里修改或改用其它」。理由：没有环境的游戏根本启动不了，强制手动选择等于抬高「能跑」的门槛。
+- **已实现（D77 第 4 条，`ProfileBinding.EnsureFor`）**，四级决策：
+  1. 已有有效绑定 → 直用（不改任何东西）；
+  2. 库里已有同名环境（名字按 `ToGameName()` 或 sanitize 后比较）→ 只补绑定；
+  3. 全库只有一份且没被任何游戏占用 → **就地改名**成游戏名并绑定（不制造近似重复）；
+  4. 否则复制一份（沿用运行器 / 图形层 / env / args / wrappers，**`PrefixPath` 留空** → 各用自己的默认前缀，避免两个游戏抢同一把锁），`Notes` 写「首次启动自动创建」。
+  - 真入口在 `GameLauncherService`（建了才 toast）；读侧观测入口 `lunarward --profile-ensure <biz>`（打印 `配方 / created / bound / prefix`），L2 用例 `T-CL-45..47` 钉住三种分支。
 
 ---
 
@@ -296,6 +309,7 @@ wine 不允许 root 运行。启动时若 `geteuid() == 0` 直接拒绝并说明
 
 | 层 | 判据 | 典型动作 |
 | --- | --- | --- |
+| 身份层 | `geteuid() == 0` | 用普通用户启动（D77） |
 | 组件层 | 文件在不在、可执行、版本、Proton 布局 | 打开组件页 / 重新下载 |
 | 前缀层 | 存在、可写、`drive_c`、未被占用、架构匹配 | 打开目录 / 重建前缀 |
 | 图形层 | dll 齐不齐、与记录是否一致、是否被游戏目录自带 dll 覆盖 | 安装 / 重装图形层 |
@@ -310,15 +324,24 @@ wine 不允许 root 运行。启动时若 `geteuid() == 0` 直接拒绝并说明
 
 ## 7 · 页面
 
-### 7.1 运行环境（唯一主页面）
+### 7.1 运行环境（唯一主页面，D80/D82 定稿）
 
-上面一排环境卡片，每张四行：名字、运行器（名称+版本）、图形层（或「无」）、前缀（`~/…` 缩写）。右上角一个灯：
+**入口**：`MainView` 的 `NavigationView.FooterMenuItems`，图标在左下角齿轮正上方。它是**一级页**，不属于任何游戏域——一份方案可以被多个游戏绑定，放进某个游戏的设置里会让人以为是按游戏存的（D80）。
 
-- 🟢 这套能跑
-- 🟡 缺组件但能装（点进去有下载入口）
-- 🔴 配置错（悬停一句原因）
+**结构**（`Features/Setting/RuntimeEnvironmentSetting.xaml`）：
 
-点开是表单（§4.1 八个字段一屏放得下），底部：保存 / 复制 / 删除。前缀路径右侧：「打开目录」「检查」。
+```
+标题行   运行环境 · 每个配置由「运行器 / 图形层 / 前缀」组成        [新建][刷新][打开配置文件夹]
+页签行   (概览) 运行器  组件  前缀  增强
+内容区   对应页签的 ScrollViewer（Visibility 互斥；页签是自绘 Button，D82）
+销毁层   整页编辑器覆盖在内容区上方（保存/取消后回到原页签）
+```
+
+- **页签必须自绘**：`Pivot` 在 Uno Skia 6.7 下页签头收不到鼠标点击（L-153），所以用 5 个 `Button` + `TabButtonSelectedStyle` 切 `Visibility`。加页签时同时改 `ShowTab()` 的数组和 `UpdateContentWidth()` 的可见页数组。
+- **概览**：四张统计卡（方案数 / 运行器「可用 / 发现」/ 前缀数与合计体积 / 图形层数）+ 方案卡片列表。方案卡片五行：名字 + id、运行器、图形层、前缀（`~/…` 缩写）、使用中的游戏（`ProfileBinding.Usages`，空则写「无（还没有游戏绑定它，按第一份方案兜底）」）。顶部**失效绑定提示卡**：绑定指向已删方案时列出「游戏 —— 原方案 id」并给「全部改绑到 X」「清除这些绑定」两个动作（本机实测确有一例一直静默回落）。
+- **运行器 / 组件 / 前缀**：三页各自一张清单 + 该页专属动作（运行器：添加/移除/检查；组件：下载/导入/源/测速/暂存/删除；前缀：打开/清理/占用汇总）。
+- **增强**（D81）：选方案 → HUD（关闭 / DXVK HUD / MangoHud）+ HUD 参数 → gamemode 开关 → gamescope 开关 + 参数 → 程序检查（`✓/✗ 程序 · 路径`）→ 最终命令行预览。参数问题只提示不阻断（D82 的四类体检）。
+- 编辑器仍是整页覆盖（§7.4 文本视图在里面），字段见 §4.1；**不做**行内编辑与多选批量。
 
 **左栏不出现「前缀管理」入口**——前缀是字段。
 
@@ -449,7 +472,7 @@ wine 不允许 root 运行。启动时若 `geteuid() == 0` 直接拒绝并说明
 | `src/Lunarward/Features/Runtime/ComponentManifest.cs` | `manifest.json` 读写（`SchemaVersion=1`）+ `ComponentLayouts.FindRunnerRoot` 布局归一化（`bin` / `files-bin` / `bare-exe`） |
 | `src/Lunarward/Features/Runtime/ComponentDownloader.cs` | HEAD 探 Range → 8 MiB 分片 × 4 连接并行 → 250 ms 采样进度 → 429/403 降级单流 → 合并后 SHA-256 → 原子改名 |
 | `src/Lunarward/Features/Runtime/ComponentSources.cs` | 五个默认源（wine-staging / wine-tkg / GE-Proton / DXVK / VKD3D-Proton）+ 用户覆盖 `components-sources.json` |
-| `src/Lunarward/Features/Runtime/ComponentImporter.cs` | 系统 `tar` 解压 → 单层目录摊平 → 布局识别 → 搬进 `components/<wine|graphics>/<名字>-<版本>` → 写 manifest |
+| `src/Lunarward/Features/Runtime/ComponentImporter.cs` | 进程内解压（`ArchiveExtractor`，§13.8 替换了原来的系统 `tar`）→ 单层目录摊平 → 布局识别 → 搬进 `components/<wine|graphics>/<名字>-<版本>` → 写 manifest |
 | `src/Lunarward/Features/Runtime/ComponentHealth.cs` | 一句话结论 + stdout/stderr 原文 + 退出码（不映射发行版包名） |
 | `ComponentStore.cs`（改） | 受管目录优先读 manifest（名字/版本/布局），图形层扫描补 `components/graphics`，`AddGraphics` 也走 `RealPath` 去重 |
 
@@ -462,7 +485,8 @@ CLI：`--component-scan`、`--component-health <id|名字>`、`--component-impor
 - 同一组件经 `~/.local/share/Lunarward`（数据目录符号链接）曾列两遍 → `AddGraphics` 改走 `RealPath` 后合并。
 - `--component-health` 对假运行器与真 wine 均给出原文：`wine-11.19-1-g78e32ba1d3d (Staging)`。
 
-尚未做（进入阶段 2 前）：下载取消按钮与磁盘空间预检（§2.3）、首次选用时的自动自检时机（§2.5）、`components-sources.json` 的编辑界面。
+阶段 1 当时的欠账：下载取消按钮与磁盘空间预检（§2.3）、首次选用时的自动自检时机（§2.5）、`components-sources.json` 的编辑界面。
+**已了结**：取消 = 暂停 + 空间预检（归档 ×2 + 64 MB）在 §13.8 / `24` 号 P1 落地。**仍未做**：自检时机与源编辑界面（见 §13.5）。
 
 ---
 
@@ -506,9 +530,9 @@ CLI：`--component-scan`、`--component-health <id|名字>`、`--component-impor
 
 ### 13.5 仍未做
 
-- 下载取消按钮、磁盘空间预检、首次选用时的自动自检（阶段 1 遗留）。
+- ~~下载取消按钮、磁盘空间预检、首次选用时的自动自检（阶段 1 遗留）~~ → 2026-11-15 全部补齐，见 §13.9。
 - 「使用环境」在游戏内的检查清单是否按 §6 四层归并再收一遍：现有 `LaunchPreflight` + 可点修复已覆盖，验收时按体感决定。
-- 前缀体积只在卡片上显示（后台算），没有做「按前缀分组统计总占用」的汇总页。
+- ~~前缀体积只在卡片上显示，没有「按前缀分组统计总占用」的汇总页~~ → 已加「占用汇总」，见 §13.9。
 
 ### 13.6 真机复检（2026-11-14，1440p 屏 1200×676 窗口）
 
@@ -523,6 +547,24 @@ CLI：`--component-scan`、`--component-health <id|名字>`、`--component-impor
 - 按 m21977 的口径：**不做发行版包名映射**，只给原文，避免映射误差把关键信息吃掉；检查是后台线程跑的（`ComponentHealth.CheckAsync` 用 `WaitForExitAsync` + 15 s 超时），不占 UI 线程（硬规则 10）。
 - 实测（系统 Wine）：概括 `可用 (wine-11.19-1-g78e32ba1d3d (Staging))`、`退出码 0 · 耗时 4 ms`、原文含 `$ /opt/spritz-wine-tkg/bin/wine --version` 与 `stdout: wine-11.19-…`。
 
+### 13.9 运行环境收尾（2026-11-15，D77）
+
+| 项 | 落点 | 说明 |
+| --- | --- | --- |
+| 删环境列引用 + 清绑定 | `RuntimeEnvironmentSetting.Button_Delete_Click` | 见 §4.2 |
+| 受管组件删除 | 组件行「删除」+ `ComponentStore.TryDeleteManaged` | 只对 `components/<分类>/<目录>` 这一层开放，分类目录本身先判掉；外部组件只做引用 |
+| root 拒跑 | 预检「运行身份」+ `PosixIdentity.ThrowIfRoot` | 见 §3.3 |
+| 游戏自带 dll | 预检「游戏自带图形 dll」 | 查 `d3d11/dxgi/d3d12/d3d10core.dll`，Warning + 「打开游戏目录」；不查 d3d9/vulkan-1 |
+| 首次使用自动建环境 | `ProfileBinding.EnsureFor` | 见 §5 |
+| 首次选用自动自检 | `Button_EditorSave_Click` → `AutoCheckRunnerAsync` | 只在该运行器 `Usable is null` 时跑一次，不挡保存 |
+| 下载队列 | 下载对话框多选版本 | `SelectionMode=Multiple`，逐个下载→导入→删归档，进度「队列 i/n」；单个失败继续，取消=暂停（分片保留） |
+| 镜像测速 | 「镜像测速」按钮 + `ComponentSources.ProbeAllAsync` | HEAD 首字节耗时，`ProbeUrl` 走 `MirrorPrefix` 或 repo 主页 |
+| 组件源编辑 | 「组件源…」按钮 + `SaveUserEntries` | 每个源可改镜像前缀，写 `~/.config/lunarward/components-sources.json` |
+| 暂存列表 | 「下载暂存」按钮 | 扫 `components/.download/*.part.N` 按前缀分组显示体积，可逐组删除 |
+| 前缀占用汇总 | 「占用汇总」按钮 | `EnumerateKnownPrefixes(computeSize: true)` 总量 + 每份前缀，后台线程算 |
+
+验证：Debug/Release 0 错误；单测 145 条；L2 `cli-smoke` 40、`cli-extra` 28（含新增 `T-CL-45..47`）；`lint-ui-thread` 通过。
+
 ### 13.8 解压换库 + 下载/导入入口（2026-11-14 补，24 号 P1）
 
 - **解压不再是外部进程**：新增 `src/Lunarward/Features/Runtime/ArchiveExtractor.cs`，`.tar` / `.tar.gz` / `.tgz` / `.tar.zst` 用 BCL `TarReader` + `GZipStream` / `ZstdSharp.DecompressionStream`，`.tar.xz` 走 `SharpCompress` 的 `ReaderFactory`，`.zip` 走 `ZipFile`。行为差异：可取消（`CancellationToken` 逐块生效）、有进度（`ArchiveProgress(Entries, Bytes)`）、路径逃逸在解压前就被拒（`ResolveTarget` 对绝对路径与 `..` 抛 `InvalidDataException`）。这同时满足硬规则 10（UI 线程不 fork 外部进程）。
@@ -534,3 +576,30 @@ CLI：`--component-scan`、`--component-health <id|名字>`、`--component-impor
 - 新增 CLI `--component-list <源 id>`（打印名称 / MB / 版本），便于在无法用 GUI 时确认源是否可用。
 - 验证：单测 119 → 142（`ArchiveExtractor` 往返/逃逸/取消/不支持格式、`DescribeFailure` 四种）；`cli-extra` 22 → 24；真机三种归档（`.tar.gz` / `.tar.xz` / `.tar.zst`）导入成功；真机「导入归档…」走 `kdialog` 选 `/tmp/wine-localtest-1.0.tar.gz` → 选「运行器」→ 磁盘出现 `components/wine/wine-localtest-1.0/{bin,manifest.json}`；真机「下载组件…」在 GymHub 限流的网络下正确显示 403 的说明文字（见 L-143）。
 - 仍未做：下载队列（多组件排队）、镜像自动测速、断点续传的「暂存列表」界面（当前靠分片文件名隐式续传）。
+
+### 13.10 页面重做 + 增强开关（2026-11-16，D80/D81/D82）
+
+- **入口**：运行环境从「启动器设置」的子导航项改成 `NavigationView.FooterMenuItems` 一级页（齿轮正上方）；`MainWindow.OpenRuntimeSettings()`、预检「去设置」、`--page runtimeenv` 三处都收口到 `MainView.NavigateToRuntimeEnvironment()`。`MainView.NavigateTo` 的页面白名单扩到两页（L-152：白名单外的页会被**静默**换成启动器页）。
+- **页面**：149 行 → 约 380 行，五是页签（概览/运行器/组件/前缀/增强），页签自绘（L-153）。概览有统计卡、方案卡片、失效绑定提示卡与两个修复动作；`RuntimeEnvironmentSetting.xaml.cs` 拆出 `.Enhancements.cs`（增强页逻辑），`ShowTab(int)` 统一管可见性与选中样式。
+- **增强（schema 3）**：`RuntimeProfile` 增 `Hud/HudOptions/GameMode/GameScope/GameScopeArgs`；`Features/Runtime/Enhancements` 是纯函数（`EnvironmentVariables` / `Wrappers` / `RequiredBinaries` / `FindInPath` / `Describe` / `ValidateGameScopeArgs`）；注入顺序 自动环境变量 → 增强 → 配方 `Env`（配方手写同名键会覆盖并进 `Overrides`）；gamescope 开时不注入 MANGOHUD。
+- **预检第 11 项「增强开关」**：开了 `gamescope`/`gamemoderun`/`mangohud` 但 PATH 里没有 → Warning + 一键跳到「运行环境 → 增强」。
+- **图形层选择器**：`GraphicsCombo` 收 `ComponentKind[]`，编辑器同时列 DXVK 与 VKD3D-Proton（D82）。
+- **验证**：`dotnet build` 0 错误；单测 224 全绿（增强 24 项，含 4 项 gamescope 参数体检）；`--selftest-ui` 11 条；真机截图确认 footer 入口、页签点击、开关切换。
+
+### 13.11 可用性打磨（2026-11-16，D84）
+
+- **一致性（A）**：`DescribeGraphicsSync(profile, inspection)` 拿 `GraphicsInstaller.Verify(prefix)` 的 `GraphicsStatus` 逐类比对，返回「要显示的一行 + 是否需要同步」；同步动作调 `EnsureInstalled(prefix, components, logger)`，不写方案。
+- **清理（B）**：`ComponentStore.ManagedRootOf` 决定的「受管范围」是唯一可删范围（`components/` 下一层或 `components/<kind>/` 下一层）；方案引用判定用 `RunnerId / DxvkId / Vkd3dId / RunnerPath`。
+- **共用（C）/ 克隆**：`ProfileBinding.Usages(id)` 给出绑定的游戏；克隆走 `CopyProfile(clearPrefix: true)`，即新方案**不共享前缀**（各自默认目录），避免两个游戏抢 `.lunarward/lock`。
+- **启动历史（E）**：`Features/Runtime/LaunchHistoryStore`（JSONL，`logs/launch-history.jsonl`）三个结果常量 `已启动 / 预检未通过 / 启动失败`，超 400 行压到 200 行；读侧 `Recent(profileId, 3)` 按时间倒序，坏行跳过。
+- **预设（I）**：`Enhancements.GameScopePresetArgs` / `HudPresetOptions` 是纯数据，写进下拉只改文本框；`ToggleArg(args, flag, on)` 用 `SplitArgs` 增删 token 保序。
+- **验证**：单测 241 全绿；真机截图确认每项交互（见 `CHANGELOG` 2026-11-16（三））。
+
+### 13.12 界面结构（D85）
+
+- **布局**：标题行（新建 / 刷新 / 打开文件夹）→ chip 条（方案数、绑定数、运行器可用数、图形组件数、前缀数与占用，点击跳页签）→ 四个页签：方案 / 运行器 / 组件 / 前缀。
+- **方案页**：左列 280px 列表（健康点、名字、「可用 · 被 N 个游戏绑定」），右栏三态——详情（运行器 / 图形层 / 前缀 / 增强 / 最近启动五段卡片，`⋯` 菜单收删除·克隆·配置文本·调试 Shell）/ 编辑器 / 增强。
+- **增强不再独立成页**：`Hud`、`GameMode`、`GameScope`、`GameScopeArgs` 属方案字段，从详情「配置」就地进入；参数预览与「已安装/缺失」检查在同一屏。
+- **组件页**：「下载组件」为主按钮，其余入口进「更多」；筛选只影响列表，不影响扫描。
+- **运行器页**：按来源分组；「设为新方案默认」写 `<config>/lunarward/runtime-defaults.json` 的 `defaultRunnerId`，`RuntimeProfileStore.CreateDefault` 优先用它。
+- **前缀页**：占用条按已知前缀的最大值归一；「N 个方案在用」用 `EnvironmentResolver.EffectivePrefixPath` 比较（空 `PrefixPath` 也要算上）；无主前缀标「未使用」。

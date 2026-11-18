@@ -18,70 +18,27 @@ internal class LunarwardProgram
     public static void Main(string[] args)
     {
 // 无副作用查询（不需要 DISPLAY）：`lunarward --version` / `--help`
+        string appVersion = Starward.AppConfig.AppVersion;
+        if (string.IsNullOrWhiteSpace(appVersion))
+        {
+            appVersion = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
+        }
         if (args.Length >= 1 && args[0] is "--version" or "-v")
         {
-            string ver = Starward.AppConfig.AppVersion;
-            if (string.IsNullOrWhiteSpace(ver))
-            {
-                ver = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "0.0.0";
-            }
-            Console.WriteLine($"Lunarward {ver}");
+            Console.WriteLine($"Lunarward {appVersion}");
             return;
         }
         if (args.Length >= 1 && args[0] is "--help" or "-h")
         {
-            Console.WriteLine("""
-Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starward 移植）
-
-用法：lunarward [命令] [参数]
-不带命令时启动图形界面。
-
-环境诊断
-  --version                        打印版本
-  --diagnose [--out DIR] [--game BIZ]
-                                   生成诊断包 zip（默认 ~/Downloads）
-  --preflight <biz>                启动前预检六项
-  --launch-plan <exe> [args] [--profile <id|名字>]
-                                   只解析不启动：打印配方/argv/env/覆盖
-
-运行环境
-  --list-runners [--json]          列出发现的运行器（布局/可用性/原因）
-  --list-components [--json]       列出组件（含图形层）
-  --prefix-ensure <id|名字>        按方案准备前缀
-  --run-once <id|名字> <程序> [参数…]
-                                   在方案环境里跑一次程序
-  --shell-plan                     打印每个方案的调试 Shell 命令
-  --graphics-list
-  --component-scan                 列出下载源（可用的受管组件清单）
-  --component-list <源 id>          列出某个源的可用归档（名称 / 大小 / 版本）
-  --webkit-login --url <登录页> --output <cookies.json> [--timeout 秒]
-                                   登录窗（本程序 + WebKitGTK 6.0，独立进程）
-  --image-info <图片路径>           看某个图片能不能解（Skia / Magick 两条后端各报一行）
-  --component-health <id|名字>     健康检查：一句结论 + 可复制的原文
-  --component-import <归档> --kind wine|graphics
-                                   导入归档为受管组件
-  --component-download <源 id>     下载并导入最新版本（4 连接分片）
-  --graphics-install <前缀> <名字|id|路径>
-  --graphics-verify <前缀>
-  --graphics-remove <前缀>
-  --graphics-import <目录>
-
-安装 / 更新
-  --install-plan <biz> / --install-run <biz> [--limit-mb N]
-  --update-plan <biz> / --update-run <biz> [--limit-mb N]
-  --patch-plan <biz> / --patch-run <biz>
-  --install-chunk-plan <biz> / --install-chunk-run <biz>
-  --predownload-size <biz>
-  --version-status <gameKey> / --version-write <gameKey> <版本>
-
-窗口 / 协议 / 其它
-  --hide / --show                  启动即隐藏 / 唤回主窗口
-  --database-backup <输出.zip>     把数据库备份成单文件归档（RG-07）
-  --screenshot                     截图并存到设置目录
-  --update-check                   查询 AUR 版本
-  --register-protocol / --unregister-protocol / --protocol-status
-  --new-instance                   跳过单实例检查
-""");
+            // 帮助文本唯一来源是 Helpers/CliSpec.cs（D79）；lint-cli-help.sh 卡住「源码里的开关 ⊆ 这张表」。
+            Console.WriteLine(Helpers.CliSpec.RenderHelp($"版本 {appVersion}"));
+            return;
+        }
+        // 未知开关：只认第一 token（位置参数是游戏自己的参数，不能拦），直接 exit 2 并给最接近的候选。
+        if (Helpers.CliSpec.TryRejectUnknown(args, out int unknownExitCode, out string unknownMessage))
+        {
+            Console.Error.WriteLine(unknownMessage);
+            Environment.ExitCode = unknownExitCode;
             return;
         }
 
@@ -189,6 +146,27 @@ Lunarward —— 米哈游 / HoYoverse 游戏的 Linux 综合启动器（Starwar
                 hint = args[planIdx + 1];
             }
             Console.WriteLine(Features.GameLauncher.GameLauncherService.DescribeLaunchPlan(args[1], args.Length > 2 && args[2] is not "--profile" ? args[2] : null, hint));
+            return;
+        }
+
+        // 绑定兜底：`lunarward --profile-ensure [biz]`，等价于「首次启动这个游戏」时的环境解析（D73 §5）。
+        // 真启动里同样的逻辑由 GameLauncherService 走；这里只是让脚本能观测「绑到了谁 / 有没有新建」。
+        if (args.Length >= 1 && args[0] is "--profile-ensure")
+        {
+            AppConfig.LoadConfiguration();
+            Starward.Core.GameBiz ensureBiz = args.Length > 1 ? new Starward.Core.GameBiz(args[1]) : AppConfig.CurrentGameBiz;
+            (Features.Runtime.RuntimeProfile? ensured, bool created, bool newlyBound) = Features.Runtime.ProfileBinding.EnsureFor(ensureBiz);
+            if (ensured is null)
+            {
+                Console.WriteLine("没有可用的运行环境，也没有可复制的模板。");
+                Environment.ExitCode = 1;
+                return;
+            }
+            Console.WriteLine($"biz     : {ensureBiz.Value}");
+            Console.WriteLine($"配方    : {ensured.Name} ({ensured.Id})");
+            Console.WriteLine($"created : {created}");
+            Console.WriteLine($"bound   : {newlyBound}");
+            Console.WriteLine($"prefix  : {(string.IsNullOrWhiteSpace(ensured.PrefixPath) ? "(启动时创建)" : ensured.PrefixPath)}");
             return;
         }
 

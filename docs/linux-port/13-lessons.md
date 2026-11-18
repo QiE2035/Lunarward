@@ -3,7 +3,7 @@
 > 这里只记「踩过一次就不该再踩」的东西。每条都给出证据位置与处理方式。
 > 目的：让后来者（或几个月后的我们）不用重新发现一遍。
 
-- 最后更新：2026-11-02
+- 最后更新：2026-11-18（L-160）
 
 ---
 
@@ -1196,3 +1196,98 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - **cookie 没有异步入口**：GirCore 0.8.1 的 `CookieManager` 只生成了 `GetCookiesFinish` / `GetAllCookiesFinish`（返回非泛型 `List`），能用的路径是 `SetPersistentStorage(path, CookiePersistentStorage.Sqlite)` + 自己读 `moz_cookies`（`SELECT name, value`）。读库要容忍 `SqliteException`（WebKit 正在写时短暂锁库），下一轮再试即可。
 - **与 Uno 撞名**：Uno 自带 GtkSharp 3.24（GTK3），同进程引 GTK4 必然 `CS0433`（`Gtk.Application`、`WebView` 等）；跨程序集要用 `extern alias gir;` + `using Gtk4 = gir::Gtk;`。所以「登录窗放独立进程」不只是观感问题，也是依赖隔离问题。
 - 附带：GirCore 里所有构造函数都是 `ConstructArgument[]`，一律走静态工厂（`Gtk.Application.New(appId, flags)`、`ApplicationWindow.New(app)`）；全局函数在 `GLib.Functions` / `WebKit.Functions`；`Gio.ApplicationFlags` 没有 `None`，传 `0`。
+
+## L-150 运行环境收尾三坑：可删范围、绑定残留、解析不一致
+
+- **「可删」必须显式定义范围**：`components/wine`、`components/dxvk` 这类分类目录与组件目录是**同一种形状**（都是 `ComponentsFolder` 下一层）。只判断「在管理根之下」会把整个运行器库判成可删。定法：受管根 = `components/<分类>/<目录>` 这一层，且目录名本身不能等于分类名（`wine`/`dxvk`/`vkd3d-proton`/`graphics` 一律 false），上溯最多 4 层。
+- **删环境必须连带清绑定**：`ProfileBinding.Resolve` 未绑定/指向已删环境时**静默回落第一份**（L-62 的兜底），所以「删了环境但绑定还在」在界面上看不出错，直到启动游戏用了另一套参数。删文件后必须 `ClearFor(id)`，并把被清的条数写进 toast/日志。
+- **诊断命令要和真启动走同一条解析路径**：`--launch-plan` 走的是 `ProfileBinding.Resolve`，真启动本轮改成了 `EnsureFor`（会建环境）。两者不一致时，「计划里好好的、真启动多出一份环境」。修法：解析差异只允许在「写」这一侧（`EnsureFor` 需要 `ILogger`、会落盘），并给读侧一个可观测入口 `--profile-ensure` 让脚本盯住三种分支。
+- 附带：xunit 工程用 `<EnableDefaultCompileItems>false</EnableDefaultCompileItems>` + 逐个 `<Compile Include>` 链接源文件（D37），`GameBiz`/`ProfileBinding`/`RuntimeProfileStore` 这条链拉不进单测——这类文件系统行为走 L2 CLI 夹具（`T-CL-45..47`），别硬塞进 xunit。
+
+## L-151 依赖批次的四个坑：帮助两处手写、VDF 的 Children 形态、PeNet 的 IsPeFile、libuiohook 收不到 XTEST
+
+- **帮助文本和分支表分开写必然漂移**：`--help` 是一段手写字符串，`Program.Linux.cs` 有 46 个 `args[0] is "--x"`，两边靠人记。一批里踩两次：`--profile-ensure` 加完帮助里没有；`--preflight` 描述停在「六项」（实际九项，现在十项）。修法不是「认真点」，而是让「帮助」从声明表生成（`Helpers/CliSpec.cs`，D79），再用 lint 卡「源码开关 ⊆ 表」。**凡是同一份信息要写两遍，第二遍就会过期。**
+- **`KVObject.Children` 是 `IEnumerable<KeyValuePair<string, KVObject>>`**（ValveKeyValue 0.80）：`foreach (var child in root)` 拿到的是 `KVObject`，要 `kvp.Value`；`foreach (var child in root.Children)` 才是键值对。另外旧版 `libraryfolders.vdf` 的节点是 `"1" "/path"`（key 是数字、值是字符串），新版是 `"1" { "path" "/path" }`——两种都要兼容，判断依据是 key 是否全数字，取字符串值靠 `(string)obj` 隐式转换（`op_Implicit(string)` 存在，但压缩过的二进制 VDF 不能这么读）。
+- **`PeFile.IsPeFile` 是带参方法不是属性**（PeNet 6.1.2）：写成 `pe.IsPeFile` 会编译不过或语义错（`IsPeFile(int)` 之类），判断是否 PE 直接 `new PeFile(path)` 抛不抛 `PeNetParsingException` 更省事。machine 走 `pe.ImageNtHeaders?.FileHeader.Machine`（`I386` / `Amd64` / `Arm64`）。
+- **SharpHook 在 KDE Wayland 上收不到 XTEST 事件**（实测，2026-11-15）：`TaskPoolGlobalHook` 打印 enabled，12 秒内 0 个事件；`xdotool key`（XTEST）与 `env -u WAYLAND_DISPLAY` 强制 X11 后端都一样。对照：自写 `XQueryKeymap` 轮询能看到 `xdotool keydown shift` → `keys=1`。所以「X 客户端看得见的事件」不等于「libuiohook/XRecord 拿得到」，**换库前必须用对照实验定位到哪一层断了**，否则会把「这库不行」和「我的用法不行」混在一起。Wayland 正解是 `org.freedesktop.portal.GlobalShortcuts`（本机 KDE 已暴露，`busctl --user introspect` 可证）。
+- 附带：测试工程 `ImplicitUsings` 关闭，链接进来的源文件要自己写 `using System;/Collections.Generic;/IO;/Linq;`；`ParseLibraries(null)` 这种重载歧义要写 `(string?) null`；最小 PE 夹具可以用 `$$"""` 拼字节表，注意 `{{x}}` 才是插值。
+
+## L-152 页面白名单会「静默换页」——新增一级页时必查 `MainView.NavigateTo`
+
+- **现象**：把运行环境从设置页挪成一级页后，从 footer 点进去仍然显示启动器页，没有任何报错。
+- **原因**：`Features/ViewHost/MainView.xaml.cs` 的 `NavigateTo` 里有一句白名单判断（原本 `page.Name is not nameof(SettingPage)` 就把目标换成 `GameLauncherPage`），目的是「防止打开不存在的页面」。新页面没进白名单 → 被当成非法页。
+- **处理**：白名单改成 `page.Name is not (nameof(SettingPage) or nameof(Features.Setting.RuntimeEnvironmentSetting))`；`--page` 映射、Tag 分发、`UiSelfTest` 断言同步补上。
+- **教训**：这条兜底**不报错**，所以「点击没反应」要先去查它，而不是怀疑事件没绑上或布局没命中。
+
+## L-153 Uno Skia 6.7 的 `Pivot` 页签头收不到鼠标点击
+
+- **现象**：运行环境页的 `Pivot` 五个页签，鼠标单击/双击/长按都不切换；同一窗口里的普通 `Button`（「配置文本」）能正常弹窗，`Right` 方向键也能切页。
+- **结论**：不是注入问题（KWin EIS 与 `xdotool` XTEST 两条路都一样），是 `PivotHeaderItem` 的命中区在 Skia 后端不工作（本仓 `Features/Gacha` 等处的 `Pivot` 只用于展示，没有点击切换需求，所以一直没暴露）。
+- **处理**：改成自绘页签（`StackPanel` + 5 个 `Button` + 两个 `Style`），内容用 `Visibility` 互斥，`ShowTab(int)` 一处收口（D82）。
+- **教训**：**Uno 控件「看着能用」不等于「能点」**。凡是导航类控件（Pivot/TabView/SelectorBar），落地前先在真机上点一次；不通过就换普通 `Button` 自绘，比追 Uno 内部模板便宜。
+- 附带：`ScrollViewer` 的滚轮在本机注入路径下也滚不动（`cu_mouse scroll` 与 `xdotool click 5` 都无效，页面右侧能看见滚动条轨道），但这是**注入限制**，尚未证伪真实鼠标——验收时请用真鼠标滚一次运行环境页。
+
+## L-154 引号会被 `SplitArgs` 吃掉——校验要看原始串
+
+- **现象**：给 gamescope 参数加「不要写 shell 引号」的检查，写完单测直接红：`"-W 2560 -H 1440"` 这类输入里引号没了。
+- **原因**：`LaunchRecipeBuilder.SplitArgs` 是「按 shell 规则切 token」，它天生会把引号解析掉——所以 token 里永远查不到 `"`。
+- **处理**：引号检查改成查**原始串**（`args.Contains('"')`），元字符（`; | & > < \` $`）继续按 token 查；单测覆盖两组。
+- **教训**：凡是「先解析再校验」，要先想清楚**信息在哪一层还在**。解析器吃掉的东西（引号、空白、转义）只能在解析前看。
+
+## L-155 「两个独立的东西」被塞进一个字段，UI 只能退化成单选
+
+- **现象**：`RuntimeProfile` 只有一个 `GraphicsId`，于是 DXVK 和 VKD3D-Proton 只能选一个；想两个都装只能手改 JSON。用户一眼看出不对：「这俩是不是可以同时装？那单选用下拉框就不合理」。
+- **根因**：字段是数据的形状，UI 是字段的投影。字段合并 ⇒ UI 一定选不出「都要」。当时把「图形层」当成一个东西，是因为它们都从同一个按钮装进去——安装动作相同不代表数据是一个。
+- **处理**：拆 `DxvkId` + `Vkd3dId`（D83），`graphics.json` 同步改成按 kind 的数组。
+- **教训**：**判据是「这两者能不能同时为真」**。能同时为真就是两个字段/两个开关；不能同时为真才是一个枚举。别因为「装的时候走同一条代码」就合成一个。
+
+## L-156 改 schema 前先查测试：迁移用例会跟着一起塌
+
+- **现象**：删掉 `RuntimeProfile.MigrateFromLegacy()` 后，`dotnet build` 在测试工程报了 18 条错——`LaunchRecipeTests.cs` 里 5 个 `MigrateFromLegacy_*` 用例直接引用被删的字段。
+- **处理**：连同用例一起删（用户 m01589：开发阶段不做数据迁移），并在 D83 里写明「删了哪 5 个用例」。
+- **教训**：删公开成员前先 `grep -rn "成员名" tests/`。源码编译过不代表测试编译过——`dotnet build Starward.slnx` 会把测试工程一起带进来，所以报错一定会出现，但**先看清楚是「新代码错」还是「旧测试错」**，别去给废弃 API 造兼容壳。
+
+## L-157 边遍历边 `Remove`：`--graphics-remove` 直接 SIGABRT
+
+- **现象**：L2 的 `T-RT-13`（`--graphics-remove` 按记录清干净）退出码 **134**，`Unhandled exception: Collection was modified; enumeration operation may not execute.`（`GraphicsInstaller.Remove` 里 `foreach (InstalledGraphics record in targets)` 内 `records.Remove(record)`）。
+- **根因**：`targets` 在 `kind is null` 时**就是 `records` 本身**（同一个 List 引用），遍历它再往里删元素必然炸；`kind` 有值时才是 `.ToList()` 出来的副本。
+- **处理**：`targets` 一律 `.ToList()`，删完文件后用 `records = records.Where(x => !targets.Contains(x)).ToList();` 过滤。
+- **教训**：「过滤一个集合并删掉其中元素」时，**先把要被遍历的那一份拷出来**。这类 bug 只在 `kind == null`（全删）这条路径上出现，单看代码很容易以为两种分支一样。
+
+## L-158 界面上别糊绝对路径：组件名查不到时回落文件名
+
+- **现象**：一致性提示里出现「前缀里还没装（选的是 `/home/qie2035/.local/share/sleepy-launcher/dxvk/dxvk-gplasync-v3.0-1`）」，一条提示占满两行，还比正文更显眼。
+- **根因**：`DescribeGraphicsSync` 用 `ComponentStore.GetGraphics()` 里 `Id == id` 查组件名，查不到就退回整个 `Id`——而 `Id` 本身就是绝对路径（`Component.Id` 即路径）。组件被删、或路径大小写/尾部斜杠不一致时必然查不到。
+- **处理**：回落改成 `Path.GetFileName(id.TrimEnd('/'))`，界面显示 `dxvk-gplasync-v3.0-1`；「前缀里是 X」这类文案同样走名字。
+- **教训**：**`Id` 是路径不代表它适合当标签**。凡是要拼进界面的标识，先想「查不到名字时显示什么」，默认答案永远不是完整路径。顺带：`Interlocked` 忘了 `using System.Threading` 会让编译停在「找不到类型」——小工具函数别为了省一行 using 去换写法。
+
+## L-159 组件「身份」不止一个：按路径匹配会静默把选择改掉
+
+**现象**：D85 编辑器里给方案选了 `DxvkId = /usr/share/dxvk`，重新打开编辑器时下拉显示「（不选）」，保存一次就把选择清掉了。
+
+**原因**：`ComponentStore` 里运行器的 `Id` 是安装目录（`/opt/spritz-wine-tkg`）、`Path` 是 `bin/wine`；图形组件的 `Id` 与 `Path` 相同但都会被 `RealPath` 解析过。编辑器原先只比 `Id`（图形）或只比 `Path`（运行器），任一侧不一致就落回索引 0，界面上看起来只是「没选中」。
+
+**改法**：`MatchesComponent(component, pathOrId, id)` 四路比对 —— `Id == id`、`Id == expanded`、`Path == expanded`、`Path` 是 `expanded` 的目录前缀、末两段相同。四种来源（配置文件、组件清单、`realpath`、用户手填）都能对上。
+
+**顺带两条**：
+
+- XAML 里已经放了返回按钮，代码里又拼了一个 header 返回键 → 截图里出现两个「← 返回」。同一段 UI 只在一处生成。
+- 页签/按钮「点了没反应」先量坐标：`logical = origin + px * (frame 宽 / 截图宽)`，本次是把 900px 宽的截图当成 1240 逻辑宽算，点到了空白处（差 150px）。
+
+---
+
+## L-160 wine 注册表文件是「第二份真相」，格式有三个坑
+
+**背景**：为了让「查注册表」不再 fork wine（D86），改成直接解析 `<prefix>/user.reg`。三个格式细节不看真实文件绝对想不到：
+
+1. **非 ASCII 键名是 `\xHHHH` 转义**：原神在文件里写作 `[Software\\miHoYo\\\x539f\x795e]`（`\x539f`=原、`\x795e`=神）。只做 `\\` → `\` 的替换会匹配不上，必须按 4 位十六进制再解一次。
+2. **超长 `hex:` 值折行**：行尾是 `,` 后跟一个反斜杠，下一行缩进两个空格继续。不拼接就会把 54 KB 的 `SDK_LANG_FILE` 截成首行 —— 而 `reg query` 的输出解析（`RegistryFormat.ParseLine`）恰好就是这个毛病。
+3. **`reg query` 的中文输出是乱码**：同一台机器上 `wine reg query 'HKCU\Software\miHoYo\原神'` 打印成 `ԭ��`（本地代码页）；文件是 UTF-8，解码正确。
+
+**另一条（更普遍）**：`private static bool _xxxShown` **不是「一次性」**。桌面应用的进程寿命就是一次启动，进程级 static 等于「每次启动都重来」。要一次性就落到持久化（本仓库用 SQLite `Setting` 表的 `hint_<name>`，见 `Helpers/OneShotHints.TryTake`）。同类缺陷在本仓库共 3 处（自动识别、Wayland 热键、系统代理），全都表现为「每次开都弹一遍」。
+
+**验证手法（值得复用）**：纯函数（`WineRegistryFiles`）不依赖 wine/前缀/日志，可以 `cp --reflink=auto` 复制到 `/tmp` 的 console 工程里，直接对**真实数据**跑并计时，再和 `wine reg query` 对照。比在应用里点 UI 可靠得多（本次点了「HDR 亮度设置」按钮毫无反应，白等 6 秒）。
+
+**顺带**：C# 的 verbatim 字符串 `@"...\"..."` 里 `\"` **不是转义**，双引号会提前结束字符串 —— 写测试里带引号的样例时要改用普通字符串 `"a\\nb\\0c\\rd\\\"e"`。
+
+---

@@ -682,6 +682,7 @@ public sealed partial class GameLauncherPage : PageBase
         PreflightAction.RebuildPrefix => "重建前缀",
         PreflightAction.InstallGraphics => "安装图形组件",
         PreflightAction.ShowPrefixProcesses => "查看占用进程",
+        PreflightAction.OpenGameFolder => "打开游戏目录",
         _ => "",
     };
 
@@ -700,6 +701,22 @@ public sealed partial class GameLauncherPage : PageBase
                 case PreflightAction.OpenRuntimeSettings:
                     MainWindow.Current?.OpenRuntimeSettings();
                     return;
+
+                case PreflightAction.OpenGameFolder:
+                {
+                    string? folder = GameInstallPath;
+                    if (!string.IsNullOrWhiteSpace(folder) && File.Exists(folder))
+                    {
+                        folder = Path.GetDirectoryName(folder);
+                    }
+                    if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+                    {
+                        Helpers.InAppToast.MainWindow?.Warning("还没配置游戏安装目录。", null, 4000);
+                        return;
+                    }
+                    Helpers.OpenUrl.Open(folder);
+                    return;
+                }
 
                 case PreflightAction.OpenPrefixFolder:
                 {
@@ -764,17 +781,21 @@ public sealed partial class GameLauncherPage : PageBase
                 {
                     RuntimeProfile? profile = ProfileBinding.Resolve(CurrentGameBiz);
                     string? prefix = await ResolveCurrentPrefixAsync() ?? (profile is null ? null : await TryEnsureForGraphicsAsync(profile));
-                    Component? component = profile is null ? null : ComponentStore.GetGraphics().FirstOrDefault(c => c.Id == profile.GraphicsId);
-                    if (prefix is null || component is null)
+                    List<Component> components = profile is null
+                        ? new()
+                        : ComponentStore.GetGraphics()
+                            .Where(c => c.Id == profile.DxvkId || c.Id == profile.Vkd3dId)
+                            .ToList();
+                    if (prefix is null || components.Count == 0)
                     {
-                        Helpers.InAppToast.MainWindow?.Warning("请先在「运行环境」里选择一个 DXVK/VKD3D 组件。", null, 5000);
+                        Helpers.InAppToast.MainWindow?.Warning("请先在「运行环境」里选择一个 DXVK 或 VKD3D 组件。", null, 5000);
                         MainWindow.Current?.OpenRuntimeSettings();
                         return;
                     }
-                    bool ok = await Task.Run(() => GraphicsInstaller.EnsureInstalled(prefix, component, _logger));
+                    bool ok = await Task.Run(() => GraphicsInstaller.EnsureInstalled(prefix, components, _logger));
                     if (ok)
                     {
-                        Helpers.InAppToast.MainWindow?.Success($"{component.DisplayName} 已安装到前缀。", null, 4000);
+                        Helpers.InAppToast.MainWindow?.Success($"{string.Join(" · ", components.Select(x => x.DisplayName))} 已安装到前缀。", null, 4000);
                     }
                     else
                     {

@@ -20,12 +20,18 @@
     <Compile Include="../../src/Lunarward/Features/Runtime/PrefixPath.cs" Link="Linked/PrefixPath.cs" />
     <Compile Include="../../src/Lunarward/Helpers/JsonFile.cs" Link="Linked/JsonFile.cs" />
     <Compile Include="../../src/Lunarward/Features/GameAccount/RegistryFormat.cs" Link="Linked/RegistryFormat.cs" />
+    <Compile Include="../../src/Lunarward/Features/GameAccount/WineRegistryFiles.cs" Link="Linked/WineRegistryFiles.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/ComponentManifest.cs" Link="Linked/ComponentManifest.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/ComponentDownloadMath.cs" Link="Linked/ComponentDownloadMath.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/ComponentSources.cs" Link="Linked/ComponentSources.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/LaunchRecipe.cs" Link="Linked/LaunchRecipe.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/Enhancements.cs" Link="Linked/Enhancements.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/LaunchHistoryStore.cs" Link="Linked/LaunchHistoryStore.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/RuntimeProfile.cs" Link="Linked/RuntimeProfile.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/ArchiveExtractor.cs" Link="Linked/ArchiveExtractor.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/SteamLibrary.cs" Link="Linked/SteamLibrary.cs" />
+    <Compile Include="../../src/Lunarward/Features/Runtime/PeArchitecture.cs" Link="Linked/PeArchitecture.cs" />
+    <Compile Include="../../src/Lunarward/Helpers/CliSpec.cs" Link="Linked/CliSpec.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -42,6 +48,9 @@
     <!-- ArchiveExtractor 用到的解压实现（与主工程同版本） -->
     <PackageReference Include="SharpCompress" Version="1.0.0" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
+    <!-- SteamLibrary 用 ValveKeyValue 读 VDF，PeArchitecture 用 PeNet 读 PE 头（D78） -->
+    <PackageReference Include="ValveKeyValue" Version="0.80.0.542" />
+    <PackageReference Include="PeNet" Version="6.1.2" />
   </ItemGroup>
 
 </Project>

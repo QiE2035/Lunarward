@@ -390,13 +390,33 @@ internal partial class GameLauncherService
             // Lunarward：Linux 启动前预检（失败即中止，并把每条原因写进异常信息与启动报告）
             Features.Runtime.RuntimeProfile? launchProfile = null;
             PreflightResult? preflight = null;
+            System.Diagnostics.Stopwatch launchWatch = System.Diagnostics.Stopwatch.StartNew();
             if (!OperatingSystem.IsWindows())
             {
-                launchProfile = Features.Runtime.ProfileBinding.Resolve(gameId.GameBiz);
+                // §5：首次使用自动建同名环境并绑定（只有一份没人用的配方时就地改名，不制造第二份）
+                (Features.Runtime.RuntimeProfile? ensured, bool createdProfile, _) = Features.Runtime.ProfileBinding.EnsureFor(gameId.GameBiz, _logger);
+                launchProfile = ensured;
+                if (createdProfile && ensured is not null)
+                {
+                    Helpers.InAppToast.MainWindow?.Information($"已创建运行环境「{ensured.Name}」", "可在「设置 → 运行环境」里调整运行器、图形层与参数。", 6000);
+                }
                 // 预检要探测前缀/占用（会 spawn fuser、wine），创建前缀更可能要 wineboot 十几秒（L-127）
                 preflight = await Task.Run(() => LaunchPreflight.Check(gameId.GameBiz, exe, launchProfile, _logger));
                 if (!preflight.CanLaunch)
                 {
+                    // 预检失败也记一笔：这类「根本没起来」的尝试不会写启动报告，用户最想看的正是它
+                    Features.Runtime.LaunchHistoryStore.Record(new Features.Runtime.LaunchAttempt
+                    {
+                        At = DateTimeOffset.Now,
+                        ProfileId = launchProfile?.Id,
+                        ProfileName = launchProfile?.Name,
+                        GameBiz = gameId.GameBiz.Value,
+                        Outcome = Features.Runtime.LaunchOutcome.PreflightFailed,
+                        Detail = string.Join("；", preflight.Items
+                            .Where(x => x.Status == PreflightStatus.Failed)
+                            .Select(x => $"{x.Name}：{x.Detail}")),
+                        DurationMs = launchWatch.ElapsedMilliseconds,
+                    }, _logger);
                     throw new LaunchPreflightException(preflight);
                 }
             }
@@ -422,6 +442,19 @@ internal partial class GameLauncherService
             AttachSessionCleanup(process);
             if (process != null)
             {
+                if (!OperatingSystem.IsWindows())
+                {
+                    Features.Runtime.LaunchHistoryStore.Record(new Features.Runtime.LaunchAttempt
+                    {
+                        At = DateTimeOffset.Now,
+                        ProfileId = launchProfile?.Id,
+                        ProfileName = launchProfile?.Name,
+                        GameBiz = gameId.GameBiz.Value,
+                        Outcome = Features.Runtime.LaunchOutcome.Started,
+                        Detail = launchProfile?.RunnerName,
+                        DurationMs = launchWatch.ElapsedMilliseconds,
+                    }, _logger);
+                }
                 // D58：进程真的起来了才记「上次能用的组合」——之后换运行器坏了可以一键切回
                 if (!OperatingSystem.IsWindows() && launchProfile is not null)
                 {
@@ -441,6 +474,19 @@ internal partial class GameLauncherService
                     await _playTimeRecorderService.StartProcessToLogAsync(gameId, process.Id);
                     return process;
                 }
+            }
+            else if (!OperatingSystem.IsWindows())
+            {
+                Features.Runtime.LaunchHistoryStore.Record(new Features.Runtime.LaunchAttempt
+                {
+                    At = DateTimeOffset.Now,
+                    ProfileId = launchProfile?.Id,
+                    ProfileName = launchProfile?.Name,
+                    GameBiz = gameId.GameBiz.Value,
+                    Outcome = Features.Runtime.LaunchOutcome.StartFailed,
+                    Detail = "进程没有起来（Process.Start 返回 null）",
+                    DurationMs = launchWatch.ElapsedMilliseconds,
+                }, _logger);
             }
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == ERROR_CANCELLED)

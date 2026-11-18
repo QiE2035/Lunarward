@@ -143,83 +143,15 @@ public class LaunchRecipeTests
     }
 
 
-
-    [Fact]
-    public void MigrateFromLegacy_TemplateMode_ClearsPrefixAndKeepsTemplateInNotes()
+    [Theory]
+    [InlineData(null, null, false)]
+    [InlineData("dxvk-1", null, true)]
+    [InlineData(null, "vkd3d-1", true)]
+    [InlineData("dxvk-1", "vkd3d-1", true)]
+    public void HasGraphics_IsTrueWhenEitherLayerIsSelected(string? dxvkId, string? vkd3dId, bool expected)
     {
-        var profile = new RuntimeProfile
-        {
-            Name = "老的模板方案",
-            LegacyPrefixMode = "template",
-            PrefixPath = "/home/u/.local/share/lunarward/prefix-templates/tpl1",
-            SchemaVersion = 1,
-        };
+        var profile = new RuntimeProfile { Name = "p", DxvkId = dxvkId, Vkd3dId = vkd3dId };
 
-        Assert.True(profile.MigrateFromLegacy());
-
-        Assert.Null(profile.PrefixPath);
-        Assert.Null(profile.LegacyPrefixMode);
-        Assert.Contains("prefix-templates/tpl1", profile.Notes);
-        Assert.Equal(2, profile.SchemaVersion);
-    }
-
-
-    [Fact]
-    public void MigrateFromLegacy_ExternalMode_KeepsPath()
-    {
-        var profile = new RuntimeProfile
-        {
-            Name = "外部前缀",
-            LegacyPrefixMode = "external",
-            PrefixPath = "/mnt/games/prefix",
-            SchemaVersion = 1,
-        };
-
-        profile.MigrateFromLegacy();
-
-        Assert.Equal("/mnt/games/prefix", profile.PrefixPath);
-        Assert.Null(profile.LegacyPrefixMode);
-    }
-
-
-    [Fact]
-    public void MigrateFromLegacy_MovesEnvironmentDictionary_AndDropsEmptyOne()
-    {
-        var profile = new RuntimeProfile
-        {
-            Name = "旧环境变量",
-            LegacyEnvironment = new Dictionary<string, string> { ["DXVK_HUD"] = "fps", ["WINEDLLOVERRIDES"] = "d3d11=n" },
-        };
-
-        Assert.True(profile.MigrateFromLegacy());
-
-        Assert.Equal("fps", profile.Env["DXVK_HUD"]);
-        Assert.Equal("d3d11=n", profile.Env["WINEDLLOVERRIDES"]);
-        Assert.Null(profile.LegacyEnvironment);
-
-        var empty = new RuntimeProfile { Name = "空字典", LegacyEnvironment = new Dictionary<string, string>() };
-        Assert.True(empty.MigrateFromLegacy());
-        Assert.Null(empty.LegacyEnvironment);
-    }
-
-
-    [Fact]
-    public void MigrateFromLegacy_EnsureGraphicsFalse_ClearsGraphicsId()
-    {
-        var profile = new RuntimeProfile { Name = "关了自动装", LegacyEnsureGraphics = false, GraphicsId = "dxvk-3.1.1" };
-
-        Assert.True(profile.MigrateFromLegacy());
-
-        Assert.Null(profile.GraphicsId);
-        Assert.Null(profile.LegacyEnsureGraphics);
-    }
-
-
-    [Fact]
-    public void MigrateFromLegacy_SecondRun_ReportsNoChange()
-    {
-        var profile = new RuntimeProfile { Name = "已经新格式", SchemaVersion = 2 };
-
-        Assert.False(profile.MigrateFromLegacy());
+        Assert.Equal(expected, profile.HasGraphics);
     }
 }

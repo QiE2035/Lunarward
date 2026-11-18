@@ -106,6 +106,12 @@
 | 顺手：`xdotool` → 进程内 xcb | ✅ 2026-11-14 | 新增 `X11Window.Activate`（EWMH `_NET_ACTIVE_WINDOW`），`X11KeyState.ActivateWindow` 先走它，`xdotool` 仅兜底 |
 | 顺手：`ProcessQuery` 改扫 `/proc` | ✅ 2026-11-14 | 不再 fork `fuser` / `lsof`：读 `/proc/*/fd` 的符号链接按路径前缀匹配（跳过无权限进程，可取消） |
 
+| P5 ValveKeyValue（Steam 自定义库） | ✅ 2026-11-15（D78） | 新增 `Features/Runtime/SteamLibrary`：解析 `steamapps/libraryfolders.vdf`（新旧两种格式）+ 每个库的 `steamapps/compatibilitytools.d` 与 `steamapps/common`；`ComponentStore.SteamCompatRoots()` 从硬编码 4 条路径改成走它。**这是真功能缺口**：Steam 装在自定义库时一个 Proton 都扫不到 |
+| P5 PeNet（预检架构项） | ✅ 2026-11-15（D78） | 新增 `Features/Runtime/PeArchitecture`：PE machine → `X86/X64/Arm64`，预检第 10 项「游戏架构」比对前缀架构（x64+win32 → Failed；x86+win64 → WoW64 Warning；ARM64 → Failed） |
+| P5 SharpHook（换 X11 热键轮询） | ❌ 2026-11-15（D78） | spike 实测否决：KDE Wayland 下 `TaskPoolGlobalHook` enabled 但 12 s 内 0 事件，XTEST 与强制 X11 后端都收不到；对照 `XQueryKeymap` 能看到。**保留 `X11KeyState`**；Wayland 正解是 `org.freedesktop.portal.GlobalShortcuts`（本机已暴露，列为后续项） |
+| P5 Tmds.DBus → Tmds.DBus.Protocol | ❌ 2026-11-15（D78） | 921 行、4 个 `[DBusInterface]`（含 FD 与请求句柄），Protocol 是源生成器模型（无 `CreateProxy`），托盘/通知/portal 三条链路无自动化覆盖 → 收益（性能/AOT）小于回归风险。**前置条件**：先有这三条的集成断言 |
+| P5 System.CommandLine（重构 CLI） | ⚠️ 改成自研声明表 2026-11-15（D79） | 换库目的（帮助不漂移 + 校验 + 拼错提示）用 `Helpers/CliSpec.cs` 一张表达成；System.CommandLine 3.0 的扁平 help 会丢掉现有分组可读性，重写 1903 行分发风险不成正比。包已移除；表就是「声明层」，将来可机械转换 |
+
 ### 执行说明：为什么 portal 优先，但截图不优先
 
 - **打开链接 / 选文件：portal 优先**。理由：沙盒（flatpak、纯 Wayland）里 fork 出去的 `xdg-open` 看不到宿主文件系统，`kdialog` 也不一定有；portal 是这些场景唯一的正规通道，而原生安装下 portal 也几乎必然存在（KDE/GNOME 都自带 `xdg-desktop-portal`）。

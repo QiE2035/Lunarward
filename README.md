@@ -58,7 +58,7 @@ NuGet 源见 `src/Lunarward/NuGet.config`。运行还需要 `wine`/Proton 或自
 | 后启动程序 + 伴随启动（三种触发时机）+ 手动启动 | ✅ |
 | 调试 Shell（Profile 一键开终端，带同一套环境） | ✅ |
 | 输出捕获（游戏与后启动程序 stdout/stderr，落盘 + 面板 + 脱敏） | ✅ |
-| 游戏设置（分辨率 / 语音 / 图形，经 wine 注册表） | ✅ |
+| 游戏设置（分辨率 / 语音 / 图形；直接解析前缀里的 `user.reg`，不启动 wine） | ✅ |
 | 抽卡记录（米游社 / HoYoLAB 登录、UIGF 导入导出） | ✅ 需真实登录验证 |
 | 截图：Alt+D 捕获、图库、多选批量转 JPG、查看器 | ✅ 游戏内悬浮待做 |
 | 背景壁纸：静态图 + 视频（libvlc 可选） | ✅ |
@@ -116,7 +116,7 @@ dotnet publish Lunarward.csproj -c Release -r linux-x64 --self-contained false -
 先看 [`docs/user/faq.md`](./docs/user/faq.md)。常用自查命令：
 
 ```bash
-lunarward --preflight hk4e_cn ~/games/hk4e_cn/YuanShen.exe   # 六项检查
+lunarward --preflight hk4e_cn ~/games/hk4e_cn/YuanShen.exe   # 十项检查
 lunarward --launch-plan ~/games/hk4e_cn/YuanShen.exe         # 只解析不启动
 lunarward --companion-plan hk4e_cn                           # 后启动程序命令行
 lunarward --output-tail 200                                  # 最近输出

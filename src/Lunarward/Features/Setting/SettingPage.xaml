@@ -86,13 +86,8 @@
                         <FontIcon Glyph="&#xE7FC;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <!--  运行环境（Lunarward 新增：Profile 列表，D28）  -->
-                <NavigationViewItem Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Title}" Tag="RuntimeEnvironmentSetting">
-                    <NavigationViewItem.Icon>
-                        <!-- LUNARWARD-DEVIATION: E950（芯片）在 12px 下看起来像空心方框，换 E7F8（笔记本）更好辨认 -->
-                        <FontIcon Glyph="&#xE7F8;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
+                <!--  运行环境已提升为一级页（D80），入口在 MainView 的 footer、齿轮正上方。
+                      这里保留 SettingPage 里的 Tag 映射只为兼容旧的 subpage 参数，不再有可见条目。  -->
                 <!--  高级  -->
                 <NavigationViewItem Content="{x:Bind lang:Lang.SettingPage_Advanced}" Tag="AdvancedSetting">
                     <NavigationViewItem.Icon>

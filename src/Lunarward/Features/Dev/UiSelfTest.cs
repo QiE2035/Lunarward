@@ -82,6 +82,17 @@ internal static class UiSelfTest
                 return (ok, page?.Name ?? "(null)");
             }),
 
+            new("运行环境是一级页（footer 入口可打开）", async () =>
+            {
+                // D80：它不再挂在设置页里。这条断言同时卡住「footer 条目被 Uno 吃掉」与「被 SupportedPages 白名单换回启动器」两种回归
+                window.OpenRuntimeSettings();
+                await Task.Delay(400);
+                MainView? view = window.RootView;
+                Type? page = view?.CurrentPageType;
+                bool ok = page == typeof(RuntimeEnvironmentSetting) && view?.CurrentPageContent is not null;
+                return (ok, page?.Name ?? "(null)");
+            }),
+
             new("关键画刷资源存在", () =>
             {
                 var resources = Application.Current.Resources;

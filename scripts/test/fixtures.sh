@@ -5,7 +5,7 @@ set -euo pipefail
 
 : "${ROOT:?ROOT 未设置}"
 
-mkdir -p "$ROOT"/{bin,fake-wine/bin,prefix/drive_c,prefix/.lunarward,game,fake-dxvk/x64,fake-dxvk/x86,cfg/lunarward/profiles,data,cache,state,home,logs,games,out}
+mkdir -p "$ROOT"/{bin,fake-wine/bin,prefix/drive_c,prefix/.lunarward,game,fake-dxvk/x64,fake-dxvk/x86,cfg/lunarward/env,data,cache,state,home,logs,games,out}
 
 # ── 假运行器：wine 记录每次调用，--version 返回固定串 ───────────────────────────
 cat > "$ROOT/fake-wine/bin/wine" <<'EOS'
@@ -100,19 +100,24 @@ make_fake zenity 'exit 0'
 make_fake fuser 'exit 1'
 make_fake lsof 'exit 1'
 
-# ── 假配置：一个 external 方案 + 游戏安装路径 ────────────────────────────────
-cat > "$ROOT/cfg/lunarward/profiles/fakeprfl.json" <<EOS
+# ── 假配置：一个方案 + 游戏安装路径 ─────────────────────────────────────────
+# 注意：方案目录是 env/（schema 4 起不再读 legacy profiles/，也不做迁移，D83）
+cat > "$ROOT/cfg/lunarward/env/fakeprfl.json" <<EOS
 {
+  "SchemaVersion": 4,
   "Id": "fakeprfl",
   "Name": "测试方案",
-  "RunnerType": "wine",
+  "RunnerId": null,
   "RunnerPath": "$ROOT/fake-wine/bin/wine",
-  "PrefixMode": "external",
+  "DxvkId": null,
+  "Vkd3dId": null,
   "PrefixPath": "$ROOT/prefix",
-  "Environment": {},
+  "env": {},
+  "Args": "",
+  "Wrappers": [],
+  "PrefixArch": "win64",
   "Shell": "",
-  "GameOutput": "silent",
-  "GraphicsId": null
+  "GameOutput": "silent"
 }
 EOS
 

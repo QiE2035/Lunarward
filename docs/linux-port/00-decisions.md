@@ -1,7 +1,7 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D28）
-- **最后更新**：2026-11-01
+- **状态**：生效中（D0–D86）
+- **最后更新**：2026-11-18
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **确认方式**：
   - `明确` = 用户在对话中直接选定（附消息引用）
@@ -967,6 +967,205 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - **cookie 怎么拿**：`CookieManager.SetPersistentStorage(<output>.db, Sqlite)` + 每 2 秒读 `moz_cookies`（`name`/`value`）。之所以不调 `GetCookies`：GirCore 0.8.1 只生成了 `*Finish`，没有 `GetCookiesAsync` 这类异步入。命中标记（同 python 的 `LOGIN_MARKERS`）即导出并关窗；关窗也导出；兜底超时导出。
 - **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 包 `packaging/PKGBUILD` 已把 `webkitgtk-6.0` 并入 `depends`（pkgrel 2），原 `webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
 - **验证**（实测，2026-11-14）：本地起 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，`--webkit-login` 开窗后 2 秒内即输出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0；`moz_cookies` 里两条与页面一致。**待验收**：真实米游社登录（需用户操作）。
+
+## D86 卡顿与「每次重启都重来」的根因修复：注册表改读文件、一次性提示持久化
+
+**背景**：用户 m02315 反馈「整个启动器用起来很怪，很多细节没有 Windows 原版丝滑」，并点名「每次打开启动器都会弹一次自动搜索结果，Windows 只会首次启动弹」。取证得到四类问题：
+
+- **A 卡**：上游 `src/Starward/` 的同步 API（`SetGenshinEnableHDR`、改画质、截图、HDR 对话框）被我们在 Linux 侧用 `GetAwaiter().GetResult()` 包住「fork wine 查注册表」的异步实现 —— `Starward_261117.log` 有 5 次 `wine reg query "HKCU\Software\miHoYo\原神" 耗时 5411/4144/4129/4109/4128 ms`，UI 线程整窗冻住（违反自家 L-127）。
+- **B 一次性语义错**：三处提示用 `private static bool` 控制，进程一重启就复位 —— 自动识别（`_scanTipShown`）、Wayland 热键（`_hotkeyHintShown`）、系统代理（连标记都没有）。
+- **C 数据一致性**：绑定指向已删方案时每次启动刷一条 `Log.Warning`。
+- **D 日志**：`App.xaml.cs` 留着 `[dbg] scan start/done` 插桩，且「识别到 N 个已安装游戏」的 N 取 `ScanAndApply()` 返回值 —— 缓存命中时恒为 0，日志永远显示「识别到 0 个」。
+
+**决定**（用户 m02475「先按你的建议改一版吧」）：
+
+1. **读注册表改读文件**：新增 `Features/GameAccount/WineRegistryFiles.cs`，直接解析 `<prefix>/user.reg`（HKCU/HKU）与 `system.reg`（HKLM/HKCR）。命中就返回，不 fork；**给不出结论**（文件不存在 / 文件里没有这个键 / 根键不支持 / IO 失败）返回 `null`，`WineRegistry.GetKeyValuesAsync` 再回落 `wine reg query`。文件里「没有这个键」也回落是有意的：wine 可能还没把内存改动落盘，这时 fork 一次才准。
+2. **一次性提示持久化**：新增 `Helpers/OneShotHints.cs`，`TryTake(name)` 读写 SQLite `Setting` 表的 `hint_<name>`；三处提示改为 `auto-scan` / `hotkey-wayland` / `system-proxy`。数据库不可用时退化成「每进程一次」。
+3. **失效绑定只警告一次**（`profile-binding-dangling`）；回落行为本身不变，修复入口仍在「运行环境 → 方案」页的提示卡。
+4. **日志**：删 `[dbg] scan start/done`，「识别到 N 个」改用 `GameInstallScanner.KnownGames.Count`。
+
+**实测数字**（`/tmp` 探针直接用生产源码对真实 `~/.wine/user.reg` 跑，`reg query` 对照在同一台机器）：
+
+| 路径 | `HKCU\Software\miHoYo\原神` 耗时 |
+| --- | --- |
+| 文件解析（首次，52 个值） | **91–115 ms** |
+| `wine reg query`（wineserver 已热） | **1843 ms** |
+| `wine reg query`（冷，261117 日志） | **4128–5411 ms** |
+
+**顺带修好的两处**（都是文件版更正确）：
+
+- `reg query` 输出里的长 `REG_BINARY` 被 `RegistryFormat.ParseLine` 只取首行（截断）；文件版按折行拼全 —— 实测 `SDK_LANG_FILE_zh-cn_0_h2597224953` 的 54,179 字节完整解出。
+- `reg query` 输出中文键名是本地代码页、会乱码（实测打印成 `ԭ��`）；文件是 UTF-8 + `\x539f` 转义，解码正确。
+
+**代价/风险**：①文件可能滞后于 wine 内存（wineserver 未落盘），所以「文件里没有这个键」一律回落 fork，宁可慢一次也不给错结论；②缓存 TTL 仍 5 分钟，与改造前一致，陈旧窗口没有变大；③首次调用 ~95 ms 仍发生在 UI 线程上（同步壳无法异步化），但已从「冻 4 秒」降到「几乎不可感知」。
+
+**验证**：单测 **252 / 0**（新增 `WineRegistryFilesTests` 11 例：`\xHHHH` 解码、折行拼接、四种值类型、hive 分流、缺键/缺文件的回落信号）；探针实测见上表；真实配置连续 4 次启动，日志均为 `[scan] 识别到 3 个已安装游戏`、无 `[dbg]`、**无任何 `WineRegistry` 慢调用警告**、`Setting` 表 `hint_auto-scan = True` 只写一次（第二、三、四次启动不再弹）。
+
+---
+
+## D85 运行环境界面重排：方案为主体的 master-detail，增强并入方案详情
+
+**背景**：D80–D84 把功能补齐后，页面仍然是「五个页签 + 一堆平铺卡片」：方案卡是一段 8–10 行的日志（状态、绑定、图形、前缀、上次启动、六个同权重的按钮），统计卡是死数字点不动，「增强」作为一个页签却要求先在下拉里挑方案，编辑器整页覆盖导致返回后选中态丢失。
+
+**决定**（用户 m02022「按你推荐来，直接全做完」）：
+
+1. **方案页做 master-detail**：左列 280px 方案列表（健康点 + 名字 + 「可用 · 被 N 个游戏绑定」），右侧详情分五段卡片：运行器 / 图形层（DXVK、VKD3D 各一行 + 与前缀实际比对 + 「同步到前缀」）/ 前缀（路径、占用、锁定、默认目录说明）/ 增强（一行摘要 + 「配置」）/ 最近启动（3 条）。删除、克隆、配置文本、调试 Shell 收进 `⋯` 菜单，头号动作只留「运行一次」。
+2. **取消「增强」页签**：它是方案级启动选项，改为从方案详情的「配置」进入，且不再需要先选方案（D82 的下拉因此删除）。页签收敛为四个：方案 / 运行器 / 组件 / 前缀。
+3. **顶部 chip 条**：`N 个方案 · 已绑定 N 个游戏 · 运行器 a/b 可用 · 图形组件 N · 前缀 N · 占用`，每个 chip 点击跳到对应页签，替掉原来四张死统计卡。
+4. **编辑器就地三态**：右栏在「详情 / 编辑器 / 增强」之间切换（`Visibility` 互斥），左列与 chip 条常驻；返回即回详情并保持选中。
+5. **组件页收敛**：主按钮「下载组件」，其余（导入归档、导入图形、组件源、镜像测速、下载暂存、清理未使用）收进「更多」菜单；加类别筛选（全部 / DXVK / VKD3D-Proton）。
+6. **运行器页**：按来源分组（外部运行器 / 系统 / Steam / 其它启动器），保留「添加路径…」，新增「设为新方案默认」（写 `runtime-defaults.json`，`RuntimeProfileStore.CreateDefault` 读它）。
+7. **前缀页可见性**：占用条（相对最大值）、所属方案名单、无主前缀标「未使用」；「N 个方案在用」改用 `EnvironmentResolver.EffectivePrefixPath` 比较（空 `PrefixPath` 的方案此前永远算不到）。
+8. **组件身份匹配**：编辑器按 `Id` / `Path` / 目录前缀 / 末两段四路比对组件（运行器的 `Id` 常是安装目录、`Path` 是 `bin/wine`，只比路径会静默落回第一项，把用户的选择改掉）。
+
+**代价**：`RuntimeEnvironmentSetting` 拆成 4 个 partial（主文件 + `.Profiles.cs` + `.Components.cs` + `.Enhancements.cs`）；`ListView` 仍不用（Uno 在星号行 + ScrollViewer 里会抽风），左列是 `StackPanel` + `Button` 手写选中态；页签继续自绘（L-153）。
+
+**验证**：`dotnet build` Debug/Release 0 错误；单测 241 / 0；`--selftest-ui` 11 / 0；`cli-smoke` 40/0/1、`cli-extra` 32/0；`--page runtimeenv` 在临时配置目录下逐页截图：方案页（chip 条、失效绑定卡、左列两行、右栏五段）、编辑器就地打开（DXVK 落到选中项）、增强就地打开（HUD/MangoHUD/gamemode/gamescope/预设/HDR/VRR）、组件页（主按钮 + 更多 + 筛选）、前缀页（占用条 + 所属方案）、运行器页（分组 + 设为默认）。
+
+---
+
+## D84 运行环境可用性打磨：一致性提示、清理未使用、共用提示、启动历史、预设与键盘可达
+
+- **确认方式**：明确（用户 m01742「直接把所有优化都做完吧」，指上一轮交付的 A–I 建议表）
+- **背景**：D80–D83 把页面结构、增强开关与图形层关系修好了，但「选了组件、前缀里其实是另一版」这类不一致仍然只能靠人肉比对；组件页留着一堆没人用的受管组件；多个游戏共用一份方案时用户不知道自己会被抢锁；「这次为什么没起来」只存在于日志里，界面上看不到。
+- **决定**（九项，A–I）：
+  1. **A 一致性同步**：方案卡片调 `DescribeGraphicsSync` 比对「方案里选的图形组件」与「前缀里 `.lunarward/graphics.json` 记录的组件」，不一致时给一行说明 + 「同步到前缀」按钮（`EnsureInstalled` 重装，不改方案）。
+  2. **B 清理未使用**：组件页工具条加「清理未使用」，只处理 `ComponentStore.ManagedRootOf != null`（本程序管理目录下）且没有任何方案通过 `RunnerId/DxvkId/Vkd3dId/RunnerPath` 引用的组件；外部目录（系统 / Steam / 用户自己的）一律不列不删。
+  3. **C 共用提示**：`ProfileBinding.Usages(profile.Id).Count > 1` 时在卡片上写「被 N 个游戏共用同一个前缀，同时启动会抢锁失败」，并给「为某个游戏克隆一份」（`CopyProfile(clearPrefix: true)` + 重新 `Set` 绑定）。
+  4. **D 常用变量**：编辑器「高级」里的环境变量框上方加「插入常用变量」下拉（8 条 `DXVK_HUD` / `MANGOHUD` / `WINEDLLOVERRIDES` / `PROTON_ENABLE_NVAPI` / `mesa_glthread` / `WINEESYNC` / `WINEFSYNC` / `DXVK_STATE_CACHE`），按 `KEY=` 查重后追加。
+  5. **E 启动历史**：新增 `Features/Runtime/LaunchHistoryStore`（`$XDG_DATA_HOME/lunarward/logs/launch-history.jsonl`，一次启动一行，超 400 行压到 200 行），`GameLauncherService` 在「预检拦下 / 已启动 / 进程没起来」三处各记一条（含耗时与失败明细）；卡片显示最近 3 条，没有历史时回落 `LastKnownGoodStore` 的「上次启动成功」。
+  6. **F 键盘可达**：`TabStrip.KeyDown` 支持 `Left/Right/Home/End` 切页签并移动焦点（L-153 把 `Pivot` 换成自绘页签后丢了键盘导航，这里补回来）。
+  7. **G 状态灯**：沿用 D73 §7.1 的红黄绿灯（本项已实现，仅确认文案含原因）。
+  8. **H 删方案可选删前缀**：删除对话框加「同时删除前缀目录（路径）」勾选，**默认不勾**、前缀不存在时禁用；勾选后先 `Directory.Delete(prefixPath, recursive: true)` 再删方案文件。
+  9. **I 预设**：增强页加「HUD 预设」「分辨率预设」两个下拉与 `HDR（--hdr-enabled）`、`VRR（--adaptive-sync）` 两个开关；`Enhancements.ToggleArg(args, flag, on)` 负责增删参数 token（保序、空串回落 `-f`）。
+- **代价**：
+  - 启动历史是**追加写**的旁路记录，与 `logs/launch/*.json` 启动报告并存（报告只在真起来时写，历史三条路径都写）；不记录退出码与真实游玩时长（拿不到，只能记「进界到进程起来」的耗时）。
+  - 「清理未使用」只认本程序管理目录，用户放在别处的组件不会被清理（这是刻意的：那些目录不归我们管）。
+  - 一致性同步会真实改写前缀里的 dll，因此只在用户点按钮时做，不自动。
+- **验证**：`dotnet build` Debug/Release 0 错误；单测 **241 通过 / 0 失败**（新增 `LaunchHistoryStoreTests` 8 项、`EnhancementsTests` 6 项）；`--selftest-ui` 11/0；`cli-smoke` 40/0/1、`cli-extra` 32/0；真机截图逐项确认 A（前缀和方案对不上 + 同步到前缀）、B（清理未使用列出唯一无人引用的受管 DXVK）、C（共用提示 + 克隆按钮）、E（最近启动两行）、H（前缀勾选默认不勾）、I（HUD 预设 / 分辨率预设 / HDR / VRR）、F（点概览后连按两次 `Right` 切到组件页）、D（插入 `MANGOHUD=1`）。
+- **受影响文档**：`12`（运行环境行、变更历史）、`13`（L-158）、`19`（L1 计数）、`23`（§13.11）、`README`、`CHANGELOG`。
+
+## D83 图形层拆成两个字段：DXVK 与 VKD3D-Proton 各自独立（schema 4）
+
+**背景**：用户 m01503 指出「dxvk 和 vkd3d 应该是可以同时安装的关系，用下拉框单选不合理」。核对机制：DXVK 负责 d3d9/10/11 → Vulkan（落 `system32/d3d11.dll`、`d3d10core.dll`、`dxgi.dll`、`d3d9.dll`），VKD3D-Proton 负责 d3d12 → Vulkan（落 `d3d12.dll`、`d3d12core.dll`）；两组文件名互不重叠，**同一个前缀可以同时装、也应该同时装**（玩原神要 d3d11、玩绝区零要 d3d12）。此前模型只有单个 `GraphicsId`，UI 只能单选，另一个只能手改 JSON。
+
+**决定**：
+
+1. **模型拆字段**：`RuntimeProfile.GraphicsId` 删除，改为 `DxvkId` + `Vkd3dId`（各可空），`SchemaVersion` 2/3 → **4**；派生 `[JsonIgnore] bool HasGraphics`。旧 JSON 里的 `GraphicsId` 会被 `System.Text.Json` 忽略，方案需要重新选一次图形层——**开发阶段不做迁移（用户 m01589 定调）**。
+2. **移除全部旧迁移代码**：`RuntimeProfile.LegacyPrefixMode/LegacyEnsureGraphics/LegacyRunnerType/LegacyEnvironment` + `MigrateFromLegacy()`、`RuntimeProfileStore.MigrateFromLegacyFolder()` 与其调用、`LegacyProfilesFolder`；`MigrateLegacy()` 降级为 `Normalize()`（只做前缀展开 + 运行器解析）。同时删掉 `LaunchRecipeTests` 里 5 个 `MigrateFromLegacy_*` 用例。理由：迁移代码保护的是「已发布用户的旧数据」，本项目还没发布，留着只会让每次改字段都要维护两条路径。
+3. **前缀记录改成数组**：`<prefix>/.lunarward/graphics.json` 从「一个对象」变成「按 kind 各一条的数组」；`GraphicsInstaller` 提供 `GetAllInstalled`、`GetInstalled(prefix, kind)`、`EnsureInstalled(prefix, IEnumerable<Component>)`、`Verify()`（逐类核对，`GraphicsStatus.Items` + `IsHealthy(kind)` + `RecordOf(kind)`）、`Remove(prefix, kind?)`。换某一类版本时只删「这一类」旧记录里没被重写的文件，另一类不受影响；旧单对象格式读的时候当一条处理（4 行宽容解析，避免 dll 留在前缀里没人认领）。
+4. **全链路跟随**：启动（`GameLauncherService` 把两个 id 一起装）、预检第 5 项（两类各查一遍，找不到分别报）、启动报告（`DxvkId`/`Vkd3dId` 两个字段）、编辑器（两个独立下拉，标签 `DXVK` / `VKD3D-Proton`）、`ProfileBinding.EnsureFor` 与「克隆」、组件删除的引用检查（两个 id 都算引用）、前缀行安装按钮（按前缀所属方案把两类一起装）。
+
+**代价**：①旧方案打开后图形层是空的，要重新选（开发阶段可接受）；②`graphics.json` 格式不兼容，旧前缀里的单条记录只在读取时兼容，写入即变数组；③`GraphicsCombo` 仍按「一个下拉一类」渲染，没有做成「双选列表」的样子（两类各一行更贴近它们的真实关系：互不替代）。
+
+**验证**（实测）：`dotnet build` Debug/Release 均 0 错误；编辑器截图确认「图形层 / DXVK（不选）/ VKD3D-Proton（不选）」两行并列；`--preflight hk4e_cn` 输出 `[Warning] 图形组件 未选择 DXVK/VKD3D…`；`--selftest-ui` 11/0；单测 **223 通过 / 0 失败**（224 − 删掉的 5 个旧迁移用例 + 4 个 `HasGraphics` 用例）；`cli-smoke` 40/0/1 跳过、`cli-extra` 32/0、两个 lint 全 PASS。
+
+**顺带修的两处**：①L2 夹具原来靠 `profiles/` → `env/` 的目录迁移生效（`scripts/test/fixtures.sh` 写的是 `cfg/lunarward/profiles/`），迁移删掉后 4 个用例红，夹具改成直接写 `env/fakeprfl.json`（`SchemaVersion 4`、无 legacy 键）；②`--graphics-remove`（`kind == null` 全删路径）边遍历 `records` 边 `Remove` 抛 `Collection was modified` → 退出码 134，修成先拷贝再过滤（L-157）。
+
+---
+
+## D82 运行环境收口三件：页签自绘、图形层选择器合并、gamescope 参数体检
+
+**背景**：D80 把运行环境做成一级页后，页面里用 `Pivot` 分页。实测（2026-11-16，本机 KDE Wayland + Uno Skia 6.7.45）**页签头收不到鼠标点击**：在「概览/运行器/组件/前缀/增强」头部单击、双击、130 ms 长按都不切换；同一位置的普通 `Button`（「配置文本」）却正常弹窗，方向键也能切页——说明不是注入问题，是 `PivotHeaderItem` 的命中区在 Skia 后端不工作。同时 D81 的编辑器只列 DXVK，VKD3D-Proton 选不到；gamescope 参数是自由文本，写错的代价是启动直接失败且没有提示。
+
+**决定**：
+
+1. **页签不用 `Pivot`**：`RuntimeEnvironmentSetting.xaml` 改成 `StackPanel`（5 个 `Button`，`Tag` 存序号）+ 5 个 `ScrollViewer` 用 `Visibility` 互斥；选中的按钮换成 `TabButtonSelectedStyle`（`ControlFillColorSecondaryBrush` + SemiBold），未选中 `TabButtonStyle`（透明 + 次要前景）。样式切换代替在代码里塞画刷，`ShowTab(int)` 一处收口。
+2. **图形层选择器合并**：`GraphicsCombo` 参数从 `ComponentKind kind` 改成 `ComponentKind[] kinds`（当时编辑器传 `[Dxvk, Vkd3dProton]` 合在一个下拉里）。**此条已被 D83 取代**：两类拆成两个独立下拉（可以同时装，不是二选一）。
+3. **gamescope 参数体检**（`Enhancements.ValidateGameScopeArgs`，纯函数）：shell 引号/重定向、`--` 之后会被交给游戏、`-W/-H` 与 `-w/-h` 必须成对。提示只出现在「增强」页状态行，**不阻断保存**（D46：先让人知道，别替人做决定）。
+4. `UpdateContentWidth()` 的可见页判定从 4 个 `ScrollViewer` 扩到 5 个（新增「增强」页）。
+
+**代价**：①页签是自己画的，键盘左右切换没有了（鼠标可用性优先；要补就得自己接 `KeyDown`）；②`Visibility` 互斥意味着 5 个 `ScrollViewer` 都存在内存里（每个页的条目数量级是十几到几十，可接受）；③参数体检只覆盖已知道的四类误解，未知参数仍原样传给 gamescope。
+
+**验证**（实测）：`dotnet build Starward.slnx -c Debug` 0 错误；点击「增强」页签整页切换、选中态跟着移动（截图）；`游戏架构 64 位（x64）（前缀 win64）` 与增强开关在预检里各占一项；`EnhancementsTests` 24 组（含 4 组 `ValidateGameScopeArgs`）全绿，单测总数 224。
+
+---
+
+## D81 增强开关：HUD / gamemode / gamescope 成为方案字段（schema 3）
+
+**背景**：这三样此前只能写进「包装命令」或环境变量的自由文本里（占位提示还写着 `mangohud --dlsym`）。对标 `an-anime-team`（`anime-launcher-sdk/src/config/schema_blanks/hud.rs`）的做法：HUD 是**枚举**而不是自由环境变量，且 gamescope 开着时不注入 MANGOHUD——两层监控叠在一起会出现重复帧数。
+
+**决定**：
+
+1. `RuntimeProfile.SchemaVersion` 2 → **3**，新增 `Hud`（`off|dxvk|mangohud`）、`HudOptions`、`GameMode`、`GameScope`、`GameScopeArgs` 五个字段；旧文件不迁移也能读（缺字段走默认值）。
+2. 新增 `Features/Runtime/Enhancements`（纯函数）：`EnvironmentVariables()` 把 HUD 展开成 `DXVK_HUD`（默认 `fps,frametimes,gpuload`）或 `MANGOHUD=1` + `MANGOHUD_CONFIG`，**`GameScope` 开时跳过 MANGOHUD**；`Wrappers()` 顺序固定 `gamescope <args>` → `gamemoderun` → 用户自己的 Wrappers；`RequiredBinaries()` / `FindInPath()` / `Describe()` 供预检与状态行用。
+3. `LaunchRecipeBuilder.Build` 里注入顺序：自动环境变量 → 增强展开 → 配方 `Env`，最后一步仍走 `MergeEnvironment`，所以配方里手写 `DXVK_HUD` 会覆盖增强并记进 `Overrides`（可观测）。
+4. 预检新增第 11 项「增强开关」：开了但 PATH 里找不到 `gamescope`/`gamemoderun`/`mangohud` → Warning（gamescope 下不要求 mangohud），可一键跳到「运行环境 → 增强」。
+5. 页面新增「增强」页签：选方案 → HUD 下拉 + 参数 + gamemode/gamescope 开关 + 参数 + 程序检查 + 最终命令行预览（`JoinCommandLine`），保存写回同一份 `env/<id>.json`。
+
+**代价**：①schema 升版，旧的「包装命令」写法仍然有效（不会被自动改写，避免猜用户意图）；②`MANGOHUD_CONFIG` 与用户自己的 MangoHud 配置文件可能冲突（留空即用用户配置）；③gamescope 参数不做语义校验（只做 D82 的四类体检）。
+
+**验证**（实测）：`EnhancementsTests` 20 组（HUD 展开、gamescope 避让、包装顺序、PATH 检查、`Build` 产出 `["gamemoderun","/usr/bin/wine",…]` + `DXVK_HUD`、配方覆盖进 `Overrides`）；`--launch-plan` 与真启动共用 `Build`，无需二次接线。
+
+---
+
+## D80 运行环境提为一级页：NavigationView footer、齿轮正上方
+
+**背景**：运行环境原来挂在「启动器设置」里（`SettingPage` 的一个子导航项）。它跨游戏生效（一个方案可以被多个游戏绑定），放在某个游戏的设置域里既难找也容易误解；而且设置页的 `NavigationView` 本身带子导航，嵌套两层观感很碎。
+
+**决定**：
+
+1. `MainView.xaml` 增加 `<NavigationView.FooterMenuItems>`，只放一项「运行环境」（`Tag="RuntimeEnvironmentSetting"`，图标 `E7F8` 笔记本，`ToolTip` 绑 `Lang.Lunarward_RuntimeEnv_Title`）。footer 由控件画在齿轮正上方，与顶部「当前游戏域的六个页面」自然分开——顶部随游戏切换变，footer 不随游戏变。
+2. `MainView.NavigateToRuntimeEnvironment()` 一处收口；`MainWindow.OpenRuntimeSettings()`（预检失败时的「去设置」）改走它，不再用 `SettingNavigation.SetTarget`；`--page runtimeenv` 深链也映射到同一页。
+3. `MainView.NavigateTo` 的页面白名单（原本只放行 `SettingPage`）扩到这两个页；`--subpage RuntimeEnvironmentSetting` 的旧入口保留（`SettingPage.xaml.cs` 的 Tag 映射），只是界面上不再有那个子导航项。
+4. `UiSelfTest` 增加第 11 条断言：从 footer 入口打开后 `CurrentPageType == RuntimeEnvironmentSetting` 且内容非空。
+5. 页面内部结构：标题行（新建/刷新/打开配置文件夹）+ 五个页签（概览/运行器/组件/前缀/增强）+ 整页编辑器覆盖层；概览顶部四张统计卡（方案数 / 运行器可用数 / 前缀数与合计体积 / 图形层数），下面「方案 ↔ 哪些游戏在用」；**失效绑定提示卡**（`ProfileBinding.Dangling`）：绑定指向已删方案时给出「全部改绑到 X」与「清除这些绑定」两个动作——本机实测就有一例（`hk4e_cn`/`nap_cn` 指向已删除的 `c2d564e1`，一直在静默回落）。
+
+**代价**：①左栏 footer 多一个图标（`LeftCompact` 下只有图标 + ToolTip）；②页面从 149 行涨到约 380 行 XAML，`RuntimeEnvironmentSetting.xaml.cs` 拆出 `.Enhancements.cs`；③`SettingPage` 里「设置页 10 项」的清单变成 9 项。
+
+**验证**（实测）：footer 图标位于齿轮正上方并整页加载（截图 + 区域截图取证）；`--selftest-ui` 11 条全绿（含新断言，耗时 3116 ms）；`--page runtimeenv` 可直达。
+
+---
+
+## D79 命令行帮助只有一份来源：`Helpers/CliSpec.cs`
+
+**背景**：`--help` 是一段贴在 `Program.Linux.cs` 里的手写字符串，和 46 个 `args[0] is "--x"` 分支各写一遍。同一批里就踩了两次：`--profile-ensure` 加完才发现帮助里没有；`--preflight` 的描述一直写着「六项」，实际已经是九项（现在是十项）。而 System.CommandLine 3.0.0 的扁平帮助会把「环境诊断 / 运行环境 / 组件与图形层 / 安装与更新」这种分组**挤成一长列**，可读性反而下降。
+
+**决定**：
+
+1. 新建 `src/Lunarward/Helpers/CliSpec.cs`：`CliSwitch(Name, Args, Description, Group)` 一条一开关，`Commands`（第一 token，57 条）+ `Modifiers`（跟在命令后面的值项，17 条）+ `Gui` 组（`--page`/`--subpage`/`--scroll`/`--viewer`/`--profile-editor`/`--window-action`）。`RenderHelp()` 按组渲染，`DisplayWidth()` 按终端列宽（CJK 记 2 列）对齐签名列。
+2. `--help` 只调 `CliSpec.RenderHelp($"版本 {appVersion}")`；手写字符串整段删除。
+3. 分发最前面调用 `CliSpec.TryRejectUnknown(args, …)`：只校验**第一 token**（位置参数是游戏自己的参数，`-dx11` 不能拦），未知时 exit 2 + 「最接近的是：--component-list」（Levenshtein ≤ 4）。原来的 guiFlags 白名单保留（它管「纯 GUI 开关放行」）。
+4. **不引入 System.CommandLine 3.0.0**：换库的目的（帮助不漂移 + 严格校验 + 拼错提示）用一张表就达成了，而完整重写 1903 行的 `Program.Linux.cs` 会把「执行分支」和「声明」一起动，收益不成正比。表本身是「声明层」，将来要换库可机械转换。包已从 `Lunarward.csproj` 移除。
+5. `scripts/test/lint-cli-help.sh` 卡三条不变量：源码里每个 `args[0] is "--x"` ⊆ 表；表里每条都出现在 `--help` 输出（给了 `LW_BIN` 才跑）；未知开关 exit 2 且带候选。
+
+**代价**：①新增一个 lint 入口（约 0.3 s）；②`CliSpec.Commands` 与 `Program.Linux.cs` 的分支仍是两处，靠 lint 而不是类型系统保证一致；③未知开关从 exit 1（「未知命令或不完整」）改成 exit 2，脚本里若有依赖 1 的判断需要更新（本仓 `T-CL-24` 走的是「参数不足」分支，不受影响）。
+
+**验证**（实测）：`--help` 输出 79 条全部命中（lint B）；`--componet-list` exit 2 并提示 `--component-list`（lint C/C2，L2 `T-CL-49`）；`--launch-plan /nonexistent/game.exe -dx11` 不被误判（`T-CL-50`）；`CliSpecTests` 14 组断言；`lint-ui-thread.sh` 与 `cli-smoke 40 / cli-extra 32` 全绿。
+
+---
+
+## D78 依赖批次：补两个真缺口，两个「看着能换」的不换
+
+**背景**：24 号盘点给出「值得换 3 个 / 收益一般 3 个 / 不建议 4 类」。逐条落地后结论有变化，记在这里（D46：结论要有论据，推翻要留档）。
+
+**决定**：
+
+1. **采纳 ValveKeyValue 0.80.0.542** —— 补 `SteamLibrary`：解析 `steamapps/libraryfolders.vdf`（新旧两种格式），把每个库的 `compatibilitytools.d`（Proton）与 `steamapps/common`（GE-Proton 放在库里）都纳入扫描。原来 `ComponentStore.SteamCompatRoots()` 硬编码 4 条默认路径，**Steam 装在自定义库的机器上一个 Proton 都扫不到**。
+2. **采纳 PeNet 6.1.2** —— 预检第 10 项「游戏架构」：读 PE machine（`I386`/`Amd64`/`Arm64`），与方案的前缀架构比对。x64 exe + win32 前缀 → Failed（Wine 直接 `BAD EXE FORMAT`）；x86 exe + win64 前缀 → Warning（WoW64 能跑但可能缺 32 位库）；ARM64 → Failed（需要 Windows on ARM）。
+3. **SharpHook 8.0.2 不换**（spike 实测否决）：本机 KDE Wayland（`XDG_SESSION_TYPE=wayland`，`DISPLAY=:0`）下 `TaskPoolGlobalHook` 打印 enabled 但 12 秒内 0 个按键事件——`xdotool key`（XTEST）收不到，`env -u WAYLAND_DISPLAY` 强制 X11 后端也收不到；对照实验自写 `XQueryKeymap` 轮询能看到 `xdotool keydown shift`。说明 XTEST 事件对 X 客户端可见，问题在 libuiohook/XRecord 这条路上，**不是我们的用法**。结论：保留 `X11KeyState` 轮询 + `--show` 绑系统快捷键。Wayland 全局热键的正解是 portal——本机 `busctl --user introspect` 确认 KDE 暴露 `org.freedesktop.portal.GlobalShortcuts`，列为后续项（用现有 Tmds.DBus 接）。
+4. **Tmds.DBus 不迁 Tmds.DBus.Protocol**：涉及 `Helpers/Portal.cs`（4 个 `[DBusInterface]`，含 FD 与请求句柄）、`Helpers/DesktopNotification.cs`、`Features/Tray/StatusNotifierTray.cs` 共 921 行，Protocol 是源生成器模型（`AddMethodHandler` / `GetMessageWriter`，没有 `CreateProxy`），而托盘/通知/portal 三条用户可见链路**没有自动化覆盖**。前置条件写下来：先有这三条的集成断言，再谈迁移。
+
+**代价**：①两个新包（ValveKeyValue 907 KB、PeNet 846 KB，均只进主程序，不进测试时占位）；②`SteamLibrary` 只读 `libraryfolders.vdf`，不解析 `appmanifest_*.acf`（还没需求，D46：先不做没需求的东西）；③预检从 9 项变 10 项，弹窗更长。
+
+**验证**（实测）：`SteamLibraryTests` 8 组（新/旧格式 VDF、尾斜杠去重、坏文本、多库合并、`CompatRoots`、`IsProtonFolder`）、`PeArchitectureTests` 24 组（含自拼最小 PE32/PE32+ 断言 `X86`/`X64`）；`dotnet test` 200 通过；预检项数 10（`grep 'Name = "'` 去重核对）。
+
+## D77 运行环境收尾：删除有边界、身份有守卫、首次使用自己建环境
+
+**背景**：23 号里四处写着「已实现」，逐条对账后实际对不上：受管组件没有删除入口（A6）；root 不拒跑（B5）；删环境不检查引用（C3）；游戏目录自带图形 dll 不提示（D2）；§5「首次启动自动建同名环境」的真实行为是**回落到第一份环境**。另有 §3.5 把前缀元数据写成 `<prefix>/lunarward.toml`，实际落地一直是 `.lunarward/prefix.json` + `graphics.json`。
+
+**决定**：
+
+1. **删环境**（C3）：先 `ProfileBinding.Usages(id)` 列引用者 → 确认框逐行写游戏名 + 「前缀目录不动」→ 删 `env/<id>.json` 后 `ClearFor(id)` 清绑定。理由：D74 之后前缀只是路径，删环境 ≠ 删数据，但「绑定指向已删环境」会静默回落（L-62），必须一起清。
+2. **删组件**（A6）：只对**本程序管理的目录**开放（`ComponentStore.ManagedRootOf` → `TryDeleteManaged`）。可删范围严格限定为 `components/<分类>/<目录>` 这一层，`components/wine`、`components/dxvk` 这类分类目录本身先被判掉（`IsManagedFolder` 返回 false）——删掉就是整个运行器库没了。系统 / Steam / 手动发现的组件是**引用**，UI 上不给删除按钮。
+3. **root 拒跑**（B5）：`Helpers/PosixIdentity`（`geteuid` P/Invoke，失败退回 `Environment.UserName == "root"`）→ 预检第一项「运行身份」Failed（可读文案：root 会在前缀里写出普通用户改不动的文件）；`PrefixManager.EnsurePrefix` / `CreateWithWineboot` 直接 `ThrowIfRoot`。
+4. **首次使用自动建环境**（§5）：`ProfileBinding.EnsureFor(biz)` 四级决策——①已有有效绑定→直用；②有同名环境→只补绑定；③全库只有一份且没被任何游戏占用→**就地改名**（不制造近似重复）；④否则复制一份（沿用运行器/图形层/env/args，`PrefixPath` 留空 → 各用自己的默认前缀，避免两个游戏抢同一把锁）。真入口在 `GameLauncherService`，读侧入口 `--profile-ensure`。
+5. **游戏目录自带 dll**（D2）：预检查 `d3d11.dll` / `dxgi.dll` / `d3d12.dll` / `d3d10core.dll`，命中给 Warning + 「打开游戏目录」。故意不查 `d3d9.dll` / `vulkan-1.dll`：老游戏自带极普遍，提示会成为噪音。
+6. **§3.5 改文档不改代码**：以 `.lunarward/prefix.json`（`GameKey/ProfileId/PrefixArch/CreatedAt`）与 `.lunarward/graphics.json` 为准；`lunarward.toml` 从未实现，从设计文档里删掉。
+
+**代价 / 边界**：①删除不可撤销（弹窗写明磁盘路径，且只覆盖我们自己管理的目录）；②容器里 uid 0 也会被拒跑，这是有意的；③`EnsureFor` 在「唯一环境已被别游戏占用」时会复制，用户可能看到两份相似环境（名字带游戏名，可自己合并）。
+
+**验证**：`--profile-ensure` 手工三分支（首次 `created: True` / 二次 `False` / 换游戏新建且 `prefix: (启动时创建)`）；L2 `T-CL-45/46/47`；单测 145 条（新增 `ComponentSources.ProbeUrl` 3 条）；`lint-ui-thread.sh` 通过；Debug/Release 均 0 错误。
 
 ---
 

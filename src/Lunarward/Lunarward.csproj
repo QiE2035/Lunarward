@@ -26,9 +26,7 @@
 
   <!-- 上游 Starward.Assets 里的图片/字体/模板：直接从 vendor 镜像链接进输出，不再复制一份进仓库 -->
   <ItemGroup>
-    <Content Include="../../vendor/upstream/large-resource/Starward.Assets/Assets/**/*"
-             Link="Assets/%(RecursiveDir)%(Filename)%(Extension)"
-             CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../vendor/upstream/large-resource/Starward.Assets/Assets/**/*" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
@@ -60,6 +58,10 @@
     <PackageReference Include="SharpCompress" Version="1.0.0" />
     <PackageReference Include="System.IO.Hashing" Version="10.0.14" />
     <PackageReference Include="ZiggyCreatures.FusionCache" Version="2.9.0" />
+    <!-- D78：Steam 自定义库（libraryfolders.vdf）解析，补 Proton/兼容工具漏扫 -->
+    <PackageReference Include="ValveKeyValue" Version="0.80.0.542" />
+    <!-- D78：预检「游戏架构」读 PE machine 字段 -->
+    <PackageReference Include="PeNet" Version="6.1.2" />
   </ItemGroup>
 
   <ItemGroup>

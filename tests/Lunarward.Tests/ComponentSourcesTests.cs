@@ -193,4 +193,28 @@ public class ComponentSourcesTests : IDisposable
         Assert.Contains("…", message);
         Assert.DoesNotContain(new string('x', 250), message);
     }
+
+    [Fact]
+    public void ProbeUrl_UsesMirrorWhenSet()
+    {
+        ComponentSourceEntry entry = new() { Id = "x", DisplayName = "X", Kind = "wine", Owner = "o", Repo = "r", MirrorPrefix = "https://mirror.example/gh" };
+
+        Assert.Equal("https://mirror.example/gh/", ComponentSources.ProbeUrl(entry));
+    }
+
+
+    [Fact]
+    public void ProbeUrl_FallsBackToGithubRepo()
+    {
+        ComponentSourceEntry entry = new() { Id = "x", DisplayName = "X", Kind = "wine", Owner = "o", Repo = "r" };
+
+        Assert.Equal("https://github.com/o/r", ComponentSources.ProbeUrl(entry));
+    }
+
+
+    [Fact]
+    public void Defaults_AllHaveProbeableUrl()
+    {
+        Assert.All(ComponentSources.Defaults, x => Assert.StartsWith("https://", ComponentSources.ProbeUrl(x)));
+    }
 }

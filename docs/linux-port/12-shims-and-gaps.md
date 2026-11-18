@@ -2,16 +2,16 @@
 
 > 这份文档回答一个问题：**Linux 版里，哪些地方是「真的做了」，哪些只是「先让它编译过」？**
 >
-> **最后校准**：2026-11-13（D70 + L-125）。UI 层的逐页复核与缺陷记录在 `21-ui-audit.md` / `22-port-verification.md`；本文只回答「实现了没有、还是只是替身」。
+> **最后校准**：2026-11-18（D86 + L-160）。UI 层的逐页复核与缺陷记录在 `21-ui-audit.md` / `22-port-verification.md`；本文只回答「实现了没有、还是只是替身」。
 >
 > 维护规则（强制）：每新增一个 `*.Linux.cs`、每新增一处 `Compat/` 兼容层、每把一个上游文件加入
 > `<Compile Remove>`，都必须同步更新本表。没有登记的替身视为缺陷（D33）。
 >
 > **本表是唯一登记处。** 其它文档只描述机制，不描述状态。
 
-- 最后更新：2026-11-13（视频看门狗阈值、背景记账、catch 收口）
-- 对应代码：`src/Lunarward/`（`linux-port` 分支，76 提交）
-- 规模：33 个 `*.Linux.cs`、8 个 `*.LinuxAuto.cs`、6 个 `Compat/` 兼容层、55 条 `<Compile Remove>`
+- 最后更新：2026-11-18（D86：注册表改读文件 + 一次性提示持久化；无新增替身）
+- 对应代码：`src/Lunarward/`（`main` 分支，106 提交；`linux-port` 已于 2026-11-13 停用）
+- 规模：36 个 `*.Linux.cs`、7 个 `*.LinuxAuto.cs`、`Compat/` 兼容层 2 项（`NotifyIcon`、`VanaraHotkeyCompat`）、53 条 `<Compile Remove>`（`find` / `grep` 实测）
 
 ---
 
@@ -33,10 +33,10 @@
 | 功能域 | 状态 | 一句话说明 | 补齐时机 |
 |---|---|---|---|
 | 启动游戏 | ✅ | `exec wine <exe> <args>`，不套 shell，保住「游戏是 wine 首个进程」 | — |
-| 运行环境（Profile） | 🟡 | 现状：运行器带布局与可用性（D58 v2）、启动成功记「上次可用」、前缀五种来源；待办：D63 三段式重排（运行器/方案/前缀）与方案独立编辑页 | D63 |
-| 前缀生命周期 | ✅ | external / dedicated / shared / template / ephemeral 五模式 | — |
-| 组件管理 | ✅ | 扫描系统 / Steam / 自带组件；DXVK·VKD3D 导入并装入前缀；扫描阶段零副作用（不建前缀）；`--list-runners [--json]` | 下载渠道 ⛔ 设计选择（D58 v2 不做市场） |
-| 启动前预检 + 启动报告 | ✅ | 6 项检查（只读，不建前缀）、失败弹窗、JSON 报告、前缀互斥锁 | — |
+| 运行环境（Profile） | ✅ | **一级页**（`NavigationView` footer、齿轮正上方，D80）：五页签（概览/运行器/组件/前缀/增强）+ 整页编辑器 + 启动预览 + 失效绑定提示；页签自绘（`Pivot` 页签头在 Skia 下点不动，L-153）；首次使用自动建/改名环境并绑定（`EnsureFor`，D77）；删环境列引用者并清绑定；图形层拆成 DXVK 与 VKD3D-Proton 两个字段、可同时装（D83）；概览卡片补「选的和前缀里不一致」提示 + 一键同步、共用前缀提示 + 为游戏克隆、最近三次启动历史，组件页补「清理未使用」，编辑器补常用变量与 HUD/分辨率预设（D84） | D63 D74 D77 D80 D82 D83 D84 |
+| 前缀生命周期 | ✅ | 前缀只是路径：空=默认目录（首次启动创建）/ 有值=存在就复用、不存在就创建；元数据在 `.lunarward/prefix.json`，互斥靠 `.lunarward/lock`；root 下拒绝创建（D77） | — |
+| 组件管理 | ✅ | 扫描系统 / Steam（含 `libraryfolders.vdf` 里的自定义库与 Proton 目录，D78）/ 自带组件；受管组件下载（队列/暂停续传/镜像测速/暂存列表/组件源编辑）、导入归档、健康检查、受管目录删除（只覆盖 `components/<分类>/<目录>`，D77）；DXVK·VKD3D 装入前缀；扫描阶段零副作用；`--list-runners [--json]` | 组件市场 ⛔ 设计选择（D58 v2） |
+| 启动前预检 + 启动报告 | ✅ | 11 项只读检查（运行身份 / 可执行文件 / 运行器 / 前缀 / 前缀结构 / 可写 / 占用 / 图形组件 / 游戏自带 dll / 游戏架构 / 增强开关）、失败弹窗、JSON 报告、前缀互斥锁 | D81 |
 | 后启动程序（Companion） | ✅ | 条目 CRUD、三种触发时机、伴随启动、`--companion-plan/run`；`WINEPREFIX` 按游戏 key + 前缀模式解析（不再只认 `PrefixPath`） | 注入型只编排不实现（D24） |
 | 输出与诊断 | 🟡 | 输出捕获/落盘/脱敏、面板、「运行输出」对话框；**只有沉默/面板两级**（`terminal` 级按 D37 降级为 M4，`RuntimeProfile.GameOutput` 目前是未消费字段） | M4（terminal 级） |
 | 游玩时长 | ✅ | `wineserver -w` 判定会话结束，进程早退时回退最近 Start 事件；30s 心跳写 `Interruption=true`，启动器被杀也能留下时长 | — |
@@ -45,7 +45,7 @@
 | 背景切换 / 视频壁纸 | ✅ | 圆点切换器由代码生成（Uno PipsPager 不响应点击，L-69）；视频走 libvlc `--vout=vmem` + Skia 合成（`Video.Url`，非海报）；隐藏/锁屏暂停、唤回恢复（D48/L-86）；静态背景底图 + `Theme` 文字层合成（D48/L-87）；暂停静态图预加载（D49）；CPU 1.66 → ~0.95 核；强调色按底图/海报取色（D50） | 无 vlc 或无视频文件时退回静态兜底图；`PropertiesChanged` 不需要（D51） |
 | 背景图库窗口 | ✅ | `BackgroundViewWindow` code-behind 重新纳入编译；缩略图 `ListView + tk:WrapPanel`；本地绝对路径由 `CachedImage.Linux` 读字节解码；窗口交还系统标题栏并按 `DefaultWindowSizeInDips` 设 1200×676、夹到 90% 屏幕内（D49） | 无 |
 | 单实例 / 陈旧锁 | ✅ | 文件锁 + UNIX socket；无人接时判定陈旧锁并接管；无 `DISPLAY`/`WAYLAND_DISPLAY` 明确报错退出（L-72）；`--new-instance` 跳过检查 | 无 |
-| 设置页 10 项 | ✅ | 上游 9 项 + 「运行环境」 | — |
+| 设置页 9 项 | ✅ | 上游 9 项；「运行环境」已提为 footer 一级页（D80） | D80 |
 | 登录 / 账号 | 🟡 | WebKitGTK 独立窗取 cookie；**未真实登录验证** | 待用户 |
 | 抽卡记录 | 🟡 | 页面与导出可用；真实数据未验证 | 待用户 |
 | 截图 | ✅ | Alt+D 捕获、图库、多选、批量转 JPG、查看器 | HDR 色彩管理 ⬜ M4 |
@@ -137,7 +137,7 @@
 | `Features/Runtime/PrefixManager.cs` | 五种前缀模式的创建/克隆（`cp -a --reflink=auto`）/清理/`.lunarward/prefix.json` |
 | `Features/Runtime/ProfileShellService.cs` | 终端探测（konsole/kitty/…）、`BuildEnvironment`、`exec` 直连 |
 | `Features/Runtime/OutputCapture.cs` | 输出捕获、环形缓冲 5000、落盘、脱敏（D27） |
-| `Features/GameLauncher/LaunchPreflight.cs` | 6 项预检与 `LaunchPreflightException` |
+| `Features/GameLauncher/LaunchPreflight.cs` | 11 项预检与 `LaunchPreflightException` |
 | `Features/GameLauncher/LaunchReport.cs` | 每次启动写 JSON 到 `logs/launch/` |
 | `Features/Companion/*.cs` | 条目模型/存储/执行器/自动启动（三时机） |
 | `Features/Tray/StatusNotifierTray.cs` | SNI 托盘 + DBusMenu + 点击唤回 |
@@ -146,6 +146,8 @@
 | `Features/Screenshot/VideoBackgroundPlayer.cs`（在 `Features/Background/`） | LibVLC vmem → Skia 合成 → `WriteableBitmap` |
 | `Features/Dev/DevSwitches.cs` | 开发直达开关集中处（§8） |
 | `LinuxConfig.cs` / `AppConfig.*.cs` 适配 | XDG 路径、`WineRegistry`、DeviceId、权限判定 |
+| `Features/GameAccount/WineRegistryFiles.cs` | 注册表读取 | ✅ | M1 | 直接解析 `<prefix>/user.reg` / `system.reg`（`\xHHHH` 解码 + 折行拼接），命中就不 fork；给不出结论才回落 `wine reg query`（D86/L-160） |
+| `Helpers/OneShotHints.cs` | 一次性提示 | ✅ | M1 | SQLite `Setting` 表的 `hint_<name>`，替代进程级 `static bool`（D86） |
 
 ---
 
@@ -179,7 +181,7 @@
 | `Features/GameRecord/LoginPage.xaml` | 隐藏 `WebView2`，叠加「在独立窗口中登录」面板 | D29/D32 |
 | `Features/ViewHost/MainView.xaml` | 自绘标题栏拖拽区与最小化/关闭按钮已**移除** | Uno X11 无 `SetDragRectangles`，自绘标题栏既拖不动也点不动（L-73，交还 WM） |
 | `Features/GameSetting/GameSettingPage.xaml` | 加「运行配置」「后启动程序」分区；修正上游 `Grid.Row` 越界的那一处 | D28；L-37 |
-| `Features/Setting/SettingPage.xaml` | 加「运行环境」导航项 | D28 |
+| `Features/Setting/SettingPage.xaml` | 「运行环境」导航项已移除（改为 `MainView` footer 一级页，D80） | D28 D80 |
 
 ---
 
@@ -248,4 +250,8 @@
 | 2026-11-14 | 24 号 P2/P3/P4：portal 优先（打开链接 / 选文件 / 通知）、截图 portal 兜底、Magick.NET 解 AVIF/JXL、弹层实底、Esc 只退一层、`xdotool`→xcb、`ProcessQuery`→`/proc`（D75、L-145～L-148） |
 
 - 2026-11-06：`#1` 图标码位替换（E62E→E769 等 7 处，L-88）、`#2` 暂停静态图预加载、`#3` 窗口底座统一（D49）；图库窗口 1500×845 且有系统标题栏（真机几何 + `_NET_FRAME_EXTENTS` 验证）。
-
+| 2026-11-15 | 依赖批次（D78/D79）：`SteamLibrary` 解析 `libraryfolders.vdf` 补全自定义库 Proton 扫描；`PeArchitecture` + 预检第 10 项「游戏架构」；SharpHook spike 否决（KDE Wayland 收不到 XTEST）、Tmds.DBus.Protocol 不迁（无集成测试）；CLI 帮助改由 `Helpers/CliSpec.cs` 单一来源生成 + 未知开关 exit 2 + `lint-cli-help.sh`；单测 200、cli-smoke 40 / cli-extra 32 |
+| 2026-11-15 | 运行环境收尾（D77）：删环境列引用+清绑定、受管组件删除（分类目录判定在先）、root 拒跑（预检+建前缀双道）、游戏自带 dll 提示、首次使用自动建环境（`EnsureFor` 四级）、保存后自动自检、下载队列/镜像测速/暂存列表/组件源编辑/前缀占用汇总；CLI 新增 `--profile-ensure`；单测 145、L2 cli-smoke 40 / cli-extra 28 
+| 2026-11-16 | 运行环境 UI 重做（D80/D81/D82）：footer 一级页 + 五页签自绘（`Pivot` 页签头点不动，L-153）+ 概览统计与失效绑定提示 + 增强页（HUD/gamemode/gamescope，schema 3）+ 图形层可选 VKD3D-Proton + gamescope 参数体检；预检 10 → 11 项；`SettingPage` 少一个子导航项 ||
+| 2026-11-16 | 运行环境可用性打磨（D84）：一致性比对 + 同步到前缀、组件「清理未使用」、共用前缀提示 + 为游戏克隆、启动历史（`logs/launch-history.jsonl`）、编辑器常用变量、页签键盘切换、删方案可选删前缀、HUD/分辨率预设与 HDR/VRR；单测 241 ||
+| 2026-11-18 | D86 卡顿与「每次重启都重来」：注册表读取改走文件（`WineRegistryFiles`，同一键 **95 ms** vs `reg query` 热 1843 ms / 冷 4128–5411 ms，顺带修好长 `REG_BINARY` 被首行截断与中文键名乱码）；三条提示改持久化一次性（`OneShotHints`）；失效绑定 warn 只一次；删 `[dbg]` 插桩、「识别到 N 个」改用 `KnownGames.Count`（L-160） |

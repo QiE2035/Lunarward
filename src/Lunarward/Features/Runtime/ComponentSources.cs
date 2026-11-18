@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -340,6 +341,79 @@ public static class ComponentSources
     }
 
 
+    /// <summary>
+    /// 测速用的地址：配了镜像就打镜像根，否则打仓库页。
+    /// </summary>
+    public static string ProbeUrl(ComponentSourceEntry source)
+    {
+        string mirror = (source.MirrorPrefix ?? "").Trim();
+        if (mirror.Length > 0)
+        {
+            return mirror.EndsWith('/') ? mirror : mirror + "/";
+        }
+        if (!string.IsNullOrWhiteSpace(source.Owner) && !string.IsNullOrWhiteSpace(source.Repo))
+        {
+            return $"https://github.com/{source.Owner}/{source.Repo}";
+        }
+        return "https://github.com";
+    }
+
+
+    /// <summary>
+    /// 一个 HEAD 请求的首字节耗时（P3）：慢是慢、不通是不通，都如实写进结果，
+    /// 由用户决定换哪个源——程序不替人猜「哪个更快」。
+    /// </summary>
+    public static async Task<ComponentSourceProbe> ProbeAsync(HttpClient http, ComponentSourceEntry source, CancellationToken ct = default)
+    {
+        string url = ProbeUrl(source);
+        Stopwatch sw = Stopwatch.StartNew();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Head, url);
+            using HttpResponseMessage response = await http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct)
+                .ConfigureAwait(false);
+            sw.Stop();
+            return new ComponentSourceProbe
+            {
+                SourceId = source.Id,
+                DisplayName = source.DisplayName,
+                Url = url,
+                Milliseconds = (int)sw.ElapsedMilliseconds,
+                Ok = response.IsSuccessStatusCode,
+                Detail = response.IsSuccessStatusCode ? $"{(int)response.StatusCode}" : DescribeFailure((int)response.StatusCode, null),
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            return new ComponentSourceProbe
+            {
+                SourceId = source.Id,
+                DisplayName = source.DisplayName,
+                Url = url,
+                Milliseconds = (int)sw.ElapsedMilliseconds,
+                Ok = false,
+                Detail = ex.GetBaseException().Message,
+            };
+        }
+    }
+
+
+    /// <summary>并发测所有源（默认源 + 用户覆盖）。单个源失败不影响其它。</summary>
+    public static async Task<IReadOnlyList<ComponentSourceProbe>> ProbeAllAsync(HttpClient http, CancellationToken ct = default)
+    {
+        IReadOnlyList<ComponentSourceEntry> sources = Load();
+        Task<ComponentSourceProbe>[] tasks = sources.Select(x => ProbeAsync(http, x, ct)).ToArray();
+        ComponentSourceProbe[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        return results;
+    }
+
+
     public static bool IsArchive(string name)
         => name.EndsWith(".tar.xz", StringComparison.OrdinalIgnoreCase)
            || name.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase)
@@ -367,4 +441,23 @@ public static class ComponentSources
 
 
 /// <summary>列版本 / 下载准备工作失败时抛这个，消息是给用户看的一句话。</summary>
+/// <summary>单个源的连通性/延迟结果（P3「镜像自动测速」）。只报数字，不替用户排序。</summary>
+public sealed class ComponentSourceProbe
+{
+    public string SourceId { get; init; } = "";
+
+    public string DisplayName { get; init; } = "";
+
+    public string Url { get; init; } = "";
+
+    public int Milliseconds { get; init; }
+
+    public bool Ok { get; init; }
+
+    public string Detail { get; init; } = "";
+
+    public string Text => Ok ? $"{Milliseconds} ms" : $"失败 · {Detail}";
+}
+
+
 public sealed class ComponentSourceException(string message) : Exception(message);

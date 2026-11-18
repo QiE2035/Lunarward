@@ -285,6 +285,8 @@ public static class PrefixManager
     /// </summary>
     public static string EnsurePrefix(RuntimeProfile profile, string gameKey, ILogger? logger = null)
     {
+        // §3.3：root 跑 wine 会建出属主错乱的前缀，之后普通用户既改不动也删不掉
+        Helpers.PosixIdentity.ThrowIfRoot("创建或写入 Wine 前缀");
         string path = EnvironmentResolver.EffectivePrefixPath(profile);
         if (!Directory.Exists(path))
         {
@@ -374,6 +376,7 @@ public static class PrefixManager
     /// <summary>用 wineboot 初始化一个空前缀。</summary>
     public static void CreateWithWineboot(RuntimeProfile profile, string path, ILogger? logger = null)
     {
+        Helpers.PosixIdentity.ThrowIfRoot("初始化 Wine 前缀");
         string? wine = !string.IsNullOrWhiteSpace(profile.RunnerPath) && File.Exists(profile.RunnerPath)
             ? profile.RunnerPath
             : GameLauncherService.ResolveWine();

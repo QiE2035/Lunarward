@@ -204,4 +204,42 @@ case_start "T-CL-43" "--component-list 未知源时返回 1"
 lw --component-list no-such-source >"$out" 2>&1; rc=$?
 if expect_rc 1 "$rc" && expect_contains "$(text)" "没有这个源"; then pass_case; fi
 
+case_start "T-CL-45" "--profile-ensure 首次解析会自动建/改名并写绑定"
+rm -rf "$ROOT/cfg/lunarward/env" "$ROOT/cfg/lunarward/profile-bindings.json"
+lw --profile-ensure hk4e_cn >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "created : True" \
+    && expect_contains "$(text)" "bound   : True" \
+    && grep -q '"hk4e_cn"' "$ROOT/cfg/lunarward/profile-bindings.json"; then pass_case; fi
+
+case_start "T-CL-46" "--profile-ensure 第二次复用同一环境，不再新建"
+lw --profile-ensure hk4e_cn >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "created : False" \
+    && expect_contains "$(text)" "bound   : False"; then pass_case; fi
+
+case_start "T-CL-47" "--profile-ensure 另一个游戏拿到独立环境（前缀留空）"
+lw --profile-ensure hkrpg_cn >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "created : True" \
+    && expect_contains "$(text)" "崩坏：星穹铁道" && expect_contains "$(text)" "(启动时创建)" \
+    && [ "$(ls "$ROOT/cfg/lunarward/env" | wc -l)" -ge 2 ]; then pass_case; fi
+
+case_start "T-CL-48" "--help 覆盖全部开关（含本轮新增 --profile-ensure）"
+lw --help >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "--profile-ensure" \
+    && expect_contains "$(text)" "运行环境" && expect_contains "$(text)" "组件与图形层" \
+    && expect_contains "$(text)" "--graphics-remove"; then pass_case; fi
+
+case_start "T-CL-48b" "--help 提到预检是九项（运行身份/架构在内）"
+lw --help >"$out" 2>&1; rc=$?
+if expect_rc 0 "$rc" && expect_contains "$(text)" "游戏架构" \
+    && expect_contains "$(text)" "运行身份"; then pass_case; fi
+
+case_start "T-CL-49" "未知开关 exit 2 并给最接近的候选"
+lw --componet-list >"$out" 2>&1; rc=$?
+if expect_rc 2 "$rc" && expect_contains "$(text)" "未知开关：--componet-list" \
+    && expect_contains "$(text)" "--component-list"; then pass_case; fi
+
+case_start "T-CL-50" "位置参数（游戏自己的 - 参数）不被当未知开关"
+lw --launch-plan /nonexistent/game.exe -dx11 >"$out" 2>&1; rc=$?
+if expect_contains "$(text)" "/nonexistent/game.exe"; then pass_case; fi
+
 summary

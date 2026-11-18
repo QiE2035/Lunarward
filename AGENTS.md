@@ -10,7 +10,7 @@
 - 目标：在 Linux 上**尽量还原上游 Windows 版**的功能、排版与操作逻辑；引擎能力缺口记作「软差异」，不改上游 XAML 去硬凑。
 - 在这之上新增 **Linux 专属模块**：运行环境（wine / Proton / DXVK / VKD3D / 前缀）、伴随启动、一次性运行、调试 Shell、托盘、热键、X11 窗口显隐。
 - 上游 `src/Starward/` **一个字节都不改**；上游同步方式：`git fetch upstream && git merge upstream/main`。
-- 分支：`linux-port`（远端 `origin` = 你的 fork；`upstream` = Scighost/Starward）。
+- 分支：**`main`** 为当前开发分支（`linux-port` 自 2026-11-13 起停用，仅留作历史；远端 `origin` = 你的 fork；`upstream` = Scighost/Starward）。
 
 ---
 
@@ -48,21 +48,22 @@
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 142 条）
+# 单元测试（当前 252 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）
 ./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward
 
-# 进程内 UI 自检（10 条断言，CI 里跑在 xvfb 上）
+# 进程内 UI 自检（11 条断言，CI 里跑在 xvfb 上）
 LUNARWARD_SELFTEST=1 ./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward --selftest-ui
 
-# L2 CLI 冒烟（cli-smoke 34 条 + cli-extra 25 条，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
+# L2 CLI 冒烟（cli-smoke 40 例 + cli-extra 32 例，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-smoke.sh
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-extra.sh
 
 # 静态规则检查（UI 线程不许同步阻塞 / 不许留空 stub / 命令白名单，秒级、不启动应用）
 bash scripts/test/lint-ui-thread.sh
+LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/lint-cli-help.sh
 
 # 离线安装链路（假 Sophon 服务 + zstd 分块）
 bash scripts/test/chunk-smoke.sh
@@ -115,7 +116,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 | --- | --- | --- | --- |
 | L1 | xunit 纯逻辑 | `dotnet test Starward.slnx` | 算法/解析/路径/原子写 |
 | L1.5 | 进程内 UI 断言 | `--selftest-ui` | 窗口/导航/资源/布局存在性 |
-| L2 | CLI + 夹具 | `scripts/test/cli-smoke.sh`、`chunk-smoke.sh` | 子命令、预检、安装管线、离线 Sophon |
+| L2 | CLI + 夹具 | `scripts/test/cli-smoke.sh`、`cli-extra.sh`、`chunk-smoke.sh`、`lint-ui-thread.sh`、`lint-cli-help.sh`、`perf.sh` | 子命令、预检、安装管线、离线 Sophon、静态规则、启动卡顿 |
 | L3 | 真机 GUI | 人工 + `cu_*` 工具 | 排版、交互、性能、视觉 |
 
 覆盖率现实：测试工程**链接源码**而非引用程序集，`coverlet` 测不到主程序（line-rate 0）。要覆盖率得先改 `ProjectReference` + `InternalsVisibleTo`。
@@ -127,9 +128,9 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 ## 6. 文档地图（`docs/linux-port/`）
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D76 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D86 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-149 坑与复现方法（唯一）
+- `13-lessons.md` — L-01…L-160 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
 - `19-test-plan.md` — 测试计划（唯一，230 条：218 条功能用例 T-* + 12 条回归用例 RG-*）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
 - `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 八字段 / 四层检查 / 页面）
@@ -163,6 +164,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - [ ] `dotnet build Starward.slnx -c Release` 0 错误
 - [ ] `dotnet test Starward.slnx` 全绿
 - [ ] `bash scripts/test/lint-ui-thread.sh` 全绿（动了 UI code-behind / `*.Linux.cs` 事件处理器 / CLI 开关时必跑）
+- [ ] `bash scripts/test/lint-cli-help.sh` 全绿（加了/改了 CLI 开关时必跑：`Helpers/CliSpec.cs` 是帮助唯一来源，D79）
 - [ ] `bash scripts/test/cli-smoke.sh` 与 `cli-extra.sh` 全绿（改了 CLI 时必跑）
 - [ ] 没有残留 `[xx-diag]` 日志 / 临时 `DevSwitches` / `/tmp` 调试代码
 - [ ] `src/Starward/` 无改动（`git status --porcelain src/Starward`）

@@ -267,35 +267,41 @@ internal partial class GameLauncherService
                 $"未找到可用的 wine prefix。请设置 LUNARWARD_WINEPREFIX，或先创建 {Path.Combine(PrefixRoot, key.ToLowerInvariant())}。");
         }
 
-        // M2：启动前把选定的 DXVK/VKD3D 装进前缀（失败只告警，不阻断启动——组件缺失时游戏仍可用自带 d3d 实现）
-        if (profile is not null && !string.IsNullOrWhiteSpace(profile.GraphicsId))
+        // M2：启动前把选定的 DXVK / VKD3D 装进前缀（D83 两类各自独立，可以同时装；
+        // 失败只告警，不阻断启动——组件缺失时游戏仍可用自带 d3d 实现）
+        if (profile is not null)
         {
             try
             {
-                Features.Runtime.Component? graphics = Features.Runtime.ComponentStore
+                List<Features.Runtime.Component> graphics = Features.Runtime.ComponentStore
                     .GetGraphics()
-                    .FirstOrDefault(c => c.Id == profile.GraphicsId);
-                if (graphics is not null)
+                    .Where(c => c.Id == profile.DxvkId || c.Id == profile.Vkd3dId)
+                    .ToList();
+                if (graphics.Count > 0)
                 {
                     bool changed = Features.Runtime.GraphicsInstaller.EnsureInstalled(prefix, graphics, _logger);
                     if (changed)
                     {
-                        _logger.LogInformation("Graphics prepared: {name}", graphics.Name);
+                        _logger.LogInformation("Graphics prepared: {names}", string.Join(", ", graphics.Select(x => x.Name)));
                     }
                 }
                 else
                 {
-                    _logger.LogWarning("Graphics component not found: {id}", profile.GraphicsId);
+                    _logger.LogDebug("Profile has no graphics component selected; skip install.");
+                }
+                if (!string.IsNullOrWhiteSpace(profile.DxvkId) && graphics.All(c => c.Id != profile.DxvkId))
+                {
+                    _logger.LogWarning("DXVK component not found: {id}", profile.DxvkId);
+                }
+                if (!string.IsNullOrWhiteSpace(profile.Vkd3dId) && graphics.All(c => c.Id != profile.Vkd3dId))
+                {
+                    _logger.LogWarning("VKD3D component not found: {id}", profile.Vkd3dId);
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Ensure graphics failed, continue without it.");
             }
-        }
-        else if (profile is not null)
-        {
-            _logger.LogDebug("Profile has no graphics component selected; skip install.");
         }
 
         info.Environment["WINEPREFIX"] = prefix;

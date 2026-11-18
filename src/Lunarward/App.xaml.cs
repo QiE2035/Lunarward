@@ -66,7 +66,6 @@ public partial class App : Application
 
         await AppConfig.CheckEnviromentAsync();
 
-        Serilog.Log.Information("[dbg] env ok");
         if (args.Length > 0 && await HandleStartupAsync(args))
         {
             return;
@@ -85,9 +84,14 @@ public partial class App : Application
         // Lunarward：Linux 首次运行先识别已有安装（注册表不可用，改为扫目录，D25）
         if (!OperatingSystem.IsWindows())
         {
-            Serilog.Log.Information("[dbg] scan start");
-            int scanned = Features.GameInstall.GameInstallScanner.ScanAndApply();
-            Serilog.Log.Information("[dbg] scan done {n}", scanned);
+            // D86：结果以 KnownGames 为准。ScanAndApply 在「缓存还新鲜」时直接 return 0，
+            // 拿返回值写日志会一直显示「识别到 0 个」，与实际认到的游戏数量无关。
+            Features.GameInstall.GameInstallScanner.ScanAndApply();
+            int knownGames = Features.GameInstall.GameInstallScanner.KnownGames.Count;
+            if (knownGames > 0)
+            {
+                Serilog.Log.Information("[scan] 识别到 {n} 个已安装游戏", knownGames);
+            }
             // M1 验证用：LUNARWARD_GAME=hk4e_cn 直接选中某个游戏（正式版移除）
             string? debugGame = Starward.Features.Dev.DevSwitches.Game;
             if (!string.IsNullOrWhiteSpace(debugGame) && Starward.Core.GameBiz.TryParse(debugGame, out Starward.Core.GameBiz debugBiz))
@@ -95,7 +99,6 @@ public partial class App : Application
                 AppConfig.SelectedGameBizs = debugGame;
                 AppConfig.CurrentGameBiz = debugBiz;
             }
-            Serilog.Log.Information("[scan] 识别到 {n} 个已安装游戏", scanned);
         }
 
         // Lunarward：Linux 单实例 = 文件锁（判定谁在跑）+ Unix socket（把「再次启动」变成「唤起已有窗口」）。

@@ -1,8 +1,9 @@
 # Lunarward 文档总览（Starward 的 Linux 移植）
 
-- **最后更新**：2026-11-13
-- **当前阶段**：功能移植已完成（M1–M3 主体 + 运行环境 D58/D63），正在做**测试与 UI 审查**（`19` / `20` / `21` / `22`）
-- **分支**：`linux-port`；`src/Starward/` 保持 **0 改动**（上游可随时 `git fetch upstream && git merge upstream/main`）
+- **最后更新**：2026-11-18（D86 卡顿根因：注册表改读文件、一次性提示持久化、L-160）
+- **当前阶段**：功能移植完成（M1–M3 主体）+ 运行环境与依赖收口（D73/D74 阶段 2·3、D75 portal 与图片格式、D76 登录窗 WebKitGTK 6.0；`24` 依赖盘点 P1–P5 全部落地：P5 采纳 ValveKeyValue / PeNet，否决 SharpHook 与 Tmds.DBus.Protocol，CLI 帮助改单一来源）。运行环境页按 D80 重做（footer 一级页 + 五页签自绘 + 增强开关，D81/D82）。**代码侧已无在做的功能批**，剩下的是**验收与文档收口**（`19` L3 / `20` / `21` / `22`）
+- **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 106 个提交、落后 1 个（`df8ae07 filecache powered by fusioncache`，待合并）
+- **版本**：`0.1.0`（`src/Lunarward/Lunarward.csproj`）
 - **用户文档**：[`docs/user/faq.md`](../user/faq.md)、[`docs/user/runtime-environment.md`](../user/runtime-environment.md)
 - **施工授权**：本目录任何文档都**不构成开工授权**。只有 `00-decisions.md` 里标「已确认」的条目、且用户在对话中明确说「可以开始做 X」时才允许改源码；未明确的一律视为未授权（D46 第 6 条：批准范围不得扩大）。
 
@@ -15,16 +16,40 @@
 | 主界面（启动器页） | ✅ | 背景（静态/视频）、公告/资讯、开始/暂停/更新按钮 | `21` `22` |
 | 游戏选择 | ✅ | 固定图标条 + 全屏选择层（`GameSelector`） | D56 |
 | 游戏设置 | ✅ | 分辨率/图形/HDR/语音 + 运行配置 + 后启动程序 + 诊断 | D61 D63 |
-| 截图 | ✅ | `spectacle`/`grim`/`gnome-screenshot` 降级链、图库、批量转换 | D31 |
+| 注册表读取 | ✅ | 直接解析 `<prefix>/user.reg` / `system.reg`（`\xHHHH` 解码 + 长 hex 折行拼接），命中就不 fork wine，给不出结论才回落 `wine reg query`；同一键 **95 ms** vs `reg query` 热 1843 ms / 冷 4128–5411 ms | D86 L-160 |
+| 截图 | ✅ | `spectacle`/`grim`/`gnome-screenshot` 优先、portal 兜底；图库、批量转换 | D31 D75 |
 | 抽卡记录 / 战绩 | ✅（未登录为空态） | `GachaLog` / `GameRecord` / `SelfQuery` | D61 |
-| 账号登录 | ✅（外部 WebKitGTK 助手） | `WebLoginService`（cookie 0600） | D32 |
+| 账号登录 | ✅（本程序内建 WebKitGTK 6.0 登录窗） | `WebKitLoginHost`（`--webkit-login`）+ `WebLoginService`（cookie 0600）；没有 `libwebkitgtk-6.0` 时退回 python3 助手 | D32 D76 |
 | 安装/更新/修复/预下载 | ✅ | Sophon 分块 + 差分补丁 + chunk 复用 + 断点续传 | D41 D42 |
-| 运行环境（Linux 新增） | ✅ | 运行器 / 方案 / 前缀 / 图形层（DXVK·VKD3D） | D58 D63 |
+| 运行环境（Linux 新增） | ✅ | 一级页（左栏齿轮正上方）：**方案 master-detail**（左列列表 + 右栏五段卡片：运行器 / 图形层 / 前缀 / 增强 / 最近启动）+ chip 条 + 组件页收敛（主按钮 + 更多 + 筛选）+ 前缀占用条与所属方案 + 默认运行器（D85）；组件层（扫描含 Steam 自定义库 / 下载队列 / 导入 / 健康检查 / 受管删除 / 镜像测速 / 暂存列表 / 源编辑）+ 前缀只是路径 + 八字段环境 + 首次使用自动建环境 + 一致性同步/清理未使用/启动历史/预设（D84） | D58 D73 D74 D77 D78 D84 D85 |
+| 外部能力 | ✅ | 打开链接 / 选文件 / 通知 / 截图走 portal，外部命令仅兜底；图片补齐 AVIF·JXL·HEIC | D75 |
+| 启动前预检 | ✅ | 10 项只读检查（运行身份 / 可执行文件 / 运行器 / 前缀 / 结构 / 可写 / 占用 / 图形组件 / 游戏自带 dll / **游戏架构**）+ 失败弹窗按层分组给动作 | D44 D77 D78 |
+| 命令行 | ✅ | 79 个开关的帮助与校验来自 `Helpers/CliSpec.cs` 单一来源，未知开关 exit 2 并给最接近候选 | D79 |
+| 组件与解压 | ✅ | `ArchiveExtractor`（进程内解压，可取消、有进度）+ `ComponentDownloader`（分片并行 / 暂停续传） | D73 `24` P1 |
 | 伴随启动 / 一次性运行 / 调试 Shell | ✅ | `CompanionRunner`、`RunOnceService`、`ProfileShellService` | D24 D64 |
 | 托盘 / 热键 / 窗口显隐 | ✅ | StatusNotifierItem、X11 轮询热键、libxcb 显隐 | D43 D47 |
-| 单实例 / 深链 / 通知 / 诊断包 | ✅ | `SingleInstancePipe`、`lunarward://`、`notify-send`、`--diagnose` | D50 D59 |
-| 打包 | ✅ | AUR（`lunarward`、`lunarward-git`）+ AppImage（CI） | D59 |
+| 单实例 / 深链 / 通知 / 诊断包 | ✅ | `SingleInstancePipe`、`lunarward://`、通知走 `org.freedesktop.Notifications`（`notify-send` 仅兜底）、`--diagnose` | D50 D59 D75 |
+| 打包 | ✅ | AUR（`lunarward`、`lunarward-git`，`depends` 含 `webkitgtk-6.0`）+ AppImage（CI） | D59 D76 |
 | 悬浮窗 / 手柄 / RPC / 云游戏·战绩·BBS 桥 | ⬜ M4 | 占位，明确暂不做 | `12` `19` |
+
+### 1.1 未完成 / 待验收（截至 2026-11-18）
+
+分散在各文档里，这里只做索引，状态以原文档为准。
+
+**功能缺口**：无（原 23 号 §13.5 的六项已于 2026-11-15 全部落地，见 `23` §13.9 / D77）。
+
+**待真机验收**
+
+- 真实米游社登录（D76 只用带 `Set-Cookie` 的本地假服务验过）。
+- 原神 / 绝区零真实启动、真实登录回填、游玩时长记录。
+
+**测试欠账**
+
+- `19` 附录 L3 首轮：`T-UI-33 换游戏` 未完成（选择器需先 hover 左上角才展开）。
+- `22` §3：`P2-2 滚动条不可见` 待复核、`P2-1 分辨率 0 x 0` 待定（F-14）。
+- `20` / `21` / `22` 三份执行记录仍标「进行中」，交互 / 状态 / 性能三组用例未跑完。
+
+**依赖（`24`）**：P1–P5 全部有结论（P5：ValveKeyValue / PeNet 已采纳，SharpHook spike 否决，Tmds.DBus.Protocol 不迁），无待做批次。
 
 ---
 
@@ -32,7 +57,7 @@
 
 | 文档 | 状态 | 用途 |
 | --- | --- | --- |
-| `00-decisions.md` | **当前（唯一决策源）** | D0–D70 的结论、理由、代价、变更记录 |
+| `00-decisions.md` | **当前（唯一决策源）** | D0–D84 的结论、理由、代价、变更记录（58 个决策条目） |
 | `01-requirements.md` | 当前 | 需求 R-01…R-18 与验收口径 |
 | `02-architecture.md` | 当前 | 分层、平台层接口、进程模型 |
 | `03-runtime-model.md` | 当前 | 运行环境数据模型（组件/方案/前缀/启动计划） |
@@ -45,18 +70,18 @@
 | `10-xaml-compat.md` | 参考 | 上游 XAML 与 Uno 的兼容性体检 |
 | `11-m1-0-api-gaps.md` | **历史** | M1-0 首编译缺口快照；现状以 `12` 为准 |
 | `12-shims-and-gaps.md` | **当前（唯一状态登记表）** | 每处替身/缺口的真实状态（D33） |
-| `13-lessons.md` | **当前（唯一坑记录）** | L-01…L-137 的实测结论与复现方法 |
+| `13-lessons.md` | **当前（唯一坑记录）** | L-01…L-149 的实测结论与复现方法 |
 | `15-performance.md` | **历史** | 早期性能基线；现以 `19` §9 + `perf-baseline.json` + `21` 为准 |
 | `16-runtime-components.md` | 历史 | 运行组件 v2 极简（D58）：**已被 23 取代** |
 | `17-runtime-environment-ui.md` | 历史 | 运行环境 UI 三段式（D63）：**已被 23 取代** |
 | `18-upstream-deviations.md` | 当前 | 移植偏差原则、登记标记、上游同步流程 |
 | `18-upstream-table.md` | 当前 | 81 个同名差异文件的自动分类与复核进度 |
-| `19-test-plan.md` | **当前（唯一测试计划）** | 230 条用例（218 T-* + 12 RG-*）、L1/L1.5/L2/L3 分层、性能预算、缺陷流程 |
+| `19-test-plan.md` | **当前（唯一测试计划）** | 230 条用例（218 T-* + 12 RG-*）、L1/L1.5/L2/L3 分层、性能预算、缺陷流程（执行现状见 `20`/`21`/`22`） |
 | `20-l3-report.md` | 进行中 | L3 真机用例首轮结果与证据 |
 | `21-ui-audit.md` | 进行中 | UI 审查与性能记录（含撤回条目） |
 | `22-port-verification.md` | 进行中 | 纯移植部分验证（布局/交互/性能） |
-| `23-runtime-env-design.md` | **当前（D73 定稿）** | 运行环境从头设计：三概念 / 自洽硬目标 / 受管组件 / 八字段 / 验收项 |
-| `24-dependency-audit.md` | 2026-11-14 | 依赖盘点：48 处外部进程逐条判定 + 手写实现可换库项 + 新增依赖清单 + 建议批次 |
+| `23-runtime-env-design.md` | **当前（D73 定稿；§13 为阶段 2/3 实施记录）** | 运行环境从头设计：三概念 / 自洽硬目标 / 受管组件 / 八字段 / 验收项 |
+| `24-dependency-audit.md` | **当前（2026-11-14，P1–P4 全部 ✅）** | 依赖盘点：48 处外部进程逐条判定 + 手写实现可换库项 + 新增依赖清单 + 批次执行记录 |
 | `screenshots/` | 证据 | 截图证据（文件名即场景） |
 | `perf-baseline.json` | 数据 | 性能基线快照 |
 
@@ -93,9 +118,8 @@
 | --- | --- | --- |
 | 组件 | Component | 可寻址的版本化产物：wine / proton / dxvk / vkd3d-proton / dxvk-nvapi |
 | 运行器 | Runner | 真正执行游戏的运行时：系统 wine、Steam 的 `files/bin/wine`、手动添加路径 |
-| 前缀 | Prefix | Wine prefix（`drive_c` + 注册表）；本项目的“前缀来源”= 新建 / 复制自现有 / 使用已有目录 / 临时 |
-| 方案 | Profile | 可命名的启动配方：运行器 + 图形层 + 前缀 + env / Shell / 输出级别 |
-| 前缀来源 | Prefix source | `dedicated`（新建）/ `template`（复制自现有）/ `external`（使用已有目录）/ `ephemeral`（临时） |
+| 前缀 | Prefix | Wine prefix（`drive_c` + 注册表）。**本项目的「前缀」只是方案里的一个路径字段**（D74）：留空 = 用默认目录并在首次启动时创建，不再有 `dedicated/template/external` 这类型别 |
+| 方案 | Profile | 可命名的启动配方（schema 4）：运行器 + DXVK + VKD3D-Proton + 前缀 + env / 参数 / 包装 + 增强（HUD / gamemode / gamescope） |
 | 图形层 | Graphics layer | 装进前缀的 DXVK / VKD3D-PROTON 一组 DLL |
 | 后启动程序 | Companion | 游戏启动后（或退出后）按条件触发的辅助工具 |
 | 一次性运行 | Run once | 在与目标游戏相同的环境里跑一次任意程序（`RunOnceService`、`--run-once`） |

@@ -3,7 +3,9 @@
 //
 // 性能注意（L-127）：每次 `wine reg` 都是一次 fork + wineserver 通信，实测冷 1.1 s、热 0.13–0.2 s，
 // 在 UI 线程上同步调用时会整窗卡住（曾实测 4.1 s）。因此：
-//   1. 读取按「整个键」缓存，一次 `reg query <key>` 取回所有值，N 个值只 fork 一次；
+//   0. 读取先直接解析 <prefix>/user.reg、system.reg（WineRegistryFiles，毫秒级、不 fork，D86）；
+//      只有文件给不出结论时才回落 `reg query`；
+//   1. 读取按「整个键」缓存，一次取回所有值，N 个值只 fork 一次；
 //   2. UI 路径一律走 *Async 版本，绝不阻塞 UI 线程；
 //   3. 写入后立刻失效该键缓存，5 分钟 TTL 兜底（空结果 60 s）。
 using System;
@@ -172,6 +174,21 @@ internal static class WineRegistry
         {
             return cached.Values;
         }
+
+        // D86：先试直接读前缀里的注册表文件（毫秒级、不 fork）。只有「文件给不出结论」时才走 wine。
+        // 这条快路径的意义：上游同步 API 用 GetAwaiter().GetResult() 调我们，走 fork 就是 UI 线程冻 4–5 秒。
+        Dictionary<string, object?>? fileValues = WineRegistryFiles.TryReadKeyValues(prefix, normalizedKey, out string? fileReason);
+        if (fileValues is not null)
+        {
+            _cache[cacheKey] = new CacheEntry
+            {
+                TimestampUtc = DateTime.UtcNow,
+                Ttl = CacheTtl,
+                Values = fileValues,
+            };
+            return fileValues;
+        }
+        Log.Debug("[WineRegistry] 读文件没结论（{Reason}），回落 wine reg query：{Key}", fileReason, normalizedKey);
 
         var stopwatch = Stopwatch.StartNew();
         string? output = await RunAsync(prefix, cancellationToken, "reg", "query", normalizedKey).ConfigureAwait(false);
