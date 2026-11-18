@@ -99,7 +99,9 @@ public class LaunchHistoryStoreTests
             DurationMs = 1250,
         };
         string text = attempt.Describe();
-        Assert.Contains("11-16 10:05", text);
+        // 时间按「本地时区」展示，所以期望值也要用同一条转换算出来：
+        // 写死 "11-16 10:05" 只在 UTC+8 的机器上成立，CI 跑 UTC 会变成 02:05。
+        Assert.Contains(attempt.At.LocalDateTime.ToString("MM-dd HH:mm"), text);
         Assert.Contains(LaunchOutcome.PreflightFailed, text);
         Assert.Contains("1.3 s", text);
         Assert.Contains("Wine 运行器", text);
