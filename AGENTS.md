@@ -76,7 +76,7 @@ bash scripts/test/chunk-smoke.sh
 
 | 坑 | 现象 | 处理 |
 | --- | --- | --- |
-| 根 `global.json` 钉 SDK `10.0.300` + `msbuild-sdks` | 在错误目录执行 dotnet 会报 `MSB4236 找不到 SDK "Uno.Sdk"` | 一律**在仓库根**执行；子目录另有 `global.json` 时以最近者为准 |
+| 根 `global.json` 钉 SDK `10.0.100` + `msbuild-sdks` | 在错误目录执行 dotnet 会报 `MSB4236 找不到 SDK "Uno.Sdk"`；SDK 低于下限时报 `A compatible .NET SDK was not found` | 一律**在仓库根**执行；子目录另有 `global.json` 时以最近者为准；下限只写 `x.y.100`，别钉具体 feature band（D89 / L-163） |
 | `api.nuget.org` 在本机大包 EOF | `restore` 卡死/失败 | 用 `src/Lunarward/NuGet.config` 的华为云镜像（已配置 `<clear/>` 单源） |
 | X 授权文件会轮换 | `Authorization required` / `xdpyinfo` 失败 | `export XAUTHORITY=$(ls /run/user/1000/xauth_* \| head -1) DISPLAY=:0` |
 | Wayland 会话 | 全局热键不可用、`xdotool` 部分失效 | 热键是 X11 轮询；Wayland 下用 `lunarward --show` 绑系统快捷键 |
@@ -131,9 +131,9 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 ## 6. 文档地图（`docs/linux-port/`）
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D88 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D89 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-162 坑与复现方法（唯一）
+- `13-lessons.md` — L-01…L-163 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
 - `19-test-plan.md` — 测试计划（唯一，230 条：218 条功能用例 T-* + 12 条回归用例 RG-*）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
 - `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 八字段 / 四层检查 / 页面）
@@ -168,7 +168,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - [ ] `dotnet test Starward.slnx` 全绿
 - [ ] `bash scripts/test/lint-ui-thread.sh` 全绿（动了 UI code-behind / `*.Linux.cs` 事件处理器 / CLI 开关时必跑）
 - [ ] `bash scripts/test/lint-cli-help.sh` 全绿（加了/改了 CLI 开关时必跑：`Helpers/CliSpec.cs` 是帮助唯一来源，D79）
-- [ ] `bash scripts/test/lint-pkgbuild.sh` 全绿（改了原生依赖或 `packaging/` 时必跑：三份 PKGBUILD 的 depends 要与源码对上，D88）
+- [ ] `bash scripts/test/lint-pkgbuild.sh` 全绿（改了原生依赖、`packaging/` 或 `global.json` 时必跑：三份 PKGBUILD 的 depends 要与源码对上，SDK 下限只写 `x.y.100`，D88/D89）
 - [ ] `bash scripts/test/cli-smoke.sh` 与 `cli-extra.sh` 全绿（改了 CLI 时必跑）
 - [ ] 没有残留 `[xx-diag]` 日志 / 临时 `DevSwitches` / `/tmp` 调试代码
 - [ ] `src/Starward/` 无改动（`git status --porcelain src/Starward`）

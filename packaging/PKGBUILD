@@ -53,8 +53,10 @@ prepare() {
 }
 
 build() {
-  # 必须进到项目目录再执行：dotnet 从**当前工作目录**向上找 global.json，
-  # 仓库根的 global.json 钉的是 SDK 10.0.300（上游要求）。
+  # 必须进到项目目录再执行：dotnet 从**当前工作目录**向上找 global.json。
+  # 其中 sdk.version 只钉到最低 feature band（10.0.100），实际由 Arch 装的
+  # dotnet-sdk 向上滚 —— 别改回 10.0.3xx 之类，否则低版本 SDK 的环境会直接报
+  # "A compatible .NET SDK was not found"（D89 / L-163）。
   cd "$pkgname/src/Lunarward"
   export DOTNET_CLI_TELEMETRY_OPTOUT=1
   # pkgver 可能是 0.1.0.r123.gabc，AssemblyVersion 只认 major.minor[.build[.rev]]

@@ -1,7 +1,7 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D88）
-- **最后更新**：2026-11-18
+- **状态**：生效中（D0–D89）
+- **最后更新**：2026-11-19
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **确认方式**：
   - `明确` = 用户在对话中直接选定（附消息引用）
@@ -967,6 +967,36 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - **cookie 怎么拿**：`CookieManager.SetPersistentStorage(<output>.db, Sqlite)` + 每 2 秒读 `moz_cookies`（`name`/`value`）。之所以不调 `GetCookies`：GirCore 0.8.1 只生成了 `*Finish`，没有 `GetCookiesAsync` 这类异步入。命中标记（同 python 的 `LOGIN_MARKERS`）即导出并关窗；关窗也导出；兜底超时导出。
 - **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 包 `packaging/PKGBUILD` 已把 `webkitgtk-6.0` 并入 `depends`（pkgrel 2），原 `webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
 - **验证**（实测，2026-11-14）：本地起 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，`--webkit-login` 开窗后 2 秒内即输出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0；`moz_cookies` 里两条与页面一致。**待验收**：真实米游社登录（需用户操作）。
+
+## D89 SDK 下限：`global.json` 只钉到最低 feature band
+
+**背景**：用户 m03131「global.json 导致 aur 编译不过，好像是 dotnet sdk 版本不匹配」。核查（2026-11-19）：
+
+- `src/Lunarward/global.json` 的 `sdk.version` 是 **`10.0.302`**，根 `global.json` 是 `10.0.300`，`tests/`、`poc/`、`poc/video-spike/` 也都是 `10.0.302`，`rollForward` 一律 `latestMinor`。
+- **`rollForward` 只向上滚，不向下兼容**：本机装的是 **10.0.404**（`dotnet --list-sdks` 只有这一条），10.0.302 能解析；但如果打包环境装的是 10.0.1xx / 10.0.2xx（低于 302），就直接失败。
+- 复现（`/tmp` 里造一个 `global.json` 钉 `10.0.999`，本机只有 10.0.404）：
+
+  ```
+  A compatible .NET SDK was not found.
+  Requested SDK version: 10.0.999
+  global.json file: /tmp/gjtest/global.json
+  ```
+
+- **CI 一直绿，掩盖了这个问题**：`.github/workflows/linux.yml` 用 `actions/setup-dotnet@v5` + `dotnet-version: '10.0.x'`，装的是最新 10.0.x（现在 4xx，高于 302）；而 Arch 的 `dotnet-sdk` 版本由 Arch 仓库决定，不跟随我们。
+
+**决定**：
+
+1. 5 处 `global.json` 的 `sdk.version` 一律改成 **`10.0.100`**（.NET 10 首发 feature band），`rollForward` 保持 `latestMinor` —— 任何 10.0.x SDK 都能解析，并由 rollForward 向上滚到实际安装的版本。
+2. 根 `global.json` 与 `src/Lunarward/global.json` 就地加注释写明原因与「别改回去」——`global.json` 是 JSONC，`.NET` 接受 `//` 注释（实测三处 `dotnet --version` 都能正常解析到 10.0.404）。
+3. `scripts/test/lint-pkgbuild.sh` 新增 **D 节**（防回归）：①所有 `global.json` 的 `sdk.version` 最后一段必须是 `100`，否则 FAIL；②写了 `sdk.version` 就必须有 `rollForward`；③三份 PKGBUILD 的 `makedepends` 必须有 `dotnet-sdk`。
+4. 三份 PKGBUILD 的 `build()` 注释与 `packaging/README.md` 改成新说法（不再写「仓库根的 global.json 钉的是 SDK 10.0.300」）。
+
+**代价**：
+
+1. 下限放到 10.0.100 后，如果将来 `Uno.Sdk 6.7.45` 真的用到了只有 10.0.3xx+ 才有的 SDK 行为，问题会以**编译错误**（而不是「找不到 SDK」）的形式暴露。届时正确做法是给 `makedepends` 写死版本要求（`dotnet-sdk>=10.0.3xx`），**而不是**把 `global.json` 改回去。
+2. 本机只有 10.0.404，**无法实测** 10.0.1xx 环境能否编译 —— 这一条只能等 Arch 打包时验证（用户验收）。
+
+**验证**（2026-11-19 实测）：`dotnet --version` 在仓库根 / `src/Lunarward` / `tests` 三处都解析到 `10.0.404`（注释不影响解析）；`dotnet build Starward.slnx -c Debug` 与 `-c Release` 均 **0 错误**；`dotnet test` **264 通过 / 0 失败**；`bash scripts/test/lint-pkgbuild.sh` 四节全 PASS（D 节覆盖 5 个 `global.json` + 3 份 `makedepends`）。
 
 ## D88 Arch 打包：依赖清单单一来源，三份 PKGBUILD 对齐
 

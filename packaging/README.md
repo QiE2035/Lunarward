@@ -42,7 +42,9 @@ bash scripts/test/lint-pkgbuild.sh
 
 **不写进 depends 的**：`gtk3`（源码 0 引用，GirCore 用的是 Gtk-4.0 绑定，`webkitgtk-6.0` 会带 `gtk4`）、`zstd`（产物自带 `Lib/linux-x64/libzstd.so`）。
 
-构建脚本 `cd` 到 `src/Lunarward` 再 `dotnet publish`：`dotnet` 是从**当前工作目录**向上找 `global.json` 的，仓库根那份钉的是 SDK `10.0.300`，在别处执行会报 `A compatible .NET SDK was not found`。
+构建脚本 `cd` 到 `src/Lunarward` 再 `dotnet publish`：`dotnet` 是从**当前工作目录**向上找 `global.json` 的，不在这条路径上执行、或用了版本过旧的 SDK，都会报 `A compatible .NET SDK was not found`。
+
+`global.json` 里的 `sdk.version` 只钉到**最低 feature band**（`10.0.100`），实际用 Arch 装的 `dotnet-sdk` 向上滚（`rollForward: latestMinor`）。**不要**把它改回 `10.0.3xx` 这种具体 feature band —— Arch 仓库的 `dotnet-sdk` 版本由发行版决定，钉高了就会让打包环境找不到 SDK（D89 / L-163）。`scripts/test/lint-pkgbuild.sh` 的 D 节会拦这种改动。
 
 产物是 framework-dependent，运行时依赖 `dotnet-runtime`（10.x）。想自包含改 `--self-contained true`（体积约 +90MB，不再依赖系统 dotnet）。
 

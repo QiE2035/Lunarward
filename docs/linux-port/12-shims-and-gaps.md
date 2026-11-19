@@ -2,7 +2,7 @@
 
 > 这份文档回答一个问题：**Linux 版里，哪些地方是「真的做了」，哪些只是「先让它编译过」？**
 >
-> **最后校准**：2026-11-18（D88 + L-162）。UI 层的逐页复核与缺陷记录在 `21-ui-audit.md` / `22-port-verification.md`；本文只回答「实现了没有、还是只是替身」。
+> **最后校准**：2026-11-19（D89 + L-163）。UI 层的逐页复核与缺陷记录在 `21-ui-audit.md` / `22-port-verification.md`；本文只回答「实现了没有、还是只是替身」。
 >
 > 维护规则（强制）：每新增一个 `*.Linux.cs`、每新增一处 `Compat/` 兼容层、每把一个上游文件加入
 > `<Compile Remove>`，都必须同步更新本表。没有登记的替身视为缺陷（D33）。
@@ -258,3 +258,4 @@
 | 2026-11-18 | D88 Arch 打包：三份 PKGBUILD 的 `depends` 统一为 6 项（新增 `libxcb`、`xdg-utils`，AUR 两份补 `webkitgtk-6.0`；删 `gtk3`/`zstd`），`source` 分支从 `linux-port` 改 `main`、`aur/lunarward` 改 `#tag=v$pkgver`，`packaging/.gitignore` 的 `lunarward/` 改 `/lunarward/`（此前整份 AUR 包定义被忽略、从未进仓库），新增 `scripts/test/lint-pkgbuild.sh`（L-162） |
 | 2026-11-18 | D87 运行器显示名单一来源：`/opt` 下的定制 wine 不再叫「系统 Wine」，重名运行器补来源后缀（`RunnerNaming`），详情页优先显示组件名（`DisplayName`）与下拉对齐（L-161） |
 | 2026-11-18 | D86 卡顿与「每次重启都重来」：注册表读取改走文件（`WineRegistryFiles`，同一键 **95 ms** vs `reg query` 热 1843 ms / 冷 4128–5411 ms，顺带修好长 `REG_BINARY` 被首行截断与中文键名乱码）；三条提示改持久化一次性（`OneShotHints`）；失效绑定 warn 只一次；删 `[dbg]` 插桩、「识别到 N 个」改用 `KnownGames.Count`（L-160） |
+| 2026-11-19 | D89 SDK 下限：5 处 `global.json` 的 `sdk.version` 从 `10.0.300`/`10.0.302` 统一降到 `10.0.100`（`rollForward: latestMinor`），并在根与 `src/Lunarward` 两份里加注释说明「别改回 10.0.3xx」，否则 Arch 打包环境的低版本 SDK 会直接报 `A compatible .NET SDK was not found`；`lint-pkgbuild.sh` 加 D 节（`sdk.version` 末段必须是 `100` + 必须有 `rollForward` + `makedepends` 必须有 `dotnet-sdk`）（L-163） |

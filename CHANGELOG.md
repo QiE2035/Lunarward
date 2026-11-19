@@ -1,3 +1,20 @@
+## 2026-11-19 —— AUR 编译不过：`global.json` 把 SDK 版本钉太高（D89）
+
+用户报「global.json 导致 aur 编译不过，好像是 dotnet sdk 版本不匹配」。查下来确实是：
+
+- `src/Lunarward/global.json` 的 `sdk.version` 是 **`10.0.302`**，根 `global.json` 是 `10.0.300`。`rollForward: latestMinor` **只向上滚、不向下兼容** —— 装 10.0.404 的机器能编译，装 10.0.1xx / 10.0.2xx 的打包环境直接报 `A compatible .NET SDK was not found. Requested SDK version: 10.0.302`。
+- CI 一直是绿的，因为 `actions/setup-dotnet` 用 `dotnet-version: '10.0.x'` 装最新版，永远高于这个下限 —— 正好把它掩盖了。
+
+**改动**
+
+- 5 处 `global.json` 的 `sdk.version` 统一降到 **`10.0.100`**（.NET 10 首发 feature band），`rollForward` 保持 `latestMinor`；根与 `src/Lunarward` 两份就地加注释说明原因（`global.json` 是 JSONC，`.NET` 接受 `//`）。
+- `scripts/test/lint-pkgbuild.sh` 新增 **D 节**：所有 `global.json` 的 `sdk.version` 最后一段必须是 `100`、写了 `sdk.version` 就必须有 `rollForward`、三份 PKGBUILD 的 `makedepends` 必须有 `dotnet-sdk`。
+- 三份 PKGBUILD 的 `build()` 注释与 `packaging/README.md` 同步改说法（不再写「钉的是 SDK 10.0.300」）。
+
+**验证**：`dotnet --version` 在仓库根 / `src/Lunarward` / `tests` 都解析到 10.0.404；Debug/Release 构建 0 错误；单测 264/0；`lint-pkgbuild.sh` 四节全 PASS。**待验收**：Arch 打包机上真实编译（本机只有 10.0.404，无法实测低版本 SDK）。
+
+---
+
 ## 2026-11-18（三）—— Arch 打包的问题（D88）
 
 用户问「arch打包是不是还是有问题」。核对三份 PKGBUILD，确实是，而且有三层：

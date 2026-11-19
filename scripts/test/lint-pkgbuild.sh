@@ -83,7 +83,7 @@ depends_block() {
 
 for f in "${PKGBUILDS[@]}"; do
   if [ ! -f "$f" ]; then
-    bad "$f 不存在"
+    note "$f 不存在，跳过（稳定版包只在发版时纳入仓库）"
     continue
   fi
   block=$(depends_block "$f")
@@ -144,6 +144,39 @@ for f in "${PKGBUILDS[@]}"; do
     else
       note "$f：tag $tag 还不存在（发布前先 git tag $tag && git push origin $tag）"
     fi
+  fi
+done
+
+# ---------------------------------------------------------------- D SDK 下限
+echo "== D global.json 的 SDK 下限 =="
+# 钉具体 feature band（10.0.302）时，装了较低版本 SDK 的环境会直接报
+# "A compatible .NET SDK was not found"。Arch/AUR 的 dotnet-sdk 版本由 Arch
+# 仓库决定，不跟我们的开发机走，所以下限只能是 .NET 10 的首个 feature band
+# （x.y.100），由 rollForward 向上滚到实际安装的版本（D89 / L-163）。
+gjfound=0
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  ver=$(grep -oE '"version"[[:space:]]*:[[:space:]]*"[0-9]+\.[0-9]+\.[0-9]+"' "$f" \
+        | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+  [ -z "$ver" ] && continue        # 没钉 SDK 版本的 global.json 不参与
+  gjfound=$((gjfound + 1))
+  case "$ver" in
+    *.100) ok "$f：sdk.version=$ver（只钉到最低 feature band）" ;;
+    *)     bad "$f：sdk.version=$ver 钉了具体 feature band —— 低版本 SDK 环境会报找不到 SDK，应写成 x.y.100" ;;
+  esac
+  grep -q '"rollForward"' "$f" || bad "$f：有 sdk.version 却没有 rollForward"
+done < <(find . -name global.json -not -path './.git/*' -not -path '*/bin/*' -not -path '*/obj/*' | sort)
+if [ "$gjfound" -eq 0 ]; then
+  note "没找到任何钉 SDK 版本的 global.json"
+fi
+
+for f in "${PKGBUILDS[@]}"; do
+  [ -f "$f" ] || continue
+  block=$(awk '/^makedepends=\(/{flag=1} flag{print} flag&&/\)/{flag=0}' "$f" | tr '\n' ' ')
+  if grep -q "'dotnet-sdk" <<<"$block"; then
+    ok "$f：makedepends 有 dotnet-sdk"
+  else
+    bad "$f：makedepends 缺 dotnet-sdk（打包环境里没有 SDK 会直接失败）"
   fi
 done
 

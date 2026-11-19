@@ -1,6 +1,6 @@
 # Lunarward 文档总览（Starward 的 Linux 移植）
 
-- **最后更新**：2026-11-18（D88 Arch 打包依赖清单单一来源 + `lint-pkgbuild.sh`、L-162；D87 运行器显示名单一来源；D86 卡顿根因：注册表改读文件、一次性提示持久化）
+- **最后更新**：2026-11-19（D89 SDK 下限：`global.json` 只钉最低 feature band + `lint-pkgbuild.sh` D 节、L-163；D88 Arch 打包依赖清单单一来源；D87 运行器显示名单一来源；D86 卡顿根因：注册表改读文件、一次性提示持久化）
 - **当前阶段**：功能移植完成（M1–M3 主体）+ 运行环境与依赖收口（D73/D74 阶段 2·3、D75 portal 与图片格式、D76 登录窗 WebKitGTK 6.0；`24` 依赖盘点 P1–P5 全部落地：P5 采纳 ValveKeyValue / PeNet，否决 SharpHook 与 Tmds.DBus.Protocol，CLI 帮助改单一来源）。运行环境页按 D80 重做（footer 一级页 + 五页签自绘 + 增强开关，D81/D82）。**代码侧已无在做的功能批**，剩下的是**验收与文档收口**（`19` L3 / `20` / `21` / `22`）
 - **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 106 个提交、落后 1 个（`df8ae07 filecache powered by fusioncache`，待合并）
 - **版本**：`0.1.0`（`src/Lunarward/Lunarward.csproj`）

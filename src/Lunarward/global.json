@@ -3,7 +3,10 @@
     "Uno.Sdk": "6.7.45"
   },
   "sdk": {
-    "version": "10.0.302",
+    // 只钉到最低 feature band；钉具体 feature band（如 10.0.302）会让装了较低版本
+    // SDK 的环境直接报 "A compatible .NET SDK was not found"。Arch/AUR 的
+    // dotnet-sdk 版本不固定，见 D89 / L-163。
+    "version": "10.0.100",
     "rollForward": "latestMinor"
   }
 }

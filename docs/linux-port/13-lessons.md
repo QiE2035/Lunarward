@@ -3,7 +3,7 @@
 > 这里只记「踩过一次就不该再踩」的东西。每条都给出证据位置与处理方式。
 > 目的：让后来者（或几个月后的我们）不用重新发现一遍。
 
-- 最后更新：2026-11-18（L-162）
+- 最后更新：2026-11-19（L-163）
 
 ---
 
@@ -1308,6 +1308,20 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 **验证手法（值得复用）**：纯函数（`WineRegistryFiles`）不依赖 wine/前缀/日志，可以 `cp --reflink=auto` 复制到 `/tmp` 的 console 工程里，直接对**真实数据**跑并计时，再和 `wine reg query` 对照。比在应用里点 UI 可靠得多（本次点了「HDR 亮度设置」按钮毫无反应，白等 6 秒）。
 
 **顺带**：C# 的 verbatim 字符串 `@"...\"..."` 里 `\"` **不是转义**，双引号会提前结束字符串 —— 写测试里带引号的样例时要改用普通字符串 `"a\\nb\\0c\\rd\\\"e"`。
+
+---
+
+## L-163 SDK 版本钉太高 = 换台机器就编译不过；CI 绿不代表打包环境绿
+
+**背景**：用户 m03131 报「global.json 导致 aur 编译不过，好像是 dotnet sdk 版本不匹配」。
+
+1. **`rollForward` 只向上滚，不向下兼容**。`global.json` 写 `"version": "10.0.302", "rollForward": "latestMinor"` 时：装 10.0.404 的机器能编译（向上滚），装 10.0.1xx 的机器**直接失败**（`A compatible .NET SDK was not found. Requested SDK version: 10.0.302`）。**规则**：对外发布的下限只钉到该 major 的**最低 feature band**（`x.y.100`），让 rollForward 去挑实际装的版本。
+2. **`dotnet-version: '10.0.x'` 的 CI 会永远掩盖这个问题**：setup-dotnet 装的是最新 10.0.x，永远 >= 我们写的下限。只有「版本由别人决定」的环境（Arch 的 `dotnet-sdk`、系统 LTS 渠道）才会暴露。**规则**：凡是给外部环境用的版本下限，按「最旧的可能值」写，并在打包文档里写明为什么，别只在开发机上验证。
+3. **复现手法**：造个临时目录放 `global.json` 钉一个不存在的高版本，跑 `dotnet --version` —— 立刻得到完整报错（请求版本 + global.json 路径 + 已装 SDK 列表），比等打包机快得多。实测 `/tmp/gjtest` 里钉 `10.0.999` 就复现了。
+4. **`global.json` 支持 `//` 注释**（JSONC，.NET 自己解析）：把「为什么是这个版本」写在旁边，比写在文档里更容易被下一个改它的人看见（实测加注释后三处 `dotnet --version` 仍正常）。
+5. **防回归靠 lint，不靠记性**：`scripts/test/lint-pkgbuild.sh` 的 D 节检查「每个 `global.json` 的 `sdk.version` 最后一段必须是 `100`」，谁改回 `10.0.3xx` 就 FAIL。
+
+**验证**（2026-11-19）：改后 `dotnet --version` 在仓库根 / `src/Lunarward` / `tests` 都解析到 10.0.404；Debug/Release 均 0 错误；单测 264/0；lint-pkgbuild 四节全 PASS。
 
 ---
 
