@@ -1,3 +1,16 @@
+## 2026-11-19（三）—— `packaging/PKGBUILD` 默认打本地（D91）
+
+用户要求「`packaging/PKGBUILD` 默认走本地」。D88 把它改成拉远端 `main`，结果想验证本地改动反而必须先 push —— 顺序反了。
+
+**改动**
+
+- `packaging/PKGBUILD` 的 source 默认 **`git+file://${startdir}/..#branch=main`**（克隆本地仓库 HEAD，不用 push）；`LUNARWARD_SOURCE=remote makepkg -f` 切回远端 `main`。
+- AUR 两份保持远端（必须能被 AUR 构建机取到）。
+- 注释和 `packaging/README.md` 都写明：git 源只含**已提交**内容，改完先 `git commit`。
+- `scripts/test/lint-pkgbuild.sh` 的 C 节支持「source 引用变量」的写法（`git+` 在赋值行里也算 VCS 源）。
+
+**实测**：默认 `--printsrcinfo` 得到 `git+file:///…/packaging/..#branch=main`，`LUNARWARD_SOURCE=remote` 得到远端地址；`makepkg --verifysource` 真克隆成功，克隆体 `114` 提交 / `4937610`，与本地一致；`lint-pkgbuild.sh` 通过。
+
 ## 2026-11-19（二）—— CI 上传可运行产物（D90）
 
 用户要「CI 应该上传编译产物，可运行的」。此前 CI 只 build + 测试，不产出任何能跑的东西，想试就跑必须自己 clone + 装 SDK + build。

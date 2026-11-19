@@ -66,6 +66,7 @@ bash scripts/test/lint-ui-thread.sh
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/lint-cli-help.sh
 
 # Arch 打包：三份 PKGBUILD 的 depends 与源码里的原生依赖是否对得上（秒级、不联网）
+# （packaging/PKGBUILD 默认打本地 HEAD；按远端 main 构建：LUNARWARD_SOURCE=remote makepkg -f，D91）
 bash scripts/test/lint-pkgbuild.sh
 
 # 离线安装链路（假 Sophon 服务 + zstd 分块）
@@ -131,7 +132,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 ## 6. 文档地图（`docs/linux-port/`）
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D90 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D91 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
 - `13-lessons.md` — L-01…L-163 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）

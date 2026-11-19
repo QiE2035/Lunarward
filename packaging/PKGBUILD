@@ -1,8 +1,10 @@
 # Maintainer: Lunarward contributors
-# 仓库内的 Arch 构建模板：source 跟随 GitHub 上的 main 分支。
+# 仓库内的 Arch 构建模板：source **默认走本地工作区**，改完代码不用 push 就能打包验证。
 #
-# 要构建**本地未推送**的改动，把 source 换成：
-#   source=("$pkgname::git+file://${startdir}/..#branch=main")
+# 要按远端 main 构建：LUNARWARD_SOURCE=remote makepkg -f
+#
+# 注意：git 源只包含**已提交**的内容 —— 未提交的改动不会进包，先用 git commit。
+# 本地源会克隆仓库的 .git（当前 55 MB），一次几秒；这是为了能拿到 pkgver() 要的提交数。
 #
 # 正式 AUR 包在 packaging/aur/ 下：lunarward = 稳定版（跟 tag），lunarward-git = 开发版（跟 main）。
 #
@@ -40,7 +42,14 @@ optdepends=(
   'xdg-desktop-portal: 截图与文件选择走 portal（D75）'
 )
 
-source=("$pkgname::git+https://github.com/QiE2035/Lunarward.git#branch=main")
+# 默认：克隆**本地**仓库的 HEAD（不用 push）。
+# 远端：LUNARWARD_SOURCE=remote makepkg -f
+if [[ ${LUNARWARD_SOURCE:-local} == remote ]]; then
+  _lunarward_source="git+https://github.com/QiE2035/Lunarward.git#branch=main"
+else
+  _lunarward_source="git+file://${startdir}/..#branch=main"
+fi
+source=("$pkgname::${_lunarward_source}")
 sha256sums=('SKIP')
 
 pkgver() {

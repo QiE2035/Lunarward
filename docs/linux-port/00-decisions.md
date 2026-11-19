@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D90）
+- **状态**：生效中（D0–D91）
 - **最后更新**：2026-11-19
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **确认方式**：
@@ -968,6 +968,25 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 包 `packaging/PKGBUILD` 已把 `webkitgtk-6.0` 并入 `depends`（pkgrel 2），原 `webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
 - **验证**（实测，2026-11-14）：本地起 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，`--webkit-login` 开窗后 2 秒内即输出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0；`moz_cookies` 里两条与页面一致。**待验收**：真实米游社登录（需用户操作）。
 
+## D91 `packaging/PKGBUILD` 默认打本地仓库
+
+**背景**：用户 m03385「@packaging/PKGBUILD 默认走本地」。D88 把 source 从 `#branch=linux-port` 改成 `git+https://…#branch=main`（远端），于是想验证本地改动必须先 push —— 而「打包验证」恰恰是 push **之前**最需要做的事，顺序反了。
+
+**决定**：
+
+1. `packaging/PKGBUILD` 的 source 默认是 **`git+file://${startdir}/..#branch=main`**（克隆本地仓库的 HEAD）；`LUNARWARD_SOURCE=remote` 时切回 `git+https://github.com/QiE2035/Lunarward.git#branch=main`。
+2. AUR 两份**不变**（仍走远端）：它们的 source 必须能被 AUR 的构建机取到，指本地路径没有意义。
+3. 注释与 `packaging/README.md` 都写明「git 源只包含**已提交**的内容」—— `git+file://` 克隆的是 HEAD，不是工作区快照，有未提交改动要先 `git commit`。
+4. `lint-pkgbuild.sh` 的 C 节扩展到「source 引用变量」的写法：`git+` 出现在 `_xxx_source="git+…"` 赋值行时同样按 VCS 源判定，否则会被误判成「tarball 源 + SKIP」而报错。
+
+**代价**：①`git+file://` 会克隆整个 `.git`（当前 55 MB / 114 提交），每次几秒 —— 换来 `pkgver()` 里的提交数可用；若仓库涨到数百 MB 再考虑 `source=()` + `prepare()` 复制工作区，但那会把 `bin/obj` 一起拷进去，得不偿失；②本地源打包出来的是**上一个提交**，改完忘 commit 会静默打出旧代码，只能靠 `RUN` 时的 `git log` 反查。
+
+**验证**（实测）：
+
+- `makepkg --printsrcinfo`（默认）→ `source = lunarward::git+file:///home/qie2035/projects/migrate/Starward/packaging/..#branch=main`；`LUNARWARD_SOURCE=remote makepkg --printsrcinfo` → `git+https://github.com/QiE2035/Lunarward.git#branch=main`。
+- `makepkg --verifysource` 真克隆成功（`克隆到纯仓库 '…/packaging/lunarward'`）；克隆体里 `rev-list --count main` = **114**、`rev-parse --short main` = **`4937610`**，与本地仓库完全一致 → `pkgver()` 会得到 `0.1.0.r114.g4937610`。
+- `bash scripts/test/lint-pkgbuild.sh` 通过（1 条提醒：`aur/lunarward` 的 tag 尚不存在，预期内）。
+
 ## D90 CI 上传可运行产物：self-contained tar.gz，保留 7 天
 
 **背景**：用户 m03282「CI 应该上传编译产物」+ m03284「可运行的」。此前 `.github/workflows/linux.yml` 只跑 `dotnet build -c Release` 与各层测试，**没有任何可运行产物**（只有覆盖率的 xml、失败时的 L2 日志）；想试跑必须自己 clone、装 SDK、build。
@@ -1031,7 +1050,7 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 
 1. **依赖清单统一**为 `depends=('dotnet-runtime>=10.0' 'fontconfig' 'libx11' 'libxcb' 'xdg-utils' 'webkitgtk-6.0')`，三份一字不差，每项在注释里写明对应哪个 P/Invoke 或外部命令。
 2. **删掉 `gtk3`**（源码 0 引用；GirCore 用的是 Gtk-**4**.0 绑定，`webkitgtk-6.0` 会带 `gtk4`）与 **`zstd`**（产物自带 `Lib/linux-x64/libzstd.so`）。
-3. `packaging/PKGBUILD`：source 改 `git+https://github.com/QiE2035/Lunarward.git#branch=main`，`url` 改本仓库，补 `pkgver()`；注释写明「要构建本地未推送的改动就换回 `git+file://${startdir}/..#branch=main`」。
+3. `packaging/PKGBUILD`：source 改 `git+https://github.com/QiE2035/Lunarward.git#branch=main`，`url` 改本仓库，补 `pkgver()`；注释写明「要构建本地未推送的改动就换回 `git+file://${startdir}/..#branch=main`」。**（此条已被 D91 变更**：默认改回本地源，按远端 main 构建需 `LUNARWARD_SOURCE=remote`。）
 4. `aur/lunarward`：source 改 `git+…#tag=v$pkgver`（git 源用 `sha256sums=('SKIP')` 才合规），注释写明「发布前必须先打 tag」；`aur/lunarward-git` 同步依赖。
 5. `-p:Version` 由 `"${pkgver}"` 改 `"${pkgver%%.r*}"` —— `0.1.0.r123.gabc` 不是合法的 `AssemblyVersion`，git 版构建会因为版本串带字母而失败。
 6. `packaging/.gitignore` 的 `lunarward/` 改 `/lunarward/`（只忽略 `packaging/` 根下的 makepkg 构建目录），并补 `/pkg/`、`/src/`、`/aur/*/lunarward*/`。

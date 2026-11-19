@@ -123,7 +123,9 @@ for f in "${PKGBUILDS[@]}"; do
   [ -f "$f" ] || continue
   src=$(grep -E '^source=' "$f")
   sums=$(grep -E '^sha256sums=' "$f")
-  if grep -qE 'git\+' <<<"$src"; then
+  # source 可能引用变量（packaging/PKGBUILD 用 LUNARWARD_SOURCE 在本地/远端之间切），
+  # 那种写法里 `git+` 出现在赋值行而不是 source= 行，所以两处都要看。
+  if grep -qE 'git\+' <<<"$src" || grep -qE '^[[:space:]]*[a-z_]*source="?git\+' "$f"; then
     if grep -q "SKIP" <<<"$sums"; then
       ok "$f：VCS 源用 SKIP（合规）"
     else

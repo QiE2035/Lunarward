@@ -6,15 +6,19 @@
 
 | 文件 | source | 用途 |
 | --- | --- | --- |
-| `PKGBUILD` | `git+https://…#branch=main` | **仓库里的构建模板**。在 `packaging/` 里 `makepkg -si` 就能构建并安装当前 main |
+| `PKGBUILD` | 默认 `git+file://${startdir}/..`（本地 HEAD）；`LUNARWARD_SOURCE=remote` 时 `git+https://…#branch=main` | **仓库里的构建模板**。在 `packaging/` 里 `makepkg -si` 构建并安装**你本地当前的提交** |
 | `aur/lunarward/PKGBUILD` | `git+https://…#tag=v$pkgver` | **AUR 稳定版**，跟 tag。仓库里没有对应 tag 时构建会失败，发布前先打 tag |
 | `aur/lunarward-git/PKGBUILD` | `git+https://…#branch=main` | **AUR 开发版**，跟最新提交，`pkgver()` 自动带 `r<提交数>.g<短 hash>` |
 
-要构建**本地未推送**的改动，把 `PKGBUILD` 的 source 换成：
+仓库里那份 `PKGBUILD` **默认打本地仓库**（改完代码不用 push）：
 
 ```bash
-source=("$pkgname::git+file://${startdir}/..#branch=main")
+cd packaging
+makepkg -si                            # 本地 HEAD
+LUNARWARD_SOURCE=remote makepkg -si    # 远端 main
 ```
+
+git 源只包含**已提交**的内容 —— 有未提交的改动时先 `git commit`，否则打出来的包还是旧的。
 
 ## Arch / CachyOS
 
