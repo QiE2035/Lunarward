@@ -986,7 +986,7 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 
 - 本机 `dotnet publish … --self-contained true` 后 `./Lunarward --version` → `Lunarward 0.1.0.0`（exit 0）、`--help` 正常输出分组帮助；publish 目录 226 MB，`tar -czf` 后 92 MB（7 s）。
 - 对照：framework-dependent publish 目录 147 MB、tar.gz 59 MB（同样实测可运行）。
-- CI 端到端（下载 artifact → 解压 → 运行）见提交后首次 run。
+- CI 端到端（run 44499063793，commit `a3f286a`）：artifact `lunarward-linux-x64` **81 MB**（zip 里含 92 MB tar.gz）→ 解压 215 MB → `./Lunarward --version` → `Lunarward 0.1.0.0`（exit 0）、`--help` 正常、`--profile-ensure` 正确读出已绑定方案；包内有 `libcoreclr.so` / `libhostfxr.so`，确认是 self-contained；`RUN.txt` 里的 commit 与版本正确。
 
 ## D89 SDK 下限：`global.json` 只钉到最低 feature band
 

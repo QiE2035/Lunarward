@@ -10,7 +10,9 @@
 
 **为什么是 self-contained**：产物 226 MB、tar.gz 92 MB，解压即跑，不需要下载方装 `dotnet-runtime`。正式发行仍走 AUR / AppImage（framework-dependent，D88），两者的定位不同：CI 产物是「立刻能试」，AUR 是「给用户的正式件」。
 
-**本地实测**：publish 后 `./Lunarward --version` → `Lunarward 0.1.0.0`（exit 0）；`--help` 正常。framework-dependent 对照 147 MB / tar.gz 59 MB，同样可运行。
+**实测**：本地 publish 后 `./Lunarward --version` → `Lunarward 0.1.0.0`（exit 0）、`--help` 正常；framework-dependent 对照 147 MB / tar.gz 59 MB，同样可运行。
+
+**CI 端到端**（run 44499063793）：artifact 81 MB → 解压 215 MB → `--version` / `--help` / `--profile-ensure` 全部正常，包内含 `libcoreclr.so`，确认自带运行时。
 
 ## 2026-11-19 —— AUR 编译不过：`global.json` 把 SDK 版本钉太高（D89）
 
