@@ -1,3 +1,17 @@
+## 2026-11-19（二）—— CI 上传可运行产物（D90）
+
+用户要「CI 应该上传编译产物，可运行的」。此前 CI 只 build + 测试，不产出任何能跑的东西，想试就跑必须自己 clone + 装 SDK + build。
+
+**改动**
+
+- `.github/workflows/linux.yml` 末尾新增三步：`dotnet publish -c Release -r linux-x64 --self-contained true -p:DebugType=none` → 打成 `lunarward-linux-x64-<sha7>.tar.gz` → `upload-artifact`（名 `lunarward-linux-x64`，保留 7 天）。
+- 产物里附 `RUN.txt`：怎么解压、怎么跑、还缺哪些系统库、这次构建的 commit 与版本。
+- PR 不产出（`if: github.event_name != 'pull_request'`），只在 `push main` / `workflow_dispatch` 上传。
+
+**为什么是 self-contained**：产物 226 MB、tar.gz 92 MB，解压即跑，不需要下载方装 `dotnet-runtime`。正式发行仍走 AUR / AppImage（framework-dependent，D88），两者的定位不同：CI 产物是「立刻能试」，AUR 是「给用户的正式件」。
+
+**本地实测**：publish 后 `./Lunarward --version` → `Lunarward 0.1.0.0`（exit 0）；`--help` 正常。framework-dependent 对照 147 MB / tar.gz 59 MB，同样可运行。
+
 ## 2026-11-19 —— AUR 编译不过：`global.json` 把 SDK 版本钉太高（D89）
 
 用户报「global.json 导致 aur 编译不过，好像是 dotnet sdk 版本不匹配」。查下来确实是：

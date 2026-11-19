@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D89）
+- **状态**：生效中（D0–D90）
 - **最后更新**：2026-11-19
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **确认方式**：
@@ -967,6 +967,26 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - **cookie 怎么拿**：`CookieManager.SetPersistentStorage(<output>.db, Sqlite)` + 每 2 秒读 `moz_cookies`（`name`/`value`）。之所以不调 `GetCookies`：GirCore 0.8.1 只生成了 `*Finish`，没有 `GetCookiesAsync` 这类异步入。命中标记（同 python 的 `LOGIN_MARKERS`）即导出并关窗；关窗也导出；兜底超时导出。
 - **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 包 `packaging/PKGBUILD` 已把 `webkitgtk-6.0` 并入 `depends`（pkgrel 2），原 `webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
 - **验证**（实测，2026-11-14）：本地起 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，`--webkit-login` 开窗后 2 秒内即输出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0；`moz_cookies` 里两条与页面一致。**待验收**：真实米游社登录（需用户操作）。
+
+## D90 CI 上传可运行产物：self-contained tar.gz，保留 7 天
+
+**背景**：用户 m03282「CI 应该上传编译产物」+ m03284「可运行的」。此前 `.github/workflows/linux.yml` 只跑 `dotnet build -c Release` 与各层测试，**没有任何可运行产物**（只有覆盖率的 xml、失败时的 L2 日志）；想试跑必须自己 clone、装 SDK、build。
+
+**决定**：
+
+1. 在全部测试通过之后，追加 `dotnet publish src/Lunarward/Lunarward.csproj -c Release -r linux-x64 --self-contained true -p:DebugType=none` → 打成 `lunarward-linux-x64-<sha7>.tar.gz` → `actions/upload-artifact@v4`（名 `lunarward-linux-x64`，保留 7 天，`compression-level: 1`）。
+2. **选 self-contained，不选 framework-dependent**：产物 226 MB、tar.gz **92 MB**，解压即跑，不要求下载方装 `dotnet-runtime`。正式发布形态（AUR / AppImage）仍是 framework-dependent（`depends=('dotnet-runtime>=10.0')`，D88）；两者不冲突——CI 产物是「给我一个立刻能试的东西」，AUR/AppImage 是「给用户的正式件」。
+3. 产物根目录附 `RUN.txt`：解压方式、`./Lunarward`、所需系统库（`fontconfig libx11 libxcb xdg-utils webkitgtk-6.0`）、提交 sha、版本，以及「这是 CI 临时产物，正式发行请走 AppImage/AUR」。
+4. **PR 不上传**（`if: github.event_name != 'pull_request'`），只在 `push main` 与 `workflow_dispatch` 产出，避免吃 artifact 配额。
+5. 上传单个 tar.gz 而不是目录：`tar` 保留可执行位，也避免 artifact 的 zip 打包把 Unix 权限位弄丢。
+
+**代价**：①CI 单次多约 40 秒（publish 25 s + 打包 7 s + 上传）；②每 push 存一份 92 MB artifact、留 7 天；③self-contained 产物用 `ubuntu-latest` 的 glibc 构建，`glibc < 2.39` 的老发行版跑不起来——这类用户应当用 AUR 包或 AppImage。
+
+**验证**（实测）：
+
+- 本机 `dotnet publish … --self-contained true` 后 `./Lunarward --version` → `Lunarward 0.1.0.0`（exit 0）、`--help` 正常输出分组帮助；publish 目录 226 MB，`tar -czf` 后 92 MB（7 s）。
+- 对照：framework-dependent publish 目录 147 MB、tar.gz 59 MB（同样实测可运行）。
+- CI 端到端（下载 artifact → 解压 → 运行）见提交后首次 run。
 
 ## D89 SDK 下限：`global.json` 只钉到最低 feature band
 

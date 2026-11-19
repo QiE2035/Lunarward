@@ -131,7 +131,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 ## 6. 文档地图（`docs/linux-port/`）
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D89 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D90 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
 - `13-lessons.md` — L-01…L-163 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
@@ -147,7 +147,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 ## 7. 提交 / CI
 
 - 提交信息：`type(scope): 摘要` + 必要时的正文（说明根因与验证方式）；一个提交只做一件事。
-- CI（`.github/workflows/linux.yml`）：Release 构建 → L1 测试 → L2 CLI 冒烟 → L1.5 自检（xvfb）。**必须绿**；`gh run list --repo QiE2035/Lunarward`（不加 `--repo` 会被 `upstream` 解析到上游）。
+- CI（`.github/workflows/linux.yml`）：Release 构建 → L1 测试 → L2 CLI 冒烟 → L1.5 自检（xvfb）→ 上传可运行产物（`lunarward-linux-x64`，self-contained tar.gz，D90）。**必须绿**；`gh run list --repo QiE2035/Lunarward`（不加 `--repo` 会被 `upstream` 解析到上游）。
 - AppImage 打包走 `workflow_dispatch` 或 tag（`.github/workflows/appimage.yml`）。
 - 版本号在 `src/Lunarward/Lunarward.csproj`；对外可见变更写进 `CHANGELOG.md`。
 

@@ -106,6 +106,56 @@ jobs:
         # CI 机器性能与本地基线不可比，这里只记录当次数值（不设门禁）；门禁在本地按 perf-baseline.json 比对
         bash scripts/test/perf.sh --record || true
 
+    # ---------------------------------------------------------------- 可运行产物
+    # self-contained 的 linux-x64 构建：**自带 .NET 10 运行时**，解压即可跑，不要求目标机装 dotnet。
+    # 与正式发布形态（AUR / AppImage 都是 framework-dependent，见 packaging/）不同 ——
+    # 这里要的是「下载就能试」，所以选 self-contained（产物 226 MB，tar.gz 约 92 MB）。
+    - name: Publish runnable build (self-contained)
+      run: |
+        dotnet publish src/Lunarward/Lunarward.csproj \
+          -c Release -r linux-x64 --self-contained true \
+          -p:DebugType=none \
+          -o "$RUNNER_TEMP/lunarward"
+
+    - name: Package runnable build
+      run: |
+        cd "$RUNNER_TEMP/lunarward"
+        cat > RUN.txt <<EOF
+        Lunarward —— Starward 的 Linux 移植
+        =====================================
+
+        这是 CI 构建的可运行产物，已自带 .NET 10 运行时（self-contained）：
+
+            tar -xzf lunarward-linux-x64-*.tar.gz
+            ./Lunarward
+
+        还需要的系统库（Arch 包名）：fontconfig libx11 libxcb xdg-utils webkitgtk-6.0
+
+        构建信息
+        --------
+        commit: ${GITHUB_SHA}
+        版本:   0.1.0
+        构建:   GitHub Actions / ubuntu-latest / linux-x64
+
+        注意
+        ----
+        这是 CI 的临时产物，用来验证「能编译、能启动、能跑 CLI」；
+        正式发行请用 AppImage 或 AUR 包（见 packaging/）。
+        EOF
+        chmod +x Lunarward
+        tar -czf "$RUNNER_TEMP/lunarward-linux-x64-${GITHUB_SHA::7}.tar.gz" .
+        ls -lh "$RUNNER_TEMP"/*.tar.gz
+
+    - name: Upload runnable build
+      if: github.event_name != 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: lunarward-linux-x64
+        path: ${{ runner.temp }}/lunarward-linux-x64-*.tar.gz
+        retention-days: 7
+        compression-level: 1
+        if-no-files-found: error
+
     - name: Upload L2 artifacts on failure
       if: failure()
       uses: actions/upload-artifact@v4
