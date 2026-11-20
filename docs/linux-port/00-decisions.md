@@ -3,6 +3,7 @@
 - **状态**：生效中（D0–D91）
 - **最后更新**：2026-11-19
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
+- **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
 - **确认方式**：
   - `明确` = 用户在对话中直接选定（附消息引用）
   - `按推荐` = 用户指示「其余规划先按推荐」，默认生效，逐条复核时再转「明确」
@@ -1262,11 +1263,11 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **决定**：
 
 1. **采纳 ValveKeyValue 0.80.0.542** —— 补 `SteamLibrary`：解析 `steamapps/libraryfolders.vdf`（新旧两种格式），把每个库的 `compatibilitytools.d`（Proton）与 `steamapps/common`（GE-Proton 放在库里）都纳入扫描。原来 `ComponentStore.SteamCompatRoots()` 硬编码 4 条默认路径，**Steam 装在自定义库的机器上一个 Proton 都扫不到**。
-2. **采纳 PeNet 6.1.2** —— 预检第 10 项「游戏架构」：读 PE machine（`I386`/`Amd64`/`Arm64`），与方案的前缀架构比对。x64 exe + win32 前缀 → Failed（Wine 直接 `BAD EXE FORMAT`）；x86 exe + win64 前缀 → Warning（WoW64 能跑但可能缺 32 位库）；ARM64 → Failed（需要 Windows on ARM）。
+2. **采纳 PeNet 6.1.2** —— 预检「游戏架构」项：读 PE machine（`I386`/`Amd64`/`Arm64`），与方案的前缀架构比对。x64 exe + win32 前缀 → Failed（Wine 直接 `BAD EXE FORMAT`）；x86 exe + win64 前缀 → Warning（WoW64 能跑但可能缺 32 位库）；ARM64 → Failed（需要 Windows on ARM）。
 3. **SharpHook 8.0.2 不换**（spike 实测否决）：本机 KDE Wayland（`XDG_SESSION_TYPE=wayland`，`DISPLAY=:0`）下 `TaskPoolGlobalHook` 打印 enabled 但 12 秒内 0 个按键事件——`xdotool key`（XTEST）收不到，`env -u WAYLAND_DISPLAY` 强制 X11 后端也收不到；对照实验自写 `XQueryKeymap` 轮询能看到 `xdotool keydown shift`。说明 XTEST 事件对 X 客户端可见，问题在 libuiohook/XRecord 这条路上，**不是我们的用法**。结论：保留 `X11KeyState` 轮询 + `--show` 绑系统快捷键。Wayland 全局热键的正解是 portal——本机 `busctl --user introspect` 确认 KDE 暴露 `org.freedesktop.portal.GlobalShortcuts`，列为后续项（用现有 Tmds.DBus 接）。
 4. **Tmds.DBus 不迁 Tmds.DBus.Protocol**：涉及 `Helpers/Portal.cs`（4 个 `[DBusInterface]`，含 FD 与请求句柄）、`Helpers/DesktopNotification.cs`、`Features/Tray/StatusNotifierTray.cs` 共 921 行，Protocol 是源生成器模型（`AddMethodHandler` / `GetMessageWriter`，没有 `CreateProxy`），而托盘/通知/portal 三条用户可见链路**没有自动化覆盖**。前置条件写下来：先有这三条的集成断言，再谈迁移。
 
-**代价**：①两个新包（ValveKeyValue 907 KB、PeNet 846 KB，均只进主程序，不进测试时占位）；②`SteamLibrary` 只读 `libraryfolders.vdf`，不解析 `appmanifest_*.acf`（还没需求，D46：先不做没需求的东西）；③预检从 9 项变 10 项，弹窗更长。
+**代价**：①两个新包（ValveKeyValue 907 KB、PeNet 846 KB，均只进主程序，不进测试时占位）；②`SteamLibrary` 只读 `libraryfolders.vdf`，不解析 `appmanifest_*.acf`（还没需求，D46：先不做没需求的东西）；③预检从 9 项变 10 项（后来又加「增强开关」，现共 11 项），弹窗更长。
 
 **验证**（实测）：`SteamLibraryTests` 8 组（新/旧格式 VDF、尾斜杠去重、坏文本、多库合并、`CompatRoots`、`IsProtonFolder`）、`PeArchitectureTests` 24 组（含自拼最小 PE32/PE32+ 断言 `X86`/`X64`）；`dotnet test` 200 通过；预检项数 10（`grep 'Name = "'` 去重核对）。
 

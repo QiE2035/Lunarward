@@ -116,7 +116,7 @@ dotnet publish Lunarward.csproj -c Release -r linux-x64 --self-contained false -
 先看 [`docs/user/faq.md`](./docs/user/faq.md)。常用自查命令：
 
 ```bash
-lunarward --preflight hk4e_cn ~/games/hk4e_cn/YuanShen.exe   # 十项检查
+lunarward --preflight hk4e_cn ~/games/hk4e_cn/YuanShen.exe   # 十一项检查
 lunarward --launch-plan ~/games/hk4e_cn/YuanShen.exe         # 只解析不启动
 lunarward --companion-plan hk4e_cn                           # 后启动程序命令行
 lunarward --output-tail 200                                  # 最近输出
@@ -137,7 +137,7 @@ lunarward --graphics-list                                    # 检测到的运�
 
 移植的取舍、运行模型、移植矩阵、依赖准入、风险、路线图都在
 [`docs/linux-port/`](./docs/linux-port/README.md)。改代码前建议先读
-[`00-decisions.md`](./docs/linux-port/00-decisions.md)（D0–D70）与
+[`00-decisions.md`](./docs/linux-port/00-decisions.md)（D0–D91）与
 [`13-lessons.md`](./docs/linux-port/13-lessons.md)（踩过的坑）。
 
 ## 许可与致谢

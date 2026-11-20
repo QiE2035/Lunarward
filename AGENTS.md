@@ -131,19 +131,20 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 
 ## 6. 文档地图（`docs/linux-port/`）
 
+活跃文档**只有这 9 份**（2026-11-20 清理后）：
+
 - `README.md` — 总览与状态（**先看这个**）
 - `00-decisions.md` — D0–D91 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
 - `13-lessons.md` — L-01…L-163 坑与复现方法（唯一）
-- `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与 81 个同名差异文件清单（`scripts/list-deviations.sh` 生成）
-- `19-test-plan.md` — 测试计划（唯一，230 条：218 条功能用例 T-* + 12 条回归用例 RG-*）；`20-l3-report.md`/`21-ui-audit.md`/`22-port-verification.md` — 执行记录
+- `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`scripts/list-deviations.sh` 生成）
+- `19-test-plan.md` — 测试计划（唯一，230 条：218 T-* + 12 RG-*）
 - `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 八字段 / 四层检查 / 页面）
-- `24-dependency-audit.md` — 依赖盘点（48 处外部进程判定、可换库项、建议批次）：换依赖前先看这张表，别重复论证
-- `16-runtime-components.md` / `17-runtime-environment-ui.md` — **历史**（已被 23 号取代）
-- `09` / `11` / `15` — **历史文档**，不要据此改代码
+- `24-dependency-audit.md` — 依赖盘点（48 处外部进程判定、可换库项、建议批次）：换依赖前先看这张表
 - `docs/user/` — 给用户的 FAQ 与运行环境说明
+- `screenshots/` / `perf-baseline.json` — 截图证据与性能基线数据
 
----
+已删除 17 份完成使命的文档（`01`–`11`、`15`–`17`、`20`–`22`：需求/架构规划、M1-0 快照、早期运行环境 UI 设计、一次性执行记录）。需要回溯：`git log --diff-filter=D -- docs/linux-port/`。
 
 ## 7. 提交 / CI
 

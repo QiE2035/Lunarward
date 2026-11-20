@@ -110,7 +110,7 @@ Alt+D 依次尝试 `spectacle -b -n -f`、`grim`、`gnome-screenshot`。三个�
 
 ```bash
 lunarward --launch-plan ~/games/hk4e_cn/YuanShen.exe "-popupwindow"   # 只解析不启动
-lunarward --preflight hk4e_cn ~/games/hk4e_cn/YuanShen.exe             # 十项检查
+lunarward --preflight hk4e_cn ~/games/hk4e_cn/YuanShen.exe             # 十一项检查
 lunarward --companion-plan hk4e_cn                                     # 后启动程序命令行
 lunarward --output-tail 200                                            # 最近输出
 lunarward --url-plan "lunarward://startgame?biz=hk4e_cn"               # 协议展开

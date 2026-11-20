@@ -1,6 +1,6 @@
 # 24 依赖盘点：外部进程与手写实现，哪些该换成库
 
-> 状态：**只读盘点，未改任何代码**（2026-11-14）。按用户口径「鼓励第三方依赖，能用的都可以考虑」做一次全仓清点，逐条给出「换 / 不换 / 待定」和理由。
+> 状态：**盘点基线 + 执行记录**（2026-11-14 初版，2026-11-19 补 P5 结论，2026-11-20 文档整理）。按用户口径「鼓励第三方依赖，能用的都可以考虑」做一次全仓清点，逐条给出「换 / 不换 / 待定」和理由。
 > 判定原则（三条，缺一条就不换）：
 > 1. **仍在活跃维护**（近一年有发布；本项目不做长期无人维护的依赖）。
 > 2. **行为等价或更好**（换完功能不减、报错不更差）。「更好」通常指：可取消、不占 UI 线程、少一条发行版依赖。
@@ -107,7 +107,7 @@
 | 顺手：`ProcessQuery` 改扫 `/proc` | ✅ 2026-11-14 | 不再 fork `fuser` / `lsof`：读 `/proc/*/fd` 的符号链接按路径前缀匹配（跳过无权限进程，可取消） |
 
 | P5 ValveKeyValue（Steam 自定义库） | ✅ 2026-11-15（D78） | 新增 `Features/Runtime/SteamLibrary`：解析 `steamapps/libraryfolders.vdf`（新旧两种格式）+ 每个库的 `steamapps/compatibilitytools.d` 与 `steamapps/common`；`ComponentStore.SteamCompatRoots()` 从硬编码 4 条路径改成走它。**这是真功能缺口**：Steam 装在自定义库时一个 Proton 都扫不到 |
-| P5 PeNet（预检架构项） | ✅ 2026-11-15（D78） | 新增 `Features/Runtime/PeArchitecture`：PE machine → `X86/X64/Arm64`，预检第 10 项「游戏架构」比对前缀架构（x64+win32 → Failed；x86+win64 → WoW64 Warning；ARM64 → Failed） |
+| P5 PeNet（预检架构项） | ✅ 2026-11-15（D78） | 新增 `Features/Runtime/PeArchitecture`：PE machine → `X86/X64/Arm64`，预检「游戏架构」项比对前缀架构（x64+win32 → Failed；x86+win64 → WoW64 Warning；ARM64 → Failed） |
 | P5 SharpHook（换 X11 热键轮询） | ❌ 2026-11-15（D78） | spike 实测否决：KDE Wayland 下 `TaskPoolGlobalHook` enabled 但 12 s 内 0 事件，XTEST 与强制 X11 后端都收不到；对照 `XQueryKeymap` 能看到。**保留 `X11KeyState`**；Wayland 正解是 `org.freedesktop.portal.GlobalShortcuts`（本机已暴露，列为后续项） |
 | P5 Tmds.DBus → Tmds.DBus.Protocol | ❌ 2026-11-15（D78） | 921 行、4 个 `[DBusInterface]`（含 FD 与请求句柄），Protocol 是源生成器模型（无 `CreateProxy`），托盘/通知/portal 三条链路无自动化覆盖 → 收益（性能/AOT）小于回归风险。**前置条件**：先有这三条的集成断言 |
 | P5 System.CommandLine（重构 CLI） | ⚠️ 改成自研声明表 2026-11-15（D79） | 换库目的（帮助不漂移 + 校验 + 拼错提示）用 `Helpers/CliSpec.cs` 一张表达成；System.CommandLine 3.0 的扁平 help 会丢掉现有分组可读性，重写 1903 行分发风险不成正比。包已移除；表就是「声明层」，将来可机械转换 |
