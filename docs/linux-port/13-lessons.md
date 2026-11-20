@@ -1341,3 +1341,16 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 
 ---
 
+
+## L-164 `makepkg` 的 source 可以什么都不取；`grep '^source='` 会漏掉缩进行
+
+**背景**：用户 m03533 指出 `packaging/PKGBUILD`「会重复源码和构建」。实测一次本地打包在 `packaging/` 下留了 **235 MB**（`src/lunarward` 克隆）+ **140 MB**（`src/publish`），而工作区本来就有这份源码和它的 `obj/`。
+
+1. **`source=()` 是合法的**：`makepkg` 不会报错，也不克隆任何东西；源码可以在 `prepare()` 里用 `ln -sfn "$startdir/.." "$srcdir/$pkgname"` 软链进来。实测 `makepkg --printsrcinfo` 正常、`makepkg -f` 打包成功、`pkgver()` 还能在软链里读 `.git` 拿到提交数。
+2. **软链 ≠ 复制**，所以 D91 里「`source=()` + `prepare()` 复制工作区会把 `bin/obj` 一起拷进去」的顾虑不成立 —— 软链只是让 `dotnet publish` 在原位置跑，增量编译直接复用已有 `obj/`。
+3. **`grep -E '^source='` 会漏掉 if/else 里缩进的 `source=`**。把 source 从「顶层变量 + 单行赋值」改成「if/else 两块」之后，lint 的 `src` 变量变成空串，`git+` 与 `SKIP` 都匹配不到，于是走进「tarball 源有真实哈希」分支 —— **打印 OK，但理由是错的**。修法：`^[[:space:]]*source=`。同理，任何「扫源码里的某行」的 lint 规则，都要容忍缩进。
+4. **`cp -a` 之后不会自己消失**：`package()` 里 `cp -a publish/. pkgdir/...` 会让 publish 输出留两份（srcdir 一份、pkgdir 一份，各 140 MB）。改成 `mv` 即可；跨文件系统时 `mv` 自动退化成「复制 + 删除」，也不会更差。
+5. **本地软链模式打进包的是工作区当前文件，包括未提交改动** —— 这是特性（打包验证本来就该验证当前代码），但和 D91「只含已提交内容」正好相反，注释与 README 必须写清，否则会误以为包内容等于 HEAD。
+6. `-p:DebugType=none` 与 CI 的 publish 保持一致：`Lunarward.pdb` 不进包。
+
+**验证手法**：`du -sh packaging/src`（打包后应是几 KB，只剩空目录）、`makepkg -f` 第二次的耗时（应是个位数秒）、`pacman -Qlp <pkg> | grep -c '\.pdb$'`（应为 0）、解包后 `Lunarward --version` 能跑。

@@ -1,3 +1,18 @@
+## 2026-11-21 —— PKGBUILD 本地打包不再重复源码与构建（D92）
+
+用户指出 `packaging/PKGBUILD`「会重复源码和构建」：一次本地打包原来会在 `packaging/` 下留下一份 235 MB 的源码克隆（`src/lunarward`）和一份 140 MB 的 publish 中间产物（`src/publish`），而工作区本来就有这两样东西。
+
+**改动**：
+
+- 本地模式改用 `source=()` + `prepare()` 软链工作区（`ln -sfn "$startdir/.." "$srcdir/lunarward"`）：源码零复制，`dotnet publish` 复用工作区已有的 `obj/` 做增量编译。
+- `package()` 里 `cp -a` 改成 `mv`，省掉 140 MB 中间副本。
+- `dotnet publish` 加 `-p:DebugType=none`（与 CI 一致，`Lunarward.pdb` 不进包）。
+- `lint-pkgbuild.sh` C 节：行首匹配改为容忍缩进（原 `^source=` 对 if/else 里的 `source=` 完全失效，把空 source 误报成「tarball 源有真实哈希」），并识别 `source=()` 空源。
+
+**实测**：`makepkg -f` 首次 34 s、第二次 **10 s**；打包后 `packaging/src` 只剩 4 KB；包内 391 个文件、无 `.pdb`；解包后 `Lunarward --version` 正常、`/usr/bin/lunarward` 的 sh 包装可用。
+
+**行为变化**：本地模式打进包的现在是**工作区当前文件（含未提交改动）**，不再是「最后一个提交」——打包验证本来就该验证当前代码；AUR 两份包不受影响，仍从远端取。
+
 ## 2026-11-20 —— 文档整理：删掉 17 份完成使命的文档，数字对齐实现
 
 用户要求「整理文档、删过时内容、更新最新情况」。这轮只动文档，源码零改动。

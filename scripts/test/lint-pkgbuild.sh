@@ -121,16 +121,17 @@ done
 echo "== C source 与 sha256sums =="
 for f in "${PKGBUILDS[@]}"; do
   [ -f "$f" ] || continue
-  src=$(grep -E '^source=' "$f")
-  sums=$(grep -E '^sha256sums=' "$f")
-  # source 可能引用变量（packaging/PKGBUILD 用 LUNARWARD_SOURCE 在本地/远端之间切），
-  # 那种写法里 `git+` 出现在赋值行而不是 source= 行，所以两处都要看。
-  if grep -qE 'git\+' <<<"$src" || grep -qE '^[[:space:]]*[a-z_]*source="?git\+' "$f"; then
+  src=$(grep -E '^[[:space:]]*source=' "$f")
+  sums=$(grep -E '^[[:space:]]*sha256sums=' "$f")
+  # source 可能整体缩进在 if/else 里（本地/远端两种模式），行首要允许空白。
+  if grep -qE 'git\+' <<<"$src"; then
     if grep -q "SKIP" <<<"$sums"; then
       ok "$f：VCS 源用 SKIP（合规）"
     else
       note "$f：VCS 源却写了具体哈希（makepkg 会报错）"
     fi
+  elif grep -qE 'source=\(\)' <<<"$src"; then
+    ok "$f：无 source（本地工作区软链，不需要哈希）"
   else
     if grep -q "SKIP" <<<"$sums"; then
       bad "$f：tarball 源不能用 SKIP（AUR 会拒收）"

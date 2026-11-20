@@ -6,19 +6,26 @@
 
 | 文件 | source | 用途 |
 | --- | --- | --- |
-| `PKGBUILD` | 默认 `git+file://${startdir}/..`（本地 HEAD）；`LUNARWARD_SOURCE=remote` 时 `git+https://…#branch=main` | **仓库里的构建模板**。在 `packaging/` 里 `makepkg -si` 构建并安装**你本地当前的提交** |
+| `PKGBUILD` | 默认 `source=()`（软链本地工作区）；`LUNARWARD_SOURCE=remote` 时 `git+https://…#branch=main` | **仓库里的构建模板**。在 `packaging/` 里 `makepkg -si` 构建并安装**你本地的工作区** |
 | `aur/lunarward/PKGBUILD` | `git+https://…#tag=v$pkgver` | **AUR 稳定版**，跟 tag。仓库里没有对应 tag 时构建会失败，发布前先打 tag |
 | `aur/lunarward-git/PKGBUILD` | `git+https://…#branch=main` | **AUR 开发版**，跟最新提交，`pkgver()` 自动带 `r<提交数>.g<短 hash>` |
 
-仓库里那份 `PKGBUILD` **默认打本地仓库**（改完代码不用 push）：
+仓库里那份 `PKGBUILD` **默认就地构建本地工作区**（改完代码不用 commit、不用 push）：
 
 ```bash
 cd packaging
-makepkg -si                            # 本地 HEAD
-LUNARWARD_SOURCE=remote makepkg -si    # 远端 main
+makepkg -si                            # 本地工作区
+LUNARWARD_SOURCE=remote makepkg -si    # 远端 main（克隆到 $srcdir）
 ```
 
-git 源只包含**已提交**的内容 —— 有未提交的改动时先 `git commit`，否则打出来的包还是旧的。
+本地模式下源码**不进 `$srcdir`**：`prepare()` 把 `packaging/..` 软链成 `$srcdir/lunarward`，`pkgver()` 读工作区的 `.git`，`dotnet publish` 复用工作区已有的 `obj/` 做增量编译。所以：
+
+- 不会在 `packaging/` 下堆一份完整源码副本（以前是 235 MB 的 clone + 140 MB 的 publish 中间产物）；
+- 第二次之后的 `makepkg -f` 是秒级（实测首次 34 s、之后 10 s）；
+- 打进包的是**工作区当前文件，包括未提交的改动** —— 这是它跟 AUR 两份包最大的区别；
+- `pkgver()` 用 `git rev-list --count HEAD`，未提交改动不会被算进版本号（`0.1.0.r116.gc33e1b1` 指最后一个提交）。
+
+远端模式（`LUNARWARD_SOURCE=remote`）才真正克隆仓库，那份只含已提交内容。
 
 ## Arch / CachyOS
 

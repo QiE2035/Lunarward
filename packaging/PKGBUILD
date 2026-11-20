@@ -1,18 +1,22 @@
 # Maintainer: Lunarward contributors
-# 仓库内的 Arch 构建模板：source **默认走本地工作区**，改完代码不用 push 就能打包验证。
+# 仓库内的 Arch 构建模板：默认直接**就地构建本地工作区**，改完代码不用 commit 也不用 push。
 #
-# 要按远端 main 构建：LUNARWARD_SOURCE=remote makepkg -f
+# 要按远端 main 构建：LUNARWARD_SOURCE=remote makepkg -f（会把仓库克隆进 $srcdir）
 #
-# 注意：git 源只包含**已提交**的内容 —— 未提交的改动不会进包，先用 git commit。
-# 本地源会克隆仓库的 .git（当前 55 MB），一次几秒；这是为了能拿到 pkgver() 要的提交数。
+# 本地模式（默认）：source 为空，prepare() 把 packaging/.. 软链成 $srcdir/lunarward。
+#   - 不复制源码，不占额外磁盘；
+#   - dotnet publish 复用工作区已有的 obj/ 做增量编译（第二次之后是秒级）；
+#   - 打进包的是**工作区当前文件**，包括还没提交的改动；
+#   - pkgver() 仍读工作区的 .git（提交数 + 短 hash）。
 #
 # 正式 AUR 包在 packaging/aur/ 下：lunarward = 稳定版（跟 tag），lunarward-git = 开发版（跟 main）。
+# 那两份是给用户装的，始终从远端取，不受这里的本地模式影响。
 #
 # 依赖清单由 scripts/test/lint-pkgbuild.sh 校验：它扫源码里的 P/Invoke 库名与外部命令，
 # 反查这里的 depends 有没有漏。改了源码里的原生依赖就同步三份 PKGBUILD，否则 lint 会红。
 
 pkgname=lunarward
-pkgver=0.1.0
+pkgver=0.1.0.r116.gc33e1b1
 pkgrel=1
 pkgdesc="Linux launcher for miHoYo/HoYoverse games, ported from Starward"
 arch=('x86_64')
@@ -42,15 +46,17 @@ optdepends=(
   'xdg-desktop-portal: 截图与文件选择走 portal（D75）'
 )
 
-# 默认：克隆**本地**仓库的 HEAD（不用 push）。
-# 远端：LUNARWARD_SOURCE=remote makepkg -f
+# 本地（默认）：不复制源码 —— prepare() 把工作区软链进 $srcdir，pkgver() 读工作区的
+# .git，dotnet publish 复用已有的 obj/ 增量编译。
+# 远端：LUNARWARD_SOURCE=remote makepkg -f（克隆 main 到 $srcdir）
 if [[ ${LUNARWARD_SOURCE:-local} == remote ]]; then
-  _lunarward_source="git+https://github.com/QiE2035/Lunarward.git#branch=main"
+  source=("$pkgname::git+https://github.com/QiE2035/Lunarward.git#branch=main")
+  sha256sums=('SKIP')
 else
-  _lunarward_source="git+file://${startdir}/..#branch=main"
+  # 空 source：makepkg 不克隆任何东西，源码由 prepare() 软链进来。
+  source=()
+  sha256sums=()
 fi
-source=("$pkgname::${_lunarward_source}")
-sha256sums=('SKIP')
 
 pkgver() {
   cd "$pkgname"
@@ -58,7 +64,14 @@ pkgver() {
 }
 
 prepare() {
-  cd "$pkgname"
+  if [[ ${LUNARWARD_SOURCE:-local} == local ]]; then
+    # 软链而不是复制：省一份完整的源码副本，dotnet 也能复用工作区的 obj/ 增量构建。
+    # rm 只删软链本身（GNU rm 不跟随符号链接），不会动工作区。
+    rm -rf "$srcdir/$pkgname"
+    ln -sfn "$startdir/.." "$srcdir/$pkgname"
+  else
+    cd "$srcdir/$pkgname"
+  fi
 }
 
 build() {
@@ -72,17 +85,20 @@ build() {
   dotnet publish Lunarward.csproj \
     -c Release -r linux-x64 --self-contained false \
     -p:Version="${pkgver%%.r*}" \
+    -p:DebugType=none \
     -o "$srcdir/publish"
 }
 
 package() {
-  install -d "$pkgdir/usr/lib/lunarward" \
+  install -d "$pkgdir/usr/lib" \
              "$pkgdir/usr/bin" \
              "$pkgdir/usr/share/applications" \
              "$pkgdir/usr/share/icons/hicolor/256x256/apps" \
              "$pkgdir/usr/share/licenses/$pkgname"
 
-  cp -a "$srcdir/publish/." "$pkgdir/usr/lib/lunarward/"
+  # 移动而不是复制：publish 输出直接成为 pkgdir 里的目录，省一份 140 MB 的中间副本。
+  # （跨文件系统时 mv 会退化成复制 + 删除，仍比留下两份好。）
+  mv "$srcdir/publish" "$pkgdir/usr/lib/lunarward"
 
   # 用 sh 包一层：publish 目录里的 apphost 叫 Lunarward（大写），包名是小写
   printf '#!/bin/sh\nexec /usr/lib/lunarward/Lunarward "$@"\n' > "$pkgdir/usr/bin/lunarward"

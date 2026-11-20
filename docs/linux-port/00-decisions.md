@@ -1,7 +1,7 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D91）
-- **最后更新**：2026-11-19
+- **状态**：生效中（D0–D92）
+- **最后更新**：2026-11-21
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
 - **确认方式**：
@@ -969,7 +969,32 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 - **代价**：①新增 `GirCore.Gtk-4.0` + `GirCore.WebKit-6.0`（0.8.1）两个包引用与 `Aliases="gir"`；②运行时要求 `webkitgtk-6.0`（Arch 包名同名），缺失时退回 python 助手（功能不退化，只是又需要 python3 + pygobject）；③AUR 包 `packaging/PKGBUILD` 已把 `webkitgtk-6.0` 并入 `depends`（pkgrel 2），原 `webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
 - **验证**（实测，2026-11-14）：本地起 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，`--webkit-login` 开窗后 2 秒内即输出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0；`moz_cookies` 里两条与页面一致。**待验收**：真实米游社登录（需用户操作）。
 
+## D92 `packaging/PKGBUILD` 本地模式零复制：软链工作区 + `mv` 代替 `cp`
+
+**背景**：用户 m03533「感觉你这个PKGBUILD写的不好，会重复源码和构建，有别的好写法吗？」。实测一次本地打包的磁盘占用：`$srcdir/lunarward` 克隆 **235 MB**（含 `.git`）、`$srcdir/publish` **140 MB**（全新 restore + publish，`obj/` 与 `bin/` 全部重来）、`package()` 里 `cp -a` 又产出第三份 —— 这三份里有两份是工作区**已经有的东西**。D91 的代价里写过「`source=()` + `prepare()` 复制工作区会把 `bin/obj` 一起拷进去，得不偿失」，但那是**复制**；改成**软链**就不存在这个问题。
+
+**决定**：
+
+1. 本地模式（默认）用 **`source=()` + `sha256sums=()`**，`prepare()` 里 `rm -rf "$srcdir/$pkgname"` 后 `ln -sfn "$startdir/.." "$srcdir/$pkgname"` —— 源码零复制，`pkgver()` 与 `dotnet publish` 都直接走工作区，复用 `obj/` 增量编译。
+2. `package()` 里 `cp -a "$srcdir/publish/." "$pkgdir/usr/lib/lunarward/"` 改成 **`mv "$srcdir/publish" "$pkgdir/usr/lib/lunarward"`**（`install -d` 相应从 `$pkgdir/usr/lib/lunarward` 降到 `$pkgdir/usr/lib`）—— 省掉 140 MB 中间副本。
+3. 远端模式（`LUNARWARD_SOURCE=remote`）保持 `git+https://…#branch=main`；AUR 两份不动。
+4. `build()` 的 `dotnet publish` 加 **`-p:DebugType=none`**，与 CI 的 publish 一致（`Lunarward.pdb` 不进包）。
+5. `lint-pkgbuild.sh` C 节两处修正：行首改 `^[[:space:]]*source=`（source 现在缩进在 if/else 里，原 `^source=` 匹配不到任何行 → 误报「tarball 源有真实哈希」）；新增 `source=()` 空源分支。
+
+**代价**：①本地模式打进包的是**工作区当前文件，包含未提交改动** —— 与 D91「只含已提交内容」相反，这是刻意的（打包验证本来就该验证当前代码），但 README 与 PKGBUILD 注释必须写清，否则会误以为包等于 HEAD；②`$startdir` 在 chroot / 沙箱构建里不可靠，那种场景要用 `LUNARWARD_SOURCE=remote`；③软链让 `dotnet publish` 在工作区写 `obj/Release/net10.0-desktop/linux-x64/`（本来开发构建也写这里）。
+
+**验证**（实测，2026-11-21）：
+
+- `makepkg --printsrcinfo`：除 `pkgbase` / `pkgname` 外**无 `source` 行**，depends 与 D88 一致。
+- `makepkg -f` 首次 **34 s**、第二次 **10 s**（增量），产出 `lunarward 0.1.0.r116.gc33e1b1-1`（`pkgver()` 读工作区 `.git`）。
+- `du -sh packaging/src` 打包后 **4 KB**（只剩空目录）；`packaging/pkg/lunarward` **149 MB**（只有 pkgdir 这一份）。
+- 包内 **391 个文件**：`/usr/lib/lunarward/Lunarward`、`/usr/bin/lunarward`（sh 包装）、desktop、图标、LICENSE；`pacman -Qlp` 无 `.pdb`。
+- 解包后 `./usr/lib/lunarward/Lunarward --version` → `Lunarward 0.1.0.0`，退出码 0。
+- `bash scripts/test/lint-pkgbuild.sh` 四节全 PASS（1 条预期提醒：AUR 稳定版的 tag 尚不存在）。
+
 ## D91 `packaging/PKGBUILD` 默认打本地仓库
+
+**变更记录**：第 1 条的 `git+file://` 已被 **D92** 改成 `source=()` + 软链工作区（零复制、含未提交改动）；第 3 条「只含已提交内容」在本地模式下不再成立。
 
 **背景**：用户 m03385「@packaging/PKGBUILD 默认走本地」。D88 把 source 从 `#branch=linux-port` 改成 `git+https://…#branch=main`（远端），于是想验证本地改动必须先 push —— 而「打包验证」恰恰是 push **之前**最需要做的事，顺序反了。
 
