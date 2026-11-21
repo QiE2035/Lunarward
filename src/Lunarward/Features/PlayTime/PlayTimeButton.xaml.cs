@@ -56,6 +56,18 @@ public sealed partial class PlayTimeButton : UserControl
 
 
 
+    /// <summary>
+    /// 切换游戏时重读总时长（D94）。上游页面每次导航都重建，本控件随页面重新 Loaded；
+    /// Lunarward 缓存页面后控件不重建，只能显式换目标游戏再读一次。
+    /// </summary>
+    public void RefreshPlayTime(GameBiz gameBiz)
+    {
+        CurrentGameBiz = gameBiz;
+        InitializePlayTime();
+    }
+
+
+
     public static string TimeSpanToString(TimeSpan timeSpan)
     {
         int totalMinutes = (int)Math.Round(timeSpan.TotalMinutes);

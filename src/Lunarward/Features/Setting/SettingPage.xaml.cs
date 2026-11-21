@@ -29,6 +29,14 @@ public sealed partial class SettingPage : PageBase
                 break;
             }
         }
+    }
+
+
+
+    protected override void OnLoaded()
+    {
+        // D94：上游在 ctor 里注册 LanguageChangedMessage、每次导航都新建页面所以不会丢；
+        // Lunarward 缓存页面后 ctor 只跑一次，改到每次重新挂载时注册，行为与上游一致。
         WeakReferenceMessenger.Default.Register<LanguageChangedMessage>(this, (_, _) => this.Bindings.Update());
     }
 

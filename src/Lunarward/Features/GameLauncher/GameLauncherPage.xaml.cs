@@ -68,12 +68,10 @@ public sealed partial class GameLauncherPage : PageBase
     protected override void OnLoaded()
     {
         StartInstallTaskWatcher();
-        InitializeGameFeature();
-        CheckGameVersion();
-        UpdateGameInstallTask();
-        CheckCloudGame();
-        _ = InitializeGameServerAsync();
-        _ = InitializeBackgameImageSwitcherAsync();
+        // D94：页面缓存后 Tick 会在第一次 Unloaded 被摘掉，重新挂载要接回来，否则安装进度不再更新。
+        _dispatchTimer.Tick -= UpdateGameInstallTaskProgress;
+        _dispatchTimer.Tick += UpdateGameInstallTaskProgress;
+        LoadGameContent();
         WeakReferenceMessenger.Default.Register<GameInstallPathChangedMessage>(this, OnGameInstallPathChanged);
         WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, OnMainWindowStateChanged);
         WeakReferenceMessenger.Default.Register<RemovableStorageDeviceChangedMessage>(this, OnRemovableStorageDeviceChanged);
@@ -84,21 +82,71 @@ public sealed partial class GameLauncherPage : PageBase
 
 
 
-    /// <summary>切换游戏（页面已缓存，不会重建）：把本页与下挂控件换成新游戏的内容（D62）。</summary>
+    /// <summary>
+    /// 缓存页面导航到另一个游戏（D94）：等价于上游重建页面，把整页内容换成新游戏的。
+    /// </summary>
+    protected override void OnGameChanged()
+    {
+        LoadGameContent();
+    }
+
+
+
+    /// <summary>
+    /// 按 <see cref="PageBase.CurrentGameId"/> 重载本页全部内容。上游每次导航都新建页面、字段回到默认值，
+    /// 这里手动把上款游戏残留的页面级状态清掉，再跑一遍上游 OnLoaded 里的初始化（D94）。
+    /// </summary>
+    private void LoadGameContent()
+    {
+        try
+        {
+            GameInstallPath = null;
+            IsInstallPathRemovableTipEnabled = false;
+            IsPredownloadButtonEnabled = false;
+            IsPredownloadFinished = false;
+            IsDX12OptionVisible = false;
+            GameServers = null;
+            SelectedGameServer = null;
+            _gameInstallTask = null;
+            _dxConfig = null;
+            Button_CloudGame.Visibility = Visibility.Collapsed;
+            EnableGameAccountSwitcher = false;
+            BackgroundImages = null!;
+            currentBackgroundImageIndex = 0;
+            OnPropertyChanged(nameof(CurrentBackgroundImageIndex));
+            // 下挂控件同样不会随页面缓存重建：显式让它们换成当前游戏（D94）。
+            Button_PlayTime.RefreshPlayTime(CurrentGameBiz);
+            GameBannerAndPost.CurrentGameId = CurrentGameId;
+
+            InitializeGameFeature();
+            CheckGameVersion();
+            UpdateGameInstallTask();
+            CheckCloudGame();
+            _ = InitializeGameServerAsync();
+            _ = InitializeBackgameImageSwitcherAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Load game content {GameBiz}", CurrentGameBiz);
+        }
+    }
+
+
+
+    /// <summary>切换游戏（页面已缓存，不会重建）：兜底没走导航的情况，例如在设置页里切游戏（D62/D94）。</summary>
     private void OnCurrentGameChanged(CurrentGameChangedMessage message)
     {
         try
         {
-            if (CurrentGameId == message.GameId)
+            string? gameId = message.GameId?.Id;
+            if (ContentGameId == gameId)
             {
                 return;
             }
             CurrentGameId = message.GameId;
             CurrentGameBiz = message.GameId.GameBiz;
-            InitializeGameFeature();
-            CheckGameVersion();
-            UpdateGameInstallTask();
-            _ = InitializeGameServerAsync();
+            ContentGameId = gameId;
+            LoadGameContent();
         }
         catch (Exception ex)
         {
