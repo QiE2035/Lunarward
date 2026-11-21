@@ -1,3 +1,34 @@
+## 2026-11-21 —— 缓存页面按挂载次数重新初始化，修正切游戏后按钮与提示不刷新（D94）
+
+用户报告：切回已安装的游戏后，右下角仍显示「安装游戏」，下面还有「已安装？定位游戏」提示，游玩时长也停在上一个游戏。两处实现错位叠加：
+
+- 切游戏时 `MainView` 先导航再广播消息；`PageBase.OnNavigatedTo` 已把页面的 `CurrentGameId` 改成新值（`GameInfo : GameId`），消息处理里的 `if (CurrentGameId == message.GameId) return;` 于是直接返回，`CheckGameVersion()` 从不执行。
+- 移植侧给 8 个页面加了 `NavigationCacheMode="Required"`，但 `PageBase` 在第一次 `Unloaded` 就退订 `Loaded`，缓存实例第二次挂载时 `OnLoaded` 不再执行 —— 离开过启动器页后本会话内该页不再刷新。
+
+**改动**：
+
+- `Frameworks/PageBase.cs`：`Loaded/Unloaded` 常驻不退订，每次挂载都跑 `OnLoaded()`；新增 `ContentGameId` 与虚方法 `OnGameChanged()`，导航参数换游戏时触发。
+- `GameLauncherPage`：抽 `LoadGameContent()` 统一做整套游戏相关初始化（重置安装路径/提示/预下载/DX12/区服/安装任务/背景，刷新游玩时长与 banner，再跑 `InitializeGameFeature/CheckGameVersion/UpdateGameInstallTask/CheckCloudGame/InitializeGameServerAsync`），`OnLoaded`、`OnGameChanged()`、`CurrentGameChangedMessage` 三处共用；守卫改为对比 `ContentGameId`；`_dispatchTimer.Tick` 用 `-= +=` 接回。
+- `PlayTimeButton`：新增 `RefreshPlayTime(GameBiz)`（`CurrentGameBiz` 是 OneTime `x:Bind`，缓存页切游戏后必须显式刷新）。
+- `SettingPage`：`LanguageChangedMessage` 注册从 ctor 移到 `OnLoaded`（否则第一次离开设置页后语言切换永久失效）。
+- `AGENTS.md`：新增硬规则 11「以上游为准」与「GUI 自动化避坑（`cu_*`）」7 条。
+
+**实测**：Debug 构建 0 错误；264 条单测全绿；`lint-ui-thread.sh` 通过；真机两个场景（切到已安装游戏、离开再回来后切到未安装游戏）按钮/提示/时长/banner 均正确。
+
+## 2026-11-21 —— 上游历史与 `main` 连通（D93）
+
+核对上游发现 `main` 是一条独立历史（首提交 `5bf286d` 为整体导入），与上游 `df8ae07` 没有共同祖先，文档里写的 `git fetch upstream && git merge upstream/main` 实际无法三方合并。
+
+**改动**：
+
+- `git fetch --unshallow upstream` 补齐上游完整 1320 条历史（本机 DNS 解析不了 github.com，fetch 走 `gh-proxy.com` 镜像）；`.git` 56 MB → 67 MB，`.git/shallow` 移除。
+- 合并提交 `542458e`（父 `bf775c5` + `df8ae07`，`-s ours`）：树零变化，只把上游历史接入祖先链。
+- 之后 `git merge upstream/main` 以 `df8ae07` 为 merge base，是普通三方合并。
+
+**实测**：合并前 `git diff df8ae07 main -- src/Starward` 0 文件（全树 859 新增 / 6 删除 / 17 修改，均为移植侧）；`git diff bf775c5 HEAD` 空；`merge-base` = `df8ae07`；`git fsck` 通过；`main` 1438 条提交，相对上游落后 0、领先 118。
+
+**未推送**：`origin/main..HEAD` 1321 条，推上去会连带发布上游历史，单独决定。
+
 ## 2026-11-21 —— PKGBUILD 本地打包不再重复源码与构建（D92）
 
 用户指出 `packaging/PKGBUILD`「会重复源码和构建」：一次本地打包原来会在 `packaging/` 下留下一份 235 MB 的源码克隆（`src/lunarward`）和一份 140 MB 的 publish 中间产物（`src/publish`），而工作区本来就有这两样东西。

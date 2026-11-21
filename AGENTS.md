@@ -9,7 +9,7 @@
 - **Lunarward** = [Starward](https://github.com/Scighost/Starward) 的 **Linux 移植**（C# / .NET 10 / [Uno Platform](https://platform.uno/) + Skia，`net10.0-desktop`）。
 - 目标：在 Linux 上**尽量还原上游 Windows 版**的功能、排版与操作逻辑；引擎能力缺口记作「软差异」，不改上游 XAML 去硬凑。
 - 在这之上新增 **Linux 专属模块**：运行环境（wine / Proton / DXVK / VKD3D / 前缀）、伴随启动、一次性运行、调试 Shell、托盘、热键、X11 窗口显隐。
-- 上游 `src/Starward/` **一个字节都不改**；上游同步方式：`git fetch upstream && git merge upstream/main`。
+- 上游 `src/Starward/` **一个字节都不改**；上游同步方式：`git fetch upstream && git merge upstream/main`（2026-11-21 起 `main` 与上游历史已连通，merge base = `df8ae07`，是普通三方合并；见 D93）。
 - 分支：**`main`** 为当前开发分支（`linux-port` 自 2026-11-13 起停用，仅留作历史；远端 `origin` = 你的 fork；`upstream` = Scighost/Starward）。
 
 ---
@@ -25,6 +25,18 @@
 3. 必须开会话时，先说明预计占用，并在同一轮内关掉；遗留 `<defunct>` 子进程要一起清。
 4. 会话内跑 X11-only 应用要先起 `Xwayland :N` 并把 `DISPLAY=:N` 传进去；本机 `Xwayland -screen` 参数不支持，窗口会按 640×480 被 clamp。
 
+### GUI 自动化避坑（`cu_*`，2026-11-21 实测）
+
+Lunarward 是 Uno/Skia 应用，**不发布 AT-SPI 树**：`cu_a11y_find` / `cu_a11y_tree` 对它恒返回 0 条命中，别在它上面找控件，直接按截图坐标点。踩过的坑与替代做法：
+
+1. **别用 a11y 定位**：Uno 窗口中 `cu_a11y_find` 恒空；控件位置只能从截图读，窗口坐标每次用 `cu_windows` 现取（实测同一实例出现过 frame 原点 300 与 400 两种）。
+2. **窗口截图可能失败**：`cu_screenshot target=window app=Lunarward` 报 `KWin returned unsupported image format 18`；改 `target=workspace` 再按 frame 原点换算（默认 `maxEdge=1000`，1600 宽的屏 → 逻辑坐标 = 像素 × 1.6）。
+3. **`activate` 不等于置顶**：`window.control activate` 返回 `active: true` 后截图仍可能别的窗口在前，盲点会落到那个窗口上；点之前用 `cu_windows` 取 frame + 截图确认目标窗口覆盖那些坐标。
+4. **一次批量做完**：`activate → click → sleep → screenshot` 用 `cu_batch` 一次调用；分步调用之间窗口会动、状态漂移，而且更慢。
+5. **优先驱动内部状态**：能靠 `LUNARWARD_DEV_*` / 环境变量（如 `LUNARWARD_DEV_SELECTOR=1` 自动展开选择层）走内部流程的，不要模拟点击；Wayland 合成点击不可靠（L-36）。
+6. **判状态先看日志**：`~/.local/share/lunarward/log/` + 临时 `[lw-diag]` 打点，比截图肉眼判断可靠；打点用完 `git checkout --` 撤回（硬规则 7）。
+7. **收尾查进程**：`pgrep -x Lunarward` 必须为空，用 `pkill -x` 而不是 `pkill -f`（硬规则 8）。
+
 
 ## 2. 硬规则（违反即返工）
 
@@ -38,6 +50,7 @@
 8. **不要 `pkill -f`**：会杀掉自己的 shell；用 `pkill -x Lunarward`。
 9. **用完随手关**：手动启动的实例、`--selftest-ui` 进程、cli-smoke 起的假服务，验证一结束就关（`pkill -x Lunarward`），不要留在用户桌面上吃资源、抢单实例锁、继续写日志。下一轮动手前先 `pgrep -x Lunarward` 确认干净。
 10. **UI 线程不许 fork 外部进程**（`Process.Start` + `WaitForExit`）：wine 冷启动 4 秒会整窗冻住（L-127）。注册表/前缀/预检一律走后台线程 + 异步 API。
+11. **以上游为准**：行为、排版、交互一律以 `src/Starward/` 的实现为目标。发现移植侧与上游「实现错位」时，先按上游语义改回来；确实必须偏离的（平台 API 缺失、引擎软差异）要写明原因与边界，并登记到决策文档 / `18-upstream-deviations.md`（2026-11-21 用户明确指示）。
 
 ---
 
@@ -135,9 +148,9 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 活跃文档**只有这 9 份**（2026-11-20 清理后）：
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D92 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D94 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-164 坑与复现方法（唯一）
+- `13-lessons.md` — L-01…L-165 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`scripts/list-deviations.sh` 生成）
 - `19-test-plan.md` — 测试计划（唯一，230 条：218 T-* + 12 RG-*）
 - `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 八字段 / 四层检查 / 页面）

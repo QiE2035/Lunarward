@@ -1354,3 +1354,18 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 6. `-p:DebugType=none` 与 CI 的 publish 保持一致：`Lunarward.pdb` 不进包。
 
 **验证手法**：`du -sh packaging/src`（打包后应是几 KB，只剩空目录）、`makepkg -f` 第二次的耗时（应是个位数秒）、`pacman -Qlp <pkg> | grep -c '\.pdb$'`（应为 0）、解包后 `Lunarward --version` 能跑。
+
+---
+
+## L-165 缓存页面 × `OnLoaded` 一次性 × `x:Bind` 默认 OneTime = 状态永远陈旧
+
+**背景**：用户报「切回已安装的游戏，按钮还是『安装游戏』、定位提示还在、时长停在上一个游戏」。上游 Starward 的页面**从不缓存**，所以它的 `OnLoaded` 就是「每次显示都完整初始化」；移植侧为了减卡顿给 8 个页面加了 `NavigationCacheMode="Required"`（D60/D62），把这条隐含前提打破了两次。
+
+1. **`PageBase` 在第一次 `Unloaded` 就退订**（`Loaded -= PageEx_Loaded`）—— 上游写法本身没问题（实例用完即弃），但缓存实例第二次挂载时 `Loaded` 事件不会再订阅回去，`OnLoaded` 从此不再执行。症状是「离开过一次启动器页，本会话内它再也不刷新」：消息不注册、安装任务看门狗停摆、`CheckGameVersion()` 不跑。修法：`Loaded/Unloaded` 常驻，`OnLoaded` 按挂载次数跑；挂载时记录 `ContentGameId`，导航参数指向别的游戏就调 `OnGameChanged()`（D94）。
+2. **先导航、后广播 = 守卫必然吃掉消息**。`MainView` 切游戏是 `UpdateNavigationView()`（内含 `NavigateTo(SourcePageType, newId)`）再 `Send(CurrentGameChangedMessage)`。因为 `GameInfo : GameId`，`OnNavigatedTo` 的 `is GameId` 分支已经把 `CurrentGameId` 换成新值，消息处理里的 `if (CurrentGameId == message.GameId) return;` 就等于「永远 return」。**教训**：`OnNavigatedTo` 会改的字段，不能用来做「是否需要刷新」的判据；要单独记一个「已渲染的游戏 id」（`ContentGameId`）来比。
+3. **`x:Bind` 默认 OneTime 的属性能不能更新，取决于控件是否重建**。缓存页不重建控件，`PlayTimeButton.CurrentGameBiz` 这类「随游戏变化」的属性必须显式刷新（本次补 `RefreshPlayTime(GameBiz)`）。实测不刷时切到原神显示 `0h 0m`，正确值 `0h 9m` —— 这种差一眼看不出是 bug，会被当成「没玩过这个游戏」。
+4. **ctor 里的消息注册 + `OnUnloaded` 的 `UnregisterAll` 配对**：在上游是安全的（每次导航新实例），缓存后 ctor 只跑一次、`UnregisterAll` 却每离开一次就执行一次 —— 第一次离开设置页之后，`LanguageChangedMessage` 永久丢失，切语言不再生效。凡是「ctor 注册、OnUnloaded 统一注销」的页面，缓存后都要把注册搬到 `OnLoaded`。
+
+**排查手法**（本次有效）：临时在页面 `OnNavigatedTo / OnLoaded / OnUnloaded / 消息处理` 打 `[lw-diag]` 日志，跑一次复现路径，靠「有 `OnNavigatedTo` 而**没有** `OnLoaded`」「消息到了但立刻 `skipped (same id)`」两类缺失直接定位；日志用完 `git checkout -- <file>`，`bin/` 里的诊断产物要重建。
+
+**顺带发现的导航坑**：`MainView.NavigationView_ItemInvoked` 开头 `if (args.InvokedItemContainer?.IsSelected ?? false) return;` —— 停在设置页（不是导航项）时，导航栏「启动器」仍是选中态，点它不会返回；要先点别的项再点回来。GUI 自动化做往返验证时必须注意，否则会误判为「点击无效」。

@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D92）
+- **状态**：生效中（D0–D93）
 - **最后更新**：2026-11-21
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -483,7 +483,7 @@
 | 纯 Wayland 原生会话 | 不支持，已给明确错误 | Uno 的 Linux 后端是 X11/XWayland；`Program.Linux.cs` 在无 `DISPLAY` 时打印「没有 DISPLAY / WAYLAND_DISPLAY，无法创建窗口…」并 `exit 3` | 等 Uno 支持后重评 |
 | `GameNoticeWindow` 是否死代码 | 保留（仅 DEBUG 入口） | `MainView.xaml.cs:198` 的 `--page notice` 调试入口可达；正常路径走浏览器（D40）。保留是为了将来换 WebKitGTK 时直接复用 XAML | M4 之后再决定删除或启用 |
 | CI 不出安装包 | 按 D38 推迟 | `.github/workflows/linux.yml` 只构建 + 测试；发布链路（AppImage/AUR 自动发布）单独立项 | D38 |
-| 上游同步流程未定（Q-003） | 已写入文档 | `upstream` 远程指向 Scighost/Starward，`upstream-base` 记录移植基线 `df8ae07`；同步时 `git fetch upstream && git merge upstream/main`（冲突只在 `src/Starward/`，`src/Lunarward/` 不受影响），随后按 `12-shims-and-gaps.md` 复核 55 条排除与 7 处 XAML 差异 | 每次上游发版时执行 |
+| 上游同步流程未定（Q-003） | 已定（D93） | `upstream` 远程指向 Scighost/Starward，`upstream-base` 记录移植基线；2026-11-21 起 `main` 与上游历史已连通（合并提交 `542458e`，merge base = `df8ae07`），`git fetch upstream && git merge upstream/main` 是普通三方合并（上游改动只在 `src/Starward/`，冲突也只会落在这里；`src/Lunarward/` 不受影响），随后按 `12-shims-and-gaps.md` 复核 55 条排除与 7 处 XAML 差异 | 每次上游发版时执行 |
 | 无 CHANGELOG | 已补 | 仓库根新增 `CHANGELOG.md`，按日期记录 M1–M3 的关键变更 | 随提交维护 |
 | D36 图标字体（开源字体方案） | 结项为「码位替换」 | D49 把缺字形的码位换成 Uno 自带 Symbols 字体里存在的等价字形，`strace` 证明随包 Segoe 字体在本后端不被加载（L-88）；不再需要打包字体 | 若将来要视觉完全一致，再评估打包 Fluent System Icons |
 | 真机启动 / 真实登录 / 游玩时长 / 真实目录更新 / 从零安装 | 待用户验证 | 需要用户账号与真机操作（m05423/m05843 明确推迟） | 用户择期，我按结果修 |
@@ -1332,3 +1332,55 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 
 - 实测通过：`--image-info` 对 `.avif` / `.jxl` 报「Skia 否 / Magick 是」并给出尺寸（64×48）；Magick 往返编码 Avif 296 B / Jxl 85 B / WebP 82 B；`cli-extra` T-CL-44 覆盖 `--image-info` 失败路径（rc=1 + 「找不到文件」）；游戏设置对话框已是实底（真机截图）；游戏选择层展开时按 Esc 只收层、进程仍在（真机核对）；本机 portal 版本 `FileChooser 4 / OpenURI 5 / Screenshot 2 / Notification 1`，通知服务 `Plasma 6.8.2`。
 - **待验收**：应用内「打开链接 / 选文件 / 保存 / 选目录」四条走 portal 的实际弹窗（本机 portal 可用，但未逐条点击核对）；`FlyoutPresenter` / `MenuFlyout` 的实底（同一主题资源，只核对了 `ContentDialog` 与游戏设置对话框）；桌面通知在 KDE 上的实际显示。
+
+## D93 上游历史与 `main` 连通：`-s ours` 合并提交，树零变化
+
+**背景**：用户问「上游有没有更新」。核对结果：上游 `main` 停在 `df8ae07`（`filecache powered by fusioncache`，2026-10-12 02:43 +0800），距上次提交（2026-08-30）已 40 天没有新提交；最新 tag `0.18.2` = `ac7c9c4`，在基线前 2 条。核对同时暴露两个结构问题：①本地仓库是 shallow 的，`df8ae07` 被 graft 成根提交（`git rev-list --count upstream/main` 只有 1）；②`main` 是一条**独立历史**（首提交 `5bf286d` 为整体导入），与上游**没有共同祖先** —— 文档里写的 `git fetch upstream && git merge upstream/main` 实际上无法三方合并，只能走 unrelated-histories 硬合，风险是把已删除的上游 Windows CI 文件重新带回来。
+
+**决定**：
+
+1. `git fetch --unshallow upstream` 补齐上游完整历史：1320 条提交，`.git/shallow` 移除，`.git` 56 MB → 67 MB。本机 DNS 解析不了 `github.com`（`getent` / `dig` 超时，其它站点正常），fetch 走镜像：`git -c url."https://gh-proxy.com/https://github.com/".insteadOf="https://github.com/" fetch --unshallow --no-tags upstream`。
+2. 合并前先证明内容已对齐，不靠假设：`git diff df8ae07 main -- src/Starward` **0 文件**；全树 `--name-status` = **859 新增 / 6 删除 / 17 修改**（删除的是 `.github/workflows/*` 六条上游 Windows 流水线，按 D45 不维护；17 个修改是 `.gitignore`、`README.md`、`Starward.slnx`、`global.json` 与 `Starward.Language` 的 13 个资源/Designer——均为移植改动），没有任何「上游已改而 `main` 没跟」的文件。
+3. 用 `-s ours` + `--allow-unrelated-histories` 建合并提交 `542458e`（父 `bf775c5`、`df8ae07`）：树与合并前**逐字节相同**，只把上游 1320 条历史接入祖先链。选 `-s ours` 而不是普通合并：普通合并以两棵无关树为输入，会把第 2 条里那 6 个已删工作流当成「上游新增」重新带回，且没有内容收益。
+4. 同步流程回到文档里的形状：`git fetch upstream && git merge upstream/main`，merge base = `df8ae07`，之后就是普通三方合并。
+
+**代价 / 边界**：①合并提交是**空 diff**（`git show --stat 542458e` 无文件），看 log 时不要误读为「合了却没改」；内容等价性由第 2 条保证；②`upstream-base` 分支与 `upstream/main` 同点，已冗余，保留作基线标记；③合并后 `main` 领先上游 118 条（117 条移植提交 + 1 条合并），推 `origin` 会把上游 1320 条历史一起发布，属独立决定，未执行；④shallow 状态下祖先判断不可用（`git merge-base` 无输出），判断内容要对**树**做 diff（`git diff <上游> main`），不要依赖 `git log <上游>..main`。
+
+**验证**（实测，2026-11-21）：
+
+- `git merge-base main upstream/main` → `df8ae07`；`git merge-base --is-ancestor upstream/main main` 通过。
+- `git diff bf775c5 HEAD` 输出为空（0 行）；`git show --stat 542458e` 无文件变更。
+- `git fsck --connectivity-only` 通过；`git rev-list --count main` = 1438（117 + 1320 + 1）。
+- `git rev-list --left-right --count upstream/main...main` = `0 118`（落后 0）。
+- `origin/main` 仍为 `bf775c5`，本地领先 1321 条（未推送）。
+
+**确认方式**：明确（m00077「那就把历史连接起来」；m00113「按你说的更新下文档吧」）。
+
+## D94 缓存页面的生命周期按「挂载次数」算，不按实例算
+
+**背景**：用户报「开始/安装游戏按钮的状态」与下面「已安装？定位游戏 / 可移动存储未连接」提示不刷新（m00257）。复现路径：当前游戏是未安装的星布谷地（显示「安装游戏」+ 定位提示），点左上角切回已安装的原神后，按钮仍是「安装游戏」、提示仍在、游玩时长残留上一个游戏的 0h 9m。
+
+两处「实现错位」叠加：
+
+1. **切游戏**：`MainView.GameSelector_CurrentGameChanged` 先 `UpdateNavigationView()`（其中 `NavigateTo(SourcePageType)` 把新 `CurrentGameId` 当参数导航），再 `Send(CurrentGameChangedMessage)`。由于 `GameInfo : GameId`，`PageBase.OnNavigatedTo` 的 `is GameId` 分支已把页面的 `CurrentGameId` 改成新游戏；随后消息处理里的守卫 `if (CurrentGameId == message.GameId) return;` 直接返回，`CheckGameVersion()` 永不执行 —— 按钮状态、定位提示、游玩时长全留在上一个游戏。
+2. **离开页再回来**：上游页面**从不缓存**（全仓 `NavigationCacheMode` 0 处、`CurrentGameChangedMessage` 0 处引用），每次导航新建实例，`OnLoaded` 就是完整初始化。移植侧 D60/D62 给 8 个页面加了 `NavigationCacheMode="Required"`，而 `PageBase` 沿用上游写法在**第一次** `Unloaded` 就 `Loaded -= PageEx_Loaded` —— 缓存实例第二次挂载时 `OnLoaded` 不再执行：消息不再注册、安装任务看门狗不再启动、`CheckGameVersion()` 不再跑。即离开过启动器页之后，本会话内该页彻底不再刷新。D62 自己就踩过同一类坑（banner 的 `_contentGameId != CurrentGameId` 永假，`00-decisions.md` 原 D62 条目）。
+
+**决定**（用户 m00695：「一切冲突、偏离点等都以上游为主要目标」）：
+
+1. `src/Lunarward/Frameworks/PageBase.cs`：`Loaded/Unloaded` 不再在第一次 Unloaded 退订；每次 `Loaded` 都跑 `OnLoaded()`；新增 `protected string? ContentGameId` 记录「页面当前渲染的是哪个游戏」，`OnNavigatedTo` 里参数指向别的游戏时更新并调用新增的 `protected virtual void OnGameChanged()`。
+2. `src/Lunarward/Features/GameLauncher/GameLauncherPage.xaml.cs`：把整套「与游戏相关」的初始化抽成 `LoadGameContent()`（重置安装路径/可移动提示/预下载/DX12/区服/安装任务缓存/云游戏/账号切换器/背景，刷新 `PlayTimeButton` 与 banner，再 `InitializeGameFeature() + CheckGameVersion() + UpdateGameInstallTask() + CheckCloudGame() + InitializeGameServerAsync() + InitializeBackgameImageSwitcherAsync()`），`OnLoaded`、`OnGameChanged()`、`CurrentGameChangedMessage` 三处共用同一入口；`OnCurrentGameChanged` 守卫改为对比 `ContentGameId`；`OnLoaded` 里对 `_dispatchTimer.Tick` 用 `-= +=` 接回（第一次 Unloaded 会摘掉）。`LoadGameContent()` 整段 try/catch 记日志，避免一处异常吞掉整页刷新。
+3. `src/Lunarward/Features/PlayTime/PlayTimeButton.xaml.cs`：新增 `RefreshPlayTime(GameBiz)`。`CurrentGameBiz` 是 `x:Bind` 默认 OneTime，控件不重建就读不到新值；缓存页面切游戏后必须显式刷新（实测不刷时显示 0h 0m，正确值 0h 9m）。
+4. `src/Lunarward/Features/Setting/SettingPage.xaml.cs`：`LanguageChangedMessage` 的注册从 ctor 移到 `OnLoaded`。ctor 只跑一次 + `OnUnloaded` 里的 `UnregisterAll` 会让语言切换在第一次离开设置页后永久失效。
+
+**代价 / 边界**：①`OnLoaded` 从「每实例一次」变成「每次挂载一次」，其中的订阅与计时器必须幂等（本次对 `_dispatchTimer.Tick` 做了 `-= +=`；消息注册走 `WeakReferenceMessenger` 的重复注册覆盖语义，安全）；②`LoadGameContent()` 每次挂载会多做一次游玩时长本地读取与一次 `CheckGameVersion()`（含网络版本查询，失败走既有兜底），开销在既有导航耗时（266–342 ms）量级内；③`ContentGameId` 只解决「游戏身份变化」，页面其它跨实例状态仍按上游语义处理；④上游页面永不缓存，所以本决策只影响移植侧 8 个缓存页，`src/Starward/` 零改动。
+
+**验证**（实测，2026-11-21）：
+
+- `dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错误；`dotnet test Starward.slnx -c Debug` 264 通过 0 失败；`bash scripts/test/lint-ui-thread.sh` 通过。
+- 场景 A（未安装 → 已安装）：DB 置 `CurrentGameBiz=hkrpg_cn`（未安装）启动，`LUNARWARD_DEV_SWITCH_GAME=hk4e_cn` 6 秒后走真实选服路径切到原神 → 按钮变「开始游戏」、banner 换成原神、游玩时长 0h 9m（修复前分别停留在「安装游戏」/旧 banner/0h 0m）。
+- 场景 B（离开再回来再切未安装游戏）：原神启动器页 → 游戏设置页 → 切回启动器（缓存实例）→ 选择层切到未安装的星布谷地 → 显示「安装游戏」+「已安装？定位游戏」+ 0h 0m（修复前该页在第一次离开后不再刷新）。
+- 现场清理：验证实例均已 `pkill -x Lunarward`；DB 已从 `/tmp/StarwardDatabase.db.bak` 还原。
+
+**确认方式**：明确（m00257 报告症状；m00695 批准方案与「以上游为准」原则）。
+
+**遗留观察（未修，另案）**：GUI 自动化过程中，游戏选择层（`GameSelector` 全背景层）在切换游戏后会停留在画面上层不消失（截图叠在启动器/设置页之上，层级半透明、内容静止）。它与本决策的状态刷新无关（层下页面内容正确），未在本轮定位；另记：导航栏对「已选中项」点击直接 return（`MainView.NavigationView_ItemInvoked` 的 `if (args.InvokedItemContainer?.IsSelected ?? false) return;`），因此停在设置页时点「启动器」无反应，需先点其它项。

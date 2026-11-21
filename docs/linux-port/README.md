@@ -1,8 +1,8 @@
 # Lunarward 文档总览（Starward 的 Linux 移植）
 
-- **最后更新**：2026-11-20（D91 `packaging/PKGBUILD` 默认打本地仓库；D90 CI 上传可运行产物；D89 `global.json` SDK 下限放宽到 `10.0.100`；D88 打包依赖清单单一来源；D87 运行器显示名单一来源；D86 注册表改读文件）
+- **最后更新**：2026-11-21（D93 上游历史与 `main` 连通；D92 `packaging/PKGBUILD` 本地模式零复制；D91 PKGBUILD 默认打本地仓库；D90 CI 上传可运行产物）
 - **当前阶段**：功能移植完成（M1–M3 主体）+ 运行环境与打包收口。**代码侧没有在做的功能批**，剩下的是真机验收。
-- **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 **115** 个提交、落后 **1** 个（`df8ae07 filecache powered by fusioncache`，待合并）
+- **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 **118** 个提交、落后 **0** 个（上游 `df8ae07` 已于 2026-11-21 并入历史，见 D93）
 - **版本**：`0.1.0`（`src/Lunarward/Lunarward.csproj`）
 - **分发**：AUR（`lunarward` / `lunarward-git`）、AppImage、CI 产物（`lunarward-linux-x64`，self-contained tar.gz，保留 7 天）
 - **用户文档**：[`docs/user/faq.md`](../user/faq.md)、[`docs/user/runtime-environment.md`](../user/runtime-environment.md)
@@ -59,7 +59,7 @@
 
 | 文档 | 用途 |
 | --- | --- |
-| `00-decisions.md` | **唯一决策源**：D0–D91 的结论、理由、代价、变更记录 |
+| `00-decisions.md` | **唯一决策源**：D0–D94 的结论、理由、代价、变更记录 |
 | `12-shims-and-gaps.md` | **唯一状态登记表**：每处替身/缺口的真实状态 |
 | `13-lessons.md` | **唯一坑记录**：L-01…L-163 的实测结论与复现方法 |
 | `18-upstream-deviations.md` | 移植偏差原则、登记标记、上游同步流程 |
