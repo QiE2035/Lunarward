@@ -10,7 +10,7 @@
 | low | 16 |
 | 合计 | **76** |
 
-状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 21 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96）。
+状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 30 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97）。
 
 ## 1 · 复核结论（2026-11-22）
 
@@ -105,10 +105,14 @@
   - 现象：点「多选」按钮没有任何变化：复选框一直显示，勾选行为与批量转换的目标集合都不受开关控制。
   - 上游：`Features/Screenshot/ScreenshotPage.xaml.cs:90-98` — 上游 MutliSelect setter 会切 GridView_Images.SelectionMode（Multiple/None），并决定批量转换传入哪些项。移植版里 MutliSelect 只有一个带 PropertyChanged 的自动属性（Linux.cs:39-51），XAML 中唯一的引用是 ToggleButton.IsChecked（:107-109），CheckBox 常驻显示、BatchConvert 也完全不看 MutliSelect，所以开关无论开还是关，交互完全一样。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Screenshot/ScreenshotPage.Linux.cs:39-51 MutliSelect 只在 setter 内自赋值并发 PropertyChanged，全文件无读取点；src/Lunarward/Features/Screenshot/ScreenshotPage.xaml:108-109 唯一引用是 `IsChecked="{x:Bind MutliSelect, Mode=TwoWay}"`；条目模板 :80-84 的 CheckBox 无条件常显；BatchConvert()（ScreenshotPage.Linux.cs:188-207）只按 `x.IsSelected` 收集目标，从不读 MutliSelect。
+- 🛠 修复（2026-11-22）：勾选框 `Visibility` 绑定条目上的 `CheckBoxVisibility`，由页面按 `MutliSelect` 统一设置；关多选时清空选择；批量转换按多选/非多选取目标。
+
 - **B07**（high）`Features/Screenshot/ScreenshotPage.xaml:59-60` — 缩略图点击不打开查看器：ItemClick 没有接线
   - 现象：在图库里单击/双击任意缩略图都没有反应，看图窗口打不开，用户只能去文件管理器看截图。
   - 上游：`Features/Screenshot/ScreenshotPage.xaml:52-58` — 上游用 GridView + IsItemClickEnabled="True" + ItemClick="GridView_Images_ItemClick"（handler 见 upstream .xaml.cs:380）。移植版换成 ItemsControl，XAML 里没有任何 ItemClick/IsItemClickEnabled/Tapped，而 ItemsControl 本身也没有 ItemClick 事件，所以 ScreenshotPage.Linux.cs:167 的 GridView_Images_ItemClick 永远不会被调用；ScreenshotViewerWindow 只剩 DevSwitches.ViewerIndex 这条开发路径能打开。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Screenshot/ScreenshotPage.xaml:59-95 为 `<ItemsControl x:Name="ItemsControl_Images" ItemsSource="{x:Bind ScreenshotViewSource.View}">`，全文无 ItemClick/IsItemClickEnabled/Tapped/DoubleTapped，模板内只有 Border/StackPanel/CachedImage/CheckBox/TextBlock；ScreenshotViewerWindow 仅在 ScreenshotPage.Linux.cs:157（DevSwitches.ViewerIndex）与 :167-176 GridView_Images_ItemClick 中打开，后者无 XAML 接线，是死代码。
+- 🛠 修复（2026-11-22）：条目根 `Border` 加 `Tapped="Item_Tapped"`，多选时切勾选，否则走 `OpenItem` 打开查看器。
+
 ### 服务与帮助器
 
 - **B08**（high）`Features/Update/UpdateWindow.Linux.cs:54` — 「忽略此版本」不落盘，同一版本会反复弹更新窗
@@ -152,18 +156,26 @@
   - 现象：开着「自动复制截图文件」时截图不会进剪贴板，粘贴出来是旧内容；关闭它也没有任何区别。
   - 上游：`Features/Screenshot/ScreenCaptureService.cs:420-430` — 该设置的唯一消费点是 ScreenCaptureService.CopyToClipboardAsync（:420-430，`if (AppConfig.AutoCopyScreenshotToClipboard)` 时 SetStorageItems）。ScreenCaptureLinux.CaptureAsync 只写文件 + 发通知，从不碰剪贴板；而设置页仍然展示并持久化这个开关（ScreenshotSetting.Linux.cs:22/36/50）。默认值还是 true（AppConfig.Setting.cs:348），所以用户默认就处于「承诺会复制、实际不复制」的状态。
   - ✅ 复核（2026-11-22，读码）：Linux 捕获 src/Lunarward/Features/Screenshot/ScreenCapture.Linux.cs:48-112 CaptureAsync 只写文件 + DesktopNotification，无剪贴板。唯一消费点 src/Lunarward/Features/Screenshot/ScreenCaptureService.cs:420-430 `if (AppConfig.AutoCopyScreenshotToClipboard)` → `ClipboardHelper.SetStorageItems(...)`，但 CopyToClipboardAsync 只在 Windows 捕获路径 :97/:102 被调用（CaptureInternal，依赖 RunningGameService + Windows.Graphics.Capture）。Linux 三个真实入口都走 Scr…
+- 🛠 修复（2026-11-22）：`ScreenCaptureLinux.CaptureAsync` 成功后按 `AppConfig.AutoCopyScreenshotToClipboard` 调 `ClipboardHelper.SetImageFile`（wl-copy → xclip）。
+
 - **B15**（high）`Features/Screenshot/ScreenshotPage.Linux.cs:188-203` — 未选中任何截图时「批量转换」会把全部截图转成 JPEG
   - 现象：图库里什么都没勾就点「批量转换」，会把整个截图目录的 PNG 全部额外写出一份 .jpg，一次点击即产生几十上百个文件，且无法撤销。
   - 上游：`Features/Screenshot/ScreenshotPage.xaml.cs:340-351` — 上游 OpenImageBatchConvertWindow 传的是 MutliSelect ? SelectedItems : []，即没选就传空列表，由 ImageBatchConvertWindow 让用户自己加文件、选格式/命名/覆盖策略后再开始。移植版在 targets.Count == 0 时改成 targets = items（全部截图），直接同步跑 ScreenshotConverter.ConvertToJpeg（固定 quality 92、同名 .jpg、不删原图），没有任何确认或预览。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Screenshot/ScreenshotPage.Linux.cs:188-203 BatchConvert：:191 `var targets = items.Where(x => x.IsSelected).ToList();`、:194 `targets = items;`（无选中直接全部）、:201 `var (ok, skip, fail) = ScreenshotConverter.ConvertToJpeg(targets.Select(x => x.FilePath));`，全程无确认、无预览、无选项；命令接线 :18 `OpenImageBatchConvertWindowCommand = new AsyncRelayCommand(BatchConvert)`、:127 触发，按钮 src/Lunarward/Features/Screenshot…
+- 🛠 修复（2026-11-22）：`BatchConvertAsync` 只在多选模式取勾选项、否则取整库；空目标只弹提示，不再默认全库转换。
+
 - **B16**（high）`Features/Screenshot/ScreenshotPage.Linux.cs:20` — 图库只在构造时加载一次，Alt+D 截图或切换目录后不刷新
   - 现象：按 Alt+D 截完图回到图库看不到新图；在设置页改了截图文件夹再回来，列表仍是旧目录的内容；必须重启应用才更新。
   - 上游：`Features/Screenshot/ScreenshotPage.xaml.cs:60-64` — 上游 override OnLoaded → Task.Delay(16) → Initialize()，并且每个目录挂 FileSystemWatcher（:116-263），新建/删除文件都会即时增删条目。移植版在构造函数里调一次 LoadImages()（L20→L75-111），之后既不 override OnLoaded 也没有 watcher；XAML 又设了 NavigationCacheMode="Required" 复用页面实例，所以再次导航回来连构造器都不会跑。PageBase.cs:37-40 每次 Loaded 都会调 OnLoaded()，本来只要补一个 override 就能对齐上游。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Screenshot/ScreenshotPage.Linux.cs:20 构造函数内 `LoadImages();`，LoadImages 定义 :75-114（每次读 ScreenCaptureLinux.DefaultFolder），全类仅此一次调用；无 OnLoaded/OnGameChanged override，类内无 FileSystemWatcher（watcher 只出现在已从编译排除的 ScreenshotPage2.xaml.cs:102/:201，src/Lunarward/Lunarward.csproj:117 `<Compile Remove="Features/Screenshot/ScreenshotPage2.xaml.cs" />` 对应）。src/Lunarward/Features/Screenshot/ScreenshotPag…
+- 🛠 修复（2026-11-22）：新增 `OnLoaded` 重读目录 + `FileSystemWatcher`（Created/Deleted/Changed/Renamed → DispatcherQueue 重载）。
+
 - **B17**（high）`Features/Setting/ScreenshotSetting.Linux.cs:20` — ScreenshotQuality=95 被绑到三段式 SelectedIndex（值域错位）
   - 现象：「图像格式和质量」里的质量三档初始没有任何一段处于选中态；选完离开页面也不会保存，下次进来又回到未选中。
   - 上游：`Features/Setting/ScreenshotSetting.xaml.cs:223-234` — 上游 ScreenshotQuality 初值是 AppConfig.ScreenCaptureEncodeQuality（0=Middle/1=High/2=Lossless），并且就是作为 Segmented.SelectedIndex 用的（screen XAML 三个 SegmentedItem，ScreenshotSetting.xaml:116-121）；ScreenCaptureService.cs:334-340 也按 0/1/2 映射到 80/90/100。移植版把 ScreenshotQuality 硬编码成 95（一个 JPEG 质量值），同时仍在 XAML 里绑 SelectedIndex，越界值会被 Selector 钳成 -1（或直接不选中任何一段）。此外该字段在 OnNavigatedFrom 里也不落盘。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Setting/ScreenshotSetting.Linux.cs:20 `public int ScreenshotQuality { get; set; } = 95;`，被 src/Lunarward/Features/Setting/ScreenshotSetting.xaml:116-123 `SelectedIndex="{x:Bind ScreenshotQuality, Mode=TwoWay}"` 当索引用（三个 SegmentedItem：Medium/High/Lossless），95 越界 → 无段选中；同文件 :45-55 OnNavigatedFrom 只写 ScreenshotFolder 与 AutoCopyScreenshotToClipboard，注释写明「格式/质量只有 Windows 的 DXGI 捕获路径会用到…先不落盘」，故从…
+- 🛠 修复（2026-11-22）：`ScreenshotQuality` 改为 0/1/2 索引并即时写 `AppConfig.ScreenCaptureEncodeQuality`；`ScreenshotForamt` 写 `ScreenCaptureSavedFormat`；质量可见性随格式切换。
+
 ### 抽卡/战绩/自助查询
 
 - **B18**（high）`Features/Gacha/GachaLogPage.xaml.cs:72` — 抽卡页按游戏置位的 x:Load 开关只置位不复位，统计卡/物品统计面板跨游戏残留
@@ -315,14 +327,20 @@
   - 现象：点「批量转换」后窗口无响应（标题栏「未响应」），期间没有任何进度提示，只能等。
   - 上游：`Features/Screenshot/ImageBatchConvertWindow.xaml.cs:853-909` — ScreenshotConverter.ConvertToJpeg 是同步方法（逐张 SkiaSharp 解码 + JPEG 编码，ScreenshotConverter.cs:13-57），移植版在按钮命令里直接调用（L201），没有任何 await/Task.Run 或进度反馈；上游在 ImageBatchConvertWindow 里是异步逐项转换并刷新进度。按 2560×1440 PNG 估算，每张解码+编码数百毫秒，几十张就会冻结数秒到数十秒。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Screenshot/ScreenshotPage.Linux.cs:18 `OpenImageBatchConvertWindowCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(BatchConvert);`，BatchConvert 在 :201 直接 `var (ok, skip, fail) = ScreenshotConverter.ConvertToJpeg(targets.Select(x => x.FilePath));` 后弹 toast，没有 await / Task.Run / 进度；src/Lunarward/Features/Screenshot/ScreenshotConverter.cs:13-57 是同步 foreach（`Starward.Helpers.ImageDecode…
+- 🛠 修复（2026-11-22）：转换命令改 `AsyncRelayCommand`，转换体 `await Task.Run(...)`，完成后重载图库。
+
 - **B46**（medium）`Features/Screenshot/ScreenshotPage.Linux.cs:84-86` — 图库扩展名白名单缩到 3 种，avif/jxl/webp/heic/jxr 截图不显示
   - 现象：截图目录里明明有 .avif/.jxl/.webp 文件，图库却是空的（并显示「还没有截图」），只能去文件管理器找。
   - 上游：`Features/Screenshot/ScreenshotHelper.cs:15-22` — 上游 IsSupportedExtension/WatcherFilters 认 .jpg/.png/.jxr/.webp/.heic/.avif/.jxl 七种，枚举时逐个判断。移植版只用 EndsWith(".png"/".jpg"/".jpeg") 过滤（L84-86），其余格式即使存在于截图目录也不会成为条目；这批文件包含移植版自己「批量转换」可能产生/上游历史遗留的格式。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Screenshot/ScreenshotPage.Linux.cs:84-86 `.Where(x => x.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || x.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))`，空列表时 :120-121 `ScreenshotViewSource.View = items; HasImages = items.Count > 0;`（空态文案「还没有截图」）；上游 src/Starward/Features/Screenshot/ScreenshotHelper.cs:15-22 `return …
+- 🛠 修复（2026-11-22）：`LoadImages` 用 7 种扩展名白名单（jpg/jpeg/png/jxr/webp/heic/avif/jxl）。
+
 - **B47**（medium）`Features/Setting/ScreenshotSetting.Linux.cs:88` — 「清除缩略图缓存」删的是不存在的目录，却提示已清理
   - 现象：点「清除缩略图缓存」永远显示成功，但 <cache>/thumb 下的缩略图一张没删，磁盘占用不变。
   - 上游：`Features/Setting/ScreenshotSetting.xaml.cs:431-441` — 上游调用 ImageThumbnail.ClearThumbnailCache()，缓存目录是 <CacheFolder>/thumb（ImageThumbnail.cs:31 上游；移植版同一行改成了 AppConfig.CacheDirectory/thumb）。移植版的按钮却拼 <AppConfig.CacheFolder>/screenshot-thumb，两个路径（根目录与子目录名）都与真实缓存不一致，Directory.Exists 为 false 时直接跳过删除，然后无条件 toast「已清理」。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/Setting/ScreenshotSetting.Linux.cs:88 `string cache = System.IO.Path.Combine(AppConfig.CacheFolder ?? System.IO.Path.GetTempPath(), "screenshot-thumb");`、:89-92 `if (System.IO.Directory.Exists(cache)) { System.IO.Directory.Delete(cache, true); }`，之后 :93 无条件 `Helpers.InAppToast.MainWindow?.Success("已清理");`；上游 src/Starward/Features/Setting/ScreenshotSetting.xaml.cs:435 `ImageThumbnail.Clear…
+- 🛠 修复（2026-11-22）：删除目标改为 `<AppConfig.CacheDirectory>/thumb`；只有真删掉才提示成功，否则提示「没有可清理的缩略图缓存」。
+
 ### 抽卡/战绩/自助查询
 
 - **B48**（medium）`Features/Gacha/GachaLogPage.xaml.cs:139` — 缓存页未实现 D94 的 OnGameChanged，切游戏后抽卡记录/UID/横幅仍是上一个游戏

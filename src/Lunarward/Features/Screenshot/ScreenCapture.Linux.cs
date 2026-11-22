@@ -71,6 +71,7 @@ public static class ScreenCaptureLinux
             if (await TryRunAsync(exe, args, cancellation) && File.Exists(file) && new FileInfo(file).Length > 0)
             {
                 Serilog.Log.Information("截图完成：{file}", file);
+                await TryCopyToClipboardAsync(file).ConfigureAwait(false);
                 if (notify)
                 {
                     // C4：热键截图时窗口通常被游戏盖住，桌面通知是唯一能确认「截到了」的反馈。
@@ -101,6 +102,7 @@ public static class ScreenCaptureLinux
                 return viaPortal;
             }
             Serilog.Log.Information("截图完成（portal）：{file}", file);
+            await TryCopyToClipboardAsync(file).ConfigureAwait(false);
             if (notify)
             {
                 Helpers.DesktopNotification.Show("截图已保存", Path.GetFileName(file), "lunarward", 4000);
@@ -109,6 +111,28 @@ public static class ScreenCaptureLinux
         }
         Serilog.Log.Warning("截图失败：spectacle / grim / gnome-screenshot / portal 都不可用或被拒绝");
         return null;
+    }
+
+
+    /// <summary>B14：设置里「自动复制截图到剪贴板」在 Linux 侧也要真的生效。</summary>
+    private static async Task TryCopyToClipboardAsync(string file)
+    {
+        try
+        {
+            if (!AppConfig.AutoCopyScreenshotToClipboard || !File.Exists(file))
+            {
+                return;
+            }
+            bool ok = await Task.Run(() => Helpers.ClipboardHelper.SetImageFile(file)).ConfigureAwait(false);
+            if (!ok)
+            {
+                Serilog.Log.Warning("复制截图到剪贴板失败（wl-copy / xclip 都不可用或拒绝）");
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "复制截图到剪贴板失败");
+        }
     }
 
 

@@ -1,6 +1,7 @@
 // Lunarward：Linux 剪贴板优先用 Uno/平台 API；这里用 wl-copy/xclip 兜底（Wayland 优先）。
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 
 namespace Starward.Helpers;
@@ -16,6 +17,60 @@ public static class ClipboardHelper
             SetText(string.Join("\n", paths));
         }
     }
+
+    /// <summary>B14：把 PNG 文件按 image/png 放进剪贴板（wl-copy / xclip）。返回是否成功。</summary>
+    public static bool SetImageFile(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+        try
+        {
+            var wl = new ProcessStartInfo("wl-copy") { RedirectStandardInput = true, UseShellExecute = false };
+            wl.ArgumentList.Add("--type");
+            wl.ArgumentList.Add("image/png");
+            using (var p = Process.Start(wl))
+            {
+                if (p is not null)
+                {
+                    using (var input = File.OpenRead(path))
+                    {
+                        input.CopyTo(p.StandardInput.BaseStream);
+                    }
+                    p.StandardInput.Close();
+                    p.WaitForExit(3000);
+                    if (p.ExitCode == 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+        try
+        {
+            var xclip = new ProcessStartInfo("xclip") { UseShellExecute = false };
+            foreach (var a in new[] { "-selection", "clipboard", "-t", "image/png", "-i" })
+            {
+                xclip.ArgumentList.Add(a);
+            }
+            xclip.ArgumentList.Add(path);
+            using var p2 = Process.Start(xclip);
+            if (p2 is not null)
+            {
+                p2.WaitForExit(3000);
+                return p2.ExitCode == 0;
+            }
+        }
+        catch
+        {
+        }
+        return false;
+    }
+
 
     public static void SetText(string? text)
     {

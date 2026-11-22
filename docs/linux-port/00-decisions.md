@@ -1424,3 +1424,22 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错误；`dotnet test Starward.slnx` 264 通过；`lint-ui-thread.sh` 通过；真机确认游戏设置页可正常渲染（分辨率 1920×1080、语音汉语、HDR 区块与「当前显示器不支持 HDR」提示）。本轮 KWin 截图接口（`ScreenShot2.Error.Cancelled`）与指针注入异常，HDR 对话框的点击验证未完成，改用代码审查与编译验证，遗留到后续 GUI 回归。
 
 **确认方式**：用户 m01511 授权全量修复。
+
+## D97 审计项修复：批 3「截图」按上游语义补齐
+
+**背景**：批 3 覆盖 B06 B07 B14 B15 B16 B17 B45 B46 B47 共 9 条，集中在图库交互、截图格式设置与缩略图缓存。
+
+**决定**：
+
+1. 「多选」开关真正生效（B06）：勾选框只在多选模式下显示；关闭多选时清空选择。条目根 `Border` 接 `Tapped`（B07），多选时切换勾选，否则打开查看器（ItemsControl 没有 ItemClick）。
+2. 批量转换只在多选模式转勾选项、非多选模式转整库；原本「没勾选就转全部」删掉（B15）；转换改 `Task.Run` + `AsyncRelayCommand`，几十张图不再冻 UI（B45）；质量按设置索引映射 80/90/100。
+3. 「自动复制截图到剪贴板」在 Linux 生效（B14）：截图成功后按 `image/png` 写 `wl-copy`，回退 `xclip`；失败只记日志，不影响截图本身。
+4. 图库在每次挂载时重读目录并挂 `FileSystemWatcher`（B16），Alt+D 截图或改目录后即时出现；扩展名白名单恢复 7 种（B46）。
+5. 截图质量设置改为 0/1/2 三段索引并绑定 `AppConfig.ScreenCaptureEncodeQuality`（B17），格式索引绑定 `ScreenCaptureSavedFormat`，两者即时落盘。
+6. 「清除缩略图缓存」指向真实目录 `<CacheDirectory>/thumb`（B47），只用实际删除与否决定提示。
+
+**代价边界**：Linux 捕获统一 PNG（D31），格式/质量只作用于「批量转换」；剪贴板依赖 `wl-copy`/`xclip`，两者都没有时只记日志。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。KWin 截图/指针注入在本会话不可用，图库点击与批量转换未做真机点击验证，遗留到 GUI 回归。
+
+**确认方式**：用户 m01511。

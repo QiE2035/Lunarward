@@ -14,10 +14,40 @@ public sealed partial class ScreenshotSetting : PageBase
 {
     public string? ScreenshotFolder { get; set; }
 
-    /// <summary>上游拼写即为 ScreenshotForamt（历史遗留），保持一致以免改 XAML。</summary>
-    public int ScreenshotForamt { get; set; }
+    /// <summary>上游拼写即为 ScreenshotForamt（历史遗留），保持一致以免改 XAML。
+    /// 0: PNG, 1: AVIF, 2: JPEG XL。</summary>
+    public int ScreenshotForamt
+    {
+        get => AppConfig.ScreenCaptureSavedFormat;
+        set
+        {
+            if (value < 0)
+            {
+                return;
+            }
+            if (AppConfig.ScreenCaptureSavedFormat != value)
+            {
+                AppConfig.ScreenCaptureSavedFormat = value;
+                OnPropertyChanged(nameof(ScreenshotForamt));
+                OnPropertyChanged(nameof(ScreenshotQualityVisibility));
+            }
+        }
+    }
 
-    public int ScreenshotQuality { get; set; } = 95;
+    /// <summary>B17：这是三段式的索引（0 Middle / 1 High / 2 Lossless），不是 JPEG 质量数值。</summary>
+    public int ScreenshotQuality
+    {
+        get => Math.Clamp(AppConfig.ScreenCaptureEncodeQuality, 0, 2);
+        set
+        {
+            int index = Math.Clamp(value, 0, 2);
+            if (AppConfig.ScreenCaptureEncodeQuality != index)
+            {
+                AppConfig.ScreenCaptureEncodeQuality = index;
+                OnPropertyChanged(nameof(ScreenshotQuality));
+            }
+        }
+    }
 
     public bool AutoCopyScreenshotToClipboard { get; set; }
 
@@ -25,7 +55,7 @@ public sealed partial class ScreenshotSetting : PageBase
 
     public bool EnableScreenshotColorManagement { get; set; }
 
-    public bool ScreenshotQualityVisibility => true;
+    public Microsoft.UI.Xaml.Visibility ScreenshotQualityVisibility => ScreenshotForamt > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     public string? WindowHandle { get; set; }
 
@@ -48,7 +78,7 @@ public sealed partial class ScreenshotSetting : PageBase
         // 设置页用普通属性 + 双向绑定，离开页面时统一落盘（Uno 下逐属性 setter 落盘会写太多次文件）
         AppConfig.ScreenshotFolder = string.IsNullOrWhiteSpace(ScreenshotFolder) ? null : ScreenshotFolder;
         AppConfig.AutoCopyScreenshotToClipboard = AutoCopyScreenshotToClipboard;
-        // 格式/质量只有 Windows 的 DXGI 捕获路径会用到；Linux 走外部截图工具（D31），先不落盘。
+        // 格式/质量已经由属性 setter 即时落盘；Linux 捕获统一出 PNG，质量只影响「批量转换」（B17）。
     }
 
 
@@ -85,12 +115,16 @@ public sealed partial class ScreenshotSetting : PageBase
     {
         try
         {
-            string cache = System.IO.Path.Combine(AppConfig.CacheFolder ?? System.IO.Path.GetTempPath(), "screenshot-thumb");
+            string cache = System.IO.Path.Combine(AppConfig.CacheDirectory, "thumb");
             if (System.IO.Directory.Exists(cache))
             {
                 System.IO.Directory.Delete(cache, true);
+                Helpers.InAppToast.MainWindow?.Success("已清理缩略图缓存");
             }
-            Helpers.InAppToast.MainWindow?.Success("已清理");
+            else
+            {
+                Helpers.InAppToast.MainWindow?.Information("没有可清理的缩略图缓存", null, 3000);
+            }
         }
         catch (Exception ex)
         {

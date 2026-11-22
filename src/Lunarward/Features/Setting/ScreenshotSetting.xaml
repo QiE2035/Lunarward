@@ -116,7 +116,7 @@
                 <cwc:Segmented x:Name="Segmented_ScreenshotQuality"
                                VerticalAlignment="Center"
                                SelectedIndex="{x:Bind ScreenshotQuality, Mode=TwoWay}"
-                               Visibility="{x:Bind ScreenshotQualityVisibility}">
+                               Visibility="{x:Bind ScreenshotQualityVisibility, Mode=OneWay}">
                     <cwc:SegmentedItem MinWidth="80" Content="{x:Bind lang:Lang.GameSettingPage_Medium}" />
                     <cwc:SegmentedItem Content="{x:Bind lang:Lang.GameSettingPage_High}" />
                     <cwc:SegmentedItem Content="{x:Bind lang:Lang.ScreenshotSetting_Lossless}" />

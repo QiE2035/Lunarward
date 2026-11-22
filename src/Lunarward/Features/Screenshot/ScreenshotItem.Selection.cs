@@ -13,4 +13,13 @@ public partial class ScreenshotItem
         get => _isSelected;
         set => SetProperty(ref _isSelected, value);
     }
+
+    private Microsoft.UI.Xaml.Visibility _checkBoxVisibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    /// <summary>B06：勾选框只在多选模式下出现，由页面统一设置。</summary>
+    public Microsoft.UI.Xaml.Visibility CheckBoxVisibility
+    {
+        get => _checkBoxVisibility;
+        set => SetProperty(ref _checkBoxVisibility, value);
+    }
 }

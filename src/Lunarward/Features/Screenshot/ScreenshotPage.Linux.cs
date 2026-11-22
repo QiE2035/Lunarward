@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Starward.Features.Screenshot;
 
@@ -15,7 +16,7 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
 {
     public ScreenshotPage()
     {
-        OpenImageBatchConvertWindowCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(BatchConvert);
+        OpenImageBatchConvertWindowCommand = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(BatchConvertAsync);
         // x:Bind 默认 OneTime：数据要在 InitializeComponent 之前准备好。
         LoadImages();
 
@@ -47,8 +48,18 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
             }
             _mutliSelect = value;
             PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(MutliSelect)));
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(CheckBoxVisibility)));
+            if (!value)
+            {
+                ClearSelection();
+            }
+            ApplyCheckBoxVisibility();
+            UpdateSelectCount();
         }
     }
+
+    /// <summary>B06：只有多选模式才显示条目上的勾选框，否则整个条目就是「点开看图」。</summary>
+    public Microsoft.UI.Xaml.Visibility CheckBoxVisibility => _mutliSelect ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     private string? _selectCountText;
 
@@ -72,6 +83,15 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     /// <summary>
     /// 图库数据源：扁平列表（上游按日期分组，但 Uno 的分组 GridView 不渲染条目，见 L-48）。
     /// </summary>
+    private static readonly string[] SupportedExtensions = [".jpg", ".jpeg", ".png", ".jxr", ".webp", ".heic", ".avif", ".jxl"];
+
+    private static bool IsSupportedFile(string path)
+    {
+        string extension = Path.GetExtension(path);
+        return Array.Exists(SupportedExtensions, x => string.Equals(x, extension, StringComparison.OrdinalIgnoreCase));
+    }
+
+
     private void LoadImages()
     {
         var items = new List<ScreenshotItem>();
@@ -81,9 +101,7 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
             if (Directory.Exists(folder))
             {
                 items = Directory.EnumerateFiles(folder)
-                    .Where(x => x.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
-                             || x.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
-                             || x.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase))
+                    .Where(IsSupportedFile)
                     .Select(x => new FileInfo(x))
                     .OrderByDescending(x => x.LastWriteTime)
                     .Select(x => new ScreenshotItem(x.FullName))
@@ -105,6 +123,7 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
             };
         }
         ScreenshotViewSource.View = items;
+        ApplyCheckBoxVisibility();
         HasImages = items.Count > 0;
         OpenViewerIfRequested(items);
         UpdateSelectCount();
@@ -112,6 +131,81 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
 
 
     public bool HasImages { get; private set; }
+
+    private FileSystemWatcher? _watcher;
+
+    private string? _watcherFolder;
+
+    private void ApplyCheckBoxVisibility()
+    {
+        if (ScreenshotViewSource.View is not IEnumerable<ScreenshotItem> items)
+        {
+            return;
+        }
+        Visibility visibility = CheckBoxVisibility;
+        foreach (ScreenshotItem item in items)
+        {
+            item.CheckBoxVisibility = visibility;
+        }
+    }
+
+
+    private void ClearSelection()
+    {
+        if (ScreenshotViewSource.View is not IEnumerable<ScreenshotItem> items)
+        {
+            return;
+        }
+        foreach (ScreenshotItem item in items)
+        {
+            item.IsSelected = false;
+        }
+    }
+
+
+    /// <summary>B16：缓存页面只会在第一次构造时加载，挂载时重新枚举，并挂目录监视器。</summary>
+    protected override void OnLoaded()
+    {
+        base.OnLoaded();
+        LoadImages();
+        EnsureWatcher();
+    }
+
+
+    private void EnsureWatcher()
+    {
+        try
+        {
+            string folder = ScreenCaptureLinux.DefaultFolder;
+            if (_watcher is not null && string.Equals(_watcherFolder, folder, StringComparison.Ordinal))
+            {
+                return;
+            }
+            _watcher?.Dispose();
+            _watcher = null;
+            if (!Directory.Exists(folder))
+            {
+                return;
+            }
+            var watcher = new FileSystemWatcher(folder)
+            {
+                IncludeSubdirectories = false,
+                EnableRaisingEvents = true,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
+            };
+            void OnChange(object? _, FileSystemEventArgs e) => DispatcherQueue.TryEnqueue(LoadImages);
+            watcher.Created += OnChange;
+            watcher.Deleted += OnChange;
+            watcher.Renamed += (_, e) => DispatcherQueue.TryEnqueue(LoadImages);
+            watcher.Changed += OnChange;
+            _watcher = watcher;
+            _watcherFolder = folder;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "监视截图目录失败");
+        }
+    }
 
 
     private void UpdateSelectCount()
@@ -124,7 +218,7 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     public BitmapImage? Header { get; set; }
 
     public CommunityToolkit.Mvvm.Input.IRelayCommand ManageScreenshotFolderCommand { get; } = new CommunityToolkit.Mvvm.Input.RelayCommand(OpenScreenshotFolder);
-    public CommunityToolkit.Mvvm.Input.IRelayCommand OpenImageBatchConvertWindowCommand { get; }
+    public CommunityToolkit.Mvvm.Input.IAsyncRelayCommand OpenImageBatchConvertWindowCommand { get; }
 
     /// <summary>没有内置文件管理器，交给桌面：`xdg-open <folder>`。</summary>
     private static void OpenScreenshotFolder()
@@ -168,38 +262,62 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     {
         if (e.ClickedItem is ScreenshotItem item)
         {
-            // Lunarward：M3 起用自己的查看器（上游 ImageViewWindow2 走 Win2D，D31 排除）
-            try
-            {
-                var items = (ScreenshotViewSource.View as IEnumerable<ScreenshotItem>)?.ToList() ?? new List<ScreenshotItem>();
-                int index = items.IndexOf(item);
-                new ScreenshotViewerWindow(items, index < 0 ? 0 : index).Activate();
-            }
-            catch (Exception ex)
-            {
-                Serilog.Log.Warning(ex, "Open screenshot viewer");
-                OpenWithDefaultApp(item.FilePath);
-            }
+            OpenItem(item);
         }
     }
 
 
-    /// <summary>批量转换：把选中的（没选就是全部）PNG 转成 JPEG，写在同一目录。</summary>
-    private void BatchConvert()
+    /// <summary>B07：ItemsControl 没有 ItemClick，条目根元素自己接 Tapped。</summary>
+    private void Item_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
-        var items = (ScreenshotViewSource.View as IEnumerable<ScreenshotItem>)?.ToList() ?? new List<ScreenshotItem>();
-        var targets = items.Where(x => x.IsSelected).ToList();
-        if (targets.Count == 0)
+        if ((sender as Microsoft.UI.Xaml.FrameworkElement)?.DataContext is not ScreenshotItem item)
         {
-            targets = items;
-        }
-        if (targets.Count == 0)
-        {
-            Helpers.InAppToast.MainWindow?.Information("没有可转换的截图", null, 3000);
             return;
         }
-        var (ok, skip, fail) = ScreenshotConverter.ConvertToJpeg(targets.Select(x => x.FilePath));
+        e.Handled = true;
+        if (MutliSelect)
+        {
+            item.IsSelected = !item.IsSelected;
+            return;
+        }
+        OpenItem(item);
+    }
+
+
+    private void OpenItem(ScreenshotItem item)
+    {
+        // Lunarward：M3 起用自己的查看器（上游 ImageViewWindow2 走 Win2D，D31 排除）
+        try
+        {
+            var items = (ScreenshotViewSource.View as IEnumerable<ScreenshotItem>)?.ToList() ?? new List<ScreenshotItem>();
+            int index = items.IndexOf(item);
+            new ScreenshotViewerWindow(items, index < 0 ? 0 : index).Activate();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Open screenshot viewer");
+            OpenWithDefaultApp(item.FilePath);
+        }
+    }
+
+
+    /// <summary>
+    /// 批量转换：多选模式只转勾选的（B15：没勾选就不动，不再默认全库）；非多选模式整库转换。
+    /// 转换放到线程池（B45），避免几十张图在 UI 线程上逐张解码+编码导致窗口卡死。
+    /// </summary>
+    private async Task BatchConvertAsync()
+    {
+        var items = (ScreenshotViewSource.View as IEnumerable<ScreenshotItem>)?.ToList() ?? new List<ScreenshotItem>();
+        var targets = MutliSelect ? items.Where(x => x.IsSelected).ToList() : items;
+        if (targets.Count == 0)
+        {
+            Helpers.InAppToast.MainWindow?.Information(MutliSelect ? "请先勾选要转换的截图" : "没有可转换的截图", null, 3000);
+            return;
+        }
+        int quality = AppConfig.ScreenCaptureEncodeQuality switch { 0 => 80, 1 => 90, _ => 100 };
+        var (ok, skip, fail) = await Task.Run(() => ScreenshotConverter.ConvertToJpeg(targets.Select(x => x.FilePath), quality));
         Helpers.InAppToast.MainWindow?.Success((string?)null, $"批量转换完成：成功 {ok}，跳过 {skip}，失败 {fail}", 5000);
+        LoadImages();
     }
 
 

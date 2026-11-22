@@ -67,6 +67,7 @@
                     <DataTemplate x:DataType="local:ScreenshotItem">
                         <Border Margin="0,0,0,0"
                                 Padding="6"
+                                Tapped="Item_Tapped"
                                 CornerRadius="6"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 Width="218">
@@ -79,6 +80,7 @@
                                                     Stretch="UniformToFill"
                                                     Source="{x:Bind FilePath}" />
                                     <CheckBox Margin="4"
+                                              Visibility="{x:Bind CheckBoxVisibility, Mode=OneWay}"
                                               VerticalAlignment="Top"
                                               HorizontalAlignment="Left"
                                               Background="{ThemeResource ControlFillColorDefaultBrush}"
