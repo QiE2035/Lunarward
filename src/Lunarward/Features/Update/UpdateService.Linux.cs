@@ -23,7 +23,20 @@ public class UpdateService
 
 
     public async Task<ReleaseInfoDetail?> CheckUpdateAsync(bool disableIgnore = false)
-        => await GetLatestVersionAsync();
+    {
+        ReleaseInfoDetail? latest = await GetLatestVersionAsync();
+        if (latest is null)
+        {
+            return null;
+        }
+        // B08：忽略此版本后不再提示（除非调用方明确要求不过滤）。
+        if (!disableIgnore && !string.IsNullOrWhiteSpace(AppConfig.IgnoreVersion)
+            && string.Equals(AppConfig.IgnoreVersion, latest.Version, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+        return latest;
+    }
 
 
     public async Task<ReleaseInfoDetail?> GetLatestVersionAsync(CancellationToken cancellation = default)

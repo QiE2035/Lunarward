@@ -70,6 +70,12 @@ internal class PlayTimeRecordService
                 {
                     lastStart = null;
                 }
+                // B76：进程的启动时间晚于那条 Start 记录，说明是复用同一个 pid 的新进程，不是同一局。
+                if (lastStart is { } candidate && GetProcessStartTime(pid) is { } processStart
+                    && processStart > candidate.AddSeconds(2))
+                {
+                    lastStart = null;
+                }
                 startTime = lastStart ?? DateTime.Now;
                 _logger.LogInformation("Playtime: process {pid} already gone, fall back to last start time {start} ({biz})", pid, startTime, biz);
                 Log(biz, pid, PlayTimeState.Start, new DateTimeOffset(startTime).ToUnixTimeMilliseconds(), "wine loader exited early");
@@ -82,7 +88,7 @@ internal class PlayTimeRecordService
                 // 并每 30 秒落一次 Interruption=true 的心跳记录，避免启动器被杀时整段时长丢失。
                 using var cts = new CancellationTokenSource();
                 string? prefix = PlayTimeSession.ActivePrefix ?? Features.GameLauncher.GameLauncherService.ResolvePrefix(biz.ToString());
-                Task session = PlayTimeSession.WaitForSessionEndAsync(pid, prefix, cts.Token);
+                Task session = PlayTimeSession.WaitForSessionEndAsync(pid, prefix, cts.Token, biz);
                 while (!session.IsCompleted)
                 {
                     Task exited = await Task.WhenAny(session, Task.Delay(20000));
@@ -141,6 +147,44 @@ internal class PlayTimeRecordService
 
 
     /// <summary>取该 PID 最近一次的 Start 事件时间；没有就返回 null。</summary>
+    /// <summary>B76：读 /proc/&lt;pid&gt;/stat 的启动时刻（boot ticks + btime）。</summary>
+    private static DateTime? GetProcessStartTime(int pid)
+    {
+        try
+        {
+            string stat = File.ReadAllText($"/proc/{pid}/stat");
+            int close = stat.LastIndexOf(')');
+            if (close < 0)
+            {
+                return null;
+            }
+            string[] fields = stat[(close + 2)..].Split(' ');
+            if (fields.Length < 20 || !long.TryParse(fields[19], out long ticks))
+            {
+                return null;
+            }
+            long btime = 0;
+            foreach (string line in File.ReadLines("/proc/stat"))
+            {
+                if (line.StartsWith("btime ", StringComparison.Ordinal))
+                {
+                    btime = long.Parse(line[6..].Trim());
+                    break;
+                }
+            }
+            if (btime == 0)
+            {
+                return null;
+            }
+            return DateTimeOffset.FromUnixTimeSeconds(btime).UtcDateTime.AddSeconds(ticks / 100.0);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+
     private static DateTime? GetLastStartTime(GameBiz biz, int pid)
     {
         try

@@ -4,6 +4,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Starward.Setup.Core;
 using Starward.Frameworks;
 using System;
@@ -51,7 +52,61 @@ public sealed partial class UpdateWindow : WindowEx
     private void RemindMeLatter() => Close();
 
     [RelayCommand]
-    private void IgnoreThisVersion() => Close();
+    private void IgnoreThisVersion()
+    {
+        // B08：真正把版本写进配置，否则同一版本过几个小时又会弹出来。
+        AppConfig.IgnoreVersion = NewVersion?.Version ?? AppConfig.AppVersion;
+        Close();
+    }
+
+
+    /// <summary>B28：发布页 / 完整包两个超链接按 Tag 分流。</summary>
+    private void HyperlinkButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string? tag = (sender as Microsoft.UI.Xaml.FrameworkElement)?.Tag as string;
+            string? url = tag switch
+            {
+                "release" => $"https://github.com/Scighost/Starward/releases/tag/{NewVersion?.Version}",
+                "package" => NewVersion?.PackageUrl,
+                _ => null,
+            };
+            if (!string.IsNullOrWhiteSpace(url))
+            {
+                Helpers.OpenUrl.Open(url!);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "打开更新链接失败");
+        }
+    }
+
+
+    /// <summary>B59：手动下载标记与提示；更新内容走 WebView2（Linux 无 WebView2，保持引擎缺口）。</summary>
+    private void RootGrid_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (NewVersion?.DisableAutoUpdate == true)
+        {
+            SetErrorMessage(Starward.Language.Lang.UpdatePage_YouNeedToManuallyDownloadTheNewVersionPackage);
+        }
+        else if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            SetErrorMessage(ErrorMessage);
+        }
+    }
+
+
+    private void SetErrorMessage(string? message)
+    {
+        ErrorMessage = message;
+        if ((Content as FrameworkElement)?.FindName("TextBlock_ErrorMessage") is TextBlock block)
+        {
+            block.Text = message ?? "";
+            block.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
 
     [RelayCommand]
     private void Retry() => _ = CheckUpdateAsync();

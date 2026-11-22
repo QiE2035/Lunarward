@@ -7,6 +7,7 @@ using Starward.Features.GameLauncher;
 using Starward.Features.GamepadControl;
 using Starward.Features.ViewHost;
 using System;
+using System.Collections.Generic;
 using System.Collections;
 using System.IO;
 using System.Linq;
@@ -304,20 +305,51 @@ public partial class App : Application
             return args;
         }
         string host = uri.Host.ToLowerInvariant();
-        if (host is not "startgame")
-        {
-            return args;
-        }
         string? biz = null;
+        string? pid = null;
         foreach (string pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
             int eq = pair.IndexOf('=');
-            if (eq > 0 && pair[..eq].Equals("biz", StringComparison.OrdinalIgnoreCase))
+            if (eq <= 0)
             {
-                biz = Uri.UnescapeDataString(pair[(eq + 1)..]);
+                continue;
+            }
+            string name = pair[..eq];
+            string value = Uri.UnescapeDataString(pair[(eq + 1)..]);
+            if (name.Equals("biz", StringComparison.OrdinalIgnoreCase))
+            {
+                biz = value;
+            }
+            else if (name.Equals("pid", StringComparison.OrdinalIgnoreCase))
+            {
+                pid = value;
             }
         }
-        return biz is null ? ["startgame"] : ["startgame", "--biz", biz];
+        // B57：上游支持 startgame / playtime / test 三种 host，这里把 query 展开成内部参数。
+        switch (host)
+        {
+            case "startgame":
+                return biz is null ? ["startgame"] : ["startgame", "--biz", biz];
+            case "playtime":
+            {
+                List<string> list = ["playtime"];
+                if (!string.IsNullOrWhiteSpace(biz))
+                {
+                    list.Add("--biz");
+                    list.Add(biz!);
+                }
+                if (!string.IsNullOrWhiteSpace(pid))
+                {
+                    list.Add("--pid");
+                    list.Add(pid!);
+                }
+                return [.. list];
+            }
+            case "test":
+                return ["test"];
+            default:
+                return args;
+        }
     }
 
 

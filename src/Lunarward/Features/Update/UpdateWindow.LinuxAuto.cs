@@ -13,6 +13,5 @@ public sealed partial class UpdateWindow
 {
     private void Button_UpdateRemindLatter_PointerEntered(object sender, PointerRoutedEventArgs e) { }
     private void Button_UpdateRemindLatter_PointerExited(object sender, PointerRoutedEventArgs e) { }
-    private void HyperlinkButton_Click(object sender, RoutedEventArgs e) { }
-    private void RootGrid_Loaded(object sender, RoutedEventArgs e) { }
+
 }

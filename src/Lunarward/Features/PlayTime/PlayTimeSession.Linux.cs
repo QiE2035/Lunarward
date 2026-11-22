@@ -10,8 +10,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Starward.Core;
 
 namespace Starward.Features.PlayTime;
 
@@ -29,7 +31,7 @@ internal static class PlayTimeSession
     /// <summary>
     /// 等待游戏会话结束。直到 <paramref name="pid"/> 对应的 wine 会话（或该进程及其子孙）全部退出。
     /// </summary>
-    public static async Task WaitForSessionEndAsync(int pid, string? prefix, CancellationToken cancellationToken = default)
+    public static async Task WaitForSessionEndAsync(int pid, string? prefix, CancellationToken cancellationToken = default, GameBiz? gameBiz = null)
     {
         string? wineserver = ResolveWineserver();
         if (wineserver is not null && !string.IsNullOrWhiteSpace(prefix) && Directory.Exists(prefix))
@@ -42,6 +44,14 @@ internal static class PlayTimeSession
             if (!spawned)
             {
                 await WaitForProcessTreeEndAsync(pid, cancellationToken);
+                return;
+            }
+            // B58：优先按「这款游戏的 exe」判定会话结束；同一前缀里还有别的 wine 程序时，
+            // 等整个 wineserver 退出会把游玩时长和前缀锁都拖后。
+            string[] exeNames = GameExeNames(gameBiz);
+            if (exeNames.Length > 0 && await WaitForNamedProcessAsync(prefix, exeNames, TimeSpan.FromSeconds(120), cancellationToken))
+            {
+                await WaitForNamedProcessEndAsync(prefix, exeNames, cancellationToken);
                 return;
             }
             try
@@ -99,6 +109,87 @@ internal static class PlayTimeSession
             await Task.Delay(500, cancellationToken);
         }
         return HasWineProcessForPrefix(prefix);
+    }
+
+
+    /// <summary>本款游戏在 wine 里可能出现的可执行文件名。</summary>
+    private static string[] GameExeNames(GameBiz? gameBiz) => gameBiz?.Game switch
+    {
+        GameBiz.hk4e => ["YuanShen.exe", "GenshinImpact.exe"],
+        GameBiz.hkrpg => ["StarRail.exe"],
+        GameBiz.nap => ["ZenlessZoneZero.exe"],
+        GameBiz.bh3 => ["BH3.exe"],
+        _ => [],
+    };
+
+
+    /// <summary>前缀里是否已经出现这款游戏的进程（最多等 <paramref name="timeout"/>，没出现则返回 false）。</summary>
+    private static async Task<bool> WaitForNamedProcessAsync(string prefix, string[] exeNames, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        DateTime deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (HasNamedProcessForPrefix(prefix, exeNames))
+            {
+                return true;
+            }
+            await Task.Delay(1000, cancellationToken);
+        }
+        return false;
+    }
+
+
+    /// <summary>等到前缀里再也没有这款游戏的进程为止（连续 2 次为空才结束，避开重开窗口的瞬间）。</summary>
+    private static async Task WaitForNamedProcessEndAsync(string prefix, string[] exeNames, CancellationToken cancellationToken)
+    {
+        int empty = 0;
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            if (HasNamedProcessForPrefix(prefix, exeNames))
+            {
+                empty = 0;
+            }
+            else if (++empty >= 2)
+            {
+                return;
+            }
+            await Task.Delay(1000, cancellationToken);
+        }
+    }
+
+
+    private static bool HasNamedProcessForPrefix(string prefix, string[] exeNames)
+    {
+        string needle = "WINEPREFIX=" + prefix;
+        try
+        {
+            foreach (string dir in Directory.EnumerateDirectories("/proc"))
+            {
+                if (!int.TryParse(Path.GetFileName(dir), out _))
+                {
+                    continue;
+                }
+                try
+                {
+                    string cmdline = File.ReadAllText(Path.Combine(dir, "cmdline")).Replace('\0', ' ');
+                    if (exeNames.Any(x => cmdline.Contains(x, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        string env = File.ReadAllText(Path.Combine(dir, "environ"));
+                        if (env.Contains(needle + '\0', StringComparison.Ordinal) || env.EndsWith(needle, StringComparison.Ordinal))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch
+        {
+        }
+        return false;
     }
 
 

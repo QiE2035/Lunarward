@@ -157,7 +157,7 @@ internal partial class GameLauncherService
     /// 游戏进程退出后：释放前缀锁，并触发 on_game_exit 的后启动程序（D24）。
     /// 前缀不再有「临时模式」（D73 §3.1），想用完即弃就让路径落在临时目录、自己删。
     /// </summary>
-    private static void AttachSessionCleanup(Process? process)
+    private static void AttachSessionCleanup(Process? process, GameBiz gameBiz)
     {
         _ = Task.Run(async () =>
         {
@@ -169,7 +169,7 @@ internal partial class GameLauncherService
                 {
                     try
                     {
-                        await Features.PlayTime.PlayTimeSession.WaitForSessionEndAsync(process.Id, Features.PlayTime.PlayTimeSession.ActivePrefix);
+                        await Features.PlayTime.PlayTimeSession.WaitForSessionEndAsync(process.Id, Features.PlayTime.PlayTimeSession.ActivePrefix, gameBiz: gameBiz);
                     }
                     catch (Exception ex)
                     {

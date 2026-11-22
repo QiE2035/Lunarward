@@ -40,6 +40,44 @@ public static class PosixIdentity
     }
 
 
+    [DllImport("libc", EntryPoint = "stat", SetLastError = true)]
+    private static extern int Stat(string path, IntPtr buf);
+
+
+    /// <summary>
+    /// B27：取 (st_dev, st_ino) 作为文件身份，硬链接在不同路径下也得到同一个键。
+    /// glibc 的 struct stat 在 Linux 上 st_dev 在偏移 0、st_ino 在偏移 8（x86_64 / aarch64 一致）。
+    /// </summary>
+    public static bool TryGetFileIdentity(string path, out string key)
+    {
+        key = "";
+        if (OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+        IntPtr buffer = Marshal.AllocHGlobal(256);
+        try
+        {
+            if (Stat(path, buffer) != 0)
+            {
+                return false;
+            }
+            long dev = Marshal.ReadInt64(buffer, 0);
+            long ino = Marshal.ReadInt64(buffer, 8);
+            key = $"{dev}:{ino}";
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+
     /// <summary>root 下直接拒绝：抛出的消息要能独立读懂（会进预检清单和 CLI 输出）。</summary>
     public static void ThrowIfRoot(string action)
     {

@@ -453,7 +453,7 @@ internal partial class GameLauncherService
                 }
             }
             Process? process = Process.Start(info);
-            AttachSessionCleanup(process);
+            AttachSessionCleanup(process, gameId.GameBiz);
             if (process != null)
             {
                 if (!OperatingSystem.IsWindows())

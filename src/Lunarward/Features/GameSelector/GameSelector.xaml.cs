@@ -949,8 +949,10 @@ public sealed partial class GameSelector : UserControl
                     foreach (var file in files)
                     {
                         size += file.Length;
-                        // Lunarward：Windows 用 FILE_ID_INFO 去重；Linux 侧改用「大小 + 修改时间 + inode 推断」的等价键
-                        var key = $"{file.Length}_{file.LastWriteTimeUtc.Ticks}_{file.FullName.GetHashCode():X8}";
+                        // Lunarward：Windows 用 FILE_ID_INFO 去重；Linux 用 stat 的 (st_dev, st_ino)，硬链接得到同一个键（B27）
+                        string key = Starward.Helpers.PosixIdentity.TryGetFileIdentity(file.FullName, out string identity)
+                            ? identity
+                            : $"{file.Length}_{file.LastWriteTimeUtc.Ticks}_{file.FullName}";
                         dic[key] = file.Length;
                     }
                     return (size, dic.Values.Sum());

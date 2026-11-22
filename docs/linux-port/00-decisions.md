@@ -1443,3 +1443,22 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。KWin 截图/指针注入在本会话不可用，图库点击与批量转换未做真机点击验证，遗留到 GUI 回归。
 
 **确认方式**：用户 m01511。
+
+## D98 审计项修复：批 4「服务与帮助器」按上游语义补齐
+
+**背景**：批 4 覆盖 B08 B27 B28 B29 B57 B58 B59 B60 B76 共 9 条，集中在更新窗口、剪贴板、深链与游玩时长会话。
+
+**决定**：
+
+1. 「忽略此版本」写 `AppConfig.IgnoreVersion`，`UpdateService.CheckUpdateAsync` 按 `disableIgnore` 过滤（B08）。
+2. 更新窗口的「发布页面 / 完整包」超链接按 `Tag` 拼 URL 并 `OpenUrl`（B28）；`RootGrid_Loaded` 处理 `DisableAutoUpdate`，把「需手动下载」写进错误行（B59）；这两个 handler 从 `UpdateWindow.LinuxAuto.cs` 移到 `UpdateWindow.Linux.cs`（自动生成文件只留记录）。
+3. 文件复制写 `text/uri-list`（`file://` URI，CRLF 分隔），不再写裸路径文本（B29）；写剪贴板整体移到线程池，UI 线程不再等外部进程（B60）。
+4. 深链支持 `startgame` / `playtime` / `test` 三种 host，`playtime` 带 `pid`/`biz`（B57）。
+5. 游玩时长会话结束优先按「本游戏的 exe 名 + 同一 WINEPREFIX」轮询判定，只有认不出 exe 时才退回 `wineserver -w`（B58）：同前缀还有别的 wine 程序时不再拖长时长和前缀锁。
+6. `PlayTimeRecordService` 在 pid 复用场景额外比较 `/proc/<pid>/stat` 的进程启动时刻与最近 Start 记录，晚于记录就当作新会话（B76）。
+
+**代价边界**：仍依赖 `/proc` 与 `WINEPREFIX` 环境变量；非 wine 原生启动器（proton 自带容器）下 exe 名可能不同，会退回旧判定。剪贴板 `text/uri-list` 依赖 wl-copy/xclip。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。
+
+**确认方式**：用户 m01511。

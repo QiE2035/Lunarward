@@ -12,10 +12,59 @@ public static class ClipboardHelper
     public static void SetStorageItems(Windows.ApplicationModel.DataTransfer.DataPackageOperation operation, params global::Windows.Storage.IStorageItem[] items)
     {
         var paths = items.Select(x => x.Path).Where(x => !string.IsNullOrEmpty(x)).ToArray();
-        if (paths.Length > 0)
+        if (paths.Length == 0)
         {
-            SetText(string.Join("\n", paths));
+            return;
         }
+        // B29：文件管理器只认 text/uri-list（file:// URI），纯路径文本粘不出文件。
+        string uriList = string.Join("\r\n", paths.Select(ToFileUri));
+        _ = System.Threading.Tasks.Task.Run(() => TryWriteClipboard(uriList, "text/uri-list"));
+    }
+
+
+    private static string ToFileUri(string path)
+    {
+        string full = Path.GetFullPath(path);
+        string escaped = string.Join("/", full.Split('/').Select(Uri.EscapeDataString));
+        return "file://" + escaped;
+    }
+
+
+    private static void TryWriteClipboard(string text, string? mime = null)
+    {
+        foreach (var (cmd, args) in new[]
+        {
+            ("wl-copy", mime is null ? new[] { "--" } : new[] { "--type", mime }),
+            ("xclip", mime is null ? new[] { "-selection", "clipboard" } : new[] { "-selection", "clipboard", "-t", mime }),
+            ("xsel", new[] { "--clipboard", "--input" }),
+        })
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(cmd) { RedirectStandardInput = true, UseShellExecute = false };
+                foreach (var a in args)
+                {
+                    psi.ArgumentList.Add(a);
+                }
+                using var p = Process.Start(psi);
+                if (p is null)
+                {
+                    continue;
+                }
+                p.StandardInput.Write(text);
+                p.StandardInput.Close();
+                p.WaitForExit(2000);
+                if (p.ExitCode == 0)
+                {
+                    return;
+                }
+            }
+            catch
+            {
+                // 尝试下一个工具
+            }
+        }
+        Debug.WriteLine("[ClipboardHelper] no clipboard tool available");
     }
 
     /// <summary>B14：把 PNG 文件按 image/png 放进剪贴板（wl-copy / xclip）。返回是否成功。</summary>
@@ -72,44 +121,14 @@ public static class ClipboardHelper
     }
 
 
+    /// <summary>B60：复制文本不能在 UI 线程等外部进程（每个候选最多 2s）。</summary>
     public static void SetText(string? text)
     {
         if (string.IsNullOrEmpty(text))
         {
             return;
         }
-        foreach (var (cmd, args) in new[]
-        {
-            ("wl-copy", new[] { "--" }),
-            ("xclip", new[] { "-selection", "clipboard" }),
-            ("xsel", new[] { "--clipboard", "--input" }),
-        })
-        {
-            try
-            {
-                var psi = new ProcessStartInfo(cmd) { RedirectStandardInput = true, UseShellExecute = false };
-                foreach (var a in args)
-                {
-                    psi.ArgumentList.Add(a);
-                }
-                using var p = Process.Start(psi);
-                if (p is null)
-                {
-                    continue;
-                }
-                p.StandardInput.Write(text);
-                p.StandardInput.Close();
-                p.WaitForExit(2000);
-                if (p.ExitCode == 0)
-                {
-                    return;
-                }
-            }
-            catch
-            {
-                // 尝试下一个工具
-            }
-        }
-        Debug.WriteLine("[ClipboardHelper] no clipboard tool available");
+        string value = text;
+        _ = System.Threading.Tasks.Task.Run(() => TryWriteClipboard(value));
     }
 }

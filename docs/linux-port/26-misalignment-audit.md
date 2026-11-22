@@ -10,7 +10,7 @@
 | low | 16 |
 | 合计 | **76** |
 
-状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 30 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97）。
+状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 39 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98）。
 
 ## 1 · 复核结论（2026-11-22）
 
@@ -119,6 +119,8 @@
   - 现象：点「忽略此版本」关窗后，最多 6 小时（跨日后 MainView 的 `now - _lastShowUpdateTime > 6h && now.Date != _lastShowUpdateTime.Date` 条件再次满足）又会弹出同一个版本的更新窗，用户无法屏蔽。
   - 上游：`Features/Update/UpdateWindow.xaml.cs:455` — 上游 `IgnoreThisVersion()` 写 `AppConfig.IgnoreVersion = NewVersion.Version;`（NewVersion 为 null 时写 `AppConfig.LastAppVersion = AppConfig.AppVersion`），MainView 的 `CheckUpdateAsync(false)` 据此过滤；移植只有 `private void IgnoreThisVersion() => Close();`，而且 Features/Update/UpdateService.Linux.cs:25 `CheckUpdateAsync(bool disableIgnore = false) => await GetLatestVersionAsync();` 把参数丢掉、全程无人读 IgnoreVersion。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Update/UpdateWindow.Linux.cs:54 `private void IgnoreThisVersion() => Close();`；src/Lunarward/Features/Update/UpdateService.Linux.cs:25-26 `public async Task<ReleaseInfoDetail?> CheckUpdateAsync(bool disableIgnore = false) => await GetLatestVersionAsync();` 丢弃参数且不看 IgnoreVersion。命中的 UpdateWindow.xaml.cs:455 / UpdateService.cs:80 均在 src/Lunarward/Lunarward.csproj:133-134 `<Compile Remove>` …
+- 🛠 修复（2026-11-22）：`IgnoreThisVersion` 写 `AppConfig.IgnoreVersion`；`UpdateService.CheckUpdateAsync` 按 `disableIgnore` 与 `IgnoreVersion` 过滤。
+
 - **B09**（high）`Helpers/DriveHelper.Linux.cs:97` — 可用空间永远取根文件系统的，不是目标路径所在卷
   - 现象：游戏装在 /mnt/games 等非根挂载时：安装页/预下载页显示的「可用空间」是根分区的；Features/GameInstall/Sophon/UpdateOrchestrator.cs:310 `EnsureEnoughSpace` 会拿这个数字比较，根分区剩余不足而目标盘充足时直接抛 IOException「磁盘空间不足…」中止安装/更新，反过来目标盘已满时又放行、下到一半失败。
   - 上游：`Helpers/DriveHelper.cs:89` — 上游 `Kernel32.GetDiskFreeSpaceEx(root, ...)`，root 由 `GetPathRoot(path)` 归一化成盘符根；移植改成 `var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path)) ?? "/"); return drive.AvailableFreeSpace;`。Linux 上 Path.GetPathRoot 对任何绝对路径都返回 "/"，于是 / 的可用空间被当成目标卷的可用空间（同文件 GetDriveType 则正确地做了最长挂载匹配，两条路径不一致正是证据）。
@@ -224,14 +226,20 @@
   - 现象：游戏管理页的「实际占用 / 已节省空间」失真：米哈游多个游戏共用资源（硬链接）时实际占用偏大、节省空间显示 0。可用 Helpers/PosixIdentity.cs 的 stat 拿 (st_dev, st_ino) 等价修复。
   - 上游：`Features/GameSelector/GameSelector.xaml.cs:863-866` — 上游打开文件句柄取 `FILE_ID_INFO`（卷序列号 + 128bit FileId），因此同一 inode 被多个游戏目录硬链接引用时 dic 只算一份；移植改成 `var key = $"{file.Length}_{file.LastWriteTimeUtc.Ticks}_{file.FullName.GetHashCode():X8}";`，硬链接在不同路径下键必然不同，dic 不再合并。注释写的是「大小+修改时间+inode 推断」，实际没有任何 inode 来源。
   - ✅ 复核（2026-11-22，读码）：GameSelector.xaml.cs:953 `var key = $"{file.Length}_{file.LastWriteTimeUtc.Ticks}_{file.FullName.GetHashCode():X8}";`、:954 `dic[key] = file.Length;`（:952 注释自称含 inode，实际没有 inode 来源）；上游 Starward/Features/GameSelector/GameSelector.xaml.cs:863-866 用 FILE_ID_INFO（卷序列号 + 128bit FileId）作 key，硬链接只算一份。
+- 🛠 修复（2026-11-22）：新增 `PosixIdentity.TryGetFileIdentity`（libc `stat` 的 st_dev/st_ino），硬链接去重键改用这个身份。
+
 - **B28**（high）`Features/Update/UpdateWindow.LinuxAuto.cs:16` — 更新窗里的「发布页面 / 完整包」超链接点了没反应
   - 现象：UpdateWindow 中「发布页面」「完整包下载」两个 HyperlinkButton 点击无任何反应（无报错、无日志）。
   - 上游：`Features/Update/UpdateWindow.xaml.cs:162-180` — 上游 `HyperlinkButton_Click` 按 `fe.Tag`（"release" → GitHub release tag 页，"package" → NewVersion.PackageUrl）拼 URL 后 `Launcher.LaunchUriAsync`；移植树里这个 handler 是 M1 编译清零阶段自动生成的空实现（文件头写明「自动生成，勿手工编辑」，与本批的 UpdateWindow.Linux.cs 分离），从未改成 Helpers/OpenUrl.Open。XAML 侧 `Click="HyperlinkButton_Click"` 与 `Visibility="{x:Bind local:UpdateWindow.StringToVisibility(NewVersion.PackageUrl)}"` 都还在，按钮可见但无效。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Update/UpdateWindow.LinuxAuto.cs:16 `private void HyperlinkButton_Click(object sender, RoutedEventArgs e) { }` 为空；UpdateWindow.xaml:97 与 :101 两个 HyperlinkButton 的 Click 仍指向它；真正的上游实现在 UpdateWindow.xaml.cs:162-181（fe.Tag 为 release 拼 GitHub tag 页、package 用 NewVersion.PackageUrl，再 Launcher.LaunchUriAsync），但该文件被 Lunarward.csproj:134 排除编译，生效实现是 UpdateWindow.Linux.cs + LinuxAuto.cs。
+- 🛠 修复（2026-11-22）：`HyperlinkButton_Click` 按 `Tag`（release/package）拼 URL 并 `Helpers.OpenUrl.Open`。
+
 - **B29**（high）`Helpers/ClipboardHelper.Linux.cs:16` — 复制文件到剪贴板写的是纯路径文本，不是 text/uri-list
   - 现象：壁纸页/启动器页右键「复制文件」后到 Nautilus/Dolphin 里 Ctrl+V 没有任何文件（以文本粘贴时得到一串裸路径）。
   - 上游：`Helpers/ClipboardHelper.cs:63-70` — `SetStorageItems` 注释写「把若干文件的本地路径以 URI 列表形式放进剪贴板（文件管理器可识别）」，实现却是 `SetText(string.Join("\n", paths))`，交给 wl-copy/xclip 的都是 text/plain；文件管理器要求 `text/uri-list`（且元素是 `file://` URI）才认作文件。上游用 `data.SetStorageItems(items)` 走结构化剪贴板。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Helpers/ClipboardHelper.Linux.cs:11-18 SetStorageItems 只取 `x.Path` 后 `SetText(string.Join("\n", paths))`；SetText :20-59 依次尝试 wl-copy -- / xclip -selection clipboard / xsel --clipboard --input，写入的 MIME 是 text/plain，没有 text/uri-list、也没有 file:// URI；上游 Starward/Helpers/ClipboardHelper.cs:63-71 `data.SetStorageItems(items); Clipboard.SetContent(data);` 走结构化剪贴板。
+- 🛠 修复（2026-11-22）：`SetStorageItems` 生成 `file://` URI 的 `text/uri-list`（CRLF 分隔），按 mime 写 wl-copy/xclip。
+
 ### 启动器与游戏入口
 
 - **B30**（medium）`Features/GameLauncher/GameLauncherPage.xaml.cs:74` — 缓存页切换游戏时 LoadGameContent 被调用两次（OnGameChanged + OnLoaded），初始化并发
@@ -389,18 +397,26 @@
   - 现象：外部程序或快捷方式执行 `lunarward://playtime/hk4e_cn?pid=1234` 时只把启动器窗口叫出来，不记录游玩时长；`startgame?...&install_path=...` 的安装路径参数同样被忽略（多实例启动时）。
   - 上游：`Features/UrlProtocol/UrlProtocolService.cs:80-95` — 上游 `HandleUrlProtocolAsync` 支持三个 host：startgame（含 `install_path` 查询参数）、playtime（取 pid 后 `StartProcessToLogAsync(gameId, pid)`，没有 pid 时走名字轮询版）、test。移植把深链搬到 `App.ExpandUrlArgument`，`if (host is not "startgame") return args;`，未知 host 原样作为 argv[0] 返回；`HandleStartupAsync` 只在 args[0] 是字面量 rpc/playtime/startgame 时分支，于是 URL 落进普通启动流程，`SingleInstancePipe.NotifyPrimary` 也只会发 `show`。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/App.xaml.cs:290-306 `internal static string[] ExpandUrlArgument(string[] args)` 中 `if (host is not "startgame") { return args; }`，且只解析 biz：`return biz is null ? ["startgame"] : ["startgame", "--biz", biz];`；:248 `args = ExpandUrlArgument(args);`，:250-272 只对字面量 `args[0].ToLower() is "rpc"/"playtime"/"startgame"` 分支，playtime 分支只读 `--pid`/`--biz`；SingleInstancePipe.cs:37-44 `args = App.ExpandUrlArgum…
+- 🛠 修复（2026-11-22）：`ExpandUrlArgument` 支持 startgame/playtime/test，并解析 `biz`/`pid` 查询参数。
+
 - **B58**（medium）`Features/PlayTime/PlayTimeSession.Linux.cs:44-72` — 会话结束按「整个前缀的 wineserver」判定，同前缀还有别的 wine 程序时时长继续增长
   - 现象：同一 WINEPREFIX 下还有别的 wine 程序在跑（米游社/其它启动器/手工开的 exe）时，退出游戏后游玩时长会一直记到那个程序退出；伴随启动（RunExitCompanions）与前缀解锁同样被拖后。
   - 上游：`Features/PlayTime/PlayTimeRecordService.cs:52-59` — `WaitForWineProcessAsync` 用 `HasWineProcessForPrefix(prefix)`（扫 /proc/*/environ 里 `WINEPREFIX=<prefix>` 的任意进程）判断会话已启动，随后 `wineserver -w`（env WINEPREFIX=prefix）等的是该前缀的 wineserver 退出，而不是本次启动的游戏进程树；上游等价条件是 `process.HasExited`，只与这一局游戏有关。前缀锁（GameLauncherService.Linux.cs:172 的 ReleasePrefixLock + RunExitCompanions）复用了同一判定。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/PlayTime/PlayTimeSession.Linux.cs:41-76 构造 `wineserver -w` 时 :68 `process.StartInfo.Environment["WINEPREFIX"] = prefix;`，:71 `await process.WaitForExitAsync(cancellationToken);`（等整个前缀的 wineserver 退出）；PlayTimeRecordService.cs:86-100 `Task session = PlayTimeSession.WaitForSessionEndAsync(pid, prefix, cts.Token); while (!session.IsCompleted) {...}` 以其完成作为会话终点并落 Stop；GameLauncherService.Linux…
+- 🛠 修复（2026-11-22）：会话结束优先按「本游戏 exe 名 + WINEPREFIX」轮询（连续两轮为空才结束），认不出 exe 才退回 `wineserver -w`。
+
 - **B59**（medium）`Features/Update/UpdateWindow.LinuxAuto.cs:17` — 更新窗打开时不加载更新说明，也不显示「需手动下载」提示
   - 现象：打开更新窗只有版本号/构建时间，更新内容区域永远空白；上游标记为「必须手动下载」的版本也不会给出任何提示（WebView2 缺失是引擎缺口，但 DisableAutoUpdate 分支与错误信息本可以照搬）。
   - 上游：`Features/Update/UpdateWindow.xaml.cs:123-135` — 上游 `RootGrid_Loaded` 做三件事：`NewVersion?.DisableAutoUpdate` 时置 `IsUpdateNowEnabled = false` 并给 `ErrorMessage = Lang.UpdatePage_YouNeedToManuallyDownloadTheNewVersionPackage`、`UpdateService.UpdateFinished` 时走 Finish、`_ = LoadUpdateContentAsync()` 渲染 changelog。移植是空 handler；同时 UpdateWindow.Linux.cs 的 `IsUpdateNowEnabled => false` 恒假、ErrorMessage 是无通知的普通属性（类上没有 INotifyPropertyChanged），即使赋值也不会刷新。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Update/UpdateWindow.LinuxAuto.cs:17 `private void RootGrid_Loaded(object sender, RoutedEventArgs e) { }`（空实现）；UpdateWindow.Linux.cs:23 `public string? ErrorMessage { get; set; }`、:33 `public bool IsUpdateNowEnabled => false;`，类上无 INotifyPropertyChanged；UpdateWindow.xaml:14 `Loaded="RootGrid_Loaded"`，右侧 changelog 区只有 `<ProgressRing ... IsActive="True" />` 与 Collapsed 的 WebView2；Lunarward.c…
+- 🛠 修复（2026-11-22）：`RootGrid_Loaded` 处理 `DisableAutoUpdate` 并写错误行（新增 `TextBlock_ErrorMessage` 名字，直接设 Text/Visibility）。
+
 - **B60**（medium）`Helpers/ClipboardHelper.Linux.cs:47` — 复制文本在 UI 线程同步拉起外部进程并阻塞最多 2s
   - 现象：点「复制」后界面最多卡 2~6s（常见于无剪贴板守护、或 wl-copy 在不带 Wayland socket 的会话里挂住时）。
   - 上游：`Helpers/ClipboardHelper.cs:12-21` — `SetText` 由按钮点击直接在 UI 线程调用，内部 `Process.Start(psi)` + `p.StandardInput.Write(text)` + `p.WaitForExit(2000)` 全同步；每个候选（wl-copy → xclip → xsel）最多等 2s，最坏情况三个候选依次超时才返回。上游 `Clipboard.SetContent` 是同步内存操作（微秒级）。`grep -rn "ClipboardHelper.SetText"` 的调用点（GachaLogPage.xaml.cs:850、GameRecordPage.xaml.cs:384、GameLauncherSettingDialog.xaml.cs:1121/1130 等）都在点击处理器里。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Helpers/ClipboardHelper.Linux.cs:26-51 依次尝试 wl-copy/xclip/xsel：:40 `using var p = Process.Start(psi);` → :45-46 `p.StandardInput.Write(text); p.StandardInput.Close();` → :47 `p.WaitForExit(2000);`，全同步；调用点 GameRecordPage.xaml.cs:384、GachaLogPage.xaml.cs:850、GameLauncherSettingDialog.xaml.cs:1121/:1130 都直接在点击/菜单处理器里。上游 src/Starward/Helpers/ClipboardHelper.cs:12-21 走 `Clipboard.SetContent(...)`，是同步内存操作。
+- 🛠 修复（2026-11-22）：`SetText`/`SetStorageItems` 改为线程池执行，UI 线程不再同步等外部剪贴板进程。
+
 ### 启动器与游戏入口
 
 - **B61**（low）`Features/GameLauncher/GameBannerAndPost.xaml.cs:259` — 公告改为浏览器打开后红点不再刷新（GameNoticeWindowClosedMessage 链路被删）
@@ -496,6 +512,8 @@
   - 上游：`Features/PlayTime/PlayTimeRecordService.cs:48-49` — `catch (ArgumentException)` 分支调 `GetLastStartTime(biz, pid)`，SQL 只按 `GameBiz=@biz AND Pid=@pid ORDER BY TimeStamp DESC LIMIT 1` 取最近一条 Start，唯一的合理性检查是「>12 小时视为 stale」。wine/Proton 的 loader 进程短命时必然走这条分支，而 Linux 的 pid 复用很常见，取到的 Start 可能属于上一次会话（甚至在 12 小时窗口内属于别的进程）。
 
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/PlayTime/PlayTimeRecordService.cs:55-76：`catch (ArgumentException)` 分支 `DateTime? lastStart = GetLastStartTime(biz, pid);`，唯一的合理性检查是 :69-72 `DateTime.Now - stale > TimeSpan.FromHours(12)`，然后 :73-75 `startTime = lastStart ?? DateTime.Now;` 并按该时间 Log(Start)；GetLastStartTime（:144-160）SQL 为 `SELECT * FROM PlayTimeItem WHERE GameBiz = @biz AND Pid = @pid ORDER BY TimeStamp DESC LIMIT 1;`，不筛 St…
+- 🛠 修复（2026-11-22）：新增 `GetProcessStartTime`（`/proc/<pid>/stat` + `btime`），进程启动时刻晚于最近 Start 记录时丢弃该记录。
+
 ## 3 · 建议处理顺序
 
 1. **安装链路**（B 组最重）：安装成功后不记路径 → 启动器永远认为未安装；空间计算错卷；对话框不刷新。用户第一次安装就会撞上。
