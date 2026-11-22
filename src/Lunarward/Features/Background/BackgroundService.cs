@@ -281,11 +281,20 @@ public class BackgroundService
             {
                 throw new FileNotFoundException("background file not found", file);
             }
-            // 视频只做存在性与非空校验（真正的解码校验在 ffprobe/播放时进行）
             var info = new FileInfo(file);
             if (info.Length <= 0)
             {
                 throw new InvalidDataException("background file is empty");
+            }
+            // B54：图片必须真的解得开才允许落盘，否则壁纸变黑且已持久化。
+            string extension = Path.GetExtension(file).ToLowerInvariant();
+            if (extension is not (".mp4" or ".mkv" or ".webm" or ".mov" or ".avi"))
+            {
+                var (width, height) = Starward.Features.Codec.ImageLoader.GetImagePixelSizeAsync(file).GetAwaiter().GetResult();
+                if (width == 0 || height == 0)
+                {
+                    throw new InvalidDataException("background image cannot be decoded");
+                }
             }
         });
     }

@@ -65,6 +65,9 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     /// <summary>当前已经应用好背景的游戏；页面切来切去时不要重做（D62）。</summary>
     private GameId? _appliedGameId;
 
+    /// <summary>B22：用户改了自定义背景，下一次更新不能因为「还是同一个游戏」被守卫挡掉。</summary>
+    private bool _backgroundDirty;
+
     /// <summary>视频壁纸正在播；此时 BackgroundImageSource 可能是 null，守卫要把它算作「已应用」。</summary>
     private bool _videoActive;
 
@@ -158,6 +161,12 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     {
         try
         {
+            if (message.GameBackground is null)
+            {
+                // B22：换自定义壁纸/开关自定义背景发的是无参消息，必须让守卫失效并丢掉建议背景缓存。
+                _backgroundDirty = true;
+                _suggestedBackgroundCache.Clear();
+            }
             _ = UpdateBackgroundAsync(message.GameBackground);
         }
         catch (Exception ex)
@@ -391,7 +400,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     {
         GameId? gameId = CurrentGameId;
         // 没换游戏、用户也没在切换器里点新背景：当前这张就是对的，别把视频停掉再重下一遍。
-        if (requested is null && gameId is not null && gameId == _appliedGameId && (BackgroundImageSource is not null || _videoActive))
+        if (requested is null && !_backgroundDirty && gameId is not null && gameId == _appliedGameId && (BackgroundImageSource is not null || _videoActive))
         {
             Serilog.Log.Debug("[background] keep current background for {game}", gameId.Id);
             return;
@@ -713,7 +722,11 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         {
             Interlocked.Exchange(ref _paintQueued, 0);
             Serilog.Log.Warning(ex, "[background] present video frame failed");
-            StopVideoBackground();
+            // B52：这是 LibVLC 的帧回调线程，改 XAML/Dispose 播放器都必须回到 UI 线程。
+            if (!DispatcherQueue.TryEnqueue(StopVideoBackground))
+            {
+                Serilog.Log.Debug("[background] dispatcher unavailable while stopping video background");
+            }
         }
     }
 
@@ -729,16 +742,23 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
                 return;
             }
             bitmap = _videoFront;
+            if (bitmap is null || bitmap.Width <= 0 || bitmap.Height <= 0)
+            {
+                return;
+            }
+            DrawBitmapFrame(canvas, e.Info, bitmap);
         }
-        if (bitmap is null || bitmap.Width <= 0 || bitmap.Height <= 0)
-        {
-            return;
-        }
+    }
+
+
+    /// <summary>B53：调用方必须持有 _frameLock，避免绘制途中帧缓冲被释放。</summary>
+    private static void DrawBitmapFrame(SkiaSharp.SKCanvas canvas, SkiaSharp.SKImageInfo info, SkiaSharp.SKBitmap bitmap)
+    {
         // UniformToFill：按画布比例裁切，保持与静态壁纸一致的观感
-        float scale = Math.Max((float)e.Info.Width / bitmap.Width, (float)e.Info.Height / bitmap.Height);
+        float scale = Math.Max((float)info.Width / bitmap.Width, (float)info.Height / bitmap.Height);
         float drawWidth = bitmap.Width * scale;
         float drawHeight = bitmap.Height * scale;
-        var destination = new SkiaSharp.SKRect((e.Info.Width - drawWidth) / 2f, (e.Info.Height - drawHeight) / 2f, (e.Info.Width + drawWidth) / 2f, (e.Info.Height + drawHeight) / 2f);
+        var destination = new SkiaSharp.SKRect((info.Width - drawWidth) / 2f, (info.Height - drawHeight) / 2f, (info.Width + drawWidth) / 2f, (info.Height + drawHeight) / 2f);
         // 帧是 1920x1080，画布约 1875x1056：几乎 1:1，但仍有缩放。
         // SkiaSharp 的 DrawBitmap 不带 paint 时用最近邻采样，缩放后就是「锯齿感很强」；
         // 这里显式给双线性 + 线性 mipmap。
@@ -879,6 +899,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 
     private void StopVideoBackground()
     {
+        _backgroundDirty = false;
         _videoPlayer?.Dispose();
         _videoPlayer = null;
         _currentVideoPath = null;

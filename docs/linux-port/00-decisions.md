@@ -1515,3 +1515,21 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。XAML 里 `'HH\:mm'` 会让 Uno 生成器产生 `CS1009`，必须写成 `'HH\\:mm'`（已实测）。
 
 **确认方式**：用户 m01511。
+
+## D102 审计项修复：批 8「背景」按上游语义补齐
+
+**背景**：批 8 覆盖 B21 B22 B52 B53 B54，集中在背景图库缩略图、自定义壁纸刷新、视频帧线程与坏图校验。
+
+**决定**：
+
+1. `CachedImage.IsThumbnail` 真正生效（B21）：视频走 `VideoThumbnailer.EnsureAsync` 的缓存缩略图；图片用 `SKCodec.GetScaledDimensions` 按目标宽度直接缩放解码，不再整文件读入（`ImageThumbnail` 依赖 Win2D/BitmapDecoder，被 csproj 排除，不能在 Linux 用）。
+2. 背景守卫增加 `_backgroundDirty`（B22）：无参 `BackgroundChangedMessage` 置脏并清空建议背景缓存，换自定义壁纸后立即重跑，不再被「同一游戏」挡掉。
+3. 视频帧回调的异常分支改为 `DispatcherQueue.TryEnqueue(StopVideoBackground)`（B52），不在 LibVLC 回调线程改 XAML 或 Dispose 播放器。
+4. `VideoCanvas_PaintSurface` 在整个绘制期间持有 `_frameLock`（B53），`StopVideoBackground` 无法在绘制中途释放帧缓冲。
+5. `CheckBackgroundFileAvailableAsync` 对图片做真实解码校验（B54）：`ImageLoader.GetImagePixelSizeAsync` 返回 0 即抛 `InvalidDataException`，坏图不再被复制进缓存与写进配置。
+
+**代价边界**：缩略图解码失败返回 null（不退回整图）；视频仍只做存在性校验。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。
+
+**确认方式**：用户 m01511。

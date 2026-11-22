@@ -10,7 +10,7 @@
 | low | 16 |
 | 合计 | **76** |
 
-状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 56 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98；批 5：B12 B13 B44，D99）。
+状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 61 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98；批 5：B12 B13 B44，D99）。
 
 ## 1 · 复核结论（2026-11-22）
 
@@ -208,10 +208,14 @@
   - 现象：进入背景图库时，每个视频格子先触发一次整段视频读盘+解码失败（几百 MB 的视频就是几百 MB 内存峰值与长时间黑块），缩略图生成失败或 ffmpeg 不可用时永远黑块；磁盘/网络盘上尤其明显。
   - 上游：`Controls/CachedImage.cs:49-65（IsThumbnail → ImageThumbnail）` — 上游 file 分支里 `if (IsThumbnail)` 会分流到 ImageThumbnail.GetVideoThumbnailAsync/GetImageThumbnailAsync（WIC 小图 + 磁盘缓存）。移植版 IsThumbnail/PngThumbnail 只声明不读取，ReadFileAsync 无条件 `await File.ReadAllBytesAsync(path)` 把整文件塞进内存，只有 DecodePixelWidth>0 时才在**整文件已读入之后**用 Skia 降采样。BackgroundViewPage.xaml:168-170 仍传 IsThumbnail=True/PngThumbnail=True 且 Source 绑 DisplayPath，而 BackgroundFileItem.cs:35 `DisplayPath => ThumbnailPath ?? FilePath`：VideoThumbnailer 出图之前（以及生成失败时）它就是 .mp4/.mkv 原路径。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Controls/CachedImage.Linux.cs:208 `byte[] data = await File.ReadAllBytesAsync(path, token);` 无条件整文件读入；同文件:64-80 只注册 IsThumbnail/PngThumbnail 两个 DependencyProperty，全文件无读取点；BackgroundViewPage.xaml:168-170 仍传 IsThumbnail=True/PngThumbnail=True 且 Source={x:Bind DisplayPath, Mode=OneWay}，BackgroundFileItem.cs:35 `DisplayPath => ThumbnailPath ?? FilePath`。上游 src/Starward/Controls/CachedImage.cs:49-64 `i…
+- 🛠 修复（2026-11-22）：`ReadFileAsync` 先判 `IsThumbnail`：视频用 `VideoThumbnailer.EnsureAsync` 缩略图，图片用新增 `DecodeScaledPng`（`SKCodec.GetScaledDimensions` 缩放解码）后转小 PNG，不再 `ReadAllBytesAsync` 整文件。
+
 - **B22**（high）`Features/Background/AppBackground.Linux.cs:394` — 换自定义壁纸/开关自定义背景后背景不刷新（早退守卫 + 5 分钟建议背景缓存）
   - 现象：在游戏设置里换一张自定义壁纸（或打开/关闭『启用自定义背景』）后，主窗口背景纹丝不动，只有切换游戏或重启应用才生效；日志里连请求都没有。
   - 上游：`Features/Background/AppBackground.xaml.cs:180-196（UpdateBackgroundAsync 主体，无早退守卫）` — 移植版在 UpdateBackgroundCoreAsync 开头加了守卫：`if (requested is null && gameId is not null && gameId == _appliedGameId && (BackgroundImageSource is not null || _videoActive)) return;`（:394）。而 UI 侧『改自定义背景』『切换启用自定义背景』等操作发的是无参消息：GameLauncherSettingDialog.xaml.cs:760/802/846/938、GameLauncherPage.xaml.cs:1242 都是 `Send(new BackgroundChangedMessage())`，GameBackground==null → requested==null → 命中守卫直接 return。上游没有这个守卫，每次都重跑 GetSuggestedGameBackgroundAsync + ChangeBackgroundImageAsync。第二重保险也会挡住：GetSuggestedBackgroundCachedAsync 成功结果缓存 5 分钟（SuggestedBackgroundTtl），自定义背景路径变了也还在用旧的 GameBackground。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Background/AppBackground.Linux.cs:394 `if (requested is null && gameId is not null && gameId == _appliedGameId && (BackgroundImageSource is not null || _videoActive)) { return; }`；UI 侧 GameLauncherSettingDialog.xaml.cs:760/802/846/938 与 GameLauncherPage.xaml.cs:1242 都发无参消息（BackgroundChangedMessage.cs:8-12 GameBackground 默认 null），:157-166 OnBackgroundChangedMessage 原样传 message.GameBackgrou…
+- 🛠 修复（2026-11-22）：新增 `_backgroundDirty`，无参 `BackgroundChangedMessage` 置脏并 `_suggestedBackgroundCache.Clear()`；守卫加 `!_backgroundDirty`，`StopVideoBackground` 结束后清零。
+
 ### 设置界面
 
 - **B23**（high）`Helpers/HotkeyManager.Linux.cs:134-140` — InitializeHotkeyInput 丢失 State 赋值，注册失败在设置页不可见
@@ -399,14 +403,20 @@
   - 现象：偶发（某一帧呈现失败/画布尺寸异常时）抛跨线程访问异常或直接崩溃退出；即使不崩，也可能在 VLC 线程里 Dispose 播放器导致死锁（界面卡住、视频壁纸再也不出来，点击无响应）。
   - 上游：`Features/Background/AppBackground.xaml.cs:472-505（MediaPlayer_VideoFrameAvailable，异常只在 try/catch 内吞掉，UI 操作都在 DispatcherQueue 里）` — OnVideoFrameArrived 是 LibVLCSharp 帧回调线程上的回调；catch 分支调用 StopVideoBackground()，后者直接 `_videoCanvas.Visibility = Collapsed; _image.Visibility = Visible; _image.Opacity = 1.0;`（:897-899）并 `_videoPlayer?.Dispose()`（:882）——既跨线程改 UI 元素，又在 VLC 自己的回调线程里销毁正在回调的播放器。上游对应位置的所有 UI 操作都在 `DispatcherQueue.TryEnqueue` 内，异常只 `catch { }` 吞掉并 Release 信号量，从不在回调线程碰 XAML。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Background/AppBackground.Linux.cs:712-717 `catch (Exception ex) { Interlocked.Exchange(ref _paintQueued, 0); Serilog.Log.Warning(ex, "[background] present video frame failed"); StopVideoBackground(); }`；OnVideoFrameArrived(:657) 由 VideoBackgroundPlayer.cs:211 `FrameReady?.Invoke(_pixels, VideoWidth, VideoHeight);` 在 libVLC Display 回调线程触发（:112 `_player.SetVideoCallbacks(Lock, Unlock, Displ…
+- 🛠 修复（2026-11-22）：帧回调 catch 分支改为 `DispatcherQueue.TryEnqueue(StopVideoBackground)`，回调线程不再碰 XAML/播放器。
+
 - **B53**（medium）`Features/Background/AppBackground.Linux.cs:721-751（VideoCanvas_PaintSurface 取 _videoFront 后出锁使用）` — 绘制线程用可能已被释放的 SKBitmap（与 StopVideoBackground 竞态）
   - 现象：停止/切换视频壁纸的瞬间偶发原生崩溃（SIGSEGV，托管栈看不到）或 SkiaSharp ObjectDisposedException 刷屏；崩溃点无规律，与机器速度相关。
   - 上游：`Features/Background/AppBackground.xaml.cs:472-505` — VideoCanvas_PaintSurface 在 `lock (_frameLock)` 里只把引用取到局部变量 `bitmap = _videoFront` 就出锁，随后在锁外用 `canvas.DrawBitmap(bitmap, ...)`（:751）；而 StopVideoBackground 在同一把锁里把 _videoFront/_videoBack Dispose 并置 null（:886-895）。UI 线程停视频（切游戏/暂停/异常）恰好落在『取引用』与『DrawBitmap』之间时，就是对已释放 SKBitmap 的原生绘制。上游的等价路径是把帧 Copy 到 CanvasRenderTarget 后由合成器持有，不存在这种 use-after-free。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/Background/AppBackground.Linux.cs:721-733 `lock (_frameLock) { if (!_hasVideoFrame) return; bitmap = _videoFront; }` 后出锁，:751 `canvas.DrawBitmap(bitmap, new SkiaSharp.SKRect(0, 0, bitmap.Width, bitmap.Height), destination, paint);`；StopVideoBackground :886-889 在 lock 内 `_videoFront?.Dispose(); ... _videoFront = null;`；OnVideoFrameArrived 尺寸变化时同样在 lock 内 Dispose（:670-671），运行在 VLC 回调线程。；「取引…
+- 🛠 修复（2026-11-22）：`VideoCanvas_PaintSurface` 在 `_frameLock` 内完成 `DrawBitmapFrame`，绘制期间不会与 `StopVideoBackground` 释放帧缓冲竞态。
+
 - **B54**（medium）`Features/Background/BackgroundService.cs:276-291（CheckBackgroundFileAvailableAsync）` — 自定义背景不再做解码校验：坏图被接受、落盘、写进配置，界面无任何报错
   - 现象：选了一张解不了的图后壁纸直接变成纯 #FF16161A 底色、没有任何提示，而且已持久化——重启/换游戏回来还是黑的，用户只能再手动选一张；上游此时会弹『无法解码该文件』并保留原壁纸。
   - 上游：`Features/Background/BackgroundService.cs:289-303（MediaSource.OpenAsync / BitmapDecoder.CreateAsync 试解码）` — 上游 CheckBackgroundFileAvailableAsync 会用 MediaSource.OpenAsync + BitmapDecoder.CreateAsync 真正解一次，解不开就抛（对话框 catch COMException 显示 GameLauncherSettingDialog_CannotDecodeFile，且不会把文件复制进缓存）。移植版只做 File.Exists + FileInfo.Length>0，于是：解不了的 png/avif/jxl（Skia+Magick 都覆盖不到的编码）照旧被复制进 CacheFolder/bg、写进 AppConfig.SetCustomBg，随后 AppBackground 的 ToBitmap（:907-928）只查存在性就直接 `new BitmapImage(new Uri(full))`，返回非 null，所以 :941 的『这张图片读不了』提示永远走不到。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Background/BackgroundService.cs:276-291 `private static async Task CheckBackgroundFileAvailableAsync(string file) { await Task.Run(() => { if (!File.Exists(file)) throw new FileNotFoundException(...); var info = new FileInfo(file); if (info.Length <= 0) throw new InvalidDataException("background file is empty"); }); }`（无解码）；:212-221 校验通过即 `File.Copy(file, path, true)` 并返回 name；上游 src/Star…
+- 🛠 修复（2026-11-22）：`CheckBackgroundFileAvailableAsync` 对非视频扩展名调用 `ImageLoader.GetImagePixelSizeAsync`，尺寸为 0 抛 `InvalidDataException`，坏图不再复制进缓存。
+
 ### 设置界面
 
 - **B55**（medium）`Helpers/HotkeyManager.Linux.cs:63-77、41-48` — ParseHotkey 不认「0」这一删除标记，已删除的热键会被默认值复活并被写回配置

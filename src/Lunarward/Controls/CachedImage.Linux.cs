@@ -171,6 +171,37 @@ public sealed partial class CachedImage : Image
         return new BitmapImage(uri);
     }
 
+    /// <summary>B21：按目标宽度直接从文件解码（SKCodec 支持缩放解码），避免整张原图进内存。</summary>
+    private static byte[]? DecodeScaledPng(string path, int targetWidth)
+    {
+        try
+        {
+            using var stream = File.OpenRead(path);
+            using var codec = SkiaSharp.SKCodec.Create(stream);
+            if (codec is null)
+            {
+                return null;
+            }
+            SkiaSharp.SKSizeI scaled = codec.GetScaledDimensions((float)targetWidth / codec.Info.Width);
+            var info = new SkiaSharp.SKImageInfo(scaled.Width, scaled.Height, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul);
+            using var bitmap = new SkiaSharp.SKBitmap(info);
+            SkiaSharp.SKCodecResult result = codec.GetPixels(info, bitmap.GetPixels());
+            if (result is not (SkiaSharp.SKCodecResult.Success or SkiaSharp.SKCodecResult.IncompleteInput))
+            {
+                return null;
+            }
+            using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+            using var encoded = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 80);
+            return encoded.ToArray();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "decode thumbnail failed: {file}", path);
+            return null;
+        }
+    }
+
+
     /// <summary>按 DecodePixelWidth 做高质量降采样；失败时返回 null（调用方退回原图）。</summary>
     private static Stream? DownscaleToStream(byte[] data, int targetWidth, string? path = null)
     {
@@ -205,6 +236,31 @@ public sealed partial class CachedImage : Image
 
     private async Task<ImageSource?> ReadFileAsync(string path, CancellationToken token)
     {
+        // B21：IsThumbnail 走缩略图通道——背景图库里的视频/大图不该整段读进内存再解码。
+        if (IsThumbnail)
+        {
+            string extension = Path.GetExtension(path).ToLowerInvariant();
+            if (extension is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi")
+            {
+                string? thumb = await Starward.Features.Background.VideoThumbnailer.EnsureAsync(path, token);
+                if (string.IsNullOrEmpty(thumb) || !File.Exists(thumb))
+                {
+                    return null;
+                }
+                return new BitmapImage(new Uri(Path.GetFullPath(thumb)));
+            }
+            // 图片：用 SKCodec 直接按目标尺寸解码（不解整张原图），再转成小 PNG 给 BitmapImage。
+            byte[]? thumbBytes = await Task.Run(() => DecodeScaledPng(path, DecodePixelWidth > 0 ? DecodePixelWidth : 400), token);
+            if (thumbBytes is null)
+            {
+                return null;
+            }
+            using var small = new MemoryStream(thumbBytes);
+            using var smallRas = small.AsRandomAccessStream();
+            var smallBitmap = new BitmapImage();
+            await smallBitmap.SetSourceAsync(smallRas);
+            return smallBitmap;
+        }
         byte[] data = await File.ReadAllBytesAsync(path, token);
         token.ThrowIfCancellationRequested();
         int target = DecodePixelWidth;
