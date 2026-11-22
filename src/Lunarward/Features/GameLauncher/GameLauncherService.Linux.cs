@@ -138,11 +138,10 @@ internal partial class GameLauncherService
     }
 
 
-    private static void RunExitCompanions()
+    private static void RunExitCompanions(GameBiz biz)
     {
         try
         {
-            GameBiz biz = AppConfig.CurrentGameBiz;
             var runner = AppConfig.GetService<Features.Companion.CompanionRunner>();
             Task ignored = runner.StartCompanionsAsync(biz, "on_game_exit");
         }
@@ -180,13 +179,13 @@ internal partial class GameLauncherService
             finally
             {
                 ReleasePrefixLock();
-                RunExitCompanions();
+                RunExitCompanions(gameBiz);
             }
         });
     }
 
 
-    private ProcessStartInfo CreateGameProcessStartInfo(string exe, string? arg, out bool viaWine)
+    private ProcessStartInfo CreateGameProcessStartInfo(GameBiz gameBiz, string exe, string? arg, out bool viaWine)
     {
         string? workDir = Path.GetDirectoryName(exe);
         var info = new ProcessStartInfo
@@ -217,7 +216,8 @@ internal partial class GameLauncherService
         Features.Runtime.RuntimeProfile? profile = null;
         try
         {
-            profile = Features.Runtime.ProfileBinding.Resolve(AppConfig.CurrentGameBiz);
+            // B31：运行时配方按「本次启动的游戏」解析，deep link/CLI 启动非当前选中游戏时才是对的。
+            profile = Features.Runtime.ProfileBinding.Resolve(gameBiz);
         }
         catch (Exception ex)
         {
@@ -317,7 +317,8 @@ internal partial class GameLauncherService
         {
             autoEnvironment[pair.Key] = pair.Value ?? "";
         }
-        string effectiveArgs = string.IsNullOrWhiteSpace(profile?.Args) ? (arg ?? "") : profile!.Args;
+        // B32：配方参数追加在游戏自带参数之后，而不是整体替换——否则 login_auth_ticket/-use-d3d12/-popupwindow 会被吞掉。
+        string effectiveArgs = string.IsNullOrWhiteSpace(profile?.Args) ? (arg ?? "") : string.Join(' ', new[] { profile!.Args, arg }.Where(x => !string.IsNullOrWhiteSpace(x)));
         Features.Runtime.LaunchRecipe recipe = Features.Runtime.LaunchRecipeBuilder.Build(
             profile, wine, prefix, exe, effectiveArgs, autoEnvironment);
         if (profile?.Env is { Count: > 0 })
@@ -355,7 +356,12 @@ internal partial class GameLauncherService
         }
         // wine = <steam>/steamapps/common/<tool>/files/bin/wine
         string steamRoot = full[..idx];
-        string toolRoot = full[..full.IndexOf("/files/", StringComparison.Ordinal)];
+        int filesIndex = full.IndexOf("/files/", StringComparison.Ordinal);
+        if (filesIndex < 0)
+        {
+            return;
+        }
+        string toolRoot = full[..filesIndex];
         string files = Path.Combine(toolRoot, "files");
 
         string[] dllPathCandidates = { Path.Combine(files, "lib", "wine"), Path.Combine(files, "lib64", "wine") };
@@ -390,7 +396,7 @@ internal partial class GameLauncherService
     /// 只解析不启动：给 CLI（`lunarward --launch-plan &lt;exe&gt;`）与调试 shell 用，
     /// 用来确认 wine / prefix / 参数解析结果，不产生任何副作用。
     /// </summary>
-    internal static string DescribeLaunchPlan(string exe, string? arg, string? profileHint = null)
+    internal static string DescribeLaunchPlan(string exe, string? arg, string? profileHint = null, GameBiz? gameBizHint = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine($"exe     : {exe}");
@@ -410,7 +416,8 @@ internal partial class GameLauncherService
         }
         else
         {
-            profile = Features.Runtime.ProfileBinding.Resolve(AppConfig.CurrentGameBiz);
+            // B31：运行时配方按「本次启动的游戏」解析，deep link/CLI 启动非当前选中游戏时才是对的。
+            profile = Features.Runtime.ProfileBinding.Resolve(gameBizHint ?? AppConfig.CurrentGameBiz);
         }
 
         if (profile is null)

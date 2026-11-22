@@ -158,6 +158,37 @@ internal static class PlayTimeSession
     }
 
 
+    /// <summary>B34：按 cmdline 里出现的 exe 文件名找 pid（wine 进程名固定，不能按 ProcessName 找）。</summary>
+    internal static int? FindProcessByCommandLine(string exeName)
+    {
+        try
+        {
+            foreach (string dir in Directory.EnumerateDirectories("/proc"))
+            {
+                if (!int.TryParse(Path.GetFileName(dir), out int pid) || pid == Environment.ProcessId)
+                {
+                    continue;
+                }
+                try
+                {
+                    string cmdline = File.ReadAllText(Path.Combine(dir, "cmdline")).Replace('\0', ' ');
+                    if (cmdline.Contains(exeName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return pid;
+                    }
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "scan /proc for {name} failed", exeName);
+        }
+        return null;
+    }
+
+
     private static bool HasNamedProcessForPrefix(string prefix, string[] exeNames)
     {
         string needle = "WINEPREFIX=" + prefix;

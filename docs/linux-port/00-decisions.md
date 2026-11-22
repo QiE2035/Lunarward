@@ -1533,3 +1533,24 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。
 
 **确认方式**：用户 m01511。
+
+## D103 审计项修复：批 9「启动器」按上游语义补齐
+
+**背景**：批 9 覆盖 B30 B31 B32 B33 B34 B35 B61 B62 B63，是最后一组（76 条里 6 条已判不成立，不修）。
+
+**决定**：
+
+1. 缓存页切游戏时 `OnGameChanged` 已重载内容，紧随其后的 `OnLoaded` 用 `_gameChangedHandled` 跳过（B30），避免两次并发初始化。
+2. `CreateGameProcessStartInfo` 增加 `GameBiz` 参数，运行时配方/前缀/退出伴随程序都按「本次启动的游戏」解析（B31；`DescribeLaunchPlan` 同步加 `gameBizHint`）。
+3. 配方 `Args` 改为追加到游戏自带参数之后（B32），登录票据/DX12/弹窗参数不再被吞。
+4. `ApplyWineRuntimeEnvironment` 的 `/files/` 索引先判 -1（B33），自定义 Proton 路径不再抛异常。
+5. `GetGameProcessAsync` 非 Windows 走 `PlayTimeSession.FindProcessByCommandLine`（扫 `/proc/*/cmdline`），不再按 exe 名查进程（B34）。
+6. `thirdPartyTool || StartGameWithCMD` 的「按进程名轮询」只在 Windows 走；Linux 一律按 pid 记时长（B35）。
+7. 公告改为浏览器打开后立即把 `IsGameNoticesAlert` 置 false（B61）；`UpdateGameContentAsync` 在 await 之后复核 `_contentGameId == CurrentGameId`，旧请求不覆盖新内容（B62）。
+8. 恢复设置对话框 FlipView 的纵向 `ItemsPanel`（B63），长页面可以滚到底。
+
+**代价边界**：`/proc` 扫描只在没有进程句柄时使用（先按 pid 记录）；公告红点在浏览器未打开成功时也会熄灭（打开失败另外 toast）。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 与 `lint-cli-help.sh`（A 段 51 个开关）通过。
+
+**确认方式**：用户 m01511。

@@ -164,6 +164,12 @@
                   Background="Transparent"
                   Loaded="FlipView_Settings_Loaded">
 
+            <FlipView.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <VirtualizingStackPanel Orientation="Vertical" />
+                </ItemsPanelTemplate>
+            </FlipView.ItemsPanel>
+
             <!--  基本信息  -->
             <FlipViewItem>
                 <StackPanel Spacing="12">

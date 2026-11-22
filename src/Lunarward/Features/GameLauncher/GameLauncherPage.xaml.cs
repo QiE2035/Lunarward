@@ -65,13 +65,24 @@ public sealed partial class GameLauncherPage : PageBase
 
 
 
+    private bool _gameChangedHandled;
+
+
     protected override void OnLoaded()
     {
+        // B30：缓存页切游戏时 OnGameChanged 已经重载过内容，紧接着的 Loaded 别再跑一遍（两次并发初始化）。
+        if (_gameChangedHandled)
+        {
+            _gameChangedHandled = false;
+        }
+        else
+        {
+            LoadGameContent();
+        }
         StartInstallTaskWatcher();
         // D94：页面缓存后 Tick 会在第一次 Unloaded 被摘掉，重新挂载要接回来，否则安装进度不再更新。
         _dispatchTimer.Tick -= UpdateGameInstallTaskProgress;
         _dispatchTimer.Tick += UpdateGameInstallTaskProgress;
-        LoadGameContent();
         WeakReferenceMessenger.Default.Register<GameInstallPathChangedMessage>(this, OnGameInstallPathChanged);
         WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, OnMainWindowStateChanged);
         WeakReferenceMessenger.Default.Register<RemovableStorageDeviceChangedMessage>(this, OnRemovableStorageDeviceChanged);
@@ -87,6 +98,7 @@ public sealed partial class GameLauncherPage : PageBase
     /// </summary>
     protected override void OnGameChanged()
     {
+        _gameChangedHandled = true;
         LoadGameContent();
     }
 

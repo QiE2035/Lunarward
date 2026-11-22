@@ -10,7 +10,7 @@
 | low | 16 |
 | 合计 | **76** |
 
-状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 61 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98；批 5：B12 B13 B44，D99）。
+状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 70 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98；批 5：B12 B13 B44，D99）。
 
 ## 1 · 复核结论（2026-11-22）
 
@@ -266,26 +266,38 @@
   - 现象：换游戏时版本检查与背景图/服务器列表请求各发两遍（首次进入游戏页也会重复初始化），日志里成对出现；极端时序下先完成的请求把后清空的状态写回，出现背景图/服务器列表错位或闪烁。
   - 上游：`Features/GameLauncher/GameLauncherPage.xaml.cs:63` — PageBase 在 PageEx_Loaded 里先设 ContentGameId，OnNavigatedTo 发现切换就调 OnGameChanged→LoadGameContent（第 88-90 行），随后 Loaded 事件再走 OnLoaded→LoadGameContent（第 68-74 行）。两次都会 CheckGameVersion/InitializeGameServerAsync/InitializeBackgameImageSwitcherAsync/UpdateGameInstallTask，且第二次开始时把 BackgroundImages 置 null、_gameInstallTask 置 null。
   - ◐ 复核（2026-11-22，读码）：GameLauncherPage.xaml.cs:67-75 OnLoaded 调 LoadGameContent()，:85-89 OnGameChanged 也调 LoadGameContent()，LoadGameContent(:95-134) 无幂等守卫且开头把 BackgroundImages/_gameInstallTask/GameServers 等清空；Frameworks/PageBase.cs:53-72 在缓存实例切游戏时先调 OnGameChanged，页面重新挂载时 Loaded→OnLoaded 再跑一次；页面 NavigationCacheMode="Required"（GameLauncherPage.xaml:3）。；两条入口都无守卫的代码事实成立，切页回来后可能连跑两次（OnGameChanged + OnLoaded），CheckGameVersion/InitializeGa…
+- 🛠 修复（2026-11-22）：新增 `_gameChangedHandled`，`OnGameChanged` 置位、`OnLoaded` 消费并跳过 `LoadGameContent()`；其余挂载逻辑照常执行。
+
 - **B31**（medium）`Features/GameLauncher/GameLauncherService.Linux.cs:220` — 运行时配方/前缀/伴随启动按 AppConfig.CurrentGameBiz 解析，而不是本次启动的 gameId
   - 现象：从 deep link `lunarward://startgame/<biz>`（UrlProtocolService.cs:72）、第二实例管道（App.xaml.cs:166）或 CLI startgame（App.xaml.cs:275）启动「非当前选中」的游戏时，会用另一款游戏的配方/runner/前缀启动（甚至用另一款游戏的前缀 + 它的 Args），退出时跑的也是另一款游戏的伴随程序；首次自动创建的配方（EnsureFor 用的是正确 biz）不会被用到。
   - 上游：`Features/GameLauncher/GameLauncherService.cs:315` — CreateGameProcessStartInfo 用 `Features.Runtime.ProfileBinding.Resolve(AppConfig.CurrentGameBiz)`（第 220 行，DescribeLaunchPlan 第 413 行同）选运行环境，RunExitCompanions 用 `GameBiz biz = AppConfig.CurrentGameBiz;`（第 145 行）；而上游 StartGameAsync(GameId gameId) 全程只用入参 gameId。GameLauncherService.cs:402 的预检用的却是 `gameId.GameBiz`。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameLauncher/GameLauncherService.cs:397 `(…, _) = Features.Runtime.ProfileBinding.EnsureFor(gameId.GameBiz, _logger)`、:404 `LaunchPreflight.Check(gameId.GameBiz, exe, launchProfile, _logger)`、:427 `var psi = CreateGameProcessStartInfo(exe, arg, out bool vw);`；而 GameLauncherService.Linux.cs:220 `profile = Features.Runtime.ProfileBinding.Resolve(AppConfig.CurrentGameBiz);`（:413 DescribeLaun…
+- 🛠 修复（2026-11-22）：`CreateGameProcessStartInfo(GameBiz gameBiz, …)` 与 `RunExitCompanions(GameBiz)` 都改用本次启动的 biz；`DescribeLaunchPlan` 增加 `gameBizHint`。
+
 - **B32**（medium）`Features/GameLauncher/GameLauncherService.Linux.cs:320` — 配方 Args 非空时游戏自带参数被整体替换（登录票据/DX12/弹窗参数丢失）
   - 现象：只要给某个游戏配了「启动参数」，登录回填（login_auth_ticket）就失效，DX12 开关与窗口化参数也一起失效，表现为启动后仍要求扫码登录、设置里的 DX12 选项不生效；参数被静默吞掉且无提示。
   - 上游：`Features/GameLauncher/GameLauncherService.cs:367` — 第 320 行 `string effectiveArgs = string.IsNullOrWhiteSpace(profile?.Args) ? (arg ?? "") : profile!.Args;`，并且 LaunchRecipe.Build（Features/Runtime/LaunchRecipe.cs:201）同样在 profile.Args 非空时用 profile.Args 替代 gameArgs。而上游的 arg 里包含 `login_auth_ticket=...`（上游 367 行）、`-popupwindow`（372）、`-use-d3d12`（376）以及用户设置的启动参数。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameLauncher/GameLauncherService.Linux.cs:320 `string effectiveArgs = string.IsNullOrWhiteSpace(profile?.Args) ? (arg ?? "") : profile!.Args;`；src/Lunarward/Features/Runtime/LaunchRecipe.cs:201 `Argv = BuildArgv(Enhancements.Wrappers(profile), runnerPath, exePath, string.IsNullOrWhiteSpace(profile?.Args) ? gameArgs : profile!.Args);`。被丢弃的 arg 由 GameLauncherService.cs:361 `arg = AppConfig.…
+- 🛠 修复（2026-11-22）：`effectiveArgs = string.Join(' ', new[] { profile.Args, arg }.Where(...))`，配方参数追加在游戏参数之后。
+
 - **B33**（medium）`Features/GameLauncher/GameLauncherService.Linux.cs:358` — ApplyWineRuntimeEnvironment 对 full.IndexOf("/files/") 未判空，自定义 Proton 路径会抛异常
   - 现象：用户用自建/重打包的 Proton（目录结构不是 files/bin/wine）时，启动游戏直接异常失败；异常在 CreateGameProcessStartInfo 内被 Task.Run 捕获后转成启动失败 toast，用户看不到具体原因。
   - 上游：`Features/GameLauncher/GameLauncherService.Linux.cs:0` — 第 348 行只用 `full.Contains("/steamapps/common/")` 做门禁，第 358 行直接 `string toolRoot = full[..full.IndexOf("/files/", StringComparison.Ordinal)];`。若 runner 路径形如 ~/.local/share/Steam/steamapps/common/GE-Proton9-20/proton（没有 /files/ 段），IndexOf 返回 -1，`full[..-1]` 抛 ArgumentOutOfRangeException。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/GameLauncher/GameLauncherService.Linux.cs:351 `int idx = full.IndexOf("/steamapps/common/", StringComparison.Ordinal); if (idx < 0) { return; }`，:358 `string toolRoot = full[..full.IndexOf("/files/", StringComparison.Ordinal)];` —— 路径含 /steamapps/common/ 却不含 /files/ 时 `full[..-1]` 抛 ArgumentOutOfRangeException；调用点 :312 `ApplyWineRuntimeEnvironment(info, wine);` 无 try。但异常经 GameLauncherServ…
+- 🛠 修复（2026-11-22）：`ApplyWineRuntimeEnvironment` 先算 `filesIndex = full.IndexOf("/files/")`，小于 0 直接 return。
+
 - **B34**（medium）`Features/GameLauncher/GameLauncherService.cs:274` — GetGameProcessAsync 仍按 exe 名找进程，Linux 上永远找不到游戏（wine 进程名是 wine/wine64）
   - 现象：CheckGameRunningAsync/启动前的重复启动检查（GameLauncherPage.xaml.cs:587、GameLauncherSettingDialog.xaml.cs:258/541、StartGameAsync:320）在 Linux 恒为 false：游戏已在运行时启动器仍显示「开始游戏」，用户可以重复点、起第二个 wine 实例。
   - 上游：`Features/GameLauncher/GameLauncherService.cs:274` — 移植原样保留上游 `Process.GetProcessesByName(name).Where(x => x.SessionId == currentSessionId && !IsProcessPending(x))`，name 来自 GetGameExeNameAsync(...).Replace(".exe","")。移植侧启动的是 wine，真正跑游戏的进程名是 wine64/wine-preloader，游戏 exe 名不会出现在进程表里；同文件其它地方（PlayTimeRecordService 的 pid 重载）已经专门加了 Linux 分支，这里没有。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/GameLauncher/GameLauncherService.cs:273-274 `var name = (await GetGameExeNameAsync(gameId)).Replace(".exe", ""); return Process.GetProcessesByName(name).Where(x => x.SessionId == currentSessionId && !IsProcessPending(x)).FirstOrDefault();`；调用点 GameLauncherPage.xaml.cs:587 `GameProcess = await _gameLauncherService.GetGameProcessAsync(CurrentGameId);`、GameLauncherSettingDialog.xaml.cs:541 卸…
+- 🛠 修复（2026-11-22）：新增 `PlayTimeSession.FindProcessByCommandLine(exeName)` 扫 `/proc/*/cmdline`；`GetGameProcessAsync` 非 Windows 用它取 pid。
+
 - **B35**（medium）`Features/GameLauncher/GameLauncherService.cs:468` — thirdPartyTool/StartGameWithCMD 仍走「按进程名轮询」的时长记录分支，Linux 上必然超时
   - 现象：用户开着「通过 CMD 启动」或用第三方工具启动时：游戏正常启动，但游玩时长不记录，且 StartGameAsync 返回 null → 页面停留在「开始游戏」状态（IsGameRunning 不为真）。
   - 上游：`Features/GameLauncher/GameLauncherService.cs:400` — 移植只把 cmd 包装的条件改成 `&& OperatingSystem.IsWindows()`（第 384 行），但第 468-470 行仍是 `if (thirdPartyTool || AppConfig.StartGameWithCMD) return await _playTimeRecorderService.StartProcessToLogAsync(gameId);`，而该重载（PlayTimeRecordService.cs:300-340）按 exe 名轮询 15×2 秒。Linux 上 wine 拉起后找不到该进程名，30 秒后返回 null。设置页的 StartGameWithCMD 开关（GameLauncherSettingDialog.xaml:387）仍然暴露给用户。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameLauncher/GameLauncherService.cs:468 `if (thirdPartyTool || AppConfig.StartGameWithCMD) { return await _playTimeRecorderService.StartProcessToLogAsync(gameId); }`；src/Lunarward/Features/PlayTime/PlayTimeRecordService.cs:305-317 `string name = await GetGameExeNameWithoutExtensionAsync(gameId); for (int i = 0; i < 15; i++) { await Task.Delay(2000); var processes = Process.GetProcessesByN…
+- 🛠 修复（2026-11-22）：`if ((thirdPartyTool || AppConfig.StartGameWithCMD) && OperatingSystem.IsWindows())` 才走 `StartProcessToLogAsync(gameId)`；Linux 一律 `StartProcessToLogAsync(gameId, process.Id)`。
+
 ### 安装/更新/预下载
 
 - **B36**（medium）`Features/GameInstall/GameInstallScanner.Linux.cs:257` — 自动识别对常见目录名失效，且「自动搜索安装的游戏」在 Linux 上是空操作
@@ -463,14 +475,20 @@
   - 现象：点开公告（浏览器）后回到启动器，公告红点仍然亮着，直到重新进入页面/换游戏触发 UpdateGameNoticeAlertAsync 才消失；用户会以为还有未读公告。
   - 上游：`Features/GameLauncher/GameBannerAndPost.xaml.cs:212` — 上游 OpenGameNoticeWindow 打开 GameNoticeWindow，Loaded 里注册 GameNoticeWindowClosedMessage，窗口关闭后重新 UpdateGameNoticeAlertAsync 把 IsGameNoticesAlert 置回 false。移植删掉了消息注册与 OnGameNoticeWindowClosed，OpenGameNoticeWindowAsync 只 `OpenUrl.Open(url)`，浏览器何时关闭无从得知，也没有其它地方重置 IsGameNoticesAlert。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameLauncher/GameBannerAndPost.xaml.cs:98-99 的 Loaded 只注册 MainWindowStateChangedMessage 与 GameAnnouncementSettingChangedMessage；:420 OpenGameNoticeWindowAsync 只取 URL 后 :429 Helpers.OpenUrl.Open(url)；IsGameNoticesAlert 仅在 :149/:255/:259 赋值，无浏览器返回后的回写。上游同名文件 :62 注册 GameNoticeWindowClosedMessage、:98-102 在其回调里 UpdateGameNoticeAlertAsync；移植树 grep 不到 GameNoticeWindowClosedMessage 类型。红点数据源 GameN…
+- 🛠 修复（2026-11-22）：`OpenGameNoticeWindowAsync` 打开浏览器前直接 `IsGameNoticesAlert = false`（没有窗口关闭事件可等）。
+
 - **B62**（low）`Features/GameLauncher/GameBannerAndPost.xaml.cs:64` — ReloadForCurrentGameAsync 先记 _contentGameId 再 await，无并发/后置校验，快速换游戏会显示上一款的内容
   - 现象：在游戏选择器里连续切换两款游戏时，banner/活动 Pivot 可能停留在前一款游戏的活动，公告红点也是前一款的；再切一次才恢复。
   - 上游：`Features/GameLauncher/GameBannerAndPost.xaml.cs:170` — 第 68 行 `_contentGameId = CurrentGameId;` 之后才 `await UpdateGameContentAsync()+UpdateGameNoticeAlertAsync()`；UpdateGameContentAsync（第 204 行）在 `await _hoYoPlayService.GetGameContentAsync(CurrentGameId)` 返回后不复核 CurrentGameId 是否已变，直接 Banners=…/PostGroups=…/ShowBannerAndPost=true。两次快速切换时后完成的旧请求会覆盖新内容（Upstream 每次换游戏重建控件，不存在此竞态）。
   - ✅ 复核（2026-11-22，读码）：GameBannerAndPost.xaml.cs:46-61 CurrentGameId setter 变化即 :58 `_ = ReloadForCurrentGameAsync();`；:64-76 ReloadForCurrentGameAsync 在 :68 `_contentGameId = CurrentGameId;` 后 await 内容与红点，无取消或版本复核。:204 UpdateGameContentAsync 在 :208 `var content = await _hoYoPlayService.GetGameContentAsync(CurrentGameId);` 返回后直接 :214 `Banners = content.Banners;`、:222 `PostGroups = GamePostGroup.FromGameContent(content);`，从不比较 _conten…
+- 🛠 修复（2026-11-22）：`UpdateGameContentAsync` 在 `await GetGameContentAsync` 之后加 `if (_contentGameId != CurrentGameId) return;`。
+
 - **B63**（low）`Features/GameLauncher/GameLauncherSettingDialog.xaml:161` — 设置对话框去掉 FlipView 的纵向 ItemsPanel 后，超过 480 高的设置页底部不可达
   - 现象：游戏设置里内容较长的一页（如启动参数/第三方工具/运行环境项较多的页面）底部控件被裁掉，无法滚动查看或点击。
   - 上游：`Features/GameLauncher/GameLauncherSettingDialog.xaml:148` — 上游用 `<FlipView.ItemsPanel><VirtualizingStackPanel Orientation="Vertical"/></FlipView.ItemsPanel>`，纵向翻转时内容可在 FlipView 的 ScrollViewer 里纵向滚动；移植删掉该 ItemsPanel（默认横向），而 FlipView 模板在横向模式下不提供纵向滚动，页面本身也没有外层 ScrollViewer。对话框固定 Height=480、Padding 底部 0。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameLauncher/GameLauncherSettingDialog.xaml:102 Height="480"、:103 Padding="24,24,24,0"；:161 FlipView_Settings 已无 ItemsPanel（上游 src/Starward/Features/GameLauncher/GameLauncherSettingDialog.xaml:148-152 是 VirtualizingStackPanel Orientation=Vertical）；全文仅 :659/:681 两处 ScrollViewer，都在游戏包体页内部，无外层滚动。code-behind :93 `scrollViewer.PointerWheelChanged += (_, e) => e.Handled = true;` 把滚轮事件全部吃掉。
+- 🛠 修复（2026-11-22）：`FlipView_Settings` 恢复 `<FlipView.ItemsPanel><ItemsPanelTemplate><VirtualizingStackPanel Orientation="Vertical" /></ItemsPanelTemplate>`。
+
 - **B64**（low）`Features/GameLauncher/StartGameButton.xaml.cs:275` — chunk 更新分支的百分比文字用下载总量做门禁，与进度环（写盘进度）不同步
   - 现象：分块更新时进度环与「xx.x%」文字不同步，或环已转起来而百分比空白。
   - 上游：`Features/GameLauncher/StartGameButton.xaml.cs:272` — 第 271-275 行 chunk 分支里 progress 改按 Progress_WriteTotalBytes 计算，ProgressRingValue 直接用它，但 `ProgressPercentText = total > 0 ? $"{progress:P1}" : ""` 的 total 仍是 Progress_DownloadTotalBytes。下载总量为 0（chunk 预下载/更新刚开始）时环有值、文字为空；反之两者分母不同也可能显示不一致。

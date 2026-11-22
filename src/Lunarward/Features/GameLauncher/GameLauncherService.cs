@@ -269,6 +269,24 @@ internal partial class GameLauncherService
     /// <returns></returns>
     public async Task<Process?> GetGameProcessAsync(GameId gameId)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            // B34：wine 的进程名是 wine/wine64，按 exe 名永远找不到；改为扫 /proc 的 cmdline。
+            string exeName = await GetGameExeNameAsync(gameId);
+            int? pid = Features.PlayTime.PlayTimeSession.FindProcessByCommandLine(exeName);
+            if (pid is int found)
+            {
+                try
+                {
+                    return Process.GetProcessById(found);
+                }
+                catch (ArgumentException)
+                {
+                    return null;
+                }
+            }
+            return null;
+        }
         int currentSessionId = Process.GetCurrentProcess().SessionId;
         var name = (await GetGameExeNameAsync(gameId)).Replace(".exe", "");
         return Process.GetProcessesByName(name).Where(x => x.SessionId == currentSessionId && !IsProcessPending(x)).FirstOrDefault();
@@ -438,7 +456,7 @@ internal partial class GameLauncherService
             // 保证「游戏是 wine 的第一个进程」（见 docs/linux-port/03-runtime-model.md）。
             (ProcessStartInfo Info, bool ViaWine) launch = await Task.Run(() =>
             {
-                var psi = CreateGameProcessStartInfo(exe, arg, out bool vw);
+                var psi = CreateGameProcessStartInfo(gameId.GameBiz, exe, arg, out bool vw);
                 return (psi, vw);
             });
             var info = launch.Info;
@@ -479,7 +497,8 @@ internal partial class GameLauncherService
                 {
                     Features.Runtime.OutputCapture.Attach($"game:{gameId.GameBiz}", process);
                 }
-                if (thirdPartyTool || AppConfig.StartGameWithCMD)
+                // B35：Linux 上 wine 进程名不是游戏 exe，按进程名轮询必然 30 秒超时；直接按 pid 记时长。
+                if ((thirdPartyTool || AppConfig.StartGameWithCMD) && OperatingSystem.IsWindows())
                 {
                     return await _playTimeRecorderService.StartProcessToLogAsync(gameId);
                 }

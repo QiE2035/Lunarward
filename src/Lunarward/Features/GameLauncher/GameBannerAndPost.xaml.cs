@@ -206,6 +206,11 @@ public sealed partial class GameBannerAndPost : UserControl
         try
         {
             var content = await _hoYoPlayService.GetGameContentAsync(CurrentGameId);
+            // B62：快速连续切游戏时，后完成的旧请求不能覆盖新游戏的内容。
+            if (_contentGameId != CurrentGameId)
+            {
+                return;
+            }
             if (content is null || !AppConfig.EnableBannerAndPost)
             {
                 ShowBannerAndPost = false;
@@ -426,6 +431,8 @@ public sealed partial class GameBannerAndPost : UserControl
             // 内嵌窗口留待以后换成外部 WebKitGTK 再启用。
             var service = AppConfig.GetService<GameNoticeService>();
             string url = await service.GetGameNoticeUrlAsync(CurrentGameId.GameBiz);
+            // B61：公告改由浏览器打开后没有关闭事件，打开即视为已读，红点当场熄灭。
+            IsGameNoticesAlert = false;
             if (!Helpers.OpenUrl.Open(url))
             {
                 Helpers.InAppToast.MainWindow?.Warning("没能打开公告：系统里没有可用的浏览器？", null, 6000);
