@@ -51,7 +51,7 @@ public sealed partial class GenshinHDRLuminanceSettingDialog : ContentDialog
         Maximum = max,
         Value = value,
         StepFrequency = 10,
-        Width = 320,
+        Width = 240,
     };
 
 
@@ -66,7 +66,7 @@ public sealed partial class GenshinHDRLuminanceSettingDialog : ContentDialog
     private static Grid CreateRow(string label, Slider slider, TextBlock value)
     {
         var grid = new Grid { ColumnSpacing = 12 };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
@@ -82,7 +82,7 @@ public sealed partial class GenshinHDRLuminanceSettingDialog : ContentDialog
 
     private UIElement BuildContent()
     {
-        var panel = new StackPanel { Spacing = 16, MinWidth = 560 };
+        var panel = new StackPanel { Spacing = 16, MinWidth = 620 };
         panel.Children.Add(new TextBlock
         {
             Text = "Linux：HDR 预览暂不可用，只能调整写入游戏的亮度参数。",
