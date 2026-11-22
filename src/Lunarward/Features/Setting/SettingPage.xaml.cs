@@ -35,11 +35,32 @@ public sealed partial class SettingPage : PageBase
 
     protected override void OnLoaded()
     {
+        // B74：预检等入口请求直达子页，页面缓存后 ctor 只跑一次，每次挂载都要重新取请求。
+        ApplyRequestedPage();
         // D94：上游在 ctor 里注册 LanguageChangedMessage、每次导航都新建页面所以不会丢；
         // Lunarward 缓存页面后 ctor 只跑一次，改到每次重新挂载时注册，行为与上游一致。
         WeakReferenceMessenger.Default.Register<LanguageChangedMessage>(this, (_, _) => this.Bindings.Update());
     }
 
+
+
+    private void ApplyRequestedPage()
+    {
+        Type? requested = SettingNavigation.TakeTarget();
+        if (requested is null || Frame_Setting.Content?.GetType() == requested)
+        {
+            return;
+        }
+        Frame_Setting.Navigate(requested);
+        foreach (object item in NavigationView_Setting.MenuItems)
+        {
+            if (item is NavigationViewItem nvi && Equals(nvi.Tag, requested.Name))
+            {
+                NavigationView_Setting.SelectedItem = nvi;
+                break;
+            }
+        }
+    }
 
 
     private static Type ResolveInitialPage()

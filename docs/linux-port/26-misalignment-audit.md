@@ -10,7 +10,7 @@
 | low | 16 |
 | 合计 | **76** |
 
-状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 42 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98；批 5：B12 B13 B44，D99）。
+状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 49 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98；批 5：B12 B13 B44，D99）。
 
 ## 1 · 复核结论（2026-11-22）
 
@@ -212,10 +212,14 @@
   - 现象：纯 Wayland 会话或 libX11 缺失时，设置页热键项显示为已设置且无任何警告，用户以为热键可用（实际 PollOnce 永不触发）。
   - 上游：`Features/Setting/HotkeyManager.cs:129-136` — 上游 :133-134 为 SetHotkey(...) 后紧跟 hotkeyInput.State = info.Error.Succeeded ? HoykeyInputState.None : HoykeyInputState.Warning;。移植 :134-140 只调 SetHotkey，没有 State；而 :96 的注释仍写着「界面会显示「注册失败」」。RegisterHotkey 在 X11KeyState.Available==false 时把 info.Error 设为 Win32Error(1409)，该 Error 只被 HotkeySetting.xaml.cs 的编辑完成回调（info?.Error.Failed）读取，页面首次加载路径（InitializeHotkeyInput）完全不提示。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Helpers/HotkeyManager.Linux.cs:134-140 InitializeHotkeyInput 只调用 hotkeyInput.SetHotkey((uint)info.Modifiers, (uint)(int)info.Key)，缺上游 HotkeyManager.cs:134 `hotkeyInput.State = info.Error.Succeeded ? HoykeyInputState.None : HoykeyInputState.Warning;`。但移植 :28-32 在 `!X11KeyState.EnsureStarted()` 时直接 return（_hotkeys 不填、Error 不会 Failed）；X11 可用时 RegisterHotkey :94-101 只可能返回 `info.Error = default` 成功。；缺 …
+- 🛠 修复（2026-11-22）：`InitializeHotkeyInput` 末尾按 `info.Error` 设 `hotkeyInput.State = Warning/None`，注册失败在设置页可见。
+
 - **B24**（high）`Helpers/HotkeyManager.Linux.cs:28-32、171` — 无 X11 时 _hotkeys 从未填充，设置页显示为空而非已保存组合
   - 现象：Wayland 会话下打开热键设置页，两行快捷键显示为「点击设置快捷键」空白；用户改一次设置即把 AppConfig 里的值重写为新组合（原值不可见）。
   - 上游：`Features/Setting/HotkeyManager.cs:20-64、163-171` — 上游 GetHotkeyInfo 用 id switch 恒返回非 null 的静态实例，配置值总能在页面上显示。移植 :28-32 在 X11KeyState.EnsureStarted() 失败时直接 return，跳过 :24-60 的 _hotkeys 填充；随后 :171 GetHotkeyInfo 走 _hotkeys.TryGetValue 返回 null，InitializeHotkeyInput (:134) 的 if 不成立。
   - ✅ 复核（2026-11-22，读码）：HotkeyManager.Linux.cs:28-32 `if (!X11KeyState.EnsureStarted()) { Serilog...; return; }` 早于 :33-58 的 `_hotkeys[item.Id] = item;` 填充循环；:17 `_hotkeys = new()`；:171 `GetHotkeyInfo(int id) => _hotkeys.TryGetValue(id, out var info) ? info : null`。上游 HotkeyManager.cs:163-171 用 id switch 恒返回静态 ShowMainWindow/ScreenshotCapture。HotkeySetting.xaml.cs:29-37 页面加载调 InitializeHotkeyInput；HotkeyInput.xaml.cs:45-63 State=None …
+- 🛠 修复（2026-11-22）：`InitializeHotkey` 先回读配置并把两项写入 `_hotkeys`，再按 X11 可用性决定注册；无 X11 时 `IsRegistered=false`、`Error=1409`。
+
 - **B25**（high）`Helpers/HotkeyManager.Linux.cs:52-57` — 热键注册失败不再弹 InAppToast，用户看不到「快捷键被占用/注册失败」
   - 现象：Wayland 会话或注册确有失败时（例如 X11 下与桌面环境的键冲突不会被发现），用户以为全局热键已生效，实际按键无反应，日志里只有一行 Information。
   - 上游：`Features/Setting/HotkeyManager.cs:45-57` — 上游 InitializeHotkey 在 RegisterHotkey 返回 error.Failed 后必弹提示：ERROR_HOTKEY_ALREADY_REGISTERED 用 Lang.HotkeyManager_TheShortcutKeys0IsAlreadyInUsePleaseModifyItInSettingsPage，其它失败用 Lang.HotkeyManager_FailedToRegisterTheShortcutKeys0PleaseRetryInSettingsPage，均经 InAppToast.MainWindow?.Warning(...)。移植 :54-57 只有 Serilog.Log.Information("Hotkey {id} not available")，把用户可见提示整段删除；而 InAppToast 在本移植中可用（AdvancedSetting 等处仍在用），并非平台限制。叠加 :89 无条件 IsRegistered=true，界面上完全没有任何失败信号。
@@ -224,6 +228,8 @@
   - 现象：用户设置 Alt+↑ / Ctrl+Home / Pad0 等组合时界面显示注册成功，实际按下去毫无反应，也没有任何错误提示。
   - 上游：`Features/Setting/HotkeyManager.cs:68-97` — :84-101 只要 X11KeyState.Available 就 info.IsRegistered = true 并返回 success；真正的键码映射在 src/Lunarward/Helpers/X11KeyState.cs 的 KeycodeFor（约 :118-134），只覆盖 VK_F1-F12、VK_0-9、VK_A-Z、VK_SNAPSHOT、VK_PAUSE、VK_SPACE，其余返回 null→keycode 0。而上游委托 RegisterHotKey 由系统判定，冲突/非法会立刻失败并提示。HotkeyInput.AvaliableKeyDict（Features/Setting/HotkeyInput.xaml.cs:425-520）允许方向键、Home/End/PageUp/PageDown、小键盘、标点等。
   - ✅ 复核（2026-11-22，读码）：HotkeyManager.Linux.cs:89 `info.IsRegistered = true;`、:100-101 `info.Error = default; return default;`（只要 X11KeyState.Available 即报成功）；X11KeyState.cs:117-135 KeycodeFor 仅映射 VK_F1-F12/VK_0-9/VK_A-Z/VK_SNAPSHOT/VK_PAUSE/VK_SPACE，其余 `_ => null`，:95-99 `if (!IsKeyDown(KeycodeFor(key))) return false;`、:101-104 keycode==0 返回 false；HotkeyInput.xaml.cs:425-520 AvaliableKeyDict 却允许 Home/End/PageUp/PageDown/方向键/小键盘/标点。上游 …
+- 🛠 修复（2026-11-22）：`X11KeyState.KeycodeFor` 补方向键/Home/End/PageUp/PageDown/Insert/Delete/锁定键/小键盘/OEM 标点；`RegisterHotkey` 先 `KeycodeForPublic(key)`，为 0 返回 1409 且不落盘。
+
 ### 服务与帮助器
 
 - **B27**（high）`Features/GameSelector/GameSelector.xaml.cs:953` — 硬链接去重键退化成「路径哈希」，多路径硬链接不再合并
@@ -393,10 +399,14 @@
   - 现象：若配置文件里是上游格式的 "0"（用户曾删除该热键），升级/换机后 Alt+S 突然生效并写回 1+83；反之移植写的 "0+0" 在语义上与 "0" 等价，只是格式不同。
   - 上游：`Features/Setting/HotkeyManager.cs:139-158、77-80` — 上游 GetModifiersKey :145-148 明确 if (value.Trim() is "0") return (0,0);，配合 RegisterHotkey :77-80 的 (0,0) 提前返回成功，实现「已删除且不落盘」。移植 ParseHotkey :63-77 要求恰好两段数字，"0" 返回 null → :38-48 落到 DefaultModifiers/DefaultKey；同时 :93 SaveHotkey 无条件写入，于是 "0" 被覆盖成 "1+83"。DeleteHotkey :118-131 写的是 FormatHotkey(0,0)="0+0"，与上游写的 "0" 也不一致。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Helpers/HotkeyManager.Linux.cs:63-77 `string[] parts = text.Split('+'); if (parts.Length != 2 || !int.TryParse(parts[0], out int modifiers) || !int.TryParse(parts[1], out int key)) { return null; }`（"0" 返回 null）；:36-48 解析结果为 null 时保留 `modifiers = item.DefaultModifiers; key = item.DefaultKey;`（ShowMainWindow = MOD_ALT/VK_S，:13），随后 RegisterHotkey→:93 `SaveHotkey(info);` 写回 `FormatHotkey(...)`；Delete…
+- 🛠 修复（2026-11-22）：`ParseHotkey` 先把单独的 "0" 解析成 `(0,0)`；`InitializeHotkey` 据此标记停用并跳过注册，不再被默认值覆盖。
+
 - **B56**（medium）`Helpers/HotkeyManager.Linux.cs:93` — SaveHotkey 无条件落盘，丢失上游「注册成功且值变动才写」的守卫
   - 现象：Wayland 会话首次启动即把默认值写进配置；失败状态无法通过「不写配置」自愈，也是上一条复活问题的放大器。
   - 上游：`Features/Setting/HotkeyManager.cs:83-86` — 上游 :83-86 只在 error.Succeeded && (info.Modifiers != modifiers || info.Key != key) 时 AppConfig.SetValue；移植 :84-101 每次都调 SaveHotkey（:155-169），包括 X11KeyState.Available==false、注册事实上失败的路径。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Helpers/HotkeyManager.Linux.cs:84-99 RegisterHotkey 先 `info.IsRegistered = true; _hotkeys[id] = info; _pressed.Remove(id); SaveHotkey(info);`（:90-93）之后才 `if (!X11KeyState.Available) { info.Error = new Win32Error(1409); return info.Error; }`；SaveHotkey :155-169 无条件 `AppConfig.SetValue(FormatHotkey(info.Modifiers, info.Key), info.ConfigSetting);`；InitializeHotkey :28-33 `if (!X11KeyState.EnsureStart…
+- 🛠 修复（2026-11-22）：`RegisterHotkey` 记录旧值，只有注册成功且组合键变化时才 `SaveHotkey`。
+
 ### 服务与帮助器
 
 - **B57**（medium）`App.xaml.cs:306` — 深链不再处理 playtime/test，`lunarward://playtime/<biz>?pid=N` 静默无操作
@@ -507,10 +517,14 @@
   - 现象：调试/预检若真去调 SettingNavigation.SetTarget，从第二次起点了没反应，页面仍停留在上次的子页（潜伏；当前无调用方，无可见现象）。
   - 上游：`Features/Setting/SettingPage.xaml.cs:17-22` — ctor :22 调 ResolveInitialPage() 消费 SettingNavigation.TakeTarget()（Features/Setting/SettingNavigation.cs，TakeTarget 取出后清空 _target），而 XAML :3 把页面设为 NavigationCacheMode="Required"，ctor 整个会话只跑一次。之后任何 SetTarget 都不会被消费（且当前全仓无 SetTarget 调用方，钩子为空转）。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/Setting/SettingPage.xaml.cs:17 ctor 里（Navigate 在 :22） `Frame_Setting.Navigate(initialPage);`，initialPage 来自 :45-49 `SettingNavigation.TakeTarget()`（src/Lunarward/Features/Setting/SettingNavigation.cs:18-23 取出后置 null）；src/Lunarward/Features/Setting/SettingPage.xaml:2-3 `NavigationCacheMode="Required"`，页面实例常驻、ctor 整个会话只跑一次，:24-31 的左侧选中项同步同样只在 ctor。全仓 grep `SettingNavigation` 只有定义、:48 消费点与 s…
+- 🛠 修复（2026-11-22）：`SettingPage.ApplyRequestedPage()` 在 `OnLoaded` 消费 `SettingNavigation.TakeTarget()` 并同步左侧选中项；ctor 仍负责首次默认页。
+
 - **B75**（low）`Helpers/HotkeyManager.Linux.cs:143-152` — 未知热键 id 被静默当成截图热键
   - 现象：目前页面只传 44444/44445，暂无现象；一旦新增热键或传错 id，会静默覆盖截图热键的配置（潜伏）。
   - 上游：`Features/Setting/HotkeyManager.cs:93-95、163-171` — 上游 GetHotkeyInfo 对非 44444/44445 返回 null，RegisterHotkey 因此走 :93-95 返回 ERROR_BAD_ARGUMENTS。移植 GetOrCreateHotkeyInfo 在 _hotkeys 里找不到 id 时回退到 ScreenshotCapture 并继续注册/保存，等于把任意 id 的调用都记到截图热键头上。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Helpers/HotkeyManager.Linux.cs:143-151 `GetOrCreateHotkeyInfo`：`HotkeyInfo known = id == ShowMainWindow.Id ? ShowMainWindow : ScreenshotCapture; _hotkeys[id] = known;`——未知 id 拿到的是 ScreenshotCapture 同一个实例（其 Id 仍是 44445、ConfigSetting 仍是 ScreenshotCaptureHotkey）；:84-93 RegisterHotkey 紧接着改写 `info.Modifiers/Key/IsRegistered` 并 `SaveHotkey(info)`（:155-169 写到 info.ConfigSetting），等于把未知 id 的组合键落盘到截图热键。上游 s…
+- 🛠 修复（2026-11-22）：`RegisterHotkey` 用 `GetHotkeyInfo(id)`，未知 id 返回 `Win32Error(160)`，不再回落到截图热键。
+
 ### 服务与帮助器
 
 - **B76**（low）`Features/PlayTime/PlayTimeRecordService.cs:67-77` — 进程已退出时用「最近一次 Start 事件」当起点，pid 复用会把旧会话算进本次

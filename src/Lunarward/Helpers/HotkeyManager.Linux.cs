@@ -24,11 +24,11 @@ internal static class HotkeyManager
 
     public static void InitializeHotkey(nint hwnd)
     {
-        // Linux 没有 RegisterHotKey：这里改用「轮询 XQueryKeymap」实现全局热键（见 X11KeyState）。
-        if (!X11KeyState.EnsureStarted())
+        // B24：无论 X11 是否可用，都把两项热键登记进 _hotkeys，设置页才能显示已保存的组合键。
+        bool x11 = X11KeyState.EnsureStarted();
+        if (!x11)
         {
-            Serilog.Log.Information("Hotkeys unavailable (no X11 display); skipped.");
-            return;
+            Serilog.Log.Information("Hotkeys unavailable (no X11 display); values are shown read-only.");
         }
         foreach (HotkeyInfo item in new[] { ShowMainWindow, ScreenshotCapture })
         {
@@ -49,6 +49,17 @@ internal static class HotkeyManager
                 modifiers = mk.Modifiers;
                 key = mk.Key;
             }
+            if (!x11)
+            {
+                // 没有 X11：保留配置原值，标记为不可注册（界面显示警告），但不落盘默认值（B55/B56）。
+                item.Modifiers = modifiers;
+                item.Key = key;
+                item.IsRegistered = false;
+                item.Error = new Win32Error(1409);
+                _hotkeys[item.Id] = item;
+                Serilog.Log.Information("Hotkey {id} unavailable without X11", item.Id);
+                continue;
+            }
             Win32Error error = RegisterHotkey(hwnd, item.Id, modifiers, key);
             item.Error = error;
             if (error.Failed)
@@ -65,6 +76,11 @@ internal static class HotkeyManager
         if (string.IsNullOrWhiteSpace(text))
         {
             return null;
+        }
+        // 上游把单独的 "0" 当作「用户删除了这个热键」。
+        if (string.Equals(text.Trim(), "0", StringComparison.Ordinal))
+        {
+            return ((User32.HotKeyModifiers)0, (User32.VK)0);
         }
         string[] parts = text.Split('+');
         if (parts.Length != 2
@@ -83,21 +99,44 @@ internal static class HotkeyManager
 
     public static Win32Error RegisterHotkey(nint hwnd, int id, User32.HotKeyModifiers modifiers, User32.VK key)
     {
-        HotkeyInfo info = GetOrCreateHotkeyInfo(id);
+        HotkeyInfo? info = GetHotkeyInfo(id);
+        if (info is null)
+        {
+            // B75：未知 id 不再静默覆盖截图热键，按上游返回参数错误。
+            return new Win32Error(160);
+        }
+        User32.HotKeyModifiers oldModifiers = info.Modifiers;
+        User32.VK oldKey = info.Key;
         info.Modifiers = modifiers;
         info.Key = key;
         info.IsRegistered = true;
-        _hotkeys[id] = info;
         _pressed.Remove(id);
-        // 落盘：以前只写内存，重启就回到默认值，用户在设置页改完等于白改（L-75）。
-        SaveHotkey(info);
         if (!X11KeyState.Available)
         {
             // 没有 X11（纯 Wayland）时如实失败，界面会显示「注册失败」，而不是假装成功。
             info.Error = new Win32Error(1409);
             return info.Error;
         }
+        if (modifiers == 0 && key == 0)
+        {
+            info.IsRegistered = false;
+            info.Error = default;
+            return default;
+        }
+        byte keycode = X11KeyState.KeycodeForPublic(key);
+        if (keycode == 0)
+        {
+            // B26：轮询层认不出的键，直接报失败，别让 UI 显示「已注册」却永远不触发。
+            info.Error = new Win32Error(1409);
+            Serilog.Log.Information("Hotkey {id}: key {key} has no X11 keycode", id, (int)key);
+            return info.Error;
+        }
         info.Error = default;
+        // B56：只有注册成功且组合键确实变化时才落盘。
+        if (oldModifiers != modifiers || oldKey != key)
+        {
+            SaveHotkey(info);
+        }
         return default;
     }
 
@@ -136,6 +175,8 @@ internal static class HotkeyManager
         if (GetHotkeyInfo(hotkeyInput.HotkeyId) is HotkeyInfo info)
         {
             hotkeyInput.SetHotkey((uint)info.Modifiers, (uint)(int)info.Key);
+            // B23：注册失败要让设置页显示警告，而不是看起来一切正常。
+            hotkeyInput.State = info.Error.Succeeded ? Features.Setting.HoykeyInputState.None : Features.Setting.HoykeyInputState.Warning;
         }
     }
 

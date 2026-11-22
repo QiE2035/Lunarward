@@ -1478,3 +1478,21 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。
 
 **确认方式**：用户 m01511。
+
+## D100 审计项修复：批 6「热键设置」按上游语义补齐
+
+**背景**：批 6 覆盖 B23 B24 B26 B55 B56 B74 B75，集中在热键注册、配置回读与设置页直达入口。
+
+**决定**：
+
+1. 无 X11（纯 Wayland）时也要把两个热键登记进内存表并回读已保存的组合（B24），设置页不再显示成空白；注册状态标记为失败并给出警告。
+2. `InitializeHotkeyInput` 按注册结果显示 `HoykeyInputState`（B23），失败不再看起来正常。
+3. `KeycodeFor` 补方向键、Home/End/PageUp/PageDown、Insert/Delete、锁定键、小键盘与 OEM 标点（B26）；`RegisterHotkey` 先验证键码能被轮询层识别，认不出直接返回失败，不落盘。
+4. `ParseHotkey` 认单独的 `"0"` 为「用户删除」（B55）；`SaveHotkey` 只在注册成功且值变化时写（B56）；未知 id 返回 `ERROR_INVALID_PARAMETER`，不再被当成截图热键（B75）。
+5. 设置页新增 `ApplyRequestedPage()`，每次挂载都消费 `SettingNavigation` 的一次性目标（B74）。
+
+**代价边界**：仍是 X11 轮询实现；纯 Wayland 下热键不可用但会如实显示警告。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。
+
+**确认方式**：用户 m01511。

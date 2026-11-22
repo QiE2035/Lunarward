@@ -119,6 +119,8 @@ internal static class X11KeyState
 
     private static byte KeycodeFor(User32.VK key)
     {
+        // B26：设置页允许方向键、Home/End/PageUp/PageDown、小键盘与标点；
+        // 这里把 Win32 VK 映射到对应的 keysym 名，认不出就返回 0 让上层报「注册失败」。
         string? name = key switch
         {
             >= User32.VK.VK_F1 and <= User32.VK.VK_F12 => "F" + (key - User32.VK.VK_F1 + 1),
@@ -127,10 +129,47 @@ internal static class X11KeyState
             User32.VK.VK_SNAPSHOT => "Print",
             User32.VK.VK_PAUSE => "Pause",
             User32.VK.VK_SPACE => "space",
+            User32.VK.VK_BACK => "BackSpace",
+            User32.VK.VK_TAB => "Tab",
+            User32.VK.VK_RETURN => "Return",
+            User32.VK.VK_ESCAPE => "Escape",
+            User32.VK.VK_INSERT => "Insert",
+            User32.VK.VK_DELETE => "Delete",
+            User32.VK.VK_HOME => "Home",
+            User32.VK.VK_END => "End",
+            User32.VK.VK_PRIOR => "Prior",
+            User32.VK.VK_NEXT => "Next",
+            User32.VK.VK_LEFT => "Left",
+            User32.VK.VK_UP => "Up",
+            User32.VK.VK_RIGHT => "Right",
+            User32.VK.VK_DOWN => "Down",
+            User32.VK.VK_NUMLOCK => "Num_Lock",
+            User32.VK.VK_CAPITAL => "Caps_Lock",
+            User32.VK.VK_SCROLL => "Scroll_Lock",
+            User32.VK.VK_MULTIPLY => "KP_Multiply",
+            User32.VK.VK_ADD => "KP_Add",
+            User32.VK.VK_SUBTRACT => "KP_Subtract",
+            User32.VK.VK_DECIMAL => "KP_Decimal",
+            User32.VK.VK_DIVIDE => "KP_Divide",
+            User32.VK.VK_OEM_1 => "semicolon",
+            User32.VK.VK_OEM_PLUS => "equal",
+            User32.VK.VK_OEM_COMMA => "comma",
+            User32.VK.VK_OEM_MINUS => "minus",
+            User32.VK.VK_OEM_PERIOD => "period",
+            User32.VK.VK_OEM_2 => "slash",
+            User32.VK.VK_OEM_3 => "grave",
+            User32.VK.VK_OEM_4 => "bracketleft",
+            User32.VK.VK_OEM_5 => "backslash",
+            User32.VK.VK_OEM_6 => "bracketright",
+            User32.VK.VK_OEM_7 => "apostrophe",
             _ => null,
         };
         return name is null ? (byte)0 : KeycodeForName(name);
     }
+
+
+    /// <summary>B26：注册前确认该键能被轮询层识别。</summary>
+    public static byte KeycodeForPublic(User32.VK key) => KeycodeFor(key);
 
     private static byte KeycodeForName(string keysymName)
     {
