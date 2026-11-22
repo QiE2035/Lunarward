@@ -3044,6 +3044,12 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
     <value>Cannot get version info (network or API error).</value>
   </data>
+  <data name="Lunarward_Error_PrefixNotFound" xml:space="preserve">
+    <value>Game prefix not found; the setting was not written.</value>
+  </data>
+  <data name="Lunarward_Error_SetGameSettingFailed" xml:space="preserve">
+    <value>Failed to write game settings; check the runtime prefix.</value>
+  </data>
   <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
     <value>Manifest unavailable: </value>
   </data>

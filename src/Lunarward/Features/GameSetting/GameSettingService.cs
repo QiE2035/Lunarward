@@ -42,6 +42,7 @@ internal static class GameSettingService
     public static GraphicsSettings_PCResolution_h431323223? GetGameResolutionSetting(GameBiz biz)
     {
         var keyPath = biz.GetGameRegistryKey();
+        string? prefix = ResolveGamePrefix(biz);
         if (biz.ToGame().Value is GameBiz.bh3 or GameBiz.hkrpg)
         {
             var keyName = biz.ToGame().Value switch
@@ -50,7 +51,7 @@ internal static class GameSettingService
                 GameBiz.hkrpg => GraphicsSettings_PCResolution_h431323223,
                 _ => ""
             };
-            var data = WineRegistry.GetValue(keyPath, keyName, null) as byte[];
+            var data = WineRegistry.GetValue(keyPath, keyName, null, prefix) as byte[];
             if (data is not null)
             {
                 var str = Encoding.UTF8.GetString(data).TrimEnd('\0');
@@ -59,9 +60,9 @@ internal static class GameSettingService
         }
         if (biz.ToGame() == GameBiz.hk4e)
         {
-            var fullScreen = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Is_Fullscreen_mode_h3981298716, 0) ?? 0) != 0;
-            var width = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Width_h182942802, 0) ?? 0);
-            var height = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Height_h2627697771, 0) ?? 0);
+            var fullScreen = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Is_Fullscreen_mode_h3981298716, 0, prefix) ?? 0) != 0;
+            var width = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Width_h182942802, 0, prefix) ?? 0);
+            var height = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Height_h2627697771, 0, prefix) ?? 0);
             if (width * height > 0)
             {
                 return new GraphicsSettings_PCResolution_h431323223 { Width = width, Height = height, IsFullScreen = fullScreen };
@@ -70,8 +71,8 @@ internal static class GameSettingService
         if (biz.ToGame() == GameBiz.nap)
         {
             var fullScreen = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Fullscreen_mode_h3630240806, 0) ?? 0) != 3;
-            var width = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Width_h182942802, 0) ?? 0);
-            var height = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Height_h2627697771, 0) ?? 0);
+            var width = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Width_h182942802, 0, prefix) ?? 0);
+            var height = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Height_h2627697771, 0, prefix) ?? 0);
             if (width * height > 0)
             {
                 return new GraphicsSettings_PCResolution_h431323223 { Width = width, Height = height, IsFullScreen = fullScreen };
@@ -88,10 +89,24 @@ internal static class GameSettingService
 
 
     /// <summary>UI 路径必须用这个：写注册表是一次 `wine reg import` fork，同步版会卡住 UI（L-127）。</summary>
-    public static Task SetGameResolutionSettingAsync(GameBiz biz, GraphicsSettings_PCResolution_h431323223 model, CancellationToken cancellationToken = default)
+    public static async Task<bool> SetGameResolutionSettingAsync(GameBiz biz, GraphicsSettings_PCResolution_h431323223 model, CancellationToken cancellationToken = default)
     {
         var values = BuildResolutionSettingValues(biz, model, out string keyPath);
-        return values.Count == 0 ? Task.CompletedTask : WineRegistry.SetValuesAsync(keyPath, values, null, cancellationToken);
+        if (values.Count == 0)
+        {
+            return true;
+        }
+        string? prefix = ResolveGamePrefix(biz);
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_PrefixNotFound);
+        }
+        // D95/B10：写游戏真正使用的前缀；写失败必须抛出来（B43），不能静默提示「已应用」。
+        if (!await WineRegistry.SetValuesAsync(keyPath, values, prefix, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_SetGameSettingFailed);
+        }
+        return true;
     }
 
 
@@ -133,9 +148,10 @@ internal static class GameSettingService
     public static int? GetGameVoiceLanguageSetting(GameBiz biz)
     {
         var keyPath = biz.GetGameRegistryKey();
+        string? prefix = ResolveGamePrefix(biz);
         if (biz.ToGame() == GameBiz.hk4e)
         {
-            var data = WineRegistry.GetValue(keyPath, GENERAL_DATA_h2389025596, null) as byte[];
+            var data = WineRegistry.GetValue(keyPath, GENERAL_DATA_h2389025596, null, prefix) as byte[];
             if (data is not null)
             {
                 var str = Encoding.UTF8.GetString(data).TrimEnd('\0');
@@ -145,7 +161,7 @@ internal static class GameSettingService
         }
         if (biz.ToGame() == GameBiz.hkrpg)
         {
-            var data = WineRegistry.GetValue(keyPath, LanguageSettings_LocalAudioLanguage_h882585060, null) as byte[];
+            var data = WineRegistry.GetValue(keyPath, LanguageSettings_LocalAudioLanguage_h882585060, null, prefix) as byte[];
             if (data is not null)
             {
                 var str = Encoding.UTF8.GetString(data).TrimEnd('\0');
@@ -171,10 +187,15 @@ internal static class GameSettingService
     public static async Task SetGameVoiceLanguageSettingAsync(GameBiz biz, int lang, CancellationToken cancellationToken = default)
     {
         string keyPath = biz.GetGameRegistryKey();
+        string? prefix = ResolveGamePrefix(biz);
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_PrefixNotFound);
+        }
         if (biz.Game is GameBiz.hk4e)
         {
             // hk4e 是「读 JSON → 改一个字段 → 写回」，需要先异步读一次（同一键，命中缓存时不 fork）
-            var values = await WineRegistry.GetKeyValuesAsync(keyPath, null, cancellationToken).ConfigureAwait(false);
+            var values = await WineRegistry.GetKeyValuesAsync(keyPath, prefix, cancellationToken).ConfigureAwait(false);
             JsonNode? node = null;
             if (values.TryGetValue(GENERAL_DATA_h2389025596, out object? raw) && raw is byte[] data)
             {
@@ -183,7 +204,7 @@ internal static class GameSettingService
                 node?["deviceVoiceLanguageType"] = lang;
             }
             string value = $"{node?.ToJsonString() ?? ($$"""{"deviceVoiceLanguageType":{{lang}}}""")}\0";
-            await WineRegistry.SetValueAsync(keyPath, GENERAL_DATA_h2389025596, Encoding.UTF8.GetBytes(value), null, cancellationToken).ConfigureAwait(false);
+            await WineRegistry.SetValueAsync(keyPath, GENERAL_DATA_h2389025596, Encoding.UTF8.GetBytes(value), prefix, cancellationToken).ConfigureAwait(false);
         }
         if (biz.Game is GameBiz.hkrpg)
         {
@@ -197,7 +218,7 @@ internal static class GameSettingService
             };
             if (!string.IsNullOrWhiteSpace(str))
             {
-                await WineRegistry.SetValueAsync(keyPath, LanguageSettings_LocalAudioLanguage_h882585060, Encoding.UTF8.GetBytes(str), null, cancellationToken).ConfigureAwait(false);
+                await WineRegistry.SetValueAsync(keyPath, LanguageSettings_LocalAudioLanguage_h882585060, Encoding.UTF8.GetBytes(str), prefix, cancellationToken).ConfigureAwait(false);
             }
         }
     }
@@ -209,7 +230,7 @@ internal static class GameSettingService
         if (biz.Game is GameBiz.hkrpg)
         {
             string key = biz.GetGameRegistryKey();
-            byte[]? data = WineRegistry.GetValue(key, GraphicsSettings_Model_h2986158309, null) as byte[];
+            byte[]? data = WineRegistry.GetValue(key, GraphicsSettings_Model_h2986158309, null, ResolveGamePrefix(biz)) as byte[];
             if (data is not null)
             {
                 string str = Encoding.UTF8.GetString(data).TrimEnd('\0');
@@ -249,7 +270,12 @@ internal static class GameSettingService
             _ => 60,
         };
         string key = biz.GetGameRegistryKey();
-        var values = await WineRegistry.GetKeyValuesAsync(key, null, cancellationToken).ConfigureAwait(false);
+        string? fpsPrefix = ResolveGamePrefix(biz);
+        if (string.IsNullOrWhiteSpace(fpsPrefix))
+        {
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_PrefixNotFound);
+        }
+        var values = await WineRegistry.GetKeyValuesAsync(key, fpsPrefix, cancellationToken).ConfigureAwait(false);
         JsonNode? node = null;
         if (values.TryGetValue(GraphicsSettings_Model_h2986158309, out object? raw) && raw is byte[] data)
         {
@@ -271,7 +297,10 @@ internal static class GameSettingService
             [GraphicsSettings_GraphicsQuality_h523255858] = 0,
             [GraphicsSettings_Model_h2986158309] = Encoding.UTF8.GetBytes(value),
         };
-        await WineRegistry.SetValuesAsync(key, payload, null, cancellationToken).ConfigureAwait(false);
+        if (!await WineRegistry.SetValuesAsync(key, payload, fpsPrefix, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_SetGameSettingFailed);
+        }
     }
 
 
@@ -291,8 +320,8 @@ internal static class GameSettingService
         string? prefix = winePrefix ?? ResolveGamePrefix(biz);
         if (string.IsNullOrWhiteSpace(prefix))
         {
-            Serilog.Log.Information("SetGenshinEnableHDR: 找不到游戏前缀，跳过（等下次启动或用设置页重写）");
-            return;
+            // B69：不要静默吞掉。AppConfig 里的值已由调用方保存，启动时会按新前缀重放（见 GameLauncherService）。
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_PrefixNotFound);
         }
         string key = biz.GetGameRegistryKey();
         await WineRegistry.SetValueAsync(key, WINDOWS_HDR_ON_h3132281285, enableHDR ? 1 : 0, prefix, cancellationToken).ConfigureAwait(false);
@@ -300,6 +329,9 @@ internal static class GameSettingService
 
 
     /// <summary>按游戏绑定的 Profile 解析「已经存在」的前缀；不会为了写设置去创建/克隆前缀。</summary>
+    public static string? GetGameWinePrefix(GameBiz biz) => ResolveGamePrefix(biz);
+
+
     private static string? ResolveGamePrefix(GameBiz biz)
     {
         try
@@ -329,7 +361,7 @@ internal static class GameSettingService
         if (biz.Game is GameBiz.hk4e)
         {
             string key = biz.GetGameRegistryKey();
-            var values = await WineRegistry.GetKeyValuesAsync(key, null, cancellationToken).ConfigureAwait(false);
+            var values = await WineRegistry.GetKeyValuesAsync(key, ResolveGamePrefix(biz), cancellationToken).ConfigureAwait(false);
             byte[]? data = values.TryGetValue(GENERAL_DATA_h2389025596, out object? raw) ? raw as byte[] : null;
             if (data is not null)
             {
@@ -366,7 +398,12 @@ internal static class GameSettingService
             return;
         }
         string key = biz.GetGameRegistryKey();
-        var values = await WineRegistry.GetKeyValuesAsync(key, null, cancellationToken).ConfigureAwait(false);
+        string? lumPrefix = ResolveGamePrefix(biz);
+        if (string.IsNullOrWhiteSpace(lumPrefix))
+        {
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_PrefixNotFound);
+        }
+        var values = await WineRegistry.GetKeyValuesAsync(key, lumPrefix, cancellationToken).ConfigureAwait(false);
         JsonNode? node = null;
         if (values.TryGetValue(GENERAL_DATA_h2389025596, out object? raw) && raw is byte[] data)
         {
@@ -377,6 +414,6 @@ internal static class GameSettingService
             node?["uiPaperWhite"] = uiLuminance;
         }
         string value = (node?.ToJsonString() ?? $"{{\"maxLuminosity\":{maxLuminance},\"scenePaperWhite\":{sceneLuminance},\"uiPaperWhite\":{uiLuminance}}}") + "\0";
-        await WineRegistry.SetValueAsync(key, GENERAL_DATA_h2389025596, Encoding.UTF8.GetBytes(value), null, cancellationToken).ConfigureAwait(false);
+        await WineRegistry.SetValueAsync(key, GENERAL_DATA_h2389025596, Encoding.UTF8.GetBytes(value), lumPrefix, cancellationToken).ConfigureAwait(false);
     }
 }

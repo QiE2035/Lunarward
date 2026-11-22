@@ -98,7 +98,9 @@ public sealed partial class GameAccountSwitcher : UserControl
         }
         catch (Exception ex)
         {
+            // B40：切换失败以前只写日志，界面看起来像成功；这里必须报出来。
             _logger.LogError(ex, "Cannot change game {biz} account to {name}", CurrentGameBiz, SelectGameAccount?.Name);
+            Helpers.InAppToast.MainWindow?.Error(ex.Message, null, 6000);
         }
     }
 

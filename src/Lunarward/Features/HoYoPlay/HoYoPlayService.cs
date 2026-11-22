@@ -325,8 +325,14 @@ public class HoYoPlayService
                 return gpuInfos;
             }
 
-            foreach (var cardDir in Directory.EnumerateDirectories(drmRoot, "card[0-9]*"))
+            // B05：.NET 的 searchPattern 只支持 * 和 ?，"[0-9]" 会被当成字面量，永远匹配不到；
+            // 这里枚举后自己用正则筛 card0/card1…（不含 card0-DP-1 这类连接器目录）。
+            foreach (var cardDir in Directory.EnumerateDirectories(drmRoot))
             {
+                if (!System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(cardDir), "^card\\d+$"))
+                {
+                    continue;
+                }
                 var ueventPath = Path.Combine(cardDir, "device", "uevent");
                 if (!File.Exists(ueventPath))
                 {

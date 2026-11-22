@@ -1404,3 +1404,23 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错误；`dotnet test Starward.slnx -c Debug` 264 通过；`lint-ui-thread.sh` 全绿；真机 vi X11 窗口截图确认安装对话框预填 `/home/qie2035/Games/hkrpg_cn`、解压空间 110.41 GB / 可用 505.87 GB、汉语默认勾选、「开始安装」可点。
 
 **确认方式**：用户 m01511 授权全量修复；后续批次同此决策继续，逐批追加编号。
+
+## D96 审计项修复：批 2「游戏设置 / 运行环境写入」按上游语义补齐
+
+**背景**：D95 批 1 完成后继续按模块修复。批 2 覆盖 B05 B10 B11 B40 B41 B42 B43 B69 B70 共 9 条，核心是「设置必须写进游戏真正使用的 wine 前缀，写不进去必须报出来」。
+
+**决定**：
+
+1. `WineRegistry` 的作用域前缀从 `[ThreadStatic]` 改为 `AsyncLocal<string?>`：`await` 之后续体可能换线程，`ThreadStatic` 会丢作用域（L-127 同类坑）。新增同步重载 `GetKeyValues(key, winePrefix)` / `GetValue(key, name, default, winePrefix)`。
+2. `GameSettingService` 的读写都显式解析游戏前缀（`ProfileBinding.Resolve` → `PrefixManager.TryGetExistingPrefix`）；无前缀抛 `Lunarward_Error_PrefixNotFound`，写失败抛 `Lunarward_Error_SetGameSettingFailed`（B43：不再静默提示「已应用」）。
+3. `GameSettingPage` 每次初始化先重置三个分区开关与可见性、HDR 标志、错误行（B42）；新增 `OnGameChanged()` 重载，切游戏后重读整套设置。
+4. 原神 HDR 亮度对话框改为代码构建（三个滑块 300–2000 / 100–500 / 150–550 + 保存 + 恢复默认），打开时读游戏注册表现值，保存写回目标前缀；默认值 1000/300/350（B11/B70）。Windows 版的 Win2D 实时 HDR 预览不实现，对话框内保留说明。
+5. 启动原神前按 `AppConfig.EnableGenshinHDR` 重放一次 HDR 开关到目标前缀（B41）；`SetGenshinEnableHDRAsync` 找不到前缀时抛错而不是静默跳过（B69，AppConfig 的值保留，启动时会重放）。
+6. 账号切换写游戏前缀，失败抛错并在切换器里弹 toast（B10/B40）。
+7. GPU 信息枚举 `/sys/class/drm` 后按 `^card\d+$` 过滤（B05：`.NET` 的 searchPattern 不支持 `[0-9]`，原写法恒 0 命中）。
+
+**代价边界**：设置读写依赖「前缀已存在」；尚未创建前缀的新用户点「应用」会看到明确报错（而不是静默成功），这是有意的取舍。HDR 对话框没有预览画面（引擎无 HDR surface），只做参数编辑。
+
+**验证**：`dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错误；`dotnet test Starward.slnx` 264 通过；`lint-ui-thread.sh` 通过；真机确认游戏设置页可正常渲染（分辨率 1920×1080、语音汉语、HDR 区块与「当前显示器不支持 HDR」提示）。本轮 KWin 截图接口（`ScreenShot2.Error.Cancelled`）与指针注入异常，HDR 对话框的点击验证未完成，改用代码审查与编译验证，遗留到后续 GUI 回归。
+
+**确认方式**：用户 m01511 授权全量修复。

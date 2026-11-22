@@ -193,11 +193,17 @@ public class GameAccountService
         {
             values[GameRegistry.__LastUid___h2153286551] = Encoding.UTF8.GetBytes($"{account.Uid}\0");
         }
-        bool ok = await WineRegistry.SetValuesAsync(key, values, cancellationToken).ConfigureAwait(false);
+        // B10/B40：写游戏真正使用的前缀；写不进去必须让 UI 知道（原来只 LogWarning，界面像成功了一样）。
+        string? prefix = Starward.Features.GameSetting.GameSettingService.GetGameWinePrefix(account.GameBiz);
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_PrefixNotFound);
+        }
+        bool ok = await WineRegistry.SetValuesAsync(key, values, prefix, cancellationToken).ConfigureAwait(false);
         if (!ok)
         {
             _logger.LogWarning("Change account {name} ({biz}) 写注册表失败", account.Name, account.GameBiz);
-            return;
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_SetGameSettingFailed);
         }
         _logger.LogInformation("Change account {name} ({biz}) successfully!", account.Name, account.GameBiz);
     }

@@ -24,21 +24,21 @@ namespace Starward.Features.GameAccount;
 
 internal static class WineRegistry
 {
-    /// <summary>作用域内的前缀覆盖：让「写设置页」这类调用能明确指定目标前缀，而不是永远落到 ~/.wine（L-62）。</summary>
-    [ThreadStatic]
-    private static string? _scopedPrefix;
+    /// <summary>作用域内的前缀覆盖：让「写设置页」这类调用能明确指定目标前缀，而不是永远落到 ~/.wine（L-62）。
+    /// 用 AsyncLocal 而不是 [ThreadStatic]：await 之后续体可能换线程，ThreadStatic 会丢作用域（D95/B10）。</summary>
+    private static readonly AsyncLocal<string?> _scopedPrefixAsync = new();
 
     /// <summary>临时把读写指向指定前缀；传 null 表示不覆盖。</summary>
     public static IDisposable UsePrefix(string? prefix)
     {
-        string? previous = _scopedPrefix;
-        _scopedPrefix = string.IsNullOrWhiteSpace(prefix) ? null : prefix;
+        string? previous = _scopedPrefixAsync.Value;
+        _scopedPrefixAsync.Value = string.IsNullOrWhiteSpace(prefix) ? null : prefix;
         return new PrefixScope(previous);
     }
 
     private sealed class PrefixScope(string? previous) : IDisposable
     {
-        public void Dispose() => _scopedPrefix = previous;
+        public void Dispose() => _scopedPrefixAsync.Value = previous;
     }
 
     /// <summary>当前 wine 前缀。作用域覆盖 &gt; 环境变量 &gt; 默认 ~/.wine。</summary>
@@ -46,9 +46,10 @@ internal static class WineRegistry
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(_scopedPrefix))
+            string? scoped = _scopedPrefixAsync.Value;
+            if (!string.IsNullOrWhiteSpace(scoped))
             {
-                return Features.Runtime.PrefixManager.ExpandPath(_scopedPrefix) ?? _scopedPrefix!;
+                return Features.Runtime.PrefixManager.ExpandPath(scoped) ?? scoped!;
             }
             // 统一走 ExpandPath 去掉尾斜杠：带尾斜杠的 WINEPREFIX 会让 wine 直接退出（实测绝区零起不来）。
             string? env = Features.Runtime.PrefixManager.ExpandPath(Environment.GetEnvironmentVariable("LUNARWARD_WINEPREFIX"));
@@ -113,10 +114,14 @@ internal static class WineRegistry
 
     /// <summary>同步读取单个值。<b>不要在 UI 线程调用</b>，UI 路径请用 <see cref="GetValueAsync"/>。</summary>
     public static object? GetValue(string key, string name, object? defaultValue = null)
+        => GetValue(key, name, defaultValue, null);
+
+
+    public static object? GetValue(string key, string name, object? defaultValue, string? winePrefix)
     {
         try
         {
-            var values = GetKeyValues(key);
+            var values = GetKeyValues(key, winePrefix);
             return values.TryGetValue(name, out object? value) ? value : defaultValue;
         }
         catch (Exception ex)
@@ -157,6 +162,11 @@ internal static class WineRegistry
     /// <summary>一次 `reg query` 取回整键所有值（含缓存）。</summary>
     public static Dictionary<string, object?> GetKeyValues(string key)
         => GetKeyValuesAsync(key, null, CancellationToken.None).GetAwaiter().GetResult();
+
+
+    /// <summary>按指定前缀读整键（同步版，走注册表文件快路径）。</summary>
+    public static Dictionary<string, object?> GetKeyValues(string key, string? winePrefix)
+        => GetKeyValuesAsync(key, winePrefix, CancellationToken.None).GetAwaiter().GetResult();
 
 
     public static Task<Dictionary<string, object?>> GetKeyValuesAsync(string key, CancellationToken cancellationToken)

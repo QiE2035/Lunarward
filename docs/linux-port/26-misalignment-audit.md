@@ -10,7 +10,7 @@
 | low | 16 |
 | 合计 | **76** |
 
-状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 12 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95）。
+状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 21 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96）。
 
 ## 1 · 复核结论（2026-11-22）
 
@@ -64,27 +64,31 @@
   - 现象：装完回到启动器页，按钮仍是「安装」而不是「启动」；游戏无法启动/更新。重启应用后只能靠 24h 目录扫描找回，而扫描的目录名匹配又很严格（见另一条 bug），多数情况下识别不回，用户必须手动「定位游戏路径」。
   - 上游：`Features/GameInstall/InstallGameDialog.xaml.cs:395` — 上游 L395 成功后第一件事是 GameLauncherService.ChangeGameInstallPath(CurrentGameId, InstallationPath)（内部写 AppConfig.SetGameInstallPath 并发 GameInstallPathChangedMessage），随后才发任务消息并 Close。移植版 L94 只 Directory.CreateDirectory、L95 起任务、L101 弹 toast、L102 Hide()，全程不写路径。全仓 grep：Linux 侧写安装路径的地方只有 GameInstallScanner.Linux.cs:84/128、设置对话框、手动「定位游戏路径」，GUI 安装流程自身永不落盘。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameInstall/InstallGameDialog.Linux.cs:94-102 流程只有 Directory.CreateDirectory(path) → _installService.StartInstallAsync → InAppToast → Hide()，没有上游 src/Starward/Features/GameInstall/InstallGameDialog.xaml.cs:395-400 的 GameLauncherService.ChangeGameInstallPath + GameInstallTaskStartedMessage；StartAsync 本体 src/Lunarward/Features/GameInstall/GameInstallService.Linux.cs:150-172 也只填 context，全文件唯…
-- 🛠 修复（2026-11-22）：`InstallGameDialog.Linux.cs` 在 `StartInstallAsync` 成功后立刻 `GameLauncherService.ChangeGameInstallPath(CurrentGameId, path)` 并广播 `GameInstallTaskStartedMessage`；实测对话框预填 `~/Games/hkrpg_cn`、空间 110.41 GB / 505.87 GB 正常。
+- 🛠 修复（2026-11-22）：安装对话框在 `StartInstallAsync` 成功后立刻 `GameLauncherService.ChangeGameInstallPath` 并广播 `GameInstallTaskStartedMessage`。
+
 
 
 - **B02**（high）`Features/GameInstall/InstallGameDialog.Linux.cs:23` — 语音包语言硬编码中文，选择区被隐藏且处理函数是空壳
   - 现象：只能安装/修复中文语音包：想要英/日/韩语音或「中配+日配」组合无从选择；对已装多语音的客户端做修复时也只补中文一套，可能与其他语音文件版本不一致。
   - 上游：`Features/GameInstall/InstallGameDialog.xaml.cs:366` — 移植 L23 是 `private readonly AudioLanguage _audioLanguage = AudioLanguage.Chinese;`，XAML 里 Segmented_SelectLanguage Visibility="Collapsed"，SelectionChanged 处理器落在 InstallGameDialog.LinuxAuto.cs 的空方法体。上游 L366–388 按 zh-cn/en-us/ja-jp/ko-kr 四个 tag 组装 AudioLanguage 标志。服务端 L282–291 在 fields 缺音频字段时用 SophonClient.MapAudioField(context.AudioLanguage.ToString()) 决定拉哪套语音。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/GameInstall/InstallGameDialog.Linux.cs:23 `private readonly AudioLanguage _audioLanguage = AudioLanguage.Chinese;`；src/Lunarward/Features/GameInstall/InstallGameDialog.xaml:79-83 Segmented_SelectLanguage Visibility="Collapsed"；src/Lunarward/Features/GameInstall/InstallGameDialog.LinuxAuto.cs:14 `private void Segmented_SelectLanguage_SelectionChanged(object sender, SelectionChangedEventArg…
-- 🛠 修复（2026-11-22）：语音区按 `GameConfig.AudioPackageScanDir` 显示，默认勾选按当前 UI 语言，选中项参与 `CheckCanStartInstallation` 与 `AudioLanguage` 组装。
+- 🛠 修复（2026-11-22）：语音区按 `AudioPackageScanDir` 显示，默认勾选按 UI 语言，选中项参与 `CheckCanStartInstallation` 与 `AudioLanguage`。
+
 
 - **B03**（high）`Features/GameInstall/InstallGameDialog.Linux.cs:28` — 对话框属性没有变更通知，OneWay 绑定永不刷新
   - 现象：选完目录后对话框里的路径文本不变（ChangePathAsync 改了 InstallationPath 但界面不动）；点开始时的「请先选择安装目录」「安装目录无效」错误提示永远不显示；可用/解压空间文本即使被赋值也保持空白。用户看不到自己选了什么，误以为选目录失败。
   - 上游：`Features/GameInstall/InstallGameDialog.xaml.cs:25` — 上游类标注 [INotifyPropertyChanged]，InstallationPath/ErrorMessage/AvailableSpaceText/UnzipSpaceText 全走 SetProperty。移植类是普通类，四个属性都是自动属性；而 XAML 根元素设了 x:DefaultBindMode="OneWay"（InstallGameDialog.xaml:12），所有 x:Bind 只在首次渲染取值。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameInstall/InstallGameDialog.Linux.cs:13 `public sealed partial class InstallGameDialog : ContentDialog` 未实现 INotifyPropertyChanged，:29/:33/:37/:41 的 InstallationPath/AvailableSpaceText/UnzipSpaceText/ErrorMessage 全是自动属性；赋值点仅 :78 `InstallationPath = folder;` 与 :89/:98/:107 ErrorMessage，无 PropertyChanged。src/Lunarward/Features/GameInstall/InstallGameDialog.xaml:12 `x:DefaultBindMode="OneW…
-- 🛠 修复（2026-11-22）：类加 `[INotifyPropertyChanged]`，`InstallationPath`/`AvailableSpaceText`/`UnzipSpaceText`/`ErrorMessage` 全部走 `SetProperty`。
+- 🛠 修复（2026-11-22）：对话框类加 `[INotifyPropertyChanged]`，路径/体积/空间/错误行全走 `SetProperty`。
+
 
 
 - **B04**（high）`Features/GameInstall/InstallGameDialog.Linux.cs:51` — 打开对话框时既不预填默认安装路径，也不计算安装体积
   - 现象：对话框一打开路径是空的，必须手动点「选择目录」；「需要空间 / 解压后大小」两行与 AvailableSpaceText 永远是空串；也没有上游的「装到盘符根目录/网络盘」提示。开箱即用的默认流程退化成一个必须手选的对话框。
   - 上游：`Features/GameInstall/InstallGameDialog.xaml.cs:62` — 上游 Loaded（L60–62）调 SetDefaultInstallationPath()（AppConfig.DefaultGameInstallationPath → … → ProgramFiles/miHoYo 兜底，L73–117）与 GetGamePackageAsync()（算压缩包体与解压后大小，L122–288）。移植 ctor（L51–57）只 InitializeComponent + 建三个命令，没有 Loaded 订阅，也没有任何体积计算入口。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameInstall/InstallGameDialog.Linux.cs:52-57 构造函数只 InitializeComponent + 建三个命令，无 `Loaded +=`；活动实现里没有 SetDefaultInstallationPath/GetGamePackageAsync/ComputePackageSize（这些只在上游副本 src/Lunarward/Features/GameInstall/InstallGameDialog.xaml.cs:42/:60-61 出现，而该文件被 src/Lunarward/Lunarward.csproj:96 `<Compile Remove>`）。ChangePathAsync（.Linux.cs:60-81）只 PickFolder→拼子目录→赋值；调用点 src/Lunarward/Features/G…
-- 🛠 修复（2026-11-22）：ctor 订阅 `Loaded` → `SetDefaultInstallationPath()` + `GetGamePackageAsync()`（压缩/解压体积、可用空间、硬链接提示、语音清单过滤），实测两项体积已显示。
+- 🛠 修复（2026-11-22）：`Loaded` 时预填默认路径并拉 `GamePackage` 算压缩/解压体积与可用空间（真机 110.41 GB / 505.87 GB）。
+
 
 
 ### 游戏设置与运行环境
@@ -93,6 +97,8 @@
   - 现象：上报给 HoYoPlay 接口的 GPU 列表恒为空，接口按「未知设备」返回 DX 配置/画质建议；日志里看不出任何异常。
   - 上游：`Features/HoYoPlay/HoYoPlayService.cs:L308-330` — Directory.EnumerateDirectories 的 searchPattern 只支持 * 和 ?，不支持 [] 字符类（与 Windows 通配/正则习惯不同）。实测（/tmp 下 .NET 控制台工程，同一台机器）：EnumerateDirectories("/sys/class/drm", "card[0-9]*") 返回 0 项，而 "card*" 返回 5 项（card1、card1-DP-1、card1-DP-2、card1-eDP-1、card1-HDMI-A-1）。因此 gpuInfos 恒为空 List，被 GetDXConfigsAsync(launcherId, lang, gameIds, gpuInfos, ct)（L305-306）原样上报给米哈游接口。顺带：即使改成 card*，连接器目录（card1-DP-1 等）也会被当成独立显卡重复计入，应按 /sys/class/drm/card[0-9]+ 精确过滤（枚举后自行 EndsWith 判断或用 Directory.GetDirectories + 正则）。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/HoYoPlay/HoYoPlayService.cs:328 `foreach (var cardDir in Directory.EnumerateDirectories(drmRoot, "card[0-9]*"))`（drmRoot="/sys/class/drm"，:322）。本机 net10.0 实测同一模式：`card[0-9]*` 返回 0 项，`card*` 返回 5 项（card1、card1-HDMI-A-1、card1-DP-2、card1-eDP-1、card1-DP-1）；.NET searchPattern 仅支持 * 与 ?。gpuInfos 在 :305-306 原样传给 GetDXConfigsAsync。
+- 🛠 修复（2026-11-22）：`GetGPUInfos` 改为枚举 `/sys/class/drm` 后按 `^card\d+$` 过滤，`card[0-9]*` 的字面量匹配已去掉。
+
 ### 截图与图库
 
 - **B06**（high）`Features/Screenshot/ScreenshotPage.xaml:107-109` — 「多选」开关是空开关：MutliSelect 不再影响任何行为
@@ -113,7 +119,8 @@
   - 现象：游戏装在 /mnt/games 等非根挂载时：安装页/预下载页显示的「可用空间」是根分区的；Features/GameInstall/Sophon/UpdateOrchestrator.cs:310 `EnsureEnoughSpace` 会拿这个数字比较，根分区剩余不足而目标盘充足时直接抛 IOException「磁盘空间不足…」中止安装/更新，反过来目标盘已满时又放行、下到一半失败。
   - 上游：`Helpers/DriveHelper.cs:89` — 上游 `Kernel32.GetDiskFreeSpaceEx(root, ...)`，root 由 `GetPathRoot(path)` 归一化成盘符根；移植改成 `var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path)) ?? "/"); return drive.AvailableFreeSpace;`。Linux 上 Path.GetPathRoot 对任何绝对路径都返回 "/"，于是 / 的可用空间被当成目标卷的可用空间（同文件 GetDriveType 则正确地做了最长挂载匹配，两条路径不一致正是证据）。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Helpers/DriveHelper.Linux.cs:97-98 `var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path)) ?? "/"); return drive.AvailableFreeSpace;`；本机实测 GetPathRoot("/run/lunarward-test/Game") = "/"，取到根卷 536498950144 B，而 `new DriveInfo("/run")` 为 5004386304 B。src/Lunarward/Features/GameInstall/Sophon/UpdateOrchestrator.cs:310-316 EnsureEnoughSpace 用该值比较并抛 IOException（调用点 InstallPipeline.cs:107/:291、…
-- 🛠 修复（2026-11-22）：`DriveHelper.GetMountPoint` 读 `/proc/mounts` 取最长前缀挂载点（回退 `/`），再取 `DriveInfo(mount).AvailableFreeSpace`。
+- 🛠 修复（2026-11-22）：`DriveHelper.GetMountPoint` 读 `/proc/mounts` 取最长前缀挂载点，再取 `DriveInfo(mount).AvailableFreeSpace`。
+
 
 ### 游戏设置与运行环境
 
@@ -121,10 +128,14 @@
   - 现象：游戏设置页「套用」后游戏内分辨率/语音/帧率不变；重新进设置页读到的永远是默认值（分辨率 0、语音 null、FPS 默认）；HDR 开关却因为单独解析前缀而可能生效，出现「HDR 生效、其他设置都不生效」的割裂现象。
   - 上游：`Features/GameSetting/GameSettingService.cs:L39-306` — 除 SetGenshinEnableHDRAsync 外，所有 WineRegistry 调用都走默认前缀：WineRegistry.WinePrefix（WineRegistry.cs:45-61）= _scopedPrefix → 环境变量 LUNARWARD_WINEPREFIX → ~/.wine。但 WineRegistry.UsePrefix（WineRegistry.cs:32）在全仓库 0 个调用点，应用进程也从不为自己设置 LUNARWARD_WINEPREFIX（只有 PlayTimeRecordService.cs:275 给子进程设）。而游戏启动用的是 profile 前缀：GameLauncherService.Linux.cs:216-263 ProfileBinding.Resolve(AppConfig.CurrentGameBiz) → EnvironmentResolver.EffectivePrefixPath(profile)（EnvironmentResolver.cs:93-102：PrefixPath 为空时落到 PrefixManager.PrefixRoot/<profile 名>）→ PrefixManager.EnsurePrefix(...) → info.Environment["WINEPREFIX"] = prefix（L307）。默认配置下这两个前缀不相等，于是设置页写到 ~/.wine\user.reg，游戏在自己的前缀里读不到。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameAccount/WineRegistry.cs:45-61 WinePrefix = _scopedPrefix → 环境变量 LUNARWARD_WINEPREFIX → ~/.wine；`UsePrefix`(:32) 全仓 0 个调用点（仅注释 :168 提到）。GameSettingService 除 HDR 外全传 null：分辨率 :53-64/:94、语音 :138/:148/:177/:186/:200、FPS :212/:252/:274、HDR 亮度 :332/:369/:380。HDR 单独 :291-298 `string? prefix = winePrefix ?? ResolveGamePrefix(biz);` + `WineRegistry.SetValueAsync(key, WINDOWS_HDR_ON_h3132281285…
+- 🛠 修复（2026-11-22）：`WineRegistry` 作用域前缀改 `AsyncLocal`，并对设置/账号/启动重放都显式传入 `ResolveGamePrefix` 的结果。
+
 - **B11**（high）`Features/GameSetting/GenshinHDRLuminanceSettingDialog.Linux.cs:L13-54` — 原神「HDR 亮度设置」对话框在移植版里是空壳：没有 XAML、没有 Content、没有按钮
   - 现象：点「HDR 亮度设置」后要么弹出空白对话框、要么异常被 OpenGenshinHDRLumianceSettingWindow 的 catch(Debug.WriteLine) 吞掉而毫无反应；用户无法调整 HDR 亮度，且没有可点的关闭按钮（只能等 Esc/外部关闭）。
   - 上游：`Features/GameSetting/GenshinHDRLuminanceSettingDialog.xaml.cs:L30-60` — Lunarward.csproj:94 用 <Compile Remove> 排除了上游 code-behind，XAML 也被改名为 GenshinHDRLuminanceSettingDialog.xaml.disabled（202 行，含滑杆/预览/确定按钮），所以 GenshinHDRLuminanceSettingDialog.Linux.cs 这个 partial class 没有 InitializeComponent、没有构造函数，也没有任何 Content/Title/PrimaryButton 设置。GameSettingPage.xaml.cs:496 仍然 `new GenshinHDRLuminanceSettingDialog { XamlRoot = ..., CurrentGameBiz = ... }.ShowAsync()`，弹出来的是一个内容为空、没有确定/取消按钮的 ContentDialog（MaxLuminance/UILuminance/SceneLuminance 三个属性没有任何 UI 能改）。另外 .Linux.cs 也没有调用 GameSettingService.GetGenshinHDRLuminanceAsync 回读已保存值（上游在 Loaded 里 L52 回读）。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameSetting/GenshinHDRLuminanceSettingDialog.Linux.cs:13-53 只有 MaxLuminance/SceneLuminance/UILuminance 属性与 :34-39 SaveAsync（调 GameSettingService.SetGenshinHDRLuminanceAsync），无构造函数、无 InitializeComponent、无 Content/Title/PrimaryButtonText；`ls src/Lunarward/Features/GameSetting/` 只有 GenshinHDRLuminanceSettingDialog.xaml.disabled（无 .xaml），src/Lunarward/Lunarward.csproj:94 `<Compile Remove="Fea…
+- 🛠 修复（2026-11-22）：`GenshinHDRLuminanceSettingDialog.Linux.cs` 代码构建三个滑块 + 保存 + 恢复默认，打开回读现值、保存写回目标前缀。
+
 ### 外壳与应用生命周期
 
 - **B12**（high）`App.xaml.cs:183` — --hide 自启时无条件隐藏窗口，不检查托盘是否可用，无托盘桌面会变成没有入口的隐形进程
@@ -241,26 +252,30 @@
   - 现象：重装/迁移后自动识别多半认不回游戏，启动器页显示「安装」；在游戏选择页点「自动搜索」没有任何反应（按钮点了等于没点），用户必须逐个手动「定位游戏路径」。
   - 上游：`Features/GameInstall/GameSelector.xaml.cs:893` — NameMatches 要求目录名 == biz 值，或同时包含游戏名与服名（如 genshin + cn）。玩家最常见的目录名是「Genshin Impact」「Star Rail」，不含 cn/os，永远命中不了；FindGameDirectory 只下探两层。另外 GameSelector.AutoSearchInstalledGames 的移植副本在 L1005 加了 `if (!OperatingSystem.IsWindows()) { continue; }`，注册表分支被跳过后既不写路径也不调用扫描器。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameInstall/GameInstallScanner.Linux.cs:257-268 NameMatches 只接受 `name == key`（如 hk4e_cn）或 `name.Contains(game) && name.Contains(server)`（game 为代码名 hk4e/hkrpg，server 为 cn/global），真实目录 Genshin Impact / Star Rail / ZenlessZoneZero 均不命中；:271-305 FindGameDirectory 只枚举 root、一级、二级子目录且仍要 NameMatches。自动搜索按钮：GameSelector.xaml.cs:1005-1008 `if (!OperatingSystem.IsWindows()) { continue; }`（在注册表分支前，既不…
-- 🛠 修复（2026-11-22）：`NameMatches` 改为别名表 + 区服标记 + 归一化比较，「Genshin Impact」「Star Rail」这类目录可命中；`FindGameDirectory` 改 BFS 深度 3、跳过 reparse point；`AutoSearchInstalledGames` 非 Windows 分支清理失效路径。
+- 🛠 修复（2026-11-22）：`NameMatches` 改别名表 + 区服标记 + 归一化比较；`FindGameDirectory` BFS 深度 3 并跳过 reparse point；`AutoSearchInstalledGames` 清理失效路径。
+
 
 
 - **B37**（medium）`Features/GameInstall/GameInstallService.Linux.cs:118` — 「停止」在竞态下被记录成「失败」，并弹出错误通知
   - 现象：点「停止」后进度面板偶发变红，提示 OperationCanceledException 与「任务失败」桌面通知；用户以为出错了，实际是自己停的。也可能残留「已下载 N 个文件」的错误明细。
   - 上游：`Features/GameInstall/GameInstallService.cs:309` — StopTaskAsync 只做 cts.Cancel() + _paused=false + context.State=Stop。InstallPipeline 每个文件任务的 catch(Exception)（InstallPipeline.cs:187–203）会把 OperationCanceledException 计入 failed 并写进 errors；只有生产者循环里的 semaphore.WaitAsync(cancellationToken) 抛出的 OCE 才冒泡到 RunAsync 的 catch(OperationCanceledException) → State=Stop（L515–518）。取消时若正在文件任务内，会走到 L465–470：State=Error、ErrorMessage 拼成「xxx: OperationCanceledException: 一个任务被取消」。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/GameInstall/GameInstallService.Linux.cs:122-134 StopTaskAsync 只 `cts.Cancel()` + `context.State = GameInstallState.Stop`；InstallPipeline.cs:119 `await semaphore.WaitAsync(cancellationToken)` 在 try 外，:187-201 文件任务 `catch (Exception ex) { Interlocked.Increment(ref failed); ... errors.Add($"{asset.AssetName}: {ex.GetType().Name}: {ex.Message}"); }` 把 OperationCanceledException 吞成失败；GameInsta…
-- 🛠 修复（2026-11-22）：`result.Failed>0` 与 `catch` 都先判 `cancellationToken.IsCancellationRequested`，取消一律归为 Stop/Paused，不再记错误、不再弹「安装/更新失败」。
+- 🛠 修复（2026-11-22）：`result.Failed>0` 与 `catch` 先判 `IsCancellationRequested`，取消归为 Stop/Paused，不再弹「安装/更新失败」。
+
 
 - **B38**（medium）`Features/GameInstall/GameInstallService.Linux.cs:92` — 卸载直接递归删除整个安装目录，不区分用户数据/截图、也不先结束游戏进程
   - 现象：游戏正在运行时点卸载：文件被占用，删除到一半抛异常 → 返回 false，留下半删目录（有的文件没了、配置还在），后续安装/修复都会撞上残骸；用户数据与本地截图目录被无提示连带删除，上游的「保留用户数据」设置在 Linux 侧形同虚设。
   - 上游：`Features/GameInstall/GameInstallService.cs:346` — 上游把 UninstallGameRequest{GameBiz, GameId, InstallPath, UserDataFolder=AppConfig.UserDataFolder, ScreenshotFolder=AppConfig.ScreenshotFolder, GameExeName=GameLauncherService.GetGameExeName(...)} （L330–362）交给 RPC，由服务端按设置决定删哪些目录并先结束游戏。移植 L85–95 直接 Directory.Delete(path, recursive:true)，随后 AppConfig.SetGameInstallPath(null)。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/GameInstall/GameInstallService.Linux.cs:89-98 `await Task.Run(() => Directory.Delete(path, recursive: true)); AppConfig.SetGameInstallPath(gameId.GameBiz, null); return true; ... catch { return false; }`，全流程没有截图备份；上游 src/Starward.RPC/GameInstall/GameUninstallService.cs:60-62 `BackupScreenshot(request, gameConfig); _logger.LogInformation("Deleting folder …"); Directory.Delete(installPath, …
-- 🛠 修复（2026-11-22）：卸载前用 `ProcessQuery.FindUsersAsync` 结束占用安装目录的进程；`DeleteRecursiveExcept` 保留嵌套在安装目录里的 `UserDataFolder`/`ScreenshotFolder` 及其上级目录。
+- 🛠 修复（2026-11-22）：卸载前结束占用进程，`DeleteRecursiveExcept` 保留嵌套的 `UserDataFolder`/`ScreenshotFolder` 及上级目录。
+
 
 - **B39**（medium）`Features/GameInstall/PreDownloadDialog.Linux.cs:190` — 无本地安装也能发起预下载，并把数据写进自造的默认目录
   - 现象：对一个根本没装的游戏点「预下载」，进度条真的开始拉整包（上百 GB）到 ~/.local/share/lunarward/Games/<biz>；磁盘被占满，且该目录之后不会被安装流程复用或校验，等于白下。
   - 上游：`Features/GameInstall/PreDownloadDialog.xaml.cs:95` — 上游 GetGamePackageAsync 在 GetGameInstallPath 为空或 GetLocalGameVersionAsync 为空时点亮 TextBlock_PredownloadUnavailable 并 return（L95–101），CheckCanPreDownload 也不会使能按钮。移植 LoadSizeInfoAsync 只在 Sophon build 取不到时才置 Unavailable + 禁用；本地版本缺失只是把体积退化成整包；ResolveInstallPath（L95–104）还会拼出 <UserDataFolder>/Games/<biz> 并回写 InstallationPath，StartPredownloadAsync 里 Directory.CreateDirectory 后直接开任务。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/GameInstall/PreDownloadDialog.Linux.cs:95-104 无 AppConfig 路径时 `InstallationPath = AppConfig.GetGameInstallPath(CurrentGameId.GameBiz) ?? Path.Combine(AppConfig.UserDataFolder ?? …, "Games", CurrentGameId.GameBiz.Value)`；:134-148 `localVersion = SophonClient.TryReadLocalVersion(InstallationPath)` 为 null 时退回整包体积、不禁用；:188-190 `string path = ResolveInstallPath(); Directory.CreateDirectory(pat…
-- 🛠 修复（2026-11-22）：`PreDownloadDialog` 只在「AppConfig 已记录且目录存在」时可用，否则 `SetUnavailable()` 显示提示并禁用按钮。
+- 🛠 修复（2026-11-22）：预下载只在「AppConfig 已记录且目录存在」时可用，否则 `SetUnavailable()` 禁用并提示。
+
 
 ### 游戏设置与运行环境
 
@@ -268,18 +283,26 @@
   - 现象：账号切换失败时界面没有任何错误提示（看起来像切换成功），游戏启动后仍是旧账号；只能翻日志才能发现。
   - 上游：`Features/GameAccount/GameAccountService.cs:L137-159` — ChangeGameAccountAsync 拿 WineRegistry.SetValuesAsync 的 bool，失败时 _logger.LogWarning 后 return（不抛）；GameAccountSwitcher.xaml.cs:92-100 的 ChangeGameAccountAsync 只是把 CanChangeGameAccount 置 false，既不刷新列表也不提示。上游 Registry.SetValue 失败会抛异常，被 GameAccountSwitcher 的 catch 记 error（至少日志里有异常栈）。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameAccount/GameAccountService.cs:196-201 `bool ok = await WineRegistry.SetValuesAsync(key, values, cancellationToken).ConfigureAwait(false); if (!ok) { _logger.LogWarning("Change account {name} ({biz}) 写注册表失败", account.Name, account.GameBiz); return; }`；WineRegistry.cs:265-272 `string? output = await RunAsync(…, "reg", "import", tempFile); return output is not null;` / `catch (Exception …
+- 🛠 修复（2026-11-22）：账号切换写目标前缀，失败抛 `Lunarward_Error_SetGameSettingFailed`，切换器 catch 里弹 toast。
+
 - **B41**（medium）`Features/GameLauncher/GameLauncherService.Linux.cs:L189（CreateGameProcessStartInfo，整个方法无 HDR 相关调用）` — 上游「每次启动游戏前把 AppConfig.EnableGenshinHDR 重写进注册表」的行为在移植版启动器里丢失
   - 现象：用户在设置页改过 HDR 后在游戏内又关掉，下次从 Lunarward 启动游戏时 HDR 不会按设置页的值恢复；首次启动前就勾上 HDR 的情况，值只写进注册表一次，之后不再同步。
   - 上游：`Features/GameLauncher/GameLauncherService.cs:L379-382` — 上游构造启动参数时执行 if (gameId.GameBiz.Game is GameBiz.hk4e) GameSettingService.SetGenshinEnableHDR(gameId.GameBiz, AppConfig.EnableGenshinHDR);（L379-382）。移植侧重写的 GameLauncherService.Linux.cs 对 SetGenshinEnableHDR / EnableGenshinHDR 零引用（grep 整个 Features/GameLauncher 无命中），只有在 GameSettingPage.xaml.cs:544-545 点「套用」时写一次。此外上游这个调用是「每次启动强制对齐」的语义，保证用户在游戏内改了 HDR 也会被拉回 AppConfig 的设定。
   - ✅ 复核（2026-11-22，读码）：上游 src/Starward/Features/GameLauncher/GameLauncherService.cs:379-382 `if (gameId.GameBiz.Game is GameBiz.hk4e) { GameSettingService.SetGenshinEnableHDR(gameId.GameBiz, AppConfig.EnableGenshinHDR); }`；移植侧同一方法 src/Lunarward/Features/GameLauncher/GameLauncherService.cs:379-380 把这段换成了注释（「上游在启动前用 winreg 写 HDR 开关…… HDR 改由设置页保存时写入目标前缀。」），src/Lunarward/Features/GameLauncher/GameLauncherService.Linux.cs 全文无 EnableGenshi…
+- 🛠 修复（2026-11-22）：`GameLauncherService.StartGameAsync` 启动 hk4e 前按 `AppConfig.EnableGenshinHDR` 重放 `SetGenshinEnableHDRAsync`。
+
 - **B42**（medium）`Features/GameSetting/GameSettingPage.xaml.cs:L296-312（另 L293）` — 页面被 NavigationCacheMode=Required 缓存后，切换游戏时 IsLanguageSettingEnable/IsGraphicsSettingEnable/StackPanel_StarRailFPS/StackPanel_GenshinHDR/StackPanel_Emoji 全部不重置，上一个游戏的分区残留
   - 现象：先看原神设置页，再切到绝区零/星穹铁道：语音语言下拉、HDR 勾选与「HDR 亮度设置」按钮、星铁帧率下拉等上一个游戏的分区仍然可见可点；「游戏未安装」的 emoji 面板在装好游戏后也不会消失，会盖住设置表单。
   - 上游：`Features/GameSetting/GameSettingPage.xaml.cs:L218-240` — InitializeGameSettingAsync 只会把标志与面板设成 true/Visible（L296 IsBaseSettingEnable=true、L299/L306/L311 各分支、L293 StackPanel_Emoji.Visibility=Visible），从来没有对应的「置 false / Collapsed」。上游每次导航都新建页面，默认值天然是 false，所以不需要重置；移植版给本页加了 NavigationCacheMode="Required"（D60），同一个实例会在「原神 → 星穹铁道 → 绝区零」之间复用，且本页没有 override OnGameChanged 做清理（对比 GameLauncherPage 的 GameBannerAndPost 就是这样修的，D60 追加记录）。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameSetting/GameSettingPage.xaml:2 `NavigationCacheMode="Required"`（上游 src/Starward/Features/GameSetting/GameSettingPage.xaml 无该属性，每次导航新建实例）；src/Lunarward/Features/GameSetting/GameSettingPage.xaml.cs:286-315 InitializeGameSettingAsync 只有 `StackPanel_Emoji.Visibility = Visibility.Visible;`（:293）、`IsBaseSettingEnable = true;`（:296）、`IsLanguageSettingEnable = true;`（:299）、`IsGraphicsSettingE…
+- 🛠 修复（2026-11-22）：`InitializeGameSettingAsync` 开头重置三个分区开关/可见性、HDR 标志与 ErrorMessage，并新增 `OnGameChanged()` 重载整套重读。
+
 - **B43**（medium）`Features/GameSetting/GameSettingService.cs:L91-96、L269-277、L375-379` — 写注册表失败被吞掉：WineRegistry.SetValuesAsync 返回 false 但 GameSettingService 不检查，页面照样提示「设置已应用」
   - 现象：wine reg import 失败（前缀锁、注册表损坏、wineserver 没起来等）时用户看到「设置已应用」，但游戏里没有变化；只有日志里有一行 [WineRegistry] 批量写入注册表失败。
   - 上游：`Features/GameSetting/GameSettingService.cs:L82-116、L212-247、L289-306` — WineRegistry.SetValuesAsync（WineRegistry.cs:252-281）内部 catch 所有异常、失败只 Log.Warning 并返回 false；SetGameResolutionSettingAsync / SetStarRailFPSIndexAsync / SetGenshinHDRLuminanceAsync 忽略这个返回值（L94 直接把 Task 返回给调用方，L277/L379 await 后丢弃 bool）。上游 Registry.SetValue 失败会抛异常，GameSettingPage.ApplySetting 的 catch 会把 ex.Message 显示到 ErrorMessage。移植后 GameSettingPage.xaml.cs:549 依旧无条件 ErrorMessage = Lang.GameSettingPage_SettingNotEffect，等于把失败报成成功。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameAccount/WineRegistry.cs:252-281 `public static async Task<bool> SetValuesAsync(...)`：RunAsync 在 `process.ExitCode != 0` 时返回 null（:355-358）、15s 超时也返回 null（:350-351）→ :271 `return output is not null;`；catch 里 :274-278 `Log.Warning(ex, "[WineRegistry] 批量写入注册表失败：{Key}", key); return false;`。调用方丢返回值：src/Lunarward/Features/GameSetting/GameSettingService.cs:92-96 `=> values.Count == 0 ? Task…
+- 🛠 修复（2026-11-22）：`SetGameResolutionSettingAsync` 返回 `Task<bool>` 并在无前缀/写失败时抛错；语音/FPS/亮度 setter 同样抛错。
+
 ### 外壳与应用生命周期
 
 - **B44**（medium）`Program.Linux.cs:18` — 新入口没有注册 AppDomain.UnhandledException，崩溃时不再落盘 crash 日志
@@ -384,20 +407,23 @@
   - 现象：首次启动、缓存超过 24h、或用户把游戏放在大目录（如 /opt 下成千上万个文件夹）时，主窗口出现明显延迟；点击「自动搜索」也会卡住界面。
   - 上游：`Features/GameInstall/GameSelector.xaml.cs:940` — ScanAndApply 是同步方法（L38–141），由 App.xaml.cs:89 在 OnLaunched 里直接调用；一次未命中要遍历 $HOME/games、$HOME/Games/miHoYo、/opt 与 3 个 Steam 根，每个根做 2 层目录枚举并对每个候选取 exe 名，全程 UI 线程。上游注册表读取是常数级，且发生在命令内部（异步）。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/App.xaml.cs:89 `Features.GameInstall.GameInstallScanner.ScanAndApply();` 是同步调用，早于 :181 `m_MainWindow = new MainWindow();`；GameInstallScanner.Linux.cs:38 ScanAndApply 同步执行，:238-251 根目录含 $HOME/games 等 + /opt + 3 个 Steam common，:279/:291 两层 Directory.EnumerateDirectories + File.Exists，并对 9 个 gameBiz 重复遍历。但 GameSelector.xaml.cs:981 AutoSearchInstalledGames 在 :1005 `if (!OperatingSystem.IsWindows()) { …
-- 🛠 修复（2026-11-22）：启动扫描改 `await Task.Run(() => GameInstallScanner.ScanAndApply())`，不再阻塞首屏。
+- 🛠 修复（2026-11-22）：启动扫描改 `await Task.Run(() => GameInstallScanner.ScanAndApply())`。
+
 
 - **B66**（low）`Features/GameInstall/InstallGameDialog.Linux.cs:51` — 开始按钮的可点性没有任何代码路径保障
   - 现象：视 Uno 版本而定：可能「开始安装 / 开始预下载」按钮全程灰掉，安装入口彻底不可用；也可能按钮可点但完全不反映路径/空间/语音是否就绪（用户能在非法状态下点下去）。
   - 上游：`Features/GameInstall/InstallGameDialog.xaml.cs:312` — 两个对话框的 XAML 都把 Button 写死 IsEnabled="False"；全仓唯一的使能点是已被 <Compile Remove> 排除的上游 code-behind（InstallGameDialog.xaml.cs:312、PreDownloadDialog.xaml.cs:326）。移植侧 InstallGameDialog.Linux.cs 从不解禁，PreDownloadDialog.Linux.cs:127 只会置 false。至于按钮最终是否可点，取决于 Uno 的 ButtonBase 是否用 Command.CanExecute 覆盖本地 IsEnabled 值（Uno.UI 里存在 UpdateCanExecute/OnCanExecuteUpdated 符号，倾向会覆盖）。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameInstall/InstallGameDialog.xaml:137-143 `Button_StartInstallation` 带 Command="{x:Bind StartInstallationCommand}" 且 IsEnabled="False"；PreDownloadDialog.xaml:97-104 同样 IsEnabled="False"。唯一解禁代码 InstallGameDialog.xaml.cs:312 / PreDownloadDialog.xaml.cs:326 所在文件被 src/Lunarward/Lunarward.csproj:96-97 <Compile Remove> 排除；编译中的 InstallGameDialog.Linux.cs、PreDownloadDialog.Linux.cs:184-204 从不解禁，…
-- 🛠 修复（2026-11-22）：`LoadSizeInfoAsync` 拿到体积后才启用开始按钮；安装对话框由 `CheckCanStartInstallation` 统一控制。
+- 🛠 修复（2026-11-22）：拿到体积后才启用开始按钮；安装对话框由 `CheckCanStartInstallation` 统一控制。
+
 
 
 - **B67**（low）`Features/GameInstall/InstallGameDialog.Linux.cs:95` — 安装/预下载开始时不广播任务消息，页面靠 1s 轮询才看到任务
   - 现象：点开始后进度区最多延迟约 1 秒才出现；这段时间对话框已 Hide，页面上仍是「安装」可点，用户可能重复点击（重复点击由 StartAsync 的去重与 _cancellations.TryAdd 兜住，不会双开，但观感上是「没反应」）。
   - 上游：`Features/GameInstall/InstallGameDialog.xaml.cs:396` — 上游成功后 WeakReferenceMessenger.Send(new GameInstallTaskStartedMessage(task))（InstallGameDialog.xaml.cs:396、PreDownloadDialog.xaml.cs:350），启动器页 OnGameInstallTaskStarted 立即展开进度区。移植两个对话框都不发消息（消息类型本身由 GameInstallShims.cs:89–94 提供），页面只能靠 GameLauncherPage.InstallTask.cs:21–56 的 1s DispatcherTimer 轮询 GetGameInstallTask。
   - ◐ 复核（2026-11-22，读码）：InstallGameDialog.Linux.cs:84-109 StartInstallationAsync：:95 await StartInstallAsync、:101 toast、:102 Hide()，不发 GameInstallTaskStartedMessage；PreDownloadDialog.Linux.cs 的 StartPredownloadAsync 同样只 toast+Hide。编译树里唯一 Send 在 GameLauncherSettingDialog.xaml.cs:472（修复路径）；InstallGameDialog.xaml.cs:399 / PreDownloadDialog.xaml.cs:350 已被排除。页面靠 GameLauncherPage.InstallTask.cs:21-28 的 1s DispatcherTimer 轮询 GetGameInstallTa…
-- 🛠 修复（2026-11-22）：安装与预下载成功启动后都 `Send(new GameInstallTaskStartedMessage(task))`，页面状态条即时出现。
+- 🛠 修复（2026-11-22）：安装/预下载启动成功后都广播 `GameInstallTaskStartedMessage`。
+
 
 ### 游戏设置与运行环境
 
@@ -409,10 +435,14 @@
   - 现象：全新安装的用户先勾 HDR 再启动游戏，游戏内 HDR 仍是关闭的，且没有任何提示；必须再回设置页点一次「套用」才生效。
   - 上游：`Features/GameSetting/GameSettingService.cs:L249-260` — SetGenshinEnableHDRAsync 用 PrefixManager.TryGetExistingPrefix(profile, biz.Value) 解析「已经存在」的前缀，拿不到就 Serilog.Log.Information("SetGenshinEnableHDR: 找不到游戏前缀，跳过") 后 return；上游无条件写入。这个场景恰好是「首次启动前先在设置页勾 HDR」：前缀要等第一次启动（EnsurePrefix）才创建，此刻用户的操作被丢掉，页面上却照常显示「设置已应用」。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameSetting/GameSettingService.cs:284-301：:291 `string? prefix = winePrefix ?? ResolveGamePrefix(biz);`，为空则 :294 记日志并 `return;`，不写注册表；ResolveGamePrefix(:303-314) 经 ProfileBinding.Resolve + PrefixManager.TryGetExistingPrefix（PrefixManager.cs:335-339 `Directory.Exists(path) ? path : null`），游戏首启前前缀目录不存在即丢弃。上游 src/Starward/Features/GameSetting/GameSettingService.cs:249-260 无条件 `Registry.SetVa…
+- 🛠 修复（2026-11-22）：`SetGenshinEnableHDRAsync` 找不到前缀改为抛 `Lunarward_Error_PrefixNotFound`；AppConfig 的值保留，由启动前重放补写（见 B41）。
+
 - **B70**（low）`Features/GameSetting/GenshinHDRLuminanceSettingDialog.Linux.cs:L27-31、L42-47` — HDR 亮度对话框既不回读已保存值，Reset/AutoAdjust 的默认值也与上游不一致（1000/200/400 vs 1000/300/350）
   - 现象：（补 UI 后）打开对话框显示的不是当前已保存的亮度；点「重置」得到 1000/200/400 而不是上游/游戏的 1000/300/350；直接点保存会覆盖用户原来的值。
   - 上游：`Features/GameSetting/GenshinHDRLuminanceSettingDialog.xaml.cs:L52、L300-330` — 上游 Loaded 里 (MaxLuminance, SceneLuminance, UILuminance) = GameSettingService.GetGenshinHDRLuminance(CurrentGameBiz)（L52），Reset 设 1000/300/350（L300-307），AutoAdjust 用显示器 MaxLuminanceInNits 与 SdrWhiteLevelInNits clamp 后算 Scene=UI-50（L317-330）。移植版属性初值直接写成 Max=1000/UI=200/Scene=400（L27-31），Reset 也写同样三个值（L42-47），AutoAdjust => Reset()，且从不调用 GetGenshinHDRLuminanceAsync。当前因为对话框没有 UI（见另一条 bug）实际不可达，但一旦补上 XAML，会把用户已调好的亮度覆盖成默认值，且默认值与游戏内默认（300/350）不一致。
   - ◐ 复核（2026-11-22，读码）：src/Lunarward/Features/GameSetting/GenshinHDRLuminanceSettingDialog.Linux.cs:27/29/31 默认值 1000/200/400、:42-46 Reset 同值、:50 `private void AutoAdjust() => Reset();`，无 GetGenshinHDRLuminanceAsync 回读。上游 GenshinHDRLuminanceSettingDialog.xaml.cs:52 Loaded 回读、:122/:134/:146 默认 1000/300/350、:300-307 Reset 1000/300/350、:317-324 AutoAdjust 按显示器 info clamp。当前不可达：XAML 为 .xaml.disabled，.xaml.cs 被 src/Lunarward/Lunarward.csp…
+- 🛠 修复（2026-11-22）：对话框默认值改为 1000/300/350，`Opened` 事件回读注册表现值，恢复默认按钮写回这三个值。
+
 ### 外壳与应用生命周期
 
 - **B71**（low）`App.xaml.cs:152` — 单实例监听早于主窗口创建，窗口期内的第二实例回调会先建一个窗口，随后又被 OnLaunched 覆盖，形成两个主窗口

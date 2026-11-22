@@ -91,6 +91,8 @@ public partial class Lang
 
     public static string Lunarward_Error_NoVersionInfo => ResourceManager.GetString("Lunarward_Error_NoVersionInfo", resourceCulture) ?? "取不到版本信息（网络或接口异常）";
 
+    public static string Lunarward_Error_PrefixNotFound => ResourceManager.GetString("Lunarward_Error_PrefixNotFound", resourceCulture) ?? "找不到游戏的 wine 前缀，设置未写入。";
+    public static string Lunarward_Error_SetGameSettingFailed => ResourceManager.GetString("Lunarward_Error_SetGameSettingFailed", resourceCulture) ?? "写入游戏设置失败，请检查运行环境前缀。";
     public static string Lunarward_Error_ManifestUnavailable => ResourceManager.GetString("Lunarward_Error_ManifestUnavailable", resourceCulture) ?? "清单不可用：";
 
     public static string Lunarward_Error_InstallFailed => ResourceManager.GetString("Lunarward_Error_InstallFailed", resourceCulture) ?? "下载失败：";

@@ -378,6 +378,20 @@ internal partial class GameLauncherService
 
             // Lunarward：上游在启动前用 winreg 写 HDR 开关，在 Linux 上等于「先跑一次 wine」，
             // 会破坏「游戏必须是 wine 的第一个进程」这条铁律（L-62）。HDR 改由设置页保存时写入目标前缀。
+            // Lunarward：上游在启动前用 winreg 写 HDR 开关（Windows 上游戏与设置共用同一份注册表）。
+            // Linux 上设置页写的是「已存在的前缀」，如果用户是在建前缀之前改的 HDR，或者换过前缀，
+            // 注册表里就会是旧值——启动前按 AppConfig 重放一次，保证游戏读到的与界面一致（D95/B41）。
+            if (gameId.GameBiz.Game is GameBiz.hk4e)
+            {
+                try
+                {
+                    await GameSettingService.SetGenshinEnableHDRAsync(gameId.GameBiz, AppConfig.EnableGenshinHDR).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Replay Genshin HDR setting before launch failed");
+                }
+            }
             // Lunarward：`StartGameWithCMD` 是 Windows 上「经 cmd.exe 拉起以便提权」的技巧，
             // Linux 没有对应概念，且套一层 shell 会破坏「游戏是 wine 第一个进程」的前提，
             // 因此该开关在 Linux 上忽略（保留判断以免上游字段消失时编译失败）。

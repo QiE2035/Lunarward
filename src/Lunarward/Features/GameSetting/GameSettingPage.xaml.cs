@@ -145,6 +145,17 @@ public sealed partial class GameSettingPage : PageBase
     }
 
 
+    /// <summary>切游戏（导航参数变化）或收到 CurrentGameChangedMessage 时重载整套设置（D95/B42）。</summary>
+    protected override async void OnGameChanged()
+    {
+        if (string.IsNullOrEmpty(CurrentGameBiz.Value))
+        {
+            return;
+        }
+        await InitializeGameSettingAsync();
+    }
+
+
     protected override void OnUnloaded()
     {
         if (_displayInformation is not null)
@@ -287,6 +298,16 @@ public sealed partial class GameSettingPage : PageBase
     {
         try
         {
+            // D95/B42：页面是缓存实例，切游戏时必须把上一款游戏留下的「分区可见/可编辑」状态清掉，
+            // 否则从原神切到星铁会同时看到语音下拉、HDR 勾选与星铁帧率下拉。
+            IsBaseSettingEnable = false;
+            IsLanguageSettingEnable = false;
+            IsGraphicsSettingEnable = false;
+            StackPanel_StarRailFPS.Visibility = Visibility.Collapsed;
+            StackPanel_GenshinHDR.Visibility = Visibility.Collapsed;
+            HDRNotSupported = false;
+            HDRNotEnabled = false;
+            ErrorMessage = null;
             var localVersion = await _gameLauncherService.GetLocalGameVersionAsync(CurrentGameId);
             if (localVersion is null)
             {
@@ -497,7 +518,8 @@ public sealed partial class GameSettingPage : PageBase
         }
         catch (Exception ex)
         {
-            Debug.WriteLine(ex);
+            // 打不开对话框时不能只写 Debug（发布版看不到），至少留一条日志。
+            _logger.LogError(ex, "Open Genshin HDR luminance dialog");
         }
         finally
         {

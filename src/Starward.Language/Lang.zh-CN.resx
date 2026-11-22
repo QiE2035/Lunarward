@@ -3044,6 +3044,12 @@
   <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
     <value>取不到版本信息（网络或接口异常）</value>
   </data>
+  <data name="Lunarward_Error_PrefixNotFound" xml:space="preserve">
+    <value>找不到游戏的 wine 前缀，设置未写入。</value>
+  </data>
+  <data name="Lunarward_Error_SetGameSettingFailed" xml:space="preserve">
+    <value>写入游戏设置失败，请检查运行环境前缀。</value>
+  </data>
   <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
     <value>清单不可用：</value>
   </data>
