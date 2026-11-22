@@ -523,7 +523,9 @@
         </NavigationView>
 
         <!--  未登录/没有角色时的空态（D61）：原来这里只有一片透出背景图的白，看起来像坏页  -->
-        <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+        <!--  B50：空态只盖内容区，左侧工具箱要能点（OpenPaneLength=248）  -->
+        <Grid Margin="248,0,0,0"
+              Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
               Visibility="{x:Bind ShowRecordEmptyState}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
                 <FontIcon FontSize="40" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Glyph="&#xE9D9;" />

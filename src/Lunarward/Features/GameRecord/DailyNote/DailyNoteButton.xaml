@@ -403,7 +403,7 @@
                                             Visibility="{x:Bind StarRailDailyNote.IsStaminaFull, Converter={StaticResource BoolToVisibilityReversedConverter}}">
                                     <TextBlock FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}">
                                         <Run Text="{x:Bind lang:Lang.DailyNoteButton_StarRail_FullTime}" />
-                                        <Run Text="{x:Bind StarRailDailyNote.StaminaFullTime.LocalDateTime.ToString('HH:mm', x:Null)}" />
+                                        <Run Text="{x:Bind StarRailDailyNote.StaminaFullTime.LocalDateTime.ToString('HH\\:mm', x:Null)}" />
                                     </TextBlock>
                                     <TextBlock FontSize="12"
                                                Foreground="{ThemeResource SystemFillColorCautionBrush}"

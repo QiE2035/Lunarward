@@ -1496,3 +1496,22 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。
 
 **确认方式**：用户 m01511。
+
+## D101 审计项修复：批 7「抽卡 / 战绩」按上游语义补齐
+
+**背景**：批 7 覆盖 B18 B19 B20 B48 B49 B50 B51，集中在缓存页复用时抽卡页与战绩页的跨游戏残留。
+
+**决定**：
+
+1. 抽卡页 `OnNavigatedTo` 先把 3 个 `Enable*GachaItemStats`、`IsZZZGachaStatsCardVisible` 与 5 个菜单项 `Visibility` 复位，再按当前游戏置位（B18/B19）。
+2. 抽卡页新增 `OnGameChanged()`：经 DispatcherQueue 重跑 `Initialize()` + `UpdateWikiDataAsync()`，切游戏后 UID/卡池/统计按新游戏加载（B48）。
+3. 战绩页新增 `OnGameChanged()`：重跑 `CheckAgreementAsync()` → `LoadGameRoles()` / `UpdateDeviceInfoAsync()` / `RefreshGameRoleHeadIconSilentlyAsync()`（B51）。
+4. 自助查询页 `OnNavigatedTo` 先把三个查询列表收起（B20）。
+5. 每日便签的满体力时间格式改为 `'HH\\:mm'`（XAML 生成代码里的转义冒号），不再跟随区域分隔符（B49）。
+6. 战绩页未登录空态加 `Margin="248,0,0,0"`（工具箱展开宽度），不再盖住左侧导航（B50）。
+
+**代价边界**：空态左边界按 `OpenPaneLength=248` 固定，工具箱收起时右侧会留一点空白；抽卡/战绩的 `OnGameChanged` 走 DispatcherQueue 延后一帧。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。XAML 里 `'HH\:mm'` 会让 Uno 生成器产生 `CS1009`，必须写成 `'HH\\:mm'`（已实测）。
+
+**确认方式**：用户 m01511。

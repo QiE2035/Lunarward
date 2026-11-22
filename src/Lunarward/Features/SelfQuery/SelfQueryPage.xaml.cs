@@ -53,6 +53,10 @@ public sealed partial class SelfQueryPage : PageBase
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        // B20：缓存页复用，先全部收起再按当前游戏展开，避免三个列表叠在一行。
+        ListView_QueryItems_Genshin.Visibility = Visibility.Collapsed;
+        ListView_QueryItems_StarRail.Visibility = Visibility.Collapsed;
+        ListView_QueryItems_ZZZ.Visibility = Visibility.Collapsed;
         if (CurrentGameBiz.Game == GameBiz.hk4e)
         {
             ListView_QueryItems_Genshin.Visibility = Visibility.Visible;

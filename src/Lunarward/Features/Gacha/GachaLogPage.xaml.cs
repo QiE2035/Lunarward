@@ -57,6 +57,16 @@ public sealed partial class GachaLogPage : PageBase
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        // B18/B19：页面实例被缓存复用，这里先把上次游戏的置位收回去，再按当前游戏重新置位。
+        EnableGenshinGachaItemStats = false;
+        EnableStarRailGachaItemStats = false;
+        EnableZZZGachaItemStats = false;
+        IsZZZGachaStatsCardVisible = false;
+        MenuFlyoutItem_SyncFromMiyoushe.Visibility = Visibility.Collapsed;
+        MenuFlyoutItem_SyncFromMiyousheAll.Visibility = Visibility.Collapsed;
+        MenuFlyoutItem_SyncFromHoYoLAB.Visibility = Visibility.Collapsed;
+        MenuFlyoutItem_SyncFromHoYoLABAll.Visibility = Visibility.Collapsed;
+        MenuFlyoutItem_CloudGame.Visibility = Visibility.Visible;
         GachaTypeText = GachaLogService.GetGachaLogText(CurrentGameBiz);
         // 旧版导出对应的标准：原神是 UIGF v3.0，星铁是 SRGF v1.0，
         // 绝区零没有对应标准，Starward 只是套用了同样的结构，故仍标为 JSON
@@ -153,6 +163,24 @@ public sealed partial class GachaLogPage : PageBase
         await UpdateWikiDataAsync();
     }
 
+
+
+    protected override void OnGameChanged()
+    {
+        // B48：缓存实例切游戏时不会重新 OnLoaded，这里按新游戏重载 UID/卡池/统计。
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                Initialize();
+                await UpdateWikiDataAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Reload gacha log page after game changed");
+            }
+        });
+    }
 
 
     protected override void OnUnloaded()

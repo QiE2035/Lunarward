@@ -94,6 +94,28 @@ public sealed partial class GameRecordPage : PageBase
 
 
 
+    protected override void OnGameChanged()
+    {
+        // B51：缓存实例切游戏时不会重新 OnLoaded，这里重新载入角色与设备信息。
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            try
+            {
+                if (await CheckAgreementAsync())
+                {
+                    LoadGameRoles();
+                    await UpdateDeviceInfoAsync();
+                    await RefreshGameRoleHeadIconSilentlyAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Reload game record page after game changed");
+            }
+        });
+    }
+
+
     protected override void OnUnloaded()
     {
         WeakReferenceMessenger.Default.UnregisterAll(this);

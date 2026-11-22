@@ -10,7 +10,7 @@
 | low | 16 |
 | 合计 | **76** |
 
-状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 49 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98；批 5：B12 B13 B44，D99）。
+状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 56 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98；批 5：B12 B13 B44，D99）。
 
 ## 1 · 复核结论（2026-11-22）
 
@@ -188,14 +188,20 @@
   - 现象：先打开原神抽卡页、再切到星穹铁道/绝区零：同一 Grid 单元格里的 GridView_GachaItemStats_Genshin / _StarRail / _ZZZ 会同时处于加载状态，抽卡物品统计面板出现两套稀有度底色/两列卡片叠在一起；回到原神页还带着绝区零的统计卡（IsZZZGachaStatsCardVisible 恒 true）。
   - 上游：`Features/Gacha/GachaLogPage.xaml.cs:72` — OnNavigatedTo（:59-105）只在命中当前游戏时把 EnableGenshinGachaItemStats / EnableStarRailGachaItemStats / EnableZZZGachaItemStats / IsZZZGachaStatsCardVisible 置 true（:72、:78、:84-85），XAML 用 `x:Load="{x:Bind ...}"`（GachaLogPage.xaml:326/342/365/393/426，页面 x:DefaultBindMode="OneWay"），全仓没有任何代码把这些属性复位成 false（grep 计数 0；属性 setter 只在 :253-257）。上游不需要复位——每次导航都新建页面实例，XAML 默认值即干净初始态；移植页加了 NavigationCacheMode="Required"（D60），实例常驻，于是置位会累积。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Gacha/GachaLogPage.xaml.cs:71-72 `EnableGenshinGachaItemStats = true;`、:77-78 `EnableStarRailGachaItemStats = true;`、:83-85 `EnableZZZGachaItemStats = true; IsZZZGachaStatsCardVisible = true;`，属性定义 :253-257 仅 SetProperty，全仓无任何复位为 false 的写入。XAML src/Lunarward/Features/Gacha/GachaLogPage.xaml:2 `NavigationCacheMode="Required"`，:326/:342/:365/:393/:426 `x:Load="{x:Bind …}"`（页 x:DefaultBindMo…
+- 🛠 修复（2026-11-22）：`OnNavigatedTo` 开头把 `EnableGenshinGachaItemStats`/`EnableStarRailGachaItemStats`/`EnableZZZGachaItemStats`/`IsZZZGachaStatsCardVisible` 全部置 false，再按当前游戏置 true。
+
 - **B19**（high）`Features/Gacha/GachaLogPage.xaml.cs:91` — 服务器分支的菜单项 Visibility 只置 Visible 不复位，国际服残留米游社同步入口
   - 现象：从国服游戏切到国际服游戏后，抽卡页菜单里同时出现「从米游社同步」和「从 HoYoLAB 同步」两组入口；反向切换时云游戏入口仍然消失（Collapsed 残留）。
   - 上游：`Features/Gacha/GachaLogPage.xaml.cs:59` — OnNavigatedTo 按 CurrentGameBiz 分支置 Visible：nap_cn/nap_bilibili → MenuFlyoutItem_SyncFromMiyoushe(:91) / SyncFromMiyousheAll(:92)；nap_global → SyncFromHoYoLAB(:95) / SyncFromHoYoLABAll(:96)；IsGlobalServer 时 MenuFlyoutItem_CloudGame 置 Collapsed（:88，仅 nap 分支内）。没有任何分支把上一次的置位收回（全仓无复位代码）。缓存实例（D60）使这些 Visibility 跨导航保留；上游每次新建实例即回收。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Gacha/GachaLogPage.xaml.cs:88 `MenuFlyoutItem_CloudGame.Visibility = Visibility.Collapsed;`（nap 分支内）、:91-92 `MenuFlyoutItem_SyncFromMiyoushe.Visibility = Visibility.Visible; MenuFlyoutItem_SyncFromMiyousheAll.Visibility = Visibility.Visible;`（nap_cn/nap_bilibili）、:96-97 `MenuFlyoutItem_SyncFromHoYoLAB.Visibility = …Visible;`（nap_global）、:100-102 全局服再次把 CloudGame 置 Collapsed；grep 该文件无任何把已置…
+- 🛠 修复（2026-11-22）：`OnNavigatedTo` 开头把米游社/HoYoLAB 两组同步项与云游戏项复位成 Collapsed/Visible，再按分支置位。
+
 - **B20**（high）`Features/SelfQuery/SelfQueryPage.xaml.cs:53` — 自助查询页三个游戏的查询列表只置 Visible 不置 Collapsed，多个列表在同一行重叠显示
   - 现象：依次访问原神、星穹铁道、绝区零的自助查询页后，查询项列表同时出现原神+星铁+绝区零三套条目，互相压在同一区域、点击命中错乱（可见行混排）。
   - 上游：`Features/SelfQuery/SelfQueryPage.xaml.cs:53` — OnNavigatedTo（:53-68）按 CurrentGameBiz.Game 命中一个，分别在 :58/:62/:66 置 Visible，把 ListView_QueryItems_Genshin / _StarRail / _ZZZ 的 Visibility 置 Visible，从不把另外两个置回 Collapsed；XAML 三个 ListView 默认 Visibility="Collapsed"、同在 Grid.Row="1" 相互重叠（ItemsSource 分别是 GenshinQueryItemList(:173) / StarRailQueryItemList(:201) / ZZZQueryItemList(:233)）。上游靠「每次导航新建实例，XAML 默认 Collapsed」实现单显；移植页 NavigationCacheMode="Required"，置位在同一个实例上累积。
   - ◐ 复核（2026-11-22，读码）：代码事实成立：src/Lunarward/Features/SelfQuery/SelfQueryPage.xaml.cs:53-68 OnNavigatedTo 只置 Visible（:58 ListView_QueryItems_Genshin、:62 ListView_QueryItems_StarRail、:66 ListView_QueryItems_ZZZ），无 Collapsed 分支；XAML src/Lunarward/Features/SelfQuery/SelfQueryPage.xaml:2 `NavigationCacheMode="Required"`，三个 ListView 默认 `Visibility="Collapsed"`（:170-175/:198-203/:230-235）且都是 `Grid.Row="1"` 同一单元格。但同文件 :163-172 `protected ove…
+- 🛠 修复（2026-11-22）：`OnNavigatedTo` 先把 `ListView_QueryItems_Genshin/StarRail/ZZZ` 全部 `Collapsed`，再显示当前游戏那一个。
+
 ### 背景与图片加载
 
 - **B21**（high）`Controls/CachedImage.Linux.cs:206-208（ReadFileAsync）、64-80（IsThumbnail/PngThumbnail 未被读取）` — 图库视频条目把整个视频文件读进内存当图片解码（IsThumbnail 语义丢失 + DisplayPath 兜底到 .mp4）
@@ -367,18 +373,26 @@
   - 现象：在原神抽卡页切到星穹铁道：页头（跃迁记录/卡池说明/emoji）已变成星铁文案，但 UID 下拉、卡池横幅、祈愿记录列表仍是原神数据（或加载后空白），点击同步又会把上一个游戏的 UID 拉一遍。
   - 上游：`Features/Gacha/GachaLogPage.xaml.cs:139` — 数据加载全在 OnLoaded（:139-154：注册 UpdateGachaLogMessage、Initialize() 里的 InitializeGachaBanners / SelectUid / UidList = GetUids、UpdateWikiDataAsync），OnNavigatedTo（:59-105）只更新标题类状态（GachaTypeText/LegacyFormatName/LegacyImportText/Image_Emoji）与开关位；OnUnloaded（:158-177）才把 DisplayGachaTypeStatsCollection/GachaItemStats/GachaBanners 清空——实例复用（不卸载）时这条路径不跑。D94 已在 Frameworks/PageBase.cs 提供 OnGameChanged 钩子（OnNavigatedTo 里 ContentGameId 与导航参数不一致时调用），全仓只有 GameLauncherPage.xaml.cs:88 重写；本页未重写。Uno 对已缓存实例的同类型导航不保证重跑 Loaded/OnLoaded，正是 D94 要兜的场景。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/Gacha/GachaLogPage.xaml:3 `NavigationCacheMode="Required"`；数据加载全在 src/Lunarward/Features/Gacha/GachaLogPage.xaml.cs:139-154 OnLoaded（:186 `InitializeGachaBanners();`、:188 `UidList = new(_gachaLogService.GetUids());`、:192/196 选 SelectUid、:189-190 读 AppConfig 的上次 UID、:192 后 UpdateWikiDataAsync），OnNavigatedTo（:57-105）只更新 GachaTypeText / LegacyFormatName / LegacyImportText / emoji 与开关位；本页没有 o…
+- 🛠 修复（2026-11-22）：新增 `OnGameChanged()`，经 `DispatcherQueue` 重跑 `Initialize()` + `UpdateWikiDataAsync()`。
+
 - **B49**（medium）`Features/GameRecord/DailyNote/DailyNoteButton.xaml:406` — 满体力时间格式丢转义冒号，跟随区域分隔符显示
   - 现象：在 TimeSeparator 不是冒号的区域（如 fi-FI 为 '.'、部分区域为空格）满体力时间显示成「12.34」这类非预期格式；zh-CN 下不可见。
   - 上游：`Features/GameRecord/DailyNote/DailyNoteButton.xaml:406` — 上游 `ToString('HH\:mm', x:Null)` 用转义冒号固定字面 ':'；移植写成 `ToString('HH:mm', x:Null)`，'HH'/'mm' 之间的 ':' 变成当前区域（CurrentCulture）的 TimeSeparator。全仓只剩这一处把 `\:` 写成 `:`。
   - ✅ 复核（2026-11-22，读码）：移植 src/Lunarward/Features/GameRecord/DailyNote/DailyNoteButton.xaml:406 `<Run Text="{x:Bind StarRailDailyNote.StaminaFullTime.LocalDateTime.ToString('HH:mm', x:Null)}" />`；上游 src/Starward/Features/GameRecord/DailyNote/DailyNoteButton.xaml:406 为 `ToString('HH\:mm', x:Null)`（转义冒号固定字面 ':'）。移植侧全仓没有固定 CurrentCulture / TimeSeparator（grep CurrentCulture 只命中 RegistryFormat.cs、WineRegistryFiles.cs 等处的 InvariantCulture 与…
+- 🛠 修复（2026-11-22）：XAML 改为 `ToString('HH\\:mm', x:Null)`（含转义冒号）；直接写 `'HH\:mm'` 会让 Uno 生成代码报 CS1009。
+
 - **B50**（medium）`Features/GameRecord/GameRecordPage.xaml:526` — 未登录空态层铺满整页，连左侧工具箱导航一起盖住
   - 现象：未登录/无角色时战绩页只剩「还没有登录或没有绑定角色 + 登录按钮」，左侧工具箱（战绩/每日便签/其他子页入口）被完全遮住、无法切换，必须先登录才能看到工具箱；与上游可浏览工具箱的行为不一致（BBS 子项当前是 M4 占位，实际损失有限）。
   - 上游：`Features/GameRecord/GameRecordPage.xaml:18` — 空态 Grid 是根 Grid 的最后一个子元素（:525-541），与 <NavigationView Name="NavigationView_Toolbox"> 同级、没有 Grid.Row/Column 约束也没有 Margin/IsHitTestVisible="False"，因此覆盖整个页面（含左侧工具箱菜单与更新设备指纹入口）；上游此处在未登录时只是内容区空白，菜单仍可点。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameRecord/GameRecordPage.xaml:17 根 `<Grid>`（无 RowDefinitions），:19 第一个子元素是 `<NavigationView Name="NavigationView_Toolbox" ... PaneDisplayMode="Left">`（含 PaneFooter 的「更新设备指纹」），:524-539 是根 Grid 的最后一个子元素 `<Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" Visibility="{x:Bind ShowRecordEmptyState}">`，既无 Grid.Row/Column 也无 Margin、无 IsHitTestVisible；上游 src/Starward/Features/…
+- 🛠 修复（2026-11-22）：空态 Grid 加 `Margin="248,0,0,0"`，与左侧工具箱（OpenPaneLength=248）错开。
+
 - **B51**（medium）`Features/GameRecord/GameRecordPage.xaml.cs:67` — 战绩页缓存实例未实现 OnGameChanged，切游戏后角色列表/子页仍是上一个游戏
   - 现象：从原神战绩切到星穹铁道战绩：左侧工具箱内容区仍是原神角色（昵称/UID/头像）与深渊等子页数据，而 _gameRecordService 已切到 hkrpg（IsHoyolab/Language 已变），后续请求/刷新可能把两个游戏的账号状态混用；空态层（ShowRecordEmptyState）也不会随切换刷新。
   - 上游：`Features/GameRecord/GameRecordPage.xaml.cs:67` — 角色加载在 OnLoaded（:67-95：注册 GameRecordRoleChangedMessage / GameRecordVerifyAccountMessage、CheckAgreementAsync → LoadGameRoles() / UpdateDeviceInfoAsync() / RefreshGameRoleHeadIconSilentlyAsync()），OnNavigatedTo（:45-64）只更新 CurrentGameBiz 派生的 _gameRecordService.IsHoyolab/Language 与导航项可见性。页面 NavigationCacheMode="Required"，未重写 D94 的 OnGameChanged（grep 0），因此实例复用时刻不会重新 LoadGameRoles。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameRecord/GameRecordPage.xaml:3 `NavigationCacheMode="Required"`（上游 src/Starward/Features/GameRecord/GameRecordPage.xaml 无此属性）；src/Lunarward/Frameworks/PageBase.cs:70 `OnGameChanged();` 只在 OnNavigatedTo 比较 ContentGameId 后调用，:93 `protected virtual void OnGameChanged() { }`，全仓仅 GameLauncherPage.xaml.cs:88 重写；GameRecordPage.xaml.cs:48-62 OnNavigatedTo 只更新 CurrentGameBiz / `_gameRecordServic…
+- 🛠 修复（2026-11-22）：新增 `OnGameChanged()`，重跑 `CheckAgreementAsync()` → `LoadGameRoles()` / `UpdateDeviceInfoAsync()` / `RefreshGameRoleHeadIconSilentlyAsync()`。
+
 ### 背景与图片加载
 
 - **B52**（medium）`Features/Background/AppBackground.Linux.cs:712-717（catch 里 StopVideoBackground）、880-900（StopVideoBackground 改 UI）` — 视频帧回调线程直接改 UI 并释放播放器
