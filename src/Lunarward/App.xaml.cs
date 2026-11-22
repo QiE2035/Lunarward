@@ -233,6 +233,12 @@ public partial class App : Application
         try
         {
             await Task.Delay(800);
+            // B12：没有 StatusNotifierWatcher 的会话里，隐藏窗口等于让进程变成没有入口的隐形进程。
+            if (!Features.Tray.StatusNotifierTray.Available)
+            {
+                Serilog.Log.Warning("Started with --hide but the system tray is unavailable; keeping the window visible");
+                return;
+            }
             window.Hide();
             Serilog.Log.Information("Started hidden (--hide); system tray and global hotkey are ready.");
         }

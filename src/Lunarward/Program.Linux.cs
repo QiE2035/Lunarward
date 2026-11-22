@@ -17,6 +17,30 @@ internal class LunarwardProgram
     [STAThread]
     public static void Main(string[] args)
     {
+        // B44：后台线程与启动早期的崩溃也要落盘（上游 Program.cs 注册了同一个处理器）。
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            try
+            {
+                string text = $"[UnhandledException] {DateTime.Now:yyyy-MM-dd HH:mm:ss}{Environment.NewLine}{e.ExceptionObject}{Environment.NewLine}";
+                string? logFile = null;
+                try
+                {
+                    logFile = Starward.AppConfig.LogFile;
+                }
+                catch
+                {
+                }
+                if (!string.IsNullOrWhiteSpace(logFile))
+                {
+                    File.AppendAllText(logFile!, text);
+                }
+                Console.Error.WriteLine(text);
+            }
+            catch
+            {
+            }
+        };
 // 无副作用查询（不需要 DISPLAY）：`lunarward --version` / `--help`
         string appVersion = Starward.AppConfig.AppVersion;
         if (string.IsNullOrWhiteSpace(appVersion))

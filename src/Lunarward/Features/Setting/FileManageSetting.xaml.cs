@@ -73,7 +73,7 @@ public sealed partial class FileManageSetting : PageBase
             {
                 AppConfig.UserDataFolder = null!;
                 AppConfig.SaveConfiguration();
-                AppInstance.GetCurrent().UnregisterKey();
+                UnregisterInstanceKey();
                 Process.Start(AppConfig.StarwardExecutePath);
                 App.Current.Exit();
             }
@@ -130,7 +130,7 @@ public sealed partial class FileManageSetting : PageBase
             if (result == ContentDialogResult.Primary)
             {
                 AppConfig.DeleteAllSettings();
-                AppInstance.GetCurrent().UnregisterKey();
+                UnregisterInstanceKey();
                 Process.Start(AppConfig.StarwardExecutePath);
                 App.Current.Exit();
             }
@@ -142,6 +142,20 @@ public sealed partial class FileManageSetting : PageBase
 
     }
 
+
+
+    /// <summary>B13：Uno 的 AppInstance 是未实现的投影桩，单独兜住异常再重启。</summary>
+    private static void UnregisterInstanceKey()
+    {
+        try
+        {
+            AppInstance.GetCurrent().UnregisterKey();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "AppInstance.UnregisterKey is not available on this platform");
+        }
+    }
 
 
     private void TextBlock_IsTextTrimmedChanged(TextBlock sender, IsTextTrimmedChangedEventArgs args)

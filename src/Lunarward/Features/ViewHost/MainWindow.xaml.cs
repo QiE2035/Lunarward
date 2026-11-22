@@ -264,7 +264,16 @@ public sealed partial class MainWindow : WindowEx
             if (option is MainWindowCloseOption.Exit)
             {
                 Close();
-                AppInstance.GetCurrent().UnregisterKey();
+                // B13：AppInstance 在 Uno 下是 NotImplemented 的投影桩，必须单独兜住，
+                // 否则备份与退出都会被同一个 try/catch 吞掉。
+                try
+                {
+                    AppInstance.GetCurrent().UnregisterKey();
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Debug(ex, "AppInstance.UnregisterKey is not available on this platform");
+                }
                 Task backupTask = Task.Run(DatabaseService.AutoBackupToAppDataLocal);
                 Task timeTask = Task.Delay(30000);
                 await Task.WhenAny(backupTask, timeTask);

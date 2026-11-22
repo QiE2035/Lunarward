@@ -10,7 +10,7 @@
 | low | 16 |
 | 合计 | **76** |
 
-状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 39 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98）。
+状态：✅ 成立　◐ 部分成立　❌ 不成立　🛠 已修复。**2026-11-22 已对全部 76 条逐条读码复核**：成立 51 / 部分成立 19 / 不成立 6（详见第 1 节）。**🛠 已修复 42 条**（批 1：B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67，D95；批 2：B05 B10 B11 B40 B41 B42 B43 B69 B70，D96；批 3：B06 B07 B14 B15 B16 B17 B45 B46 B47，D97；批 4：B08 B27 B28 B29 B57 B58 B59 B60 B76，D98；批 5：B12 B13 B44，D99）。
 
 ## 1 · 复核结论（2026-11-22）
 
@@ -148,10 +148,14 @@
   - 现象：在没有 StatusNotifierWatcher 的会话（部分 Wayland 合成器、纯 X11 无托盘）用 --hide 自启（scripts/test/perf.sh:91 即如此调用）时，进程在跑但没有任何窗口或托盘入口，只能 lunarward --show 捞回；而同一会话里点关闭按钮反而会直接退出，两种行为不一致。
   - 上游：`App.xaml.cs:94` — 上游 --hide 只创建 SystemTrayWindow（Windows 托盘必然存在），主窗口不建。移植改成创建 MainWindow 后 Task ignoredHide = HideAfterShownAsync(m_MainWindow)（App.xaml.cs:183），而 HideAfterShownAsync（:229-241）只有 await Task.Delay(800); window.Hide();，完全不检查 Features.Tray.StatusNotifierTray.Available。而同文件 AppWindow_Closing（:236）与 StartTrayAsync（:343-360）都已按「托盘不可用 → 不要隐藏 / 直接退出」处理，两处策略自相矛盾。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/App.xaml.cs:169 `if (Environment.GetCommandLineArgs().Contains("--hide"))`；:181-183 `m_MainWindow = new MainWindow(); m_MainWindow.Activate(); System.Threading.Tasks.Task ignoredHide = HideAfterShownAsync(m_MainWindow);`；HideAfterShownAsync :229-241 函数体只有 :233 `await Task.Delay(800);` 与 :234 `window.Hide();`，不检查 Features.Tray.StatusNotifierTray.Available。对照 src/Lunarward/Features/ViewHost/MainWind…
+- 🛠 修复（2026-11-22）：`HideAfterShownAsync` 隐藏前检查 `StatusNotifierTray.Available`，不可用就保持可见并记 Warning。
+
 - **B13**（high）`Features/ViewHost/MainWindow.xaml.cs:267` — 退出分支调用 AppInstance.UnregisterKey()：Uno 下必抛 NotImplementedException，被 catch 吞掉后备份与退出都不执行
   - 现象：关窗选「退出」时只关掉窗口：数据库自动备份与 App.Current.Exit() 被跳过，退出路径退化为普通关窗；设置页「更改数据目录 / 删除所有设置」点击后旧进程不退出，新起的进程被单实例锁驳回，表现为点了没反应或重启失败。
   - 上游：`Features/ViewHost/MainWindow.xaml.cs:133` — MainWindow.xaml.cs:267 在「关闭窗口 → 退出」分支里调用 AppInstance.GetCurrent().UnregisterKey()。Uno 的 Microsoft.Windows.AppLifecycle 只是投影桩：实测直接引用 uno.winrt 6.7.135 的 Uno.dll 调用 GetCurrent() 抛 System.NotImplementedException: The member GetCurrent() is not implemented（https://aka.platform.uno/notimplemented#...AppInstance.GetCurrent%28%29）。该调用位于外层 try/catch{ } 内，异常被吞后同一块里的 Task.Run(DatabaseService.AutoBackupToAppDataLocal) 与 App.Current.Exit() 都不再执行。同样的 UnregisterKey 模式还在 src/Lunarward/Features/Setting/FileManageSetting.xaml.cs:76（更改数据目录）与 :133（删除所有设置），两处本应在之后 Process.Start(StarwardExecutePath) + App.Current.Exit() 完成重启。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/ViewHost/MainWindow.xaml.cs:262-268 退出分支 `Close(); AppInstance.GetCurrent().UnregisterKey(); Task backupTask = Task.Run(DatabaseService.AutoBackupToAppDataLocal); … await Task.WhenAny(backupTask, timeTask); App.Current.Exit();`，整段在 :229 起的 try/catch{} 里，UnregisterKey 抛异常后备份与 Exit 都被跳过。同模式 src/Lunarward/Features/Setting/FileManageSetting.xaml.cs:76-78（ChangeUserDataFolderAsync：先 `AppConfig…
+- 🛠 修复（2026-11-22）：`AppInstance.UnregisterKey` 移到独立 try/catch（MainWindow 与 FileManageSetting 两处），异常不再跳过备份/退出。
+
 ### 截图与图库
 
 - **B14**（high）`Features/Screenshot/ScreenCapture.Linux.cs:48-112` — 「自动复制截图文件」开关在 Linux 上完全不生效
@@ -329,6 +333,8 @@
   - 现象：非 UI 线程或启动早期崩溃时只剩 .NET 默认 stderr / 进程退出码，DiagnosticBundle 与用户反馈拿不到异常堆栈，排错信息出现缺口。
   - 上游：`Program.cs:24` — 上游 Program.cs:24 注册 AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException，:36 把 e.Exception 与 Exception.Data 追加写入 AppConfig.LogFile。Program.Linux.cs 全文没有 UnhandledException 处理，只剩 App.xaml.cs:35 的 XAML 线程 App_UnhandledException，因此 CLI 子命令、后台线程、以及 host.Run() 之前的启动早期崩溃都没有日志落盘。
   - ✅ 复核（2026-11-22，读码）：入口 src/Lunarward/Program.Linux.cs:18 `public static void Main(string[] args)`（整个类无 UnhandledException 处理），末尾 :1820-1827 `var host = UnoPlatformHostBuilder.Create().App(() => new Starward.App()).UseX11().UseLinuxFrameBuffer().UseWin32().Build(); host.Run();`；上游处理器 src/Lunarward/Program.cs:24 `AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;`、:36-58 把 e.Exception 写进 AppConfig.LogFil…
+- 🛠 修复（2026-11-22）：`LunarwardProgram.Main` 注册 `AppDomain.UnhandledException`，异常追加写入 `AppConfig.LogFile`（失败只写 stderr）。
+
 ### 截图与图库
 
 - **B45**（medium）`Features/Screenshot/ScreenshotPage.Linux.cs:201` — 批量转换同步跑在 UI 线程，截图多时界面卡死

@@ -1462,3 +1462,19 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。
 
 **确认方式**：用户 m01511。
+
+## D99 审计项修复：批 5「外壳」按上游语义补齐
+
+**背景**：批 5 覆盖 B12 B13 B44 共 3 条，都是「没有上游对应风险的 Linux 特化」造成的实现错位。
+
+**决定**：
+
+1. `--hide` 启动在隐藏窗口前检查 `StatusNotifierTray.Available`：托盘不可用就保持窗口可见并记 Warning（B12）。与同文件 `AppWindow_Closing` / `StartTrayAsync` 的既有策略一致。
+2. 所有 `AppInstance.GetCurrent().UnregisterKey()`（MainWindow 退出分支、FileManageSetting 的更改数据目录 / 删除所有设置）改为独立 try/catch 的小函数，异常只记 Debug；备份与 `App.Current.Exit()` 不再被同一个 try 吞掉（B13）。
+3. `Program.Linux.cs` 入口注册 `AppDomain.CurrentDomain.UnhandledException`，把异常与时间追加到 `AppConfig.LogFile`（取不到就只写 stderr）（B44）。
+
+**代价边界**：托盘可用性在启动时判定一次；之后托盘消失不会再自动显示窗口（沿用既有策略）。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 通过。
+
+**确认方式**：用户 m01511。
