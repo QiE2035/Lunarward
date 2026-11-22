@@ -88,12 +88,53 @@ public partial class GameInstallService
         }
         try
         {
-            await Task.Run(() => Directory.Delete(path, recursive: true));
+            // D95 / B38：先结束占用安装目录的进程（wine 跑着的游戏 cwd 就在里面），再删目录，
+            // 并保留嵌在安装目录里的用户数据与截图目录（上游 RPC 卸载器同样带这两个参数）。
+            await KillProcessesUsingAsync(path);
+            List<string> keep = [];
+            foreach (string? dir in new[] { AppConfig.UserDataFolder, AppConfig.ScreenshotFolder })
+            {
+                if (!string.IsNullOrWhiteSpace(dir))
+                {
+                    string full = Path.GetFullPath(dir);
+                    if (full.StartsWith(path + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                    {
+                        keep.Add(full);
+                    }
+                }
+            }
+            // 把保留目录的所有上级目录也加进保留集合，否则父目录会因「非空」删不掉
+            var keepAll = new HashSet<string>(keep, StringComparer.Ordinal);
+            foreach (string k in keep)
+            {
+                string? parent = Path.GetDirectoryName(k);
+                while (!string.IsNullOrEmpty(parent) && parent.StartsWith(path + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                {
+                    keepAll.Add(parent);
+                    parent = Path.GetDirectoryName(parent);
+                }
+            }
+            await Task.Run(() =>
+            {
+                DeleteRecursiveExcept(path, keepAll.ToList());
+                try
+                {
+                    if (!Directory.EnumerateFileSystemEntries(path).Any())
+                    {
+                        Directory.Delete(path, recursive: false);
+                    }
+                }
+                catch (IOException)
+                {
+                    // 目录里还有保留内容（用户数据/截图），保留它
+                }
+            });
             AppConfig.SetGameInstallPath(gameId.GameBiz, null);
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Serilog.Log.Warning(ex, "Uninstall failed: {path}", path);
             return false;
         }
     }
@@ -133,6 +174,63 @@ public partial class GameInstallService
         _paused[context.GameId] = false;
         context.State = GameInstallState.Stop;
         return Task.CompletedTask;
+    }
+
+
+    private static async Task KillProcessesUsingAsync(string path)
+    {
+        try
+        {
+            string users = await Helpers.ProcessQuery.FindUsersAsync(path);
+            foreach (string line in users.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 2 && parts[0] == "PID" && int.TryParse(parts[1], out int pid))
+                {
+                    try
+                    {
+                        using var process = System.Diagnostics.Process.GetProcessById(pid);
+                        process.Kill(entireProcessTree: true);
+                        Serilog.Log.Information("Uninstall: killed process {pid} ({name})", pid, process.ProcessName);
+                    }
+                    catch (Exception ex)
+                    {
+                        Serilog.Log.Debug(ex, "Uninstall: kill {pid} failed", pid);
+                    }
+                }
+            }
+            await Task.Delay(300);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "Uninstall: process scan failed");
+        }
+    }
+
+
+    /// <summary>递归删除目录，但跳过 <paramref name="keep"/> 及其子树。</summary>
+    private static void DeleteRecursiveExcept(string path, IReadOnlyList<string> keep)
+    {
+        foreach (string entry in Directory.EnumerateFileSystemEntries(path))
+        {
+            if (keep.Any(k => entry == k || entry.StartsWith(k + Path.DirectorySeparatorChar, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+            if (Directory.Exists(entry) && !new DirectoryInfo(entry).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            {
+                DeleteRecursiveExcept(entry, keep);
+                Directory.Delete(entry, recursive: false);
+            }
+            else if (Directory.Exists(entry))
+            {
+                Directory.Delete(entry, recursive: true);
+            }
+            else
+            {
+                File.Delete(entry);
+            }
+        }
     }
 
 
@@ -464,6 +562,12 @@ public partial class GameInstallService
 
             if (result.Failed > 0)
             {
+                // D95：停止/取消时管线的「失败文件」多半是取消造成的，不能记成错误再弹失败通知（B37）
+                if (cancellationToken.IsCancellationRequested || Paused())
+                {
+                    context.State = cancellationToken.IsCancellationRequested ? GameInstallState.Stop : GameInstallState.Paused;
+                    return;
+                }
                 context.State = GameInstallState.Error;
                 context.ErrorMessage = string.Join(Environment.NewLine, result.Errors);
                 return;
@@ -515,6 +619,12 @@ public partial class GameInstallService
         catch (OperationCanceledException)
         {
             context.State = GameInstallState.Stop;
+        }
+        catch (Exception ex) when (cancellationToken.IsCancellationRequested)
+        {
+            // D95 / B37：取消过程中抛出的非 OperationCanceledException（IO、聚合异常等）算正常停止
+            context.State = GameInstallState.Stop;
+            Serilog.Log.Information("Game install stopped: {game}", context.GameId.GameBiz);
         }
         catch (Exception ex)
         {

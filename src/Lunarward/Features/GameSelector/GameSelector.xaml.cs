@@ -1004,6 +1004,12 @@ public sealed partial class GameSelector : UserControl
                 // Lunarward：Linux 没有注册表，改为按可执行文件名扫目录（GameInstallScanner，D25）
                 if (!OperatingSystem.IsWindows())
                 {
+                    // D95：扫描本身由 GameInstallScanner 做；这里只清理「记录了但目录已不存在」的失效路径，
+                    // 旧实现直接 continue，失效路径会一直留在已安装列表里（B36）。
+                    if (!string.IsNullOrWhiteSpace(path) && !Directory.Exists(path) && !AppConfig.GetGameInstallPathRemovable(gameBiz))
+                    {
+                        GameLauncherService.ChangeGameInstallPath(gameBiz, null);
+                    }
                     continue;
                 }
                 string key = "";

@@ -249,51 +249,124 @@ internal static class GameInstallScanner
 
 
     /// <summary>
-    /// 在 root 下按「直接子目录、子目录的下一级」顺序找包含 exeName 的目录。
+    /// 目录名对应的游戏别名（D95：真实世界目录名是「Genshin Impact」「Star Rail」这类，
+    /// 既不含 biz，也不含 cn/global，旧实现的 game+server 双条件永远匹配不上）。
     /// </summary>
+    private static string[] GameAliases(GameBiz biz) => biz.Game.ToLowerInvariant() switch
+    {
+        "hk4e" => ["hk4e", "genshin", "yuanshen", "genshinimpact", "原神"],
+        "hkrpg" => ["hkrpg", "starrail", "star rail", "honkaistarrail", "星穹铁道", "崩坏：星穹铁道", "崩坏星穹铁道"],
+        "nap" => ["nap", "zenless", "zenlesszonezero", "绝区零"],
+        "bh3" => ["bh3", "honkaiimpact", "honkai impact", "崩坏3", "崩坏三"],
+        _ => [biz.Game.ToLowerInvariant()],
+    };
+
+
+    private static string[] ServerMarkers(string server) => server.ToLowerInvariant() switch
+    {
+        "cn" => ["cn", "chinese", "国服", "官服", "bilibili", "b服", "miyoushe", "米游社"],
+        "global" => ["global", "国际服", "海外", "hoyoverse", "os"],
+        _ => [server.ToLowerInvariant()],
+    };
+
+
+    private static string Normalize(string name)
+        => new(name.ToLowerInvariant().Where(c => !char.IsWhiteSpace(c) && c is not '_' and not '-' and not '.').ToArray());
+
+
+    private static bool HasGlobalMarker(string dir)
+        => Directory.Exists(Path.Combine(dir, "GenshinImpact_Data")) || File.Exists(Path.Combine(dir, "GenshinImpact.exe"));
+
+
     /// <summary>
-    /// 目录名是否对得上这个 gameBiz（`hk4e_cn` 这种精确命中，或目录名里含 game+server）。
+    /// 目录名是否对得上这个 gameBiz：别名命中 + 区服标记（没标记时按国服/国际服数据目录判定）。
     /// </summary>
     private static bool NameMatches(string dir, GameBiz biz)
     {
-        string name = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar)).ToLowerInvariant();
-        string key = biz.Value.ToLowerInvariant();
-        if (name == key)
+        try
         {
-            return true;
+            string raw = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar));
+            if (string.IsNullOrEmpty(raw))
+            {
+                return false;
+            }
+            string name = Normalize(raw);
+            string key = Normalize(biz.Value);
+            if (name == key)
+            {
+                return true;
+            }
+            if (!GameAliases(biz).Select(Normalize).Any(alias => alias.Length > 0 && name.Contains(alias)))
+            {
+                return false;
+            }
+            string server = biz.Server.ToLowerInvariant();
+            string other = server == "global" ? "cn" : "global";
+            if (ServerMarkers(other).Select(Normalize).Any(marker => marker.Length > 0 && name.Contains(marker)))
+            {
+                return false;
+            }
+            if (ServerMarkers(server).Select(Normalize).Any(marker => marker.Length > 0 && name.Contains(marker)))
+            {
+                return true;
+            }
+            // 目录名不带区服标记：国际服用数据目录/exe 名区分（hk4e 的 GenshinImpact_Data），其余按国服处理
+            return server == "cn" || HasGlobalMarker(dir);
         }
-        string game = biz.Game.ToLowerInvariant();
-        string server = biz.Server.ToLowerInvariant();
-        return name.Contains(game) && name.Contains(server);
+        catch
+        {
+            return false;
+        }
     }
 
 
+    /// <summary>
+    /// 在 root 下按广度优先找包含 exeName 的目录（深度 ≤ 3，D95：旧实现只看两层，
+    /// `~/Games/miHoYo/Genshin Impact` 这种三层目录认不到）。符号链接目录不跟随，避免环路。
+    /// </summary>
     private static string? FindGameDirectory(string root, string exeName, GameBiz biz)
     {
         try
         {
-            if (File.Exists(Path.Combine(root, exeName)) && NameMatches(root, biz))
+            string fullRoot = Path.GetFullPath(root);
+            if (File.Exists(Path.Combine(fullRoot, exeName)) && NameMatches(fullRoot, biz))
             {
-                return root;
+                return fullRoot;
             }
-            foreach (string dir in Directory.EnumerateDirectories(root))
+            var queue = new Queue<(string Dir, int Depth)>();
+            queue.Enqueue((fullRoot, 0));
+            var visited = new HashSet<string>(StringComparer.Ordinal) { fullRoot };
+            while (queue.Count > 0)
             {
-                if (File.Exists(Path.Combine(dir, exeName)))
+                (string dir, int depth) = queue.Dequeue();
+                if (depth >= 3)
                 {
-                    // 同名的 exe 在多个服务器版本里相同（YuanShen.exe / StarRail.exe），
-                    // 只有目录名能对上 gameBiz 时才算命中，避免把国服错认成国际服。
-                    if (NameMatches(dir, biz))
-                    {
-                        return dir;
-                    }
                     continue;
                 }
-                foreach (string sub in Directory.EnumerateDirectories(dir))
+                IEnumerable<string> children;
+                try
                 {
-                    if (File.Exists(Path.Combine(sub, exeName)) && NameMatches(sub, biz))
+                    children = Directory.EnumerateDirectories(dir);
+                }
+                catch
+                {
+                    continue;
+                }
+                foreach (string child in children)
+                {
+                    if (!visited.Add(child))
                     {
-                        return sub;
+                        continue;
                     }
+                    if (new DirectoryInfo(child).Attributes.HasFlag(FileAttributes.ReparsePoint))
+                    {
+                        continue;
+                    }
+                    if (File.Exists(Path.Combine(child, exeName)) && NameMatches(child, biz))
+                    {
+                        return child;
+                    }
+                    queue.Enqueue((child, depth + 1));
                 }
             }
         }

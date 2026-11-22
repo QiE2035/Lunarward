@@ -1384,3 +1384,23 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **确认方式**：明确（m00257 报告症状；m00695 批准方案与「以上游为准」原则）。
 
 **遗留观察（未修，另案）**：GUI 自动化过程中，游戏选择层（`GameSelector` 全背景层）在切换游戏后会停留在画面上层不消失（截图叠在启动器/设置页之上，层级半透明、内容静止）。它与本决策的状态刷新无关（层下页面内容正确），未在本轮定位；另记：导航栏对「已选中项」点击直接 return（`MainView.NavigationView_ItemInvoked` 的 `if (args.InvokedItemContainer?.IsSelected ?? false) return;`），因此停在设置页时点「启动器」无反应，需先点其它项。
+
+## D95 审计项修复：批 1「安装 / 更新 / 预下载」按上游语义补齐
+
+**背景**：26 号审计落地后，用户授权按模块修复全部成立项（m01511「可以，全处理了吧」）。批 1 覆盖 B01 B02 B03 B04 B09 B36 B37 B38 B39 B65 B66 B67 共 12 条，全部按上游语义实现，不新增平台行为。
+
+**决定**：
+
+1. `InstallGameDialog` 恢复上游的完整流程：`Loaded` → 预填默认安装路径 + 拉 `GamePackage` 算体积；类实现 `[INotifyPropertyChanged]`；语音区按 `AudioPackageScanDir` 显示并按 UI 语言默认勾选；成功启动安装后**先写安装路径**（`GameLauncherService.ChangeGameInstallPath`）、广播 `GameInstallTaskStartedMessage`，再隐藏对话框（B01/B02/B03/B04/B66/B67）。
+2. 拉不到 `GameConfig` 时**不隐藏对话框**，改为显示 `Lunarward_Error_ManifestUnavailable` 并禁用开始（上游在 RPC 子进程里预热过配置，Linux 直连网络没有这条预热路径；隐藏等于「点了没反应」）。
+3. `DriveHelper` 按 `/proc/mounts` 找最长前缀挂载点算可用空间，不再一律落到根分区（B09）。
+4. 安装目录识别改「别名 + 区服标记 + 归一化」匹配并放宽到三层（B36）；启动扫描移到后台线程（B65）。
+5. 取消/停止不再被记成失败：`Failed>0` 与 `catch` 都先看 `IsCancellationRequested`（B37）。
+6. 卸载前结束占用安装目录的进程，删除时保留嵌套的用户数据与截图目录（B38）。
+7. 预下载只在「已记录且目录存在」时可用，避免往自造目录写数据（B39）。
+
+**代价边界**：`InstallGameDialog.Linux.cs` 由 110 行扩到约 420 行，与上游 XAML 的控件名强耦合（改名即编译失败，算好事）；`DeleteRecursiveExcept` 为「保留子目录」自实现，若用户把截图目录设在游戏目录深处，卸载后该子树保留。
+
+**验证**：`dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错误；`dotnet test Starward.slnx -c Debug` 264 通过；`lint-ui-thread.sh` 全绿；真机 vi X11 窗口截图确认安装对话框预填 `/home/qie2035/Games/hkrpg_cn`、解压空间 110.41 GB / 可用 505.87 GB、汉语默认勾选、「开始安装」可点。
+
+**确认方式**：用户 m01511 授权全量修复；后续批次同此决策继续，逐批追加编号。

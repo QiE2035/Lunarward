@@ -6,6 +6,7 @@
 
 using Microsoft.UI.Xaml.Controls;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.GameInstall.Sophon;
@@ -29,7 +30,10 @@ public sealed partial class PreDownloadDialog : ContentDialog, System.ComponentM
 
     private readonly GameInstallService _installService = AppConfig.GetService<GameInstallService>();
 
-    private readonly AudioLanguage _audioLanguage = AudioLanguage.Chinese;
+    private readonly GamePackageService _gamePackageService = AppConfig.GetService<GamePackageService>();
+
+    /// <summary>实际要预下载的语音包（D95：以前硬编码中文，与已安装语言不一致）。</summary>
+    private AudioLanguage _audioLanguage = AudioLanguage.Chinese;
 
 
     public GameId CurrentGameId { get; set; } = null!;
@@ -92,15 +96,26 @@ public sealed partial class PreDownloadDialog : ContentDialog, System.ComponentM
     }
 
 
-    private string ResolveInstallPath()
+    /// <summary>预下载只对已安装的游戏有意义；拿不到真实安装路径时返回 null（D95 / B39）。</summary>
+    private string? ResolveInstallPath()
     {
-        if (!string.IsNullOrWhiteSpace(InstallationPath))
+        if (!string.IsNullOrWhiteSpace(InstallationPath) && Directory.Exists(InstallationPath))
         {
             return InstallationPath;
         }
-        InstallationPath = AppConfig.GetGameInstallPath(CurrentGameId.GameBiz)
-                           ?? Path.Combine(AppConfig.UserDataFolder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "lunarward"), "Games", CurrentGameId.GameBiz.Value);
-        return InstallationPath;
+        string? path = AppConfig.GetGameInstallPath(CurrentGameId.GameBiz);
+        InstallationPath = path ?? "";
+        return string.IsNullOrWhiteSpace(path) || !Directory.Exists(path) ? null : path;
+    }
+
+
+    private void SetUnavailable()
+    {
+        if (TextBlock_PredownloadUnavailable is not null)
+        {
+            TextBlock_PredownloadUnavailable.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
+        }
+        Button_StartPredownload.IsEnabled = false;
     }
 
 
@@ -108,7 +123,14 @@ public sealed partial class PreDownloadDialog : ContentDialog, System.ComponentM
     {
         try
         {
-            ResolveInstallPath();
+            string? installPath = ResolveInstallPath();
+            if (installPath is null)
+            {
+                Serilog.Log.Information("PreDownload: game not installed ({game})", CurrentGameId.GameBiz);
+                SetUnavailable();
+                return;
+            }
+            _audioLanguage = await _gamePackageService.GetAudioLanguageAsync(CurrentGameId, installPath);
             var fields = new List<string> { "game" };
             fields.AddRange(SophonClient.DetectInstalledAudioFields(InstallationPath));
             var sophon = new SophonClient(AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>());
@@ -118,14 +140,7 @@ public sealed partial class PreDownloadDialog : ContentDialog, System.ComponentM
                 // 预下载不是每个版本都有（版本已转正式更新时就没有）。这里必须如实告诉用户，
                 // 否则界面只剩一行空白的「下载大小：」，看着像坏了（M3 小问题清单）。
                 Serilog.Log.Information("PreDownload: no predownload package for {game}", CurrentGameId.GameBiz);
-                if (TextBlock_PredownloadUnavailable is not null)
-                {
-                    TextBlock_PredownloadUnavailable.Visibility = Microsoft.UI.Xaml.Visibility.Visible;
-                }
-                if (Button_StartPredownload is not null)
-                {
-                    Button_StartPredownload.IsEnabled = false;
-                }
+                SetUnavailable();
                 return;
             }
             Serilog.Log.Information("PreDownload: chunk build total={total}", info.TotalCompressedBytes);
@@ -147,16 +162,9 @@ public sealed partial class PreDownloadDialog : ContentDialog, System.ComponentM
                 PackageSizeText = FormatSize(info.TotalCompressedBytes);
                 UnzipSpaceText = FormatSize(info.TotalUncompressedBytes);
             }
-            string volume = InstallationPath;
-            while (!string.IsNullOrEmpty(volume) && !Directory.Exists(volume))
-            {
-                volume = Path.GetDirectoryName(volume) ?? "";
-            }
-            if (!string.IsNullOrEmpty(volume))
-            {
-                long free = new DriveInfo(volume).AvailableFreeSpace;
-                AvailableSpaceText = FormatSize(free);
-            }
+            long free = DriveHelper.GetDriveAvailableSpace(installPath);
+            AvailableSpaceText = FormatSize(free);
+            Button_StartPredownload.IsEnabled = patchBytes is > 0 || info.TotalCompressedBytes > 0;
         }
         catch (Exception ex)
         {
@@ -185,16 +193,24 @@ public sealed partial class PreDownloadDialog : ContentDialog, System.ComponentM
     {
         try
         {
-            string path = ResolveInstallPath();
-            Directory.CreateDirectory(path);
-            GameInstallContext? task = await _installService.StartPredownloadAsync(CurrentGameId, path, _audioLanguage);
-            if (task is null)
+            string? path = ResolveInstallPath();
+            if (path is null)
             {
-                InAppToast.MainWindow?.Warning(null, $"{Starward.Language.Lang.Lunarward_Error_InstallDirInvalid}", 4000);
+                SetUnavailable();
                 return;
             }
-            InAppToast.MainWindow?.Success(null, "预下载已开始，进度显示在启动器页面上", 4000);
-            Hide();
+            GameInstallContext? task = await _installService.StartPredownloadAsync(CurrentGameId, path, _audioLanguage);
+            if (task is not null && task.State is not GameInstallState.Stop and not GameInstallState.Error)
+            {
+                // D95：与上游一致 —— 广播任务，启动器页立刻显示进度（B67）
+                WeakReferenceMessenger.Default.Send(new GameInstallTaskStartedMessage(task));
+                InAppToast.MainWindow?.Success(null, "预下载已开始，进度显示在启动器页面上", 4000);
+                Hide();
+            }
+            else
+            {
+                InAppToast.MainWindow?.Warning(null, $"{Starward.Language.Lang.Lunarward_Error_InstallDirInvalid}", 4000);
+            }
         }
         catch (Exception ex)
         {

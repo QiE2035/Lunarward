@@ -94,12 +94,43 @@ public static class DriveHelper
     {
         try
         {
-            var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path)) ?? "/");
-            return drive.AvailableFreeSpace;
+            // D95：按「路径实际落在哪个挂载点」取空间。以前用 Path.GetPathRoot 一律落到 /，
+            // 跨分区安装时可用空间永远显示根文件系统的数字（B09）。
+            string mount = GetMountPoint(path);
+            return new DriveInfo(mount).AvailableFreeSpace;
         }
         catch
         {
             return 0;
         }
+    }
+
+
+    /// <summary>路径所在的最长挂载点；找不到时退回根目录。</summary>
+    public static string GetMountPoint(string path)
+    {
+        var mount = "/";
+        var full = Path.GetFullPath(path);
+        try
+        {
+            foreach (var line in File.ReadLines("/proc/mounts"))
+            {
+                var parts = line.Split(' ');
+                if (parts.Length < 2)
+                {
+                    continue;
+                }
+                var m = parts[1].Replace("\\040", " ");
+                if (m.Length > mount.Length && full.StartsWith(m, StringComparison.Ordinal))
+                {
+                    mount = m;
+                }
+            }
+        }
+        catch
+        {
+            // /proc 不可读时用根目录
+        }
+        return mount;
     }
 }
