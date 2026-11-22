@@ -208,6 +208,7 @@
   - 现象：进入背景图库时，每个视频格子先触发一次整段视频读盘+解码失败（几百 MB 的视频就是几百 MB 内存峰值与长时间黑块），缩略图生成失败或 ffmpeg 不可用时永远黑块；磁盘/网络盘上尤其明显。
   - 上游：`Controls/CachedImage.cs:49-65（IsThumbnail → ImageThumbnail）` — 上游 file 分支里 `if (IsThumbnail)` 会分流到 ImageThumbnail.GetVideoThumbnailAsync/GetImageThumbnailAsync（WIC 小图 + 磁盘缓存）。移植版 IsThumbnail/PngThumbnail 只声明不读取，ReadFileAsync 无条件 `await File.ReadAllBytesAsync(path)` 把整文件塞进内存，只有 DecodePixelWidth>0 时才在**整文件已读入之后**用 Skia 降采样。BackgroundViewPage.xaml:168-170 仍传 IsThumbnail=True/PngThumbnail=True 且 Source 绑 DisplayPath，而 BackgroundFileItem.cs:35 `DisplayPath => ThumbnailPath ?? FilePath`：VideoThumbnailer 出图之前（以及生成失败时）它就是 .mp4/.mkv 原路径。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Controls/CachedImage.Linux.cs:208 `byte[] data = await File.ReadAllBytesAsync(path, token);` 无条件整文件读入；同文件:64-80 只注册 IsThumbnail/PngThumbnail 两个 DependencyProperty，全文件无读取点；BackgroundViewPage.xaml:168-170 仍传 IsThumbnail=True/PngThumbnail=True 且 Source={x:Bind DisplayPath, Mode=OneWay}，BackgroundFileItem.cs:35 `DisplayPath => ThumbnailPath ?? FilePath`。上游 src/Starward/Controls/CachedImage.cs:49-64 `i…
+- 🛠 修复（2026-11-22，跟进）：`VideoThumbnailer` 改用 `--vout=vmem` + 视频回调抽帧，图库打开时不再闪 VLC 窗口（L-166）。
 - 🛠 修复（2026-11-22）：`ReadFileAsync` 先判 `IsThumbnail`：视频用 `VideoThumbnailer.EnsureAsync` 缩略图，图片用新增 `DecodeScaledPng`（`SKCodec.GetScaledDimensions` 缩放解码）后转小 PNG，不再 `ReadAllBytesAsync` 整文件。
 
 - **B22**（high）`Features/Background/AppBackground.Linux.cs:394` — 换自定义壁纸/开关自定义背景后背景不刷新（早退守卫 + 5 分钟建议背景缓存）

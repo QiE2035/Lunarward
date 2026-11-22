@@ -1369,3 +1369,23 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 **排查手法**（本次有效）：临时在页面 `OnNavigatedTo / OnLoaded / OnUnloaded / 消息处理` 打 `[lw-diag]` 日志，跑一次复现路径，靠「有 `OnNavigatedTo` 而**没有** `OnLoaded`」「消息到了但立刻 `skipped (same id)`」两类缺失直接定位；日志用完 `git checkout -- <file>`，`bin/` 里的诊断产物要重建。
 
 **顺带发现的导航坑**：`MainView.NavigationView_ItemInvoked` 开头 `if (args.InvokedItemContainer?.IsSelected ?? false) return;` —— 停在设置页（不是导航项）时，导航栏「启动器」仍是选中态，点它不会返回；要先点别的项再点回来。GUI 自动化做往返验证时必须注意，否则会误判为「点击无效」。
+
+---
+
+## L-166 LibVLC 不指定 `--vout` 会开真窗口：抽帧/缩略图必须走 vmem 回调
+
+**背景**：用户报「打开背景图库会闪过好多 vlc 窗口」。图库视频缩略图由 `Features/Background/VideoThumbnailer.cs` 用 LibVLC 抽首帧生成，早期实现是：
+
+```csharp
+using var libvlc = new LibVLC("--no-audio", "--quiet", "--no-video-title-show");
+using var player = new MediaPlayer(libvlc);
+player.Play(media);                       // 没有 --vout=vmem，也没 SetXWindow
+bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
+```
+
+1. **`--no-video-title-show` 只关标题字幕，不关窗口**。没调 `SetXWindow/SetHwnd` 时，libvlc 的 vout 自己创建顶层窗口来渲染，抽完帧销毁 —— 窗口生命周期只有 1~8 秒，所以表现为「闪一下」。
+2. **放大效应**：图库打开时对每个无缓存缩略图的视频都抽一次（`BackgroundViewPage.GenerateVideoThumbnailsAsync`），`CachedImage` 的 `IsThumbnail` 通道也会请求同一个文件；`SemaphoreSlim(2)` 只限并发数，不限总次数 → 几十个视频时「两个两个地弹」，像满屏 VLC 窗口。
+3. **正确做法**：与视频壁纸播放器一致，`new LibVLC(..., "--vout=vmem")` + `SetVideoFormat("RV32", w, h, rowBytes)` + `SetVideoCallbacks(Lock, Unlock, Display)`，等第一个 `Display` 回调拿到 BGRA 缓冲，再用 Skia `SKImage.FromPixelCopy(...).Encode(Png)` 落盘。全程没有窗口，也不依赖 `TakeSnapshot` 的内部渲染面。
+4. **顺手要做的两件事**：①同一路径的抽帧任务用 `ConcurrentDictionary<string, Task>` 去重（页面与 `CachedImage` 会同时请求）；②失败结果短期缓存（本次 10 分钟），否则坏文件每次打开图库都要重新解码一遍、再失败一遍。
+
+**验证手法**：清掉 `~/.cache/lunarward/bg-thumbs`，`Lunarward --window-action backgroundview`（Debug 专用直达入口）打开图库，同时轮询 `wmctrl -l | grep -i vlc`（或 `cu_windows`）——修复前抽帧期间会出现 `vlc` 窗口，修复后始终为 0，缩略图仍按 5 张全部生成。
