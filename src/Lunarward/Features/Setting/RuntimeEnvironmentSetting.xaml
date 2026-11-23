@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <sf:PageBase
     x:Class="Starward.Features.Setting.RuntimeEnvironmentSetting"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -183,6 +183,10 @@
 
                             <!--  右列：详情 / 编辑 / 增强 三态切换（同一块地方，左列一直可见）  -->
                             <Grid Grid.Column="1">
+                                <!--  D108：显式星号行，否则内部 ScrollViewer 被按内容高度量、整块被父级裁掉且不滚动。  -->
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
                                 <ScrollViewer
                                     x:Name="ScrollViewer_ProfileDetail"
                                     HorizontalScrollBarVisibility="Disabled"
@@ -414,16 +418,18 @@
                                 <Button
                                     x:Name="Button_DownloadComponent"
                                     Click="Button_DownloadComponent_Click"
-                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_DownloadComponents}"
+                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddComponents}"
                                     Style="{StaticResource AccentButtonStyle}" />
+                                <Button
+                                    x:Name="Button_ManageSources"
+                                    Click="Button_ManageSources_Click"
+                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ManageSources}" />
                                 <Button x:Name="Button_ComponentMore" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_More}">
                                     <Button.Flyout>
                                         <MenuFlyout>
                                             <MenuFlyoutItem Click="Button_ImportArchive_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportArchive}" />
                                             <MenuFlyoutItem Click="Button_ImportGraphics_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportGraphics}" />
                                             <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Click="Button_Sources_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Sources}" />
-                                            <MenuFlyoutItem Click="Button_SourceSpeed_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_MirrorSpeed}" />
                                             <MenuFlyoutItem Click="Button_Staging_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Staging}" />
                                             <MenuFlyoutSeparator />
                                             <MenuFlyoutItem Click="Button_CleanupComponents_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_CleanupUnused}" />

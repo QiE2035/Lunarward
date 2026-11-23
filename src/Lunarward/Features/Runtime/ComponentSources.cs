@@ -42,6 +42,9 @@ public sealed class ComponentSourceEntry
 
     /// <summary>界面上的推荐顺序，越小越前（wine-staging 默认第一）。</summary>
     public int Rank { get; set; } = 50;
+
+    /// <summary>D110：勾掉就不出现在「添加组件」的源列表里；源管理页仍显示。</summary>
+    public bool Enabled { get; set; } = true;
 }
 
 
@@ -182,6 +185,40 @@ public static class ComponentSources
     }
 
 
+    /// <summary>D110：只给下载弹窗用的列表（按 Rank 排好、去掉被禁用的源）。</summary>
+    public static IReadOnlyList<ComponentSourceEntry> LoadEnabled() => Load().Where(x => x.Enabled).ToList();
+
+
+    /// <summary>D110：删掉用户覆盖，回到内置默认。</summary>
+    public static void ResetUserEntries()
+    {
+        try
+        {
+            if (File.Exists(FilePath))
+            {
+                File.Delete(FilePath);
+            }
+        }
+        catch (IOException)
+        {
+            // 删不掉就保持原状，下次保存再试。
+        }
+    }
+
+
+    /// <summary>D110：镜像前缀要么空（直连），要么是 http(s) 且以 / 结尾的基地址。</summary>
+    public static bool IsValidMirrorPrefix(string? mirrorPrefix)
+    {
+        if (string.IsNullOrWhiteSpace(mirrorPrefix))
+        {
+            return true;
+        }
+        return Uri.TryCreate(mirrorPrefix, UriKind.Absolute, out Uri? uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+            && mirrorPrefix.EndsWith('/');
+    }
+
+
     public static void SaveUserEntries(IEnumerable<ComponentSourceEntry> entries)
     {
         JsonFile.WriteAtomic(FilePath, entries.ToList(), JsonOptions);
@@ -198,6 +235,7 @@ public static class ComponentSources
         AssetPattern = source.AssetPattern,
         MirrorPrefix = source.MirrorPrefix,
         Rank = source.Rank,
+        Enabled = source.Enabled,
     };
 
 

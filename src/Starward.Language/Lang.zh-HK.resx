@@ -3220,9 +3220,6 @@
   <data name="Lunarward_RuntimeEnv_InstallGraphics" xml:space="preserve">
     <value>安裝圖形層</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Reinstall" xml:space="preserve">
-    <value>重裝</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_RemoveGraphics" xml:space="preserve">
     <value>移除圖形層</value>
   </data>
@@ -3871,7 +3868,7 @@
     <value>正在讀取 {0} 的版本列表…</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ArchivesFound" xml:space="preserve">
-    <value>共 {0} 個歸檔，選擇一項後點「開始下載」。</value>
+    <value>共 {0} 個版本，勾選後點「安裝所選」。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ReadFailed" xml:space="preserve">
     <value>讀取失敗：{0}</value>
@@ -4023,5 +4020,122 @@
   </data>
   <data name="Lunarward_RuntimeEnv_SelectedVersions" xml:space="preserve">
     <value>已選 {0} 個版本</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoEnabledSource" xml:space="preserve">
+    <value>所有下載源都被停用了，先去「管理下載源」啓用一個。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ManageSources" xml:space="preserve">
+    <value>管理下載源</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Versions" xml:space="preserve">
+    <value>版本</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Pause" xml:space="preserve">
+    <value>暫停</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstallSelected" xml:space="preserve">
+    <value>安裝所選</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddComponents" xml:space="preserve">
+    <value>添加組件</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SummaryFormat" xml:space="preserve">
+    <value>已選 {0} 項 · {1} · 可用 {2}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SummaryNeedMore" xml:space="preserve">
+    <value>空間不足：還差 {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Retry" xml:space="preserve">
+    <value>重試</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Reinstall" xml:space="preserve">
+    <value>重新安裝</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceNoAssets" xml:space="preserve">
+    <value>這個源當前沒有匹配的版本（倉庫可能改名了）。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_QueuePrefix2" xml:space="preserve">
+    <value>{0}/{1} · </value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Downloading2" xml:space="preserve">
+    <value>下載 {0} / {1}（{2} 連接，{3} MB/s）</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Extracting2" xml:space="preserve">
+    <value>解壓 {0} 項 / {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_StageDone2" xml:space="preserve">
+    <value>完成：{0} {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_QueueAllOk2" xml:space="preserve">
+    <value>全部完成：{0}/{1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_QueuePartial2" xml:space="preserve">
+    <value>完成 {0}/{1}，失敗的行可以直接重試</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ResetSources" xml:space="preserve">
+    <value>恢復默認源</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ResetSourcesHint" xml:space="preserve">
+    <value>刪除本機的源覆蓋文件，回到內置的五個源（鏡像與啓用狀態都會重置）。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesResetDone" xml:space="preserve">
+    <value>已恢復默認源</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ProbeAll" xml:space="preserve">
+    <value>全部測速</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Probe" xml:space="preserve">
+    <value>測速</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SelfCheck" xml:space="preserve">
+    <value>自檢</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SelfCheckOk" xml:space="preserve">
+    <value>{0} 個版本</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SelfCheckEmpty" xml:space="preserve">
+    <value>沒有匹配的版本</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ProbeFailedShort" xml:space="preserve">
+    <value>失敗</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_MirrorInvalid" xml:space="preserve">
+    <value>鏡像地址要以 http(s):// 開頭並以 / 結尾</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AdvancedLaunch" xml:space="preserve">
+    <value>啓動行為</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AdvancedArgs" xml:space="preserve">
+    <value>遊戲參數</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Wrappers" xml:space="preserve">
+    <value>包裝器</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Add" xml:space="preserve">
+    <value>添加</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_WrappersHelp" xml:space="preserve">
+    <value>按順序套在啓動命令前；增強面板裏的包裝器會追加在後面。不在 PATH 裏的命令會標黃。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnvTitle" xml:space="preserve">
+    <value>環境變量</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddVariable" xml:space="preserve">
+    <value>添加變量</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnvHint2" xml:space="preserve">
+    <value>鍵必須是合法環境變量名（字母、數字、下劃線，不能以數字開頭）；值可以留空。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnvInvalid" xml:space="preserve">
+    <value>環境變量第 {0} 行名字不合法：{1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnvDuplicate" xml:space="preserve">
+    <value>環境變量 {0} 重複</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_WrapperMissing" xml:space="preserve">
+    <value>未找到：{0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PreviewNote" xml:space="preserve">
+    <value>與真實啓動同一套解析（命令 + 環境變量覆蓋），只讀預覽。</value>
   </data>
 </root>

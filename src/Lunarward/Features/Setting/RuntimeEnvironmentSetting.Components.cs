@@ -1,4 +1,4 @@
-// Lunarward：受管组件的「下载」与「导入归档」入口（D73 §2.3 / §13.8）。
+﻿// Lunarward：受管组件的「下载」与「导入归档」入口（D73 §2.3 / §13.8）。
 //
 // 单开一个 partial 文件的原因：这两个入口都是「弹窗 + 长任务 + 进度」，跟页面本身的
 // 卡片/编辑器逻辑没关系，混在 RuntimeEnvironmentSetting.xaml.cs 里会长到读不动。
@@ -41,14 +41,32 @@ public sealed partial class RuntimeEnvironmentSetting
     /// <summary>
     /// 「下载组件…」：选源 → 列版本 → 下载（进度/取消）→ 解压导入 → 刷新列表。
     /// </summary>
+    private bool _downloadDialogOpen;
+
+    /// <summary>下载弹窗里的一行（D110：勾选 + 行内进度 + 失败重试）。</summary>
+    private sealed class DownloadRow
+    {
+        public required ComponentReleaseAsset Asset { get; init; }
+        public required CheckBox Check { get; init; }
+        public required ProgressBar Progress { get; init; }
+        public required TextBlock RowStatus { get; init; }
+        public required Button Retry { get; init; }
+        public required StackPanel Holder { get; init; }
+    }
+
     private async void Button_DownloadComponent_Click(object sender, RoutedEventArgs e)
     {
+        if (_downloadDialogOpen)
+        {
+            return;
+        }
+        _downloadDialogOpen = true;
         try
         {
-            IReadOnlyList<ComponentSourceEntry> sources = LoadSourceEntries();
+            IReadOnlyList<ComponentSourceEntry> sources = LoadSourceEntries().Where(x => x.Enabled).ToList();
             if (sources.Count == 0)
             {
-                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_NoDownloadSource);
+                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_NoEnabledSource);
                 return;
             }
 
@@ -58,6 +76,20 @@ public sealed partial class RuntimeEnvironmentSetting
                 SelectedIndex = 0,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
             };
+            var manageSources = new HyperlinkButton
+            {
+                Content = Lang.Lunarward_RuntimeEnv_ManageSources,
+                Margin = new Thickness(12, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            // D110：源 + 管理入口竖排，避免窄弹窗里「管理下载源」被裁成「管理」。
+            manageSources.HorizontalAlignment = HorizontalAlignment.Left;
+            manageSources.Margin = new Thickness(0, 2, 0, 0);
+            manageSources.Padding = new Thickness(0);
+            var sourceRow = new StackPanel { Spacing = 2 };
+            sourceRow.Children.Add(sourceBox);
+            sourceRow.Children.Add(manageSources);
+
             var status = new TextBlock
             {
                 TextWrapping = TextWrapping.Wrap,
@@ -65,108 +97,197 @@ public sealed partial class RuntimeEnvironmentSetting
                 Opacity = 0.75,
                 Text = Lang.Lunarward_RuntimeEnv_DownloadHint,
             };
-            // 多选 = 队列（P3「下载队列」）：勾几个版本就依次下载并导入。
-            // 用 CheckBox 自绘而不是 ListBox：ContentDialog 里的 ListBox 在 Uno/Skia 上点击不改变选中，
-            // 鼠标也看不出选没选（用户报的「下载组件弹窗无法选择」）。
+            var listHeader = new TextBlock { Text = Lang.Lunarward_RuntimeEnv_Versions, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+            // D109 教训：ContentDialog 里的 ListBox 在 Uno/Skia 上点不中，改用 CheckBox 行自绘。
             var assetPanel = new StackPanel { Spacing = 2 };
             var assetScroll = new ScrollViewer
             {
                 Content = assetPanel,
-                Height = 190,
+                Height = 280,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             };
-            var selectionText = new TextBlock { FontSize = 12, Opacity = 0.75 };
-            var loadButton = new Button { Content = Lang.Lunarward_RuntimeEnv_LoadVersions };
-            var startButton = new Button { Content = Lang.Lunarward_RuntimeEnv_StartDownload, IsEnabled = false };
-            var cancelButton = new Button { Content = Lang.Lunarward_RuntimeEnv_Cancel, IsEnabled = false };
-            List<CheckBox> assetChecks = new();
+            var selectionText = new TextBlock { FontSize = 12, Opacity = 0.75, TextWrapping = TextWrapping.Wrap };
+            var pauseButton = new Button { Content = Lang.Lunarward_RuntimeEnv_Pause };
+            var installButton = new Button { Content = Lang.Lunarward_RuntimeEnv_InstallSelected };
+            var closeButton = new Button { Content = Lang.Lunarward_RuntimeEnv_Close };
+            var buttonsRow = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            buttonsRow.Children.Add(pauseButton);
+            buttonsRow.Children.Add(installButton);
+            buttonsRow.Children.Add(closeButton);
 
-            var panel = new StackPanel { Spacing = 8, MinWidth = 520 };
+            var panel = new StackPanel { Spacing = 8, MinWidth = 460 };
             panel.Children.Add(new TextBlock { Text = Lang.Lunarward_RuntimeEnv_Source, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
-            panel.Children.Add(sourceBox);
-            panel.Children.Add(loadButton);
+            panel.Children.Add(sourceRow);
+            panel.Children.Add(listHeader);
             panel.Children.Add(assetScroll);
             panel.Children.Add(selectionText);
-            panel.Children.Add(startButton);
-            panel.Children.Add(cancelButton);
             panel.Children.Add(status);
+            panel.Children.Add(buttonsRow);
 
             var dialog = new ContentDialog
             {
-                Title = Lang.Lunarward_RuntimeEnv_DownloadComponent,
-                Content = new ScrollViewer { Content = panel, MaxHeight = 520 },
-                CloseButtonText = Lang.Lunarward_RuntimeEnv_Close2,
-                DefaultButton = ContentDialogButton.Close,
+                Title = Lang.Lunarward_RuntimeEnv_AddComponents,
+                Content = new ScrollViewer { Content = panel, MaxHeight = 560 },
+                DefaultButton = ContentDialogButton.None,
                 XamlRoot = XamlRoot,
             };
 
-            IReadOnlyList<ComponentReleaseAsset>? assets = null;
+            IReadOnlyList<ComponentReleaseAsset> assets = [];
+            List<DownloadRow> rows = [];
+            HashSet<string> installed = LoadInstalledVersions();
             CancellationTokenSource? cts = null;
+            bool busy = false;
 
-            void UpdateSelection()
+            void UpdateSummary()
             {
-                int count = assetChecks.Count(x => x.IsChecked == true);
-                selectionText.Text = count == 0 ? "" : string.Format(Lang.Lunarward_RuntimeEnv_SelectedVersions, count);
-                startButton.IsEnabled = count > 0;
+                int count = rows.Count(x => x.Check.IsChecked == true);
+                long total = rows.Where(x => x.Check.IsChecked == true).Sum(x => x.Asset.Size);
+                long free = 0;
+                try
+                {
+                    free = Helpers.DriveHelper.GetDriveAvailableSpace(ComponentStore.ComponentsFolder);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "read free space failed");
+                }
+                if (count == 0)
+                {
+                    selectionText.Text = "";
+                    installButton.IsEnabled = false;
+                    return;
+                }
+                long need = total * 2 + 64L * 1024 * 1024;
+                string text = string.Format(
+                    Lang.Lunarward_RuntimeEnv_SummaryFormat,
+                    count,
+                    Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(total),
+                    Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(free));
+                if (free > 0 && free < need)
+                {
+                    text += "  ·  " + string.Format(Lang.Lunarward_RuntimeEnv_SummaryNeedMore, Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(need - free));
+                    installButton.IsEnabled = false;
+                }
+                else
+                {
+                    installButton.IsEnabled = !busy;
+                }
+                selectionText.Text = text;
             }
 
             void ClearAssets()
             {
-                assets = null;
-                assetChecks.Clear();
+                assets = [];
+                rows.Clear();
                 assetPanel.Children.Clear();
                 selectionText.Text = "";
-                startButton.IsEnabled = false;
+                installButton.IsEnabled = false;
             }
 
-            // 切下载源必须清空上一份版本列表：否则列表还显示上一个源的归档，
-            // 而「开始下载」按新源的类型/镜像去装（玩家会看到「DXVK 的列表里下 wine」这种事）。
-            sourceBox.SelectionChanged += (_, _) =>
+            StackPanel CreateAssetRow(int index, ComponentReleaseAsset asset)
             {
-                if (sourceBox.SelectedIndex >= 0)
+                bool isInstalled = IsInstalled(asset, installed);
+                var title = new TextBlock
                 {
-                    ClearAssets();
-                    status.Text = Lang.Lunarward_RuntimeEnv_DownloadHint;
+                    Text = string.IsNullOrWhiteSpace(asset.Version) ? asset.Name : $"{asset.Name}    {asset.Version}",
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    MaxWidth = 470,
+                };
+                var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+                titleRow.Children.Add(title);
+                if (isInstalled)
+                {
+                    var badge = new Border
+                    {
+                        Background = (Brush)Application.Current.Resources["SystemFillColorSuccessBackgroundBrush"],
+                        CornerRadius = new CornerRadius(4),
+                        Padding = new Thickness(6, 1, 6, 1),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Child = new TextBlock
+                        {
+                            Text = Lang.Lunarward_RuntimeEnv_Installed,
+                            FontSize = 11,
+                            Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"],
+                        },
+                    };
+                    titleRow.Children.Add(badge);
                 }
-            };
+                var meta = new TextBlock
+                {
+                    Text = $"{asset.ReleaseTag}  ·  {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(asset.Size)}",
+                    FontSize = 12,
+                    Opacity = 0.7,
+                };
+                var content = new StackPanel { Spacing = 2 };
+                content.Children.Add(titleRow);
+                content.Children.Add(meta);
 
-            loadButton.Click += async (_, _) =>
+                var check = new CheckBox { Tag = index, Content = content, MinWidth = 500, HorizontalAlignment = HorizontalAlignment.Stretch };
+                var progress = new ProgressBar { Visibility = Visibility.Collapsed, Minimum = 0, Maximum = 100, Value = 0, Height = 3 };
+                var rowStatus = new TextBlock { FontSize = 12, Opacity = 0.75, TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+                var retry = new Button { Content = Lang.Lunarward_RuntimeEnv_Retry, Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Left };
+                var holder = new StackPanel { Spacing = 4 };
+                holder.Children.Add(check);
+                holder.Children.Add(progress);
+                holder.Children.Add(rowStatus);
+                holder.Children.Add(retry);
+
+                var row = new DownloadRow
+                {
+                    Asset = asset,
+                    Check = check,
+                    Progress = progress,
+                    RowStatus = rowStatus,
+                    Retry = retry,
+                    Holder = holder,
+                };
+                check.Checked += (_, _) => UpdateSummary();
+                check.Unchecked += (_, _) => UpdateSummary();
+                retry.Click += async (_, _) => await RunQueueAsync([index]);
+                if (isInstalled)
+                {
+                    retry.Content = Lang.Lunarward_RuntimeEnv_Reinstall;
+                }
+                return holder;
+            }
+
+            async Task LoadAssetsAsync()
             {
+                if (busy || sources.Count == 0)
+                {
+                    return;
+                }
                 int index = Math.Max(0, sourceBox.SelectedIndex);
                 ComponentSourceEntry source = sources[index];
-                loadButton.IsEnabled = false;
-                startButton.IsEnabled = false;
+                ClearAssets();
+                sourceBox.IsEnabled = false;
+                installButton.IsEnabled = false;
                 status.Text = string.Format(Lang.Lunarward_RuntimeEnv_ReadingVersions, source.DisplayName);
                 try
                 {
                     using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
                     assets = await ComponentSources.ListAssetsAsync(http, source, 10, _logger);
-                    assetPanel.Children.Clear();
-                    assetChecks.Clear();
                     for (int i = 0; i < assets.Count; i++)
                     {
-                        ComponentReleaseAsset asset = assets[i];
-                        string label = $"{asset.Name}    {asset.Size / 1048576} MB{(string.IsNullOrWhiteSpace(asset.Version) ? "" : "    " + asset.Version)}";
-                        var check = new CheckBox
-                        {
-                            Content = label,
-                            Tag = i,
-                            MinWidth = 480,
-                        };
-                        check.Checked += (_, _) => UpdateSelection();
-                        check.Unchecked += (_, _) => UpdateSelection();
-                        assetChecks.Add(check);
-                        assetPanel.Children.Add(check);
+                        assetPanel.Children.Add(CreateAssetRow(i, assets[i]));
                     }
+                    installed = LoadInstalledVersions();
                     if (assets.Count == 0)
                     {
-                        status.Text = Lang.Lunarward_RuntimeEnv_NoAssetsForSource;
+                        status.Text = Lang.Lunarward_RuntimeEnv_SourceNoAssets;
+                        installButton.IsEnabled = false;
                     }
                     else
                     {
                         status.Text = string.Format(Lang.Lunarward_RuntimeEnv_ArchivesFound, assets.Count);
                     }
-                    UpdateSelection();
+                    UpdateSummary();
                 }
                 catch (Exception ex)
                 {
@@ -175,89 +296,80 @@ public sealed partial class RuntimeEnvironmentSetting
                 }
                 finally
                 {
-                    loadButton.IsEnabled = true;
+                    sourceBox.IsEnabled = true;
                 }
-            };
+            }
 
-            startButton.Click += async (_, _) =>
+            async Task RunQueueAsync(IReadOnlyList<int> requested)
             {
-                if (assets is null)
+                if (busy || assets.Count == 0)
                 {
                     return;
                 }
-                // 队列：多选即排队，逐个「下载 → 导入」；一个失败不影响后面的（P3「下载队列」）
-                List<int> queue = assetChecks
-                    .Where(x => x.IsChecked == true && x.Tag is int index)
-                    .Select(x => (int)x.Tag)
-                    .Distinct()
-                    .ToList();
+                List<int> queue = requested.Where(x => x >= 0 && x < assets.Count).Distinct().ToList();
                 if (queue.Count == 0)
                 {
-                    status.Text = Lang.Lunarward_RuntimeEnv_SelectVersionFirst;
-                    return;
-                }
-                queue.RemoveAll(x => x >= assets.Count);
-                if (queue.Count == 0)
-                {
-                    status.Text = Lang.Lunarward_RuntimeEnv_SelectionExpired;
                     return;
                 }
                 ComponentSourceEntry source = sources[sourceBox.SelectedIndex < 0 ? 0 : sourceBox.SelectedIndex];
                 string kind = ImportKindOf(source);
 
-                startButton.IsEnabled = false;
-                loadButton.IsEnabled = false;
-                cancelButton.IsEnabled = true;
+                busy = true;
                 cts = new CancellationTokenSource();
                 CancellationToken token = cts.Token;
+                pauseButton.IsEnabled = true;
+                installButton.IsEnabled = false;
+                sourceBox.IsEnabled = false;
                 string downloadDir = Path.Combine(ComponentStore.ComponentsFolder, ".download");
                 int okCount = 0;
+                int done = 0;
                 List<string> failed = new();
                 try
                 {
                     using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-                    for (int i = 0; i < queue.Count; i++)
+                    foreach (int index in queue)
                     {
-                        ComponentReleaseAsset asset = assets[queue[i]];
-                        string prefix = queue.Count > 1 ? string.Format(Lang.Lunarward_RuntimeEnv_QueuePrefix, i + 1, queue.Count) : "";
-
-                        // 空间预检：归档本身 + 解压后（保守按 2 倍估）
-                        long need = asset.Size * 2 + 64L * 1024 * 1024;
-                        try
+                        if (token.IsCancellationRequested)
                         {
-                            long free = Helpers.DriveHelper.GetDriveAvailableSpace(ComponentStore.ComponentsFolder);
-                            if (free < need)
-                            {
-                                failed.Add(string.Format(Lang.Lunarward_RuntimeEnv_NotEnoughSpace, asset.Name, need / 1048576, free / 1048576));
-                                continue;
-                            }
+                            break;
                         }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "check free space failed, continue anyway");
-                        }
-
+                        DownloadRow row = rows.First(x => ReferenceEquals(x.Asset, assets[index]));
+                        row.Progress.Visibility = Visibility.Visible;
+                        row.Progress.Value = 0;
+                        row.RowStatus.Visibility = Visibility.Visible;
+                        row.RowStatus.Text = queue.Count > 1 ? string.Format(Lang.Lunarward_RuntimeEnv_QueuePrefix2, ++done, queue.Count) : "";
+                        row.Check.IsEnabled = false;
                         Directory.CreateDirectory(downloadDir);
                         try
                         {
                             var downloadProgress = new Progress<ComponentDownloadProgress>(p =>
                             {
-                                string total = p.Total is > 0 ? $"{(p.Total.Value / 1048576)} MB" : Lang.Lunarward_RuntimeEnv_Unknown2;
-                                status.Text = string.Format(Lang.Lunarward_RuntimeEnv_Downloading, prefix, p.Received / 1048576, total, p.ActiveConnections, (p.BytesPerSecond / 1024.0 / 1024.0).ToString("F1"));
+                                string total = p.Total is > 0 ? Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(p.Total.Value) : Lang.Lunarward_RuntimeEnv_Unknown2;
+                                row.RowStatus.Text = string.Format(
+                                    Lang.Lunarward_RuntimeEnv_Downloading2,
+                                    Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(p.Received),
+                                    total,
+                                    p.ActiveConnections,
+                                    (p.BytesPerSecond / 1024.0 / 1024.0).ToString("F1"));
+                                if (p.Total is > 0)
+                                {
+                                    row.Progress.Value = Math.Clamp(p.Received * 100.0 / p.Total.Value, 0, 100);
+                                }
                             });
                             ComponentDownloadResult result = await ComponentDownloader.DownloadAsync(
-                                http, new Uri(asset.Url), downloadDir, asset.Name, asset.Sha256,
+                                http, new Uri(row.Asset.Url), downloadDir, row.Asset.Name, row.Asset.Sha256,
                                 mirrorPrefix: source.MirrorPrefix, connections: 4,
                                 logger: _logger, progress: downloadProgress, ct: token);
 
-                            status.Text = prefix + (result.Resumed ? Lang.Lunarward_RuntimeEnv_DownloadedResumed : Lang.Lunarward_RuntimeEnv_Downloaded);
+                            row.Progress.Value = 100;
+                            row.RowStatus.Text = result.Resumed ? Lang.Lunarward_RuntimeEnv_DownloadedResumed : Lang.Lunarward_RuntimeEnv_Downloaded;
                             var extractProgress = new Progress<ArchiveProgress>(p =>
                             {
-                                status.Text = string.Format(Lang.Lunarward_RuntimeEnv_Extracting, prefix, p.Entries, p.Bytes / 1048576);
+                                row.RowStatus.Text = string.Format(Lang.Lunarward_RuntimeEnv_Extracting2, p.Entries, Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(p.Bytes));
                             });
                             ComponentManifest manifest = await ComponentImporter.ImportAsync(
-                                result.FilePath, kind, sha256: result.Sha256, expectedSha256: asset.Sha256,
-                                sourceUrl: asset.Url,
+                                result.FilePath, kind, sha256: result.Sha256, expectedSha256: row.Asset.Sha256,
+                                sourceUrl: row.Asset.Url,
                                 mirrorPrefix: source.MirrorPrefix, logger: _logger, ct: token,
                                 progress: extractProgress);
                             try
@@ -271,49 +383,88 @@ public sealed partial class RuntimeEnvironmentSetting
                             ComponentStore.Invalidate();
                             LoadComponents();
                             okCount++;
-                            status.Text = string.Format(Lang.Lunarward_RuntimeEnv_StageDone, prefix, manifest.Name, manifest.Version);
+                            row.RowStatus.Text = string.Format(Lang.Lunarward_RuntimeEnv_StageDone2, manifest.Name, manifest.Version);
+                            row.Progress.Visibility = Visibility.Collapsed;
+                            row.RowStatus.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
                             Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_InstalledToast, manifest.Name, manifest.Version), 4000);
                         }
                         catch (OperationCanceledException)
                         {
-                            status.Text = Lang.Lunarward_RuntimeEnv_PausedKeepParts;
+                            row.RowStatus.Text = Lang.Lunarward_RuntimeEnv_PausedKeepParts;
                             break;
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "download component failed: {Name}", asset.Name);
-                            failed.Add($"{asset.Name}（{ex.Message}）");
+                            _logger.LogError(ex, "download component failed: {Name}", row.Asset.Name);
+                            failed.Add(row.Asset.Name);
+                            row.Progress.Visibility = Visibility.Collapsed;
+                            row.RowStatus.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                            row.RowStatus.Text = FormatFriendlyError(ex);
+                            row.Retry.Visibility = Visibility.Visible;
+                        }
+                        finally
+                        {
+                            row.Check.IsEnabled = true;
                         }
                     }
-                    if (queue.Count > 1)
-                    {
-                        status.Text = failed.Count == 0
-                            ? string.Format(Lang.Lunarward_RuntimeEnv_QueueAllOk, okCount, queue.Count)
-                            : string.Format(Lang.Lunarward_RuntimeEnv_QueuePartial, okCount, queue.Count, string.Join("；", failed));
-                    }
-                    else if (failed.Count > 0)
-                    {
-                        status.Text = Lang.Lunarward_RuntimeEnv_FailedColon + string.Join("；", failed);
-                    }
+                    installed = LoadInstalledVersions();
+                    string summary = okCount == queue.Count
+                        ? string.Format(Lang.Lunarward_RuntimeEnv_QueueAllOk2, okCount, queue.Count)
+                        : string.Format(Lang.Lunarward_RuntimeEnv_QueuePartial2, okCount, queue.Count);
+                    status.Text = summary;
+                }
+                catch (OperationCanceledException)
+                {
+                    status.Text = Lang.Lunarward_RuntimeEnv_PausedKeepParts;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "download queue failed");
-                    status.Text = string.Format(Lang.Lunarward_RuntimeEnv_FailedPrefix, ex.Message);
+                    status.Text = FormatFriendlyError(ex);
                 }
                 finally
                 {
-                    cancelButton.IsEnabled = false;
-                    loadButton.IsEnabled = true;
-                    startButton.IsEnabled = assets.Count > 0;
+                    busy = false;
+                    pauseButton.IsEnabled = false;
+                    sourceBox.IsEnabled = true;
                     cts?.Dispose();
                     cts = null;
-                    UpdateSelection();
+                    UpdateSummary();
+                }
+            }
+
+            sourceBox.SelectionChanged += async (_, _) =>
+            {
+                if (sourceBox.SelectedIndex >= 0 && !busy)
+                {
+                    await LoadAssetsAsync();
                 }
             };
+            manageSources.Click += async (_, _) =>
+            {
+                dialog.Hide();
+                await ShowSourcesDialogAsync();
+            };
+            pauseButton.IsEnabled = false;
+            pauseButton.Click += (_, _) => cts?.Cancel();
+            closeButton.Click += (_, _) =>
+            {
+                cts?.Cancel();
+                dialog.Hide();
+            };
+            installButton.Click += async (_, _) =>
+            {
+                List<int> queue = rows.Where(x => x.Check.IsChecked == true).Select(x => (int)x.Check.Tag!).ToList();
+                if (queue.Count == 0)
+                {
+                    status.Text = Lang.Lunarward_RuntimeEnv_SelectVersionFirst;
+                    return;
+                }
+                await RunQueueAsync(queue);
+            };
 
-            cancelButton.Click += (_, _) => cts?.Cancel();
-
+            dialog.Opened += async (_, _) => await LoadAssetsAsync();
+            dialog.Closing += (_, _) => cts?.Cancel();
             await dialog.ShowAsync();
             cts?.Cancel();
         }
@@ -322,8 +473,49 @@ public sealed partial class RuntimeEnvironmentSetting
             _logger.LogError(ex, "open download dialog failed");
             Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_OpenDownloadWindowFailed);
         }
+        finally
+        {
+            _downloadDialogOpen = false;
+        }
     }
 
+    private static HashSet<string> LoadInstalledVersions()
+    {
+        HashSet<string> set = new(StringComparer.OrdinalIgnoreCase);
+        foreach (Component component in ComponentStore.GetGraphics())
+        {
+            if (!string.IsNullOrWhiteSpace(component.Version))
+            {
+                set.Add(component.Version.Trim());
+            }
+        }
+        foreach (Component component in ComponentStore.GetRunners())
+        {
+            if (!string.IsNullOrWhiteSpace(component.Version))
+            {
+                set.Add(component.Version.Trim());
+            }
+        }
+        return set;
+    }
+
+    private static bool IsInstalled(ComponentReleaseAsset asset, HashSet<string> installed)
+    {
+        if (string.IsNullOrWhiteSpace(asset.Version))
+        {
+            return false;
+        }
+        string version = asset.Version.Trim();
+        foreach (string candidate in installed)
+        {
+            if (candidate.Contains(version, StringComparison.OrdinalIgnoreCase)
+                || version.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /// <summary>
     /// 「导入归档…」：选一个本地归档（.tar / .tar.gz / .tar.zst / .tar.xz / .zip），
@@ -393,62 +585,303 @@ public sealed partial class RuntimeEnvironmentSetting
     /// 「组件源…」：编辑 components-sources.json 里用户覆盖的那一份（镜像前缀为主）。
     /// 只写用户覆盖，不动内置默认——默认源跟着程序版本走，用户改动独立成文件（D73 §2.3）。
     /// </summary>
-    private async void Button_Sources_Click(object sender, RoutedEventArgs e)
+    private sealed class SourceEditRow
+    {
+        public required ComponentSourceEntry Source { get; init; }
+        public required CheckBox Enabled { get; init; }
+        public required TextBox Mirror { get; init; }
+        public required TextBlock MirrorError { get; init; }
+        public required TextBlock ProbeText { get; init; }
+        public required TextBlock CheckText { get; init; }
+    }
+
+    private async void Button_Sources_Click(object sender, RoutedEventArgs e) => await ShowSourcesDialogAsync();
+
+    private async void Button_ManageSources_Click(object sender, RoutedEventArgs e) => await ShowSourcesDialogAsync();
+
+    /// <summary>
+    /// D110「管理下载源」：启用/停用、排序、镜像前缀校验、单行测速、源自检、恢复默认。
+    /// 源文件仍然是 components-sources.json，这里只做可视化编辑（Rank 按当前顺序重排）。
+    /// </summary>
+    private async Task ShowSourcesDialogAsync()
     {
         try
         {
-            IReadOnlyList<ComponentSourceEntry> entries = LoadSourceEntries();
-            var panel = new StackPanel { Spacing = 10, MinWidth = 560 };
-            panel.Children.Add(new TextBlock
+            List<SourceEditRow> rows = [];
+            var list = new StackPanel { Spacing = 12 };
+            var hint = new TextBlock
             {
                 Text = string.Format(Lang.Lunarward_RuntimeEnv_SourcesHint, ComponentSources.FilePath),
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 12,
                 Opacity = 0.75,
-            });
-            List<(ComponentSourceEntry Source, TextBox Mirror)> fields = new();
-            foreach (ComponentSourceEntry source in entries)
+            };
+            var resetButton = new Button { Content = Lang.Lunarward_RuntimeEnv_ResetSources };
+            var probeAllButton = new Button { Content = Lang.Lunarward_RuntimeEnv_ProbeAll };
+            var actions = new Grid { ColumnSpacing = 8 };
+            actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            actions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(resetButton, 0);
+            Grid.SetColumn(probeAllButton, 2);
+            actions.Children.Add(resetButton);
+            actions.Children.Add(probeAllButton);
+
+            void Rebuild()
             {
-                var box = new TextBox
+                list.Children.Clear();
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    SourceEditRow entry = rows[i];
+                    int index = i;
+
+                    var enabled = entry.Enabled;
+                    var name = new TextBlock
+                    {
+                        Text = entry.Source.DisplayName,
+                        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                    };
+                    var kind = new TextBlock
+                    {
+                        Text = entry.Source.Kind == "wine" ? Lang.Lunarward_RuntimeEnv_Runner : Lang.Lunarward_RuntimeEnv_Graphics,
+                        FontSize = 11,
+                        Opacity = 0.7,
+                        VerticalAlignment = VerticalAlignment.Center,
+                    };
+                    var up = new Button { Content = "▲", IsEnabled = index > 0, Padding = new Thickness(8, 2, 8, 2) };
+                    var down = new Button { Content = "▼", IsEnabled = index < rows.Count - 1, Padding = new Thickness(8, 2, 8, 2) };
+                    var probe = new Button { Content = Lang.Lunarward_RuntimeEnv_Probe, Padding = new Thickness(8, 2, 8, 2) };
+                    var check = new Button { Content = Lang.Lunarward_RuntimeEnv_SelfCheck, Padding = new Thickness(8, 2, 8, 2) };
+
+                    // D110：三行布局（标题 / 镜像 / 状态），窄弹窗里不再把测速与自检按钮挤出可视区。
+                    var titleLine = new Grid { ColumnSpacing = 8 };
+                    titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    Grid.SetColumn(enabled, 0);
+                    Grid.SetColumn(name, 1);
+                    Grid.SetColumn(kind, 2);
+                    Grid.SetColumn(up, 3);
+                    Grid.SetColumn(down, 4);
+                    titleLine.Children.Add(enabled);
+                    titleLine.Children.Add(name);
+                    titleLine.Children.Add(kind);
+                    titleLine.Children.Add(up);
+                    titleLine.Children.Add(down);
+
+                    var toolLine = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+                    toolLine.Children.Add(probe);
+                    toolLine.Children.Add(check);
+                    toolLine.Children.Add(entry.ProbeText);
+                    toolLine.Children.Add(entry.CheckText);
+
+                    var mirrorLine = new Grid { ColumnSpacing = 8 };
+                    mirrorLine.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    mirrorLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    Grid.SetColumn(entry.Mirror, 0);
+                    Grid.SetColumn(entry.MirrorError, 1);
+                    mirrorLine.Children.Add(entry.Mirror);
+                    mirrorLine.Children.Add(entry.MirrorError);
+
+                    var block = new StackPanel { Spacing = 4 };
+                    block.Children.Add(titleLine);
+                    block.Children.Add(mirrorLine);
+                    block.Children.Add(toolLine);
+                    list.Children.Add(block);
+
+                    up.Click += (_, _) =>
+                    {
+                        (rows[index], rows[index - 1]) = (rows[index - 1], rows[index]);
+                        Rebuild();
+                    };
+                    down.Click += (_, _) =>
+                    {
+                        (rows[index], rows[index + 1]) = (rows[index + 1], rows[index]);
+                        Rebuild();
+                    };
+                    probe.Click += async (_, _) =>
+                    {
+                        probe.IsEnabled = false;
+                        entry.ProbeText.Text = "…";
+                        try
+                        {
+                            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                            ComponentSourceEntry probeSource = ToEntry(entry, rows.IndexOf(entry));
+                            ComponentSourceProbe result = await ComponentSources.ProbeAsync(http, probeSource);
+                            entry.ProbeText.Text = result.Text;
+                            entry.ProbeText.Foreground = (Brush)Application.Current.Resources[
+                                result.Ok ? "SystemFillColorSuccessBrush" : "SystemFillColorCriticalBrush"];
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "probe source failed");
+                            entry.ProbeText.Text = Lang.Lunarward_RuntimeEnv_ProbeFailedShort;
+                        }
+                        finally
+                        {
+                            probe.IsEnabled = true;
+                        }
+                    };
+                    check.Click += async (_, _) =>
+                    {
+                        check.IsEnabled = false;
+                        entry.CheckText.Text = "…";
+                        try
+                        {
+                            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(1) };
+                            IReadOnlyList<ComponentReleaseAsset> found = await ComponentSources.ListAssetsAsync(
+                                http, ToEntry(entry, rows.IndexOf(entry)), 3, _logger);
+                            entry.CheckText.Text = found.Count == 0
+                                ? Lang.Lunarward_RuntimeEnv_SelfCheckEmpty
+                                : string.Format(Lang.Lunarward_RuntimeEnv_SelfCheckOk, found.Count);
+                            entry.CheckText.Foreground = (Brush)Application.Current.Resources[
+                                found.Count == 0 ? "SystemFillColorCautionBrush" : "SystemFillColorSuccessBrush"];
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "self check source failed");
+                            entry.CheckText.Text = FormatFriendlyError(ex);
+                            entry.CheckText.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                        }
+                        finally
+                        {
+                            check.IsEnabled = true;
+                        }
+                    };
+                }
+            }
+
+            ComponentSourceEntry ToEntry(SourceEditRow row, int index) => new()
+            {
+                Id = row.Source.Id,
+                DisplayName = row.Source.DisplayName,
+                Kind = row.Source.Kind,
+                Owner = row.Source.Owner,
+                Repo = row.Source.Repo,
+                AssetPattern = row.Source.AssetPattern,
+                MirrorPrefix = row.Mirror.Text?.Trim() ?? "",
+                Rank = (index + 1) * 10,
+                Enabled = row.Enabled.IsChecked == true,
+            };
+
+            void LoadRows()
+            {
+            rows.Clear();
+            foreach (ComponentSourceEntry source in LoadSourceEntries())
+            {
+                var mirror = new TextBox
                 {
                     Text = source.MirrorPrefix,
                     PlaceholderText = Lang.Lunarward_RuntimeEnv_MirrorPlaceholder,
                 };
-                var block = new StackPanel { Spacing = 2 };
-                block.Children.Add(new TextBlock
+                var mirrorError = new TextBlock
                 {
-                    Text = $"{source.DisplayName}（{source.Kind} · {source.Owner}/{source.Repo}）",
                     FontSize = 12,
-                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                });
-                block.Children.Add(box);
-                panel.Children.Add(block);
-                fields.Add((source, box));
+                    Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"],
+                    VerticalAlignment = VerticalAlignment.Center,
+                    IsHitTestVisible = false,
+                };
+                var probeText = new TextBlock { FontSize = 12, Opacity = 0.75, VerticalAlignment = VerticalAlignment.Center };
+                var checkText = new TextBlock { FontSize = 12, Opacity = 0.75, VerticalAlignment = VerticalAlignment.Center };
+                var enabled = new CheckBox { IsChecked = source.Enabled, VerticalAlignment = VerticalAlignment.Center };
+                var row = new SourceEditRow
+                {
+                    Source = source,
+                    Enabled = enabled,
+                    Mirror = mirror,
+                    MirrorError = mirrorError,
+                    ProbeText = probeText,
+                    CheckText = checkText,
+                };
+                mirror.TextChanged += (_, _) =>
+                {
+                    bool valid = ComponentSources.IsValidMirrorPrefix(mirror.Text);
+                    mirrorError.Text = valid ? "" : Lang.Lunarward_RuntimeEnv_MirrorInvalid;
+                };
+                rows.Add(row);
             }
+            }
+
+            probeAllButton.Click += async (_, _) =>
+            {
+                probeAllButton.IsEnabled = false;
+                try
+                {
+                    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+                    foreach (SourceEditRow row in rows)
+                    {
+                        row.ProbeText.Text = "…";
+                        try
+                        {
+                            ComponentSourceProbe result = await ComponentSources.ProbeAsync(http, ToEntry(row, rows.IndexOf(row)));
+                            row.ProbeText.Text = result.Text;
+                            row.ProbeText.Foreground = (Brush)Application.Current.Resources[
+                                result.Ok ? "SystemFillColorSuccessBrush" : "SystemFillColorCriticalBrush"];
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "probe source failed");
+                            row.ProbeText.Text = Lang.Lunarward_RuntimeEnv_ProbeFailedShort;
+                        }
+                    }
+                }
+                finally
+                {
+                    probeAllButton.IsEnabled = true;
+                }
+            };
+            resetButton.Click += async (_, _) =>
+            {
+                ContentDialogResult confirm = await new ContentDialog
+                {
+                    Title = Lang.Lunarward_RuntimeEnv_ResetSources,
+                    Content = Lang.Lunarward_RuntimeEnv_ResetSourcesHint,
+                    PrimaryButtonText = Lang.Lunarward_RuntimeEnv_ResetSources,
+                    CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = XamlRoot,
+                }.ShowAsync();
+                if (confirm == ContentDialogResult.Primary)
+                {
+                    ComponentSources.ResetUserEntries();
+                    Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_SourcesResetDone, 4000);
+                    LoadRows();
+                    Rebuild();
+                }
+            };
+
+            // D110：固定宽度，避免长源名/长镜像把行内按钮挤出可视区。
+            var page = new StackPanel { Spacing = 12, Width = 470 };
+            page.Children.Add(hint);
+            page.Children.Add(actions);
+            page.Children.Add(list);
+
             var dialog = new ContentDialog
             {
-                Title = Lang.Lunarward_RuntimeEnv_SourcesTitle,
-                Content = new ScrollViewer { Content = panel, MaxHeight = 520 },
+                Title = Lang.Lunarward_RuntimeEnv_ManageSources,
+                Content = new ScrollViewer { Content = page, MaxHeight = 560 },
                 PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Save,
                 CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = XamlRoot,
             };
+
+            LoadRows();
+            Rebuild();
             if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             {
                 return;
             }
-            List<ComponentSourceEntry> result = fields.Select(x => new ComponentSourceEntry
+            List<ComponentSourceEntry> result = rows.Select((row, index) => ToEntry(row, index)).ToList();
+            if (result.Any(x => !ComponentSources.IsValidMirrorPrefix(x.MirrorPrefix)))
             {
-                Id = x.Source.Id,
-                DisplayName = x.Source.DisplayName,
-                Kind = x.Source.Kind,
-                Owner = x.Source.Owner,
-                Repo = x.Source.Repo,
-                AssetPattern = x.Source.AssetPattern,
-                MirrorPrefix = x.Mirror?.Text?.Trim() ?? "",
-                Rank = x.Source.Rank,
-            }).ToList();
+                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_MirrorInvalid);
+                return;
+            }
             ComponentSources.SaveUserEntries(result);
             Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_SourcesSaved, 4000);
         }
@@ -735,5 +1168,17 @@ public sealed partial class RuntimeEnvironmentSetting
             _logger.LogError(ex, "summarize prefix usage failed");
             Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_StatsFailPrefix);
         }
+    }
+
+    /// <summary>D110：错误文案不把 components-sources.json / AssetPattern 这类内部术语甩给用户。</summary>
+    private static string FormatFriendlyError(Exception ex)
+    {
+        string message = ex.Message;
+        if (message.Contains("AssetPattern", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("components-sources", StringComparison.OrdinalIgnoreCase))
+        {
+            return Lang.Lunarward_RuntimeEnv_SourceNoAssets;
+        }
+        return message;
     }
 }

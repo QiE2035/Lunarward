@@ -1398,3 +1398,10 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 - 原因：`wineboot -u` 初始化前缀时会提示安装 mono/gecko（`mscoree`/`mshtml`）；没有 `WINEDLLOVERRIDES=mscoree,mshtml=` 就等用户点选；用 `Process.WaitForExit()` 无超时等待会永久挂起。
 - 正确做法：启动 wineboot 时同时设 `WINEDLLOVERRIDES`（取配方里的值，否则默认 `mscoree,mshtml=`），并给 `WaitForExit` 上限（本项目 3 分钟），超时 `Kill(entireProcessTree: true)` 后抛明确错误。
 - 另一个坑：wow64 版 wine（本项目测试机 `/opt/spritz-wine-tkg`）对 `WINEARCH=win32` 直接报 `WINEARCH is set to 'win32' but this is not supported in wow64 mode`——建 32 位前缀必须用 32 位 wine。预检给「以实际前缀为准」的警告，不要在配置层假装 win32 生效。
+
+## L-168 列 Grid 里没有显式星号行：内部 ScrollViewer 不滚动、内容被整块裁掉
+
+- 现象：运行环境页右栏换成「详情 / 编辑器 / 增强」三态 Grid 后，编辑器下方的前缀、启动预览、高级全都看不到，滚轮和 PageDown 都没反应，窗口里只到「VKD3D-Proton」两行为止。
+- 原因：右栏写的是 `<Grid Grid.Column="1">` 同时放两个 `ScrollViewer`，但没写 `Grid.RowDefinitions`；Uno 把这一行按内容高度量（等价 Auto），内部 `ScrollViewer` 拿到的高度就是内容高度，于是既不产生滚动条、也不滚动，超出的部分由父级直接裁掉。
+- 正确做法：给这类「同格多视图」的 Grid 显式补一行 `<RowDefinition Height="*" />`（或直接把 `ScrollViewer` 的父级设成 `Grid` 的星号行），让内部 `ScrollViewer` 拿到有限视口高度。
+- 排查手法：`xdotool mousemove X Y click 5`（滚轮）与 `PageDown` 都不动 → 先怀疑视口没被约束；`Window` 放大后能露出的内容更多，也说明是父级裁剪而不是内容缺失。

@@ -1,4 +1,4 @@
-// Lunarward：运行环境页的「方案」页（D85）——左列清单 + 右列详情 / 编辑 / 增强三态。
+﻿// Lunarward：运行环境页的「方案」页（D85）——左列清单 + 右列详情 / 编辑 / 增强三态。
 // 设计前提：列表用代码构建（Uno 的 ListView 在星号行 + ScrollViewer 里会抽风，D58 v2）；
 // 详情里的每段都是手写 Border 卡片，没有 Uno Toolkit（本工程 <UnoFeatures> 不含 Toolkit，没有 SettingsCard）。
 using Microsoft.Extensions.Logging;
@@ -216,6 +216,7 @@ public sealed partial class RuntimeEnvironmentSetting
         StackPanel_ProfileDetail.Children.Add(CreateGraphicsSection(profile, inspection, prefixPath));
         StackPanel_ProfileDetail.Children.Add(CreatePrefixSection(profile, inspection, prefixPath, bindings));
         StackPanel_ProfileDetail.Children.Add(CreateEnhanceSection(profile));
+        StackPanel_ProfileDetail.Children.Add(CreatePreviewSection(profile));
         StackPanel_ProfileDetail.Children.Add(CreateHistorySection(profile));
     }
 
@@ -766,5 +767,60 @@ public sealed partial class RuntimeEnvironmentSetting
         Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_SetDefaultRunnerDone, 4000);
     }
 
+
+
+    /// <summary>D110：详情页给只读「启动预览」——和真实启动同一套解析，配错了不必等启动才发现。</summary>
+    private Border CreatePreviewSection(RuntimeProfile profile)
+    {
+        var body = new StackPanel { Spacing = 4 };
+        var command = new TextBlock
+        {
+            FontFamily = new FontFamily("Consolas, monospace"),
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            IsTextSelectionEnabled = true,
+            Opacity = 0.9,
+        };
+        body.Children.Add(command);
+        body.Children.Add(new TextBlock
+        {
+            Text = Lang.Lunarward_RuntimeEnv_PreviewNote,
+            FontSize = 12,
+            Opacity = 0.6,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        try
+        {
+            Component? runner = ComponentStore.GetRunners().FirstOrDefault(x => x.Id == profile.RunnerId);
+            string runnerPath = !string.IsNullOrWhiteSpace(runner?.Path) ? runner!.Path : profile.RunnerPath;
+            if (string.IsNullOrWhiteSpace(runnerPath))
+            {
+                command.Text = Lang.Lunarward_RuntimeEnv_PreviewNoRunner;
+            }
+            else
+            {
+                string prefix = EnvironmentResolver.EffectivePrefixPath(profile);
+                var auto = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["WINEPREFIX"] = prefix,
+                    ["WINEDEBUG"] = "-all",
+                };
+                LaunchRecipe recipe = LaunchRecipeBuilder.Build(profile, runnerPath, prefix, Lang.Lunarward_RuntimeEnv_PreviewGameExe, null, auto);
+                var text = new System.Text.StringBuilder();
+                text.Append(recipe.CommandLine);
+                foreach (EnvOverride item in recipe.Overrides)
+                {
+                    text.Append('\n').Append(item.Key).Append('=').Append(string.IsNullOrEmpty(item.RecipeValue) ? item.AutoValue : item.RecipeValue);
+                }
+                command.Text = text.ToString();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "build launch preview failed");
+            command.Text = ex.Message;
+        }
+        return Section(Lang.Lunarward_RuntimeEnv_LaunchPreview, body);
+    }
 
 }

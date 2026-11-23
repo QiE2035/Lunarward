@@ -3269,9 +3269,6 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="Lunarward_RuntimeEnv_InstallGraphics" xml:space="preserve">
     <value>Install graphics</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Reinstall" xml:space="preserve">
-    <value>Reinstall</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_RemoveGraphics" xml:space="preserve">
     <value>Remove graphics</value>
   </data>
@@ -3920,7 +3917,7 @@ If this is a wine environment you want to keep, click Cancel.</value>
     <value>Reading the version list of {0}…</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ArchivesFound" xml:space="preserve">
-    <value>{0} archive(s); pick one and click Download.</value>
+    <value>{0} versions available, tick the ones to install.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ReadFailed" xml:space="preserve">
     <value>Failed to read: {0}</value>
@@ -4030,5 +4027,122 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   </data>
   <data name="Lunarward_RuntimeEnv_SelectedVersions" xml:space="preserve">
     <value>{0} version(s) selected</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoEnabledSource" xml:space="preserve">
+    <value>All download sources are disabled. Enable one in Manage sources.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ManageSources" xml:space="preserve">
+    <value>Manage sources</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Versions" xml:space="preserve">
+    <value>Versions</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Pause" xml:space="preserve">
+    <value>Pause</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstallSelected" xml:space="preserve">
+    <value>Install selected</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddComponents" xml:space="preserve">
+    <value>Add components</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SummaryFormat" xml:space="preserve">
+    <value>{0} selected · {1} · {2} free</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SummaryNeedMore" xml:space="preserve">
+    <value>Not enough space: {0} short</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Retry" xml:space="preserve">
+    <value>Retry</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Reinstall" xml:space="preserve">
+    <value>Reinstall</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceNoAssets" xml:space="preserve">
+    <value>This source has no matching versions right now (the repository may have been renamed).</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_QueuePrefix2" xml:space="preserve">
+    <value>{0}/{1} · </value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Downloading2" xml:space="preserve">
+    <value>Downloading {0} / {1} ({2} connections, {3} MB/s)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Extracting2" xml:space="preserve">
+    <value>Extracting {0} entries / {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_StageDone2" xml:space="preserve">
+    <value>Done: {0} {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_QueueAllOk2" xml:space="preserve">
+    <value>All done: {0}/{1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_QueuePartial2" xml:space="preserve">
+    <value>Finished {0}/{1}; failed rows can be retried</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ResetSources" xml:space="preserve">
+    <value>Restore default sources</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ResetSourcesHint" xml:space="preserve">
+    <value>Remove the local source override file and go back to the five built-in sources (mirror and enabled state reset).</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesResetDone" xml:space="preserve">
+    <value>Default sources restored</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ProbeAll" xml:space="preserve">
+    <value>Probe all</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Probe" xml:space="preserve">
+    <value>Probe</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SelfCheck" xml:space="preserve">
+    <value>Check</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SelfCheckOk" xml:space="preserve">
+    <value>{0} versions</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SelfCheckEmpty" xml:space="preserve">
+    <value>No matching versions</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ProbeFailedShort" xml:space="preserve">
+    <value>Failed</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_MirrorInvalid" xml:space="preserve">
+    <value>Mirror must start with http(s):// and end with /</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AdvancedLaunch" xml:space="preserve">
+    <value>Launch behaviour</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AdvancedArgs" xml:space="preserve">
+    <value>Game args</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Wrappers" xml:space="preserve">
+    <value>Wrappers</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_WrappersHelp" xml:space="preserve">
+    <value>Applied in order before the launch command; wrappers from the Enhancements panel are appended after these. Commands missing from PATH are highlighted.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnvTitle" xml:space="preserve">
+    <value>Environment variables</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddVariable" xml:space="preserve">
+    <value>Add variable</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnvHint2" xml:space="preserve">
+    <value>Keys must be valid environment variable names (letters, digits, underscores; not starting with a digit). Values may be empty.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnvInvalid" xml:space="preserve">
+    <value>Environment variable #{0} has an invalid name: {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnvDuplicate" xml:space="preserve">
+    <value>Duplicate environment variable: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_WrapperMissing" xml:space="preserve">
+    <value>Not found: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PreviewNote" xml:space="preserve">
+    <value>Same resolution as a real launch (command plus environment overrides); read-only preview.</value>
   </data>
 </root>

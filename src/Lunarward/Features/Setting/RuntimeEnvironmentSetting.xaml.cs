@@ -1,4 +1,4 @@
-// Lunarward：设置 → 运行环境（Profile 列表）。D28：Profile 是全局的，条目每游戏独立（后启动列表在游戏设置页）。
+﻿// Lunarward：设置 → 运行环境（Profile 列表）。D28：Profile 是全局的，条目每游戏独立（后启动列表在游戏设置页）。
 // 说明：列表用代码构建而非 DataTemplate —— Uno 的 ListView/ItemsControl 在星号行 + ScrollViewer 里
 // 存在测量问题（行高被压成一行、内容被裁），M1 先用确定性代码路径；M2 换回模板并复测（见 12-shims-and-gaps）。
 using Microsoft.Extensions.Logging;
@@ -1088,6 +1088,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private TextBox? _editorPrefixPath;
     private TextBox? _editorEnv;
+    private StackPanel? _editorEnvHost;
+    private readonly List<(TextBox Key, TextBox Value, Grid Row)> _editorEnvRows = new();
+    private StackPanel? _editorWrapperHost;
+    private TextBox? _editorWrapperInput;
+    private readonly List<string> _editorWrapperList = new();
     private TextBox? _editorArgs;
     private TextBox? _editorWrappers;
     private TextBox? _editorNotes;
@@ -1186,28 +1191,59 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
-            Foreground = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 196, 43, 28)),
+            Foreground = (Brush)Application.Current.Resources["SystemFillColorCautionBrush"],
         };
         StackPanel_ProfileEditor.Children.Add(_editorEnvInfo);
 
-        // 5) 高级
+        // 5) 高级（D110：按语义分组；环境变量改键值表格并校验；包装器改 chips 并检测 PATH）
         var expander = new Expander { Header = Lang.Lunarward_RuntimeEnv_Advanced, IsExpanded = false, HorizontalAlignment = HorizontalAlignment.Stretch };
         var advanced = new StackPanel { Spacing = 6 };
-        advanced.Children.Add(new TextBlock { Text = Lang.Lunarward_RuntimeEnv_EnvHint, FontSize = 12, Opacity = 0.7 });
-        _editorEnv = new TextBox
+
+        advanced.Children.Add(SubTitle(Lang.Lunarward_RuntimeEnv_AdvancedLaunch));
+        _editorShell = new TextBox { Text = profile?.Shell ?? "", PlaceholderText = "/bin/bash" };
+        advanced.Children.Add(Row("Shell", _editorShell));
+        advanced.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_ShellHint));
+        _editorArgs = new TextBox { Text = profile?.Args ?? "", PlaceholderText = "-windowed -nologo" };
+        advanced.Children.Add(Row(Lang.Lunarward_RuntimeEnv_AdvancedArgs, _editorArgs));
+        advanced.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_ArgsHint));
+
+        advanced.Children.Add(SubTitle(Lang.Lunarward_RuntimeEnv_Wrappers));
+        _editorWrapperHost = new StackPanel { Spacing = 6 };
+        advanced.Children.Add(_editorWrapperHost);
+        var wrapperRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        _editorWrapperInput = new TextBox { PlaceholderText = "gamemoderun", MinWidth = 320 };
+        var addWrapper = new Button { Content = Lang.Lunarward_RuntimeEnv_Add, Padding = new Thickness(10, 4, 10, 4) };
+        addWrapper.Click += (_, _) =>
         {
-            AcceptsReturn = true,
-            Height = 96,
-            TextWrapping = TextWrapping.Wrap,
-            Text = profile is null ? "" : string.Join(Environment.NewLine, profile.Env.Select(x => $"{x.Key}={x.Value}")),
+            AddWrapperChip(_editorWrapperInput?.Text);
+            UpdateEditorPreview();
         };
-        advanced.Children.Add(_editorEnv);
-        // D：常用变量做成下拉，省得背 WINEDLLOVERRIDES / mesa_glthread 这类名字
+        _editorWrapperInput.KeyDown += (_, e) =>
+        {
+            if (e.Key is Windows.System.VirtualKey.Enter)
+            {
+                AddWrapperChip(_editorWrapperInput?.Text);
+                e.Handled = true;
+                UpdateEditorPreview();
+            }
+        };
+        wrapperRow.Children.Add(_editorWrapperInput);
+        wrapperRow.Children.Add(addWrapper);
+        advanced.Children.Add(wrapperRow);
+        advanced.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_WrappersHelp));
+
+        advanced.Children.Add(SubTitle(Lang.Lunarward_RuntimeEnv_EnvTitle));
+        _editorEnvHost = new StackPanel { Spacing = 6 };
+        advanced.Children.Add(_editorEnvHost);
+        var envActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var addEnvRow = new Button { Content = Lang.Lunarward_RuntimeEnv_AddVariable, Padding = new Thickness(10, 4, 10, 4) };
+        addEnvRow.Click += (_, _) => AddEnvRow("", "");
+        envActions.Children.Add(addEnvRow);
         var envPresets = new ComboBox
         {
             PlaceholderText = Lang.Lunarward_RuntimeEnv_EnvPresets,
-            MinWidth = 320,
-            HorizontalAlignment = HorizontalAlignment.Left,
+            MinWidth = 300,
+            VerticalAlignment = VerticalAlignment.Center,
         };
         foreach (string preset in EnvPresets)
         {
@@ -1215,41 +1251,43 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         envPresets.SelectionChanged += (_, _) =>
         {
-            if (envPresets.SelectedItem is not string preset || _editorEnv is null)
+            if (envPresets.SelectedItem is not string preset)
             {
                 return;
             }
             string key = preset.Split('=')[0];
-            string current = _editorEnv.Text ?? "";
-            // 已经有这个键就不覆盖（用户可能自己改过值）；要改就手改那一行
-            if (!current.Split('\n').Any(line => line.TrimStart().StartsWith(key + "=", StringComparison.OrdinalIgnoreCase)))
+            string value = preset[(preset.IndexOf('=') + 1)..];
+            bool exists = _editorEnvRows.Any(r => string.Equals(r.Key.Text.Trim(), key, StringComparison.OrdinalIgnoreCase));
+            if (!exists)
             {
-                _editorEnv.Text = string.IsNullOrWhiteSpace(current) ? preset : current.TrimEnd() + Environment.NewLine + preset;
+                AddEnvRow(key, value);
+                UpdateEditorPreview();
             }
             envPresets.SelectedIndex = -1;
         };
-        advanced.Children.Add(envPresets);
-        advanced.Children.Add(new TextBlock { Text = Lang.Lunarward_RuntimeEnv_ArgsHint, FontSize = 12, Opacity = 0.7 });
-        _editorArgs = new TextBox { Text = profile?.Args ?? "", PlaceholderText = "-windowed -nologo" };
-        advanced.Children.Add(_editorArgs);
-        advanced.Children.Add(new TextBlock { Text = Lang.Lunarward_RuntimeEnv_WrappersHint, FontSize = 12, Opacity = 0.7 });
-        _editorWrappers = new TextBox
-        {
-            AcceptsReturn = true,
-            Height = 72,
-            TextWrapping = TextWrapping.Wrap,
-            Text = profile is null ? "" : string.Join(Environment.NewLine, profile.Wrappers),
-            PlaceholderText = "gamemoderun\nmangohud --dlsym",
-        };
-        advanced.Children.Add(_editorWrappers);
-        advanced.Children.Add(new TextBlock { Text = Lang.Lunarward_RuntimeEnv_Notes, FontSize = 12, Opacity = 0.7 });
+        envActions.Children.Add(envPresets);
+        advanced.Children.Add(envActions);
+        advanced.Children.Add(_editorEnvInfo);
+        advanced.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_EnvHint2));
+
+        advanced.Children.Add(SubTitle(Lang.Lunarward_RuntimeEnv_Notes));
         _editorNotes = new TextBox { Text = profile?.Notes ?? "", PlaceholderText = Lang.Lunarward_RuntimeEnv_NotesPlaceholder };
         advanced.Children.Add(_editorNotes);
-        advanced.Children.Add(new TextBlock { Text = Lang.Lunarward_RuntimeEnv_ShellHint, FontSize = 12, Opacity = 0.7 });
-        _editorShell = new TextBox { Text = profile?.Shell ?? "", PlaceholderText = "/bin/bash" };
-        advanced.Children.Add(_editorShell);
+
         expander.Content = advanced;
         StackPanel_ProfileEditor.Children.Add(expander);
+
+        if (profile is not null)
+        {
+            foreach (KeyValuePair<string, string> pair in profile.Env)
+            {
+                AddEnvRow(pair.Key, pair.Value);
+            }
+            foreach (string wrapper in profile.Wrappers)
+            {
+                AddWrapperChip(wrapper);
+            }
+        }
 
         // 保存 / 取消：D108 放到编辑器底栏，680 高窗口下不用滚到底才能保存
         StackPanel_EditorFooter.Children.Clear();
@@ -1272,8 +1310,10 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         _editorRunner.SelectionChanged += (_, _) => UpdateEditorPreview();
         _editorPrefixPath.TextChanged += (_, _) => UpdateEditorPreview();
         _editorArgs.TextChanged += (_, _) => UpdateEditorPreview();
-        _editorWrappers.TextChanged += (_, _) => UpdateEditorPreview();
-        _editorEnv.TextChanged += (_, _) => UpdateEditorPreview();
+        if (_editorName is not null)
+        {
+            // 名字决定默认前缀目录：改名要立刻反映到预览与「前缀将建在」那一行（D108/R27）。
+        }
 
         UpdateEditorPrefixRow();
         UpdateEditorPreview();
@@ -1289,9 +1329,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         _editorDxvk?.SelectedIndex,
         _editorVkd3d?.SelectedIndex,
         _editorPrefixPath?.Text,
-        _editorEnv?.Text,
+        SerializeEnv(),
         _editorArgs?.Text,
-        _editorWrappers?.Text,
+        string.Join('\n', _editorWrapperList),
         _editorNotes?.Text,
         _editorShell?.Text);
 
@@ -1453,8 +1493,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             {
                 Name = string.IsNullOrWhiteSpace(_editorName?.Text) ? Lang.Lunarward_RuntimeEnv_NewProfileDefaultName : _editorName!.Text,
                 Args = _editorArgs?.Text ?? "",
-                Wrappers = ParseWrappers(_editorWrappers?.Text),
-                Env = ParseEnv(_editorEnv?.Text),
+                Wrappers = _editorWrapperList.ToList(),
+                Env = ReadEnv(out _),
                 // R27：增强项不在编辑器里，但属于同一份方案——预览必须带上，否则看不到 gamemode/mangohud。
                 Hud = _editingProfile?.Hud ?? "off",
                 HudOptions = _editingProfile?.HudOptions ?? "",
@@ -1590,9 +1630,15 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             profile.DxvkId = SelectedGraphicsId(_editorDxvk);
             profile.Vkd3dId = SelectedGraphicsId(_editorVkd3d);
             profile.PrefixPath = string.IsNullOrWhiteSpace(prefixPath) ? null : prefixPath;
-            profile.Env = ParseEnv(_editorEnv?.Text);
+            Dictionary<string, string> env = ReadEnv(out string? envError);
+            if (envError is not null)
+            {
+                Helpers.InAppToast.MainWindow?.Warning((string?)null, envError, 6000);
+                return;
+            }
+            profile.Env = env;
             profile.Args = _editorArgs?.Text?.Trim() ?? "";
-            profile.Wrappers = ParseWrappers(_editorWrappers?.Text);
+            profile.Wrappers = _editorWrapperList.ToList();
             profile.Notes = string.IsNullOrWhiteSpace(_editorNotes?.Text) ? null : _editorNotes.Text.Trim();
             profile.Shell = _editorShell?.Text?.Trim() ?? "";
 
@@ -2685,4 +2731,148 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_DeleteFailedColon + ex.Message);
         }
     }
+
+    private static TextBlock SubTitle(string text) => new()
+    {
+        Text = text,
+        FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+        FontSize = 13,
+        Margin = new Thickness(0, 10, 0, 0),
+    };
+
+
+    /// <summary>D110：环境变量一行 = 键 + 值 + 删除；键必须是合法环境变量名，重复键会被拒绝保存。</summary>
+    private void AddEnvRow(string key, string value)
+    {
+        if (_editorEnvHost is null)
+        {
+            return;
+        }
+        var keyBox = new TextBox { Text = key, PlaceholderText = "KEY", MinWidth = 200 };
+        var valueBox = new TextBox { Text = value, PlaceholderText = "VALUE", MinWidth = 300 };
+        var remove = new Button { Content = "\u2715", Padding = new Thickness(8, 2, 8, 2) };
+        var row = new Grid { ColumnSpacing = 8 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(keyBox, 0);
+        Grid.SetColumn(valueBox, 1);
+        Grid.SetColumn(remove, 2);
+        row.Children.Add(keyBox);
+        row.Children.Add(valueBox);
+        row.Children.Add(remove);
+        _editorEnvRows.Add((keyBox, valueBox, row));
+        _editorEnvHost.Children.Add(row);
+        keyBox.TextChanged += (_, _) => UpdateEditorPreview();
+        valueBox.TextChanged += (_, _) => UpdateEditorPreview();
+        remove.Click += (_, _) =>
+        {
+            _editorEnvRows.RemoveAll(x => ReferenceEquals(x.Row, row));
+            _editorEnvHost.Children.Remove(row);
+            UpdateEditorPreview();
+        };
+    }
+
+
+    private string SerializeEnv() => string.Join('\n', _editorEnvRows
+        .Where(x => !string.IsNullOrWhiteSpace(x.Key.Text))
+        .Select(x => $"{x.Key.Text.Trim()}={x.Value.Text}"));
+
+
+    /// <summary>D110：读环境变量表格并校验键名/重复；错误返回给调用方提示，不静默丢。</summary>
+    private Dictionary<string, string> ReadEnv(out string? error)
+    {
+        Dictionary<string, string> env = new(StringComparer.Ordinal);
+        error = null;
+        for (int i = 0; i < _editorEnvRows.Count; i++)
+        {
+            string key = _editorEnvRows[i].Key.Text.Trim();
+            if (key.Length == 0)
+            {
+                continue;
+            }
+            if (!System.Text.RegularExpressions.Regex.IsMatch(key, "^[A-Za-z_][A-Za-z0-9_]*$"))
+            {
+                error = string.Format(Lang.Lunarward_RuntimeEnv_EnvInvalid, i + 1, key);
+                return env;
+            }
+            if (!env.TryAdd(key, _editorEnvRows[i].Value.Text))
+            {
+                error = string.Format(Lang.Lunarward_RuntimeEnv_EnvDuplicate, key);
+                return env;
+            }
+        }
+        return env;
+    }
+
+
+    private void AddWrapperChip(string? text)
+    {
+        string value = (text ?? "").Trim();
+        if (value.Length == 0 || _editorWrapperList.Any(x => string.Equals(x, value, StringComparison.Ordinal)))
+        {
+            return;
+        }
+        _editorWrapperList.Add(value);
+        RebuildWrapperChips();
+        if (_editorWrapperInput is not null)
+        {
+            _editorWrapperInput.Text = "";
+        }
+    }
+
+
+    /// <summary>D110：包装器用 chips 展示；不在 PATH 里的命令标红，提示先装再存。</summary>
+    private void RebuildWrapperChips()
+    {
+        if (_editorWrapperHost is null)
+        {
+            return;
+        }
+        _editorWrapperHost.Children.Clear();
+        foreach (string wrapper in _editorWrapperList.ToList())
+        {
+            string command = wrapper.Split(' ', 2)[0];
+            bool found = Enhancements.FindInPath(command) is not null;
+            var chipText = new TextBlock
+            {
+                Text = wrapper,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                // D108 教训：不再用硬编码 hex；缺失就用 Caution token + 提示行说明。
+            };
+            var remove = new Button { Content = "\u2715", Padding = new Thickness(6, 0, 6, 0), FontSize = 11 };
+            var chipContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            chipContent.Children.Add(chipText);
+            chipContent.Children.Add(remove);
+            var chip = new Border
+            {
+                Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"],
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 3, 4, 3),
+                Child = chipContent,
+            };
+            var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            line.Children.Add(chip);
+            if (!found)
+            {
+                line.Children.Add(new TextBlock
+                {
+                    Text = string.Format(Lang.Lunarward_RuntimeEnv_WrapperMissing, command),
+                    FontSize = 12,
+                    Foreground = (Brush)Application.Current.Resources["SystemFillColorCautionBrush"],
+                    VerticalAlignment = VerticalAlignment.Center,
+                });
+            }
+            _editorWrapperHost.Children.Add(line);
+            remove.Click += (_, _) =>
+            {
+                _editorWrapperList.Remove(wrapper);
+                RebuildWrapperChips();
+                UpdateEditorPreview();
+            };
+        }
+    }
+
+
 }
