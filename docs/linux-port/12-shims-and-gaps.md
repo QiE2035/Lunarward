@@ -2,7 +2,9 @@
 
 > 这份文档回答一个问题：**Linux 版里，哪些地方是「真的做了」，哪些只是「先让它编译过」？**
 >
-> **最后校准**：2026-11-19（D89 + L-163）。本文只回答「实现了没有、还是只是替身」。
+> **最后校准**：2026-11-23（D109）。本文只回答「实现了没有、还是只是替身」。
+>
+> **D94–D109 期间状态有变化，以对应审查文档为准**：`26`（76 条实现错位，70 条已修）、`28`（运行环境 42 条，全修）、`29`（运行环境 UI 21 条，全修）。受影响的替身/实现：`InstallGameDialog`、`PreDownloadDialog`、`GameInstallService`、`GameRecordPage`、`ScreenshotPage`/`ScreenshotSetting`、`CachedImage` 缩略图、`RuntimeEnvironmentSetting.*`、`BattleChronicleWindow`（仍是 M2 占位）。
 >
 > 维护规则（强制）：每新增一个 `*.Linux.cs`、每新增一处 `Compat/` 兼容层、每把一个上游文件加入
 > `<Compile Remove>`，都必须同步更新本表。没有登记的替身视为缺陷（D33）。
