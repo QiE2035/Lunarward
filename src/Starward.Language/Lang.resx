@@ -3105,7 +3105,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Each game binds one profile, and a profile can be shared by several games. The "used by" list below shows a profile's blast radius.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Runners_Notice" xml:space="preserve">
-    <value>Read-only list: only discovers existing wine / Proton, never installs or modifies. Use "Add runner…" to register a folder you installed yourself.</value>
+    <value>Read-only list: only discovers existing wine / Proton, installs and modifies nothing; use “Add runner…” to download one or add an installed copy.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPath" xml:space="preserve">
     <value>Add path...</value>
@@ -4224,7 +4224,7 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
     <value>+ New profile</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPathTip" xml:space="preserve">
-    <value>Adds an existing wine / Proton folder to the list; nothing is copied or installed.</value>
+    <value>Download a runner, or add an existing wine executable to the list; the discovered system runners are only read.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_SetDefaultRunnerTip" xml:space="preserve">
     <value>Write the selected runner into the default profile; other profiles are untouched.</value>
@@ -4261,5 +4261,20 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   </data>
   <data name="Lunarward_RuntimeEnv_SectionCount" xml:space="preserve">
     <value>{0} items</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DownloadRunner" xml:space="preserve">
+    <value>Download runner…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DownloadRunnerTitle" xml:space="preserve">
+    <value>Download runner</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PickLocalRunner" xml:space="preserve">
+    <value>Pick a local runner…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DownloadGraphics" xml:space="preserve">
+    <value>Download graphics…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DownloadGraphicsTitle" xml:space="preserve">
+    <value>Download graphics</value>
   </data>
 </root>

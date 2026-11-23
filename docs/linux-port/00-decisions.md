@@ -1805,3 +1805,13 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - 验证：build 0 错误；`dotnet test` 271 通过；`lint-ui-thread.sh`、`lint-cli-help.sh`（A 段）通过；真机 1200×860 截图确认下载源条、运行器段标题行、方案页唯一「＋ 新建方案」（`dsh-cu-area-1795446923280.jpg`）。图形层段因注入滚轮在本环境不生效（设置→高级 同样不滚，属工具限制）未能截图目视，行渲染与运行器共用同一 `CreateGraphicsRow` 路径。
 
 **确认方式**：用户 m06397「先按这个来吧」。
+
+**2026-11-23 修订 4（用户 m06674「继续」，落地「两个『添加…』合并三入口」）**：把两段的主操作从单一路径改成菜单，来源按段过滤。
+
+- 运行器段「添加运行器…」下拉：**下载运行器…**（`ShowDownloadDialogAsync("runner")`，只列 Kind 为 wine / proton 的源）与**选择本地运行器…**（原 `Button_AddRunner_Click`，挑 wine 可执行文件）。
+- 图形层段「添加图形层…」下拉：**下载图形层…**（只列 Kind 为 graphics 的源）、**导入本地安装包…**（`ShowImportArchiveAsync("graphics")`，不再弹类型选择框）、**从文件夹导入…**（原有 `Button_ImportGraphics_Click`）。
+- 下载弹窗拆成 `ShowDownloadDialogAsync(string kind)` 一个实现 + 两个薄包装：源过滤按 Kind，标题分别是「下载运行器」「下载图形层」；安装逻辑完全共用，没有第二套下载代码。
+- 「更多」精简为只放与清单无关的低频动作（下载暂存区、清理未使用），不再重复「导入安装包 / 导入图形层」。
+- 与批准方案的一处偏差：**暂存区没有做成「添加」的第三个入口**。查代码后确认 `Button_Staging_Click` 只是列出 `.download/` 里未完成的分片并允许删除（取消 = 暂停，分片留着续传），并不能导入任何东西；把它挂进「添加…」会变成死路。因此「添加」只保留真实的两种来源（下载 / 本地文件），暂存区仍在「更多」里做管理。若以后做「从暂存区续传安装」，再补第三个入口。
+- 文案同步：`AddPathTip` tooltip 改为「下载运行器，或把已装好的 wine 可执行文件加进清单；系统里已发现的运行器只读。」，`Runners_Notice` 一并改；新增 `DownloadRunner`/`DownloadRunnerTitle`/`PickLocalRunner`/`DownloadGraphics`/`DownloadGraphicsTitle` 五个键（五套资源）。
+- 验证：build 0 错误；`dotnet test` 271 通过；`lint-ui-thread.sh` 通过；真机确认「添加运行器…」下拉两项、点「下载运行器…」后弹窗标题为「下载运行器」且源下拉只剩 wine-staging（图形层源未出现）。

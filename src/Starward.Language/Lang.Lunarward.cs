@@ -559,6 +559,11 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_AddPathTip => ResourceManager.GetString("Lunarward_RuntimeEnv_AddPathTip", resourceCulture) ?? "把一个已存在的 wine / Proton 目录加入清单，不复制、不安装。";
     public static string Lunarward_RuntimeEnv_SetDefaultRunnerTip => ResourceManager.GetString("Lunarward_RuntimeEnv_SetDefaultRunnerTip", resourceCulture) ?? "把当前选中的运行器写进默认方案；其它方案不受影响。";
     public static string Lunarward_RuntimeEnv_AddRunner => ResourceManager.GetString("Lunarward_RuntimeEnv_AddRunner", resourceCulture) ?? "Lunarward_RuntimeEnv_AddRunner";
+    public static string Lunarward_RuntimeEnv_DownloadRunner => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadRunner", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadRunner";
+    public static string Lunarward_RuntimeEnv_DownloadRunnerTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadRunnerTitle", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadRunnerTitle";
+    public static string Lunarward_RuntimeEnv_PickLocalRunner => ResourceManager.GetString("Lunarward_RuntimeEnv_PickLocalRunner", resourceCulture) ?? "Lunarward_RuntimeEnv_PickLocalRunner";
+    public static string Lunarward_RuntimeEnv_DownloadGraphics => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadGraphics", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadGraphics";
+    public static string Lunarward_RuntimeEnv_DownloadGraphicsTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadGraphicsTitle", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadGraphicsTitle";
     public static string Lunarward_RuntimeEnv_AddGraphics => ResourceManager.GetString("Lunarward_RuntimeEnv_AddGraphics", resourceCulture) ?? "Lunarward_RuntimeEnv_AddGraphics";
     public static string Lunarward_RuntimeEnv_SourcesStripTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesStripTitle", resourceCulture) ?? "Lunarward_RuntimeEnv_SourcesStripTitle";
     public static string Lunarward_RuntimeEnv_SourcesStripNotice => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesStripNotice", resourceCulture) ?? "Lunarward_RuntimeEnv_SourcesStripNotice";

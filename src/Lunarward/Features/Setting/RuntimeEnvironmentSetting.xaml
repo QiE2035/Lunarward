@@ -454,10 +454,14 @@
                                         Grid.Column="1"
                                         Orientation="Horizontal"
                                         Spacing="8">
-                                        <Button
-                                            x:Name="Button_AddRunner"
-                                            Click="Button_AddRunner_Click"
-                                            Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddRunner}" />
+                                        <Button x:Name="Button_AddRunner" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddRunner}">
+                                            <Button.Flyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem Click="Button_DownloadRunner_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_DownloadRunner}" />
+                                                    <MenuFlyoutItem Click="Button_AddRunner_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_PickLocalRunner}" />
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
                                         <Button x:Name="Button_RunnerMore" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_More}">
                                             <Button.Flyout>
                                                 <MenuFlyout>
@@ -504,9 +508,16 @@
                                         Spacing="8">
                                         <Button
                                             x:Name="Button_DownloadComponent"
-                                            Click="Button_DownloadComponent_Click"
                                             Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddGraphics}"
-                                            Style="{StaticResource AccentButtonStyle}" />
+                                            Style="{StaticResource AccentButtonStyle}">
+                                            <Button.Flyout>
+                                                <MenuFlyout>
+                                                    <MenuFlyoutItem Click="Button_DownloadGraphics_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_DownloadGraphics}" />
+                                                    <MenuFlyoutItem Click="Button_ImportArchiveGraphics_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportArchive}" />
+                                                    <MenuFlyoutItem Click="Button_ImportGraphics_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportGraphics}" />
+                                                </MenuFlyout>
+                                            </Button.Flyout>
+                                        </Button>
                                         <ComboBox
                                             x:Name="Combo_ComponentFilter"
                                             MinWidth="130"
@@ -515,11 +526,7 @@
                                         <Button x:Name="Button_More" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_More}">
                                             <Button.Flyout>
                                                 <MenuFlyout>
-                                                    <MenuFlyoutItem Click="Button_ImportArchive_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportArchive}" />
-                                                    <MenuFlyoutItem Click="Button_ImportGraphics_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportGraphics}" />
-                                                    <MenuFlyoutSeparator />
                                                     <MenuFlyoutItem Click="Button_Staging_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Staging}" />
-                                                    <MenuFlyoutSeparator />
                                                     <MenuFlyoutItem Click="Button_CleanupComponents_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_CleanupUnused}" />
                                                 </MenuFlyout>
                                             </Button.Flyout>

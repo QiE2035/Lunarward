@@ -3057,7 +3057,7 @@
     <value>每個遊戲繫結一個方案；一套方案可以被多個遊戲共用。編輯方案時下面的「使用中的遊戲」就是它的影響面。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Runners_Notice" xml:space="preserve">
-    <value>唯讀清單：只發現既有的 wine / Proton，不安裝、不修改；用「新增執行器…」把已裝好的目錄加進來。</value>
+    <value>唯讀清單：只發現已有的 wine / Proton，不安裝、不修改；用「新增執行器…」下載或加入已裝好的版本。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPath" xml:space="preserve">
     <value>新增路徑…</value>
@@ -4218,7 +4218,7 @@
     <value>＋ 新增方案</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPathTip" xml:space="preserve">
-    <value>把一個既有的 wine / Proton 目錄加入清單，不複製、不安裝。</value>
+    <value>下載執行器，或把已裝好的 wine 執行檔加入清單；系統裡已發現的執行器唯讀。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_SetDefaultRunnerTip" xml:space="preserve">
     <value>把目前選取的 runner 寫進預設方案；其它方案不受影響。</value>
@@ -4255,5 +4255,20 @@
   </data>
   <data name="Lunarward_RuntimeEnv_SectionCount" xml:space="preserve">
     <value>{0} 項</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DownloadRunner" xml:space="preserve">
+    <value>下載執行器…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DownloadRunnerTitle" xml:space="preserve">
+    <value>下載執行器</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PickLocalRunner" xml:space="preserve">
+    <value>選擇本機執行器…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DownloadGraphics" xml:space="preserve">
+    <value>下載圖形層…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DownloadGraphicsTitle" xml:space="preserve">
+    <value>下載圖形層</value>
   </data>
 </root>

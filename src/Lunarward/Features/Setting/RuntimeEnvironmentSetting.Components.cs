@@ -55,7 +55,15 @@ public sealed partial class RuntimeEnvironmentSetting
         public required StackPanel Holder { get; init; }
     }
 
-    private async void Button_DownloadComponent_Click(object sender, RoutedEventArgs e)
+    private async void Button_DownloadGraphics_Click(object sender, RoutedEventArgs e) => await ShowDownloadDialogAsync("graphics");
+
+    private async void Button_DownloadRunner_Click(object sender, RoutedEventArgs e) => await ShowDownloadDialogAsync("runner");
+
+    /// <summary>
+    /// 「添加运行器… / 添加图形层…」共用的下载弹窗：同一套源、同一套安装逻辑，
+    /// 区别只是按源 Kind 过滤（运行器 = wine / proton，图形层 = graphics）。
+    /// </summary>
+    private async Task ShowDownloadDialogAsync(string kind)
     {
         if (_downloadDialogOpen)
         {
@@ -64,13 +72,15 @@ public sealed partial class RuntimeEnvironmentSetting
         _downloadDialogOpen = true;
         try
         {
-            IReadOnlyList<ComponentSourceEntry> sources = LoadSourceEntries().Where(x => x.Enabled).ToList();
+            IReadOnlyList<ComponentSourceEntry> sources = LoadSourceEntries()
+                .Where(x => x.Enabled && (kind == "graphics" ? x.Kind == "graphics" : x.Kind != "graphics"))
+                .ToList();
             if (sources.Count == 0)
             {
                 // D111：空态就说清楚下一步能做什么，别只弹一条 toast。
                 ContentDialogResult empty = await new ContentDialog
                 {
-                    Title = Lang.Lunarward_RuntimeEnv_AddComponents,
+                    Title = kind == "graphics" ? Lang.Lunarward_RuntimeEnv_DownloadGraphicsTitle : Lang.Lunarward_RuntimeEnv_DownloadRunnerTitle,
                     Content = Lang.Lunarward_RuntimeEnv_NoEnabledSource,
                     PrimaryButtonText = Lang.Lunarward_RuntimeEnv_ManageSources,
                     CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
@@ -145,7 +155,7 @@ public sealed partial class RuntimeEnvironmentSetting
 
             var dialog = new ContentDialog
             {
-                Title = Lang.Lunarward_RuntimeEnv_AddComponents,
+                Title = kind == "graphics" ? Lang.Lunarward_RuntimeEnv_DownloadGraphicsTitle : Lang.Lunarward_RuntimeEnv_DownloadRunnerTitle,
                 Content = new ScrollViewer { Content = panel, MaxHeight = 560 },
                 DefaultButton = ContentDialogButton.None,
                 XamlRoot = XamlRoot,
@@ -536,7 +546,12 @@ public sealed partial class RuntimeEnvironmentSetting
     /// 「导入归档…」：选一个本地归档（.tar / .tar.gz / .tar.zst / .tar.xz / .zip），
     /// 问一下是运行器还是图形层，然后解压导入（可取消、有进度）。
     /// </summary>
-    private async void Button_ImportArchive_Click(object sender, RoutedEventArgs e)
+    private async void Button_ImportArchive_Click(object sender, RoutedEventArgs e) => await ShowImportArchiveAsync(null);
+
+    /// <summary>图形层段的「导入本地安装包…」：直接按 graphics 导入，不再问类型。</summary>
+    private async void Button_ImportArchiveGraphics_Click(object sender, RoutedEventArgs e) => await ShowImportArchiveAsync("graphics");
+
+    private async Task ShowImportArchiveAsync(string? presetKind)
     {
         try
         {
@@ -552,26 +567,34 @@ public sealed partial class RuntimeEnvironmentSetting
                 return;
             }
 
-            var kindBox = new ComboBox
+            string kind;
+            if (presetKind is not null)
             {
-                ItemsSource = new List<string> { Lang.Lunarward_RuntimeEnv_RunnerSectionTitle, Lang.Lunarward_RuntimeEnv_GraphicsSectionTitle },
-                SelectedIndex = 0,
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-            };
-            var dialog = new ContentDialog
-            {
-                Title = string.Format(Lang.Lunarward_RuntimeEnv_ImportTitle, Path.GetFileName(archive)),
-                Content = kindBox,
-                PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Import,
-                CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot,
-            };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-            {
-                return;
+                kind = presetKind;
             }
-            string kind = kindBox.SelectedIndex == 1 ? "graphics" : "wine";
+            else
+            {
+                var kindBox = new ComboBox
+                {
+                    ItemsSource = new List<string> { Lang.Lunarward_RuntimeEnv_RunnerSectionTitle, Lang.Lunarward_RuntimeEnv_GraphicsSectionTitle },
+                    SelectedIndex = 0,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                };
+                var dialog = new ContentDialog
+                {
+                    Title = string.Format(Lang.Lunarward_RuntimeEnv_ImportTitle, Path.GetFileName(archive)),
+                    Content = kindBox,
+                    PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Import,
+                    CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = XamlRoot,
+                };
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+                kind = kindBox.SelectedIndex == 1 ? "graphics" : "wine";
+            }
 
             Helpers.InAppToast.MainWindow?.Information((string?)null, Lang.Lunarward_RuntimeEnv_Extracting, 8000);
             var progress = new Progress<ArchiveProgress>(p =>
