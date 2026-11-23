@@ -320,7 +320,23 @@ public static class LaunchPreflight
         if (File.Exists(exePath))
         {
             PeArch arch = PeArchitecture.Describe(exePath);
-            string prefixArch = PeArchitecture.NormalizePrefixArch(profile?.PrefixArch);
+            // R04：优先用前缀里真实的 #arch（wine 自己写的），读不到才退回配方配置值。
+            string? actualPrefixArch = profile is null
+                ? null
+                : PeArchitecture.TryDetectPrefixArch(EnvironmentResolver.EffectivePrefixPath(profile));
+            string prefixArch = PeArchitecture.NormalizePrefixArch(actualPrefixArch ?? profile?.PrefixArch);
+            if (actualPrefixArch is not null && profile is not null
+                && !string.Equals(actualPrefixArch, PeArchitecture.NormalizePrefixArch(profile.PrefixArch), StringComparison.Ordinal))
+            {
+                result.Items.Add(new PreflightItem
+                {
+                    Name = "前缀架构",
+                    Status = PreflightStatus.Warning,
+                    Detail = $"配方写的是 {PeArchitecture.NormalizePrefixArch(profile.PrefixArch)}，前缀实际是 {actualPrefixArch}；启动以实际前缀为准",
+                    Fix = "新前缀才会按配方架构创建；已有前缀要改架构需另建一个前缀",
+                    Action = PreflightAction.OpenRuntimeSettings,
+                });
+            }
             if (arch == PeArch.Unknown)
             {
                 result.Items.Add(new PreflightItem

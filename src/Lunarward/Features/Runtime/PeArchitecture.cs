@@ -73,6 +73,41 @@ internal static class PeArchitecture
 
 
     /// <summary>前缀架构归一化：`win32` / `win64`，其它值按 win64 处理（D73 的默认）。</summary>
+    /// <summary>
+    /// 读真实前缀的架构（R04）：wine 把 WINEARCH 写进 <c>&lt;prefix&gt;/system.reg</c> 的 <c>#arch=win32</c> 行，
+    /// win64 前缀同样有一行（wine 3.0 起）。读不到（前缀还没建、文件被改坏）返回 null，由调用方决定降级策略。
+    /// </summary>
+    public static string? TryDetectPrefixArch(string? prefixPath)
+    {
+        if (string.IsNullOrWhiteSpace(prefixPath))
+        {
+            return null;
+        }
+        try
+        {
+            string systemReg = Path.Combine(prefixPath, "system.reg");
+            if (!File.Exists(systemReg))
+            {
+                return null;
+            }
+            using var reader = new StreamReader(systemReg);
+            for (int i = 0; i < 32 && reader.ReadLine() is { } line; i++)
+            {
+                if (line.StartsWith("#arch=", StringComparison.OrdinalIgnoreCase))
+                {
+                    string value = line["#arch=".Length..].Trim().ToLowerInvariant();
+                    return value is "win32" or "win64" ? value : null;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "Read prefix arch failed: {prefix}", prefixPath);
+        }
+        return null;
+    }
+
+
     public static string NormalizePrefixArch(string? prefixArch)
     {
         if (string.IsNullOrWhiteSpace(prefixArch))

@@ -470,8 +470,20 @@ internal partial class GameLauncherService
                     _logger.LogInformation("Launch report: {path}", reportPath);
                 }
             }
-            Process? process = Process.Start(info);
-            AttachSessionCleanup(process, gameId.GameBiz);
+            // R05：前缀锁在 CreateGameProcessStartInfo 里已经拿到；Start 抛异常必须在这里释放，
+            // 否则一次 ENOENT/EACCES 之后同名游戏在整个进程生命周期里都起不来。
+            string? launchPrefix = info.Environment.TryGetValue("WINEPREFIX", out string? envPrefix) ? envPrefix : null;
+            Process? process;
+            try
+            {
+                process = Process.Start(info);
+            }
+            catch
+            {
+                ReleasePrefixLock(launchPrefix);
+                throw;
+            }
+            AttachSessionCleanup(process, gameId.GameBiz, launchPrefix);
             if (process != null)
             {
                 if (!OperatingSystem.IsWindows())

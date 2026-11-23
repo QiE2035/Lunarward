@@ -74,7 +74,7 @@ public class LaunchRecipeTests
 
 
     [Fact]
-    public void Build_UsesProfileArgsWhenPresent_AndFillsPrefix()
+    public void Build_AppendsProfileArgsAndKeepsGameArgs()
     {
         var profile = new RuntimeProfile
         {
@@ -89,7 +89,8 @@ public class LaunchRecipeTests
 
         Assert.Equal("/prefix", recipe.Environment["WINEPREFIX"]);
         Assert.Equal("fps", recipe.Environment["DXVK_HUD"]);
-        Assert.Equal(new[] { "gamemoderun", "/w", "/games/g.exe", "-windowed" }, recipe.Argv);
+        // R02：游戏自带参数在前、配方参数追加在后，两者都不能丢。
+        Assert.Equal(new[] { "gamemoderun", "/w", "/games/g.exe", "-ignored", "-windowed" }, recipe.Argv);
         Assert.Empty(recipe.Overrides);
     }
 
@@ -153,5 +154,36 @@ public class LaunchRecipeTests
         var profile = new RuntimeProfile { Name = "p", DxvkId = dxvkId, Vkd3dId = vkd3dId };
 
         Assert.Equal(expected, profile.HasGraphics);
+    }
+}
+
+
+public class LaunchRecipeArgsMergeTests
+{
+
+    [Fact]
+    public void Build_AppendsRecipeArgsAfterGameArgs()
+    {
+        var profile = new RuntimeProfile { Name = "t", Args = "-dx11" };
+
+        LaunchRecipe recipe = LaunchRecipeBuilder.Build(
+            profile, "/usr/bin/wine", "/prefix", "/games/YuanShen.exe",
+            "login_auth_ticket=abc -popupwindow", new Dictionary<string, string>());
+
+        Assert.Equal(
+            new[] { "/usr/bin/wine", "/games/YuanShen.exe", "login_auth_ticket=abc", "-popupwindow", "-dx11" },
+            recipe.Argv);
+    }
+
+
+    [Fact]
+    public void Build_WithoutRecipeArgs_KeepsGameArgs()
+    {
+        var profile = new RuntimeProfile { Name = "t" };
+
+        LaunchRecipe recipe = LaunchRecipeBuilder.Build(
+            profile, "/w", "/p", "game.exe", "-use-d3d12", new Dictionary<string, string>());
+
+        Assert.Equal(new[] { "/w", "game.exe", "-use-d3d12" }, recipe.Argv);
     }
 }

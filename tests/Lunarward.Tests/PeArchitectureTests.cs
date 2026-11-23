@@ -178,3 +178,33 @@ public class PeArchitectureTests
         return buffer;
     }
 }
+
+
+public class PrefixArchDetectionTests
+{
+
+    [Fact]
+    public void TryDetectPrefixArch_ReadsWineArchFromSystemReg()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "lw-arch-" + Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "system.reg"),
+                "WINE REGISTRY Version 2\n;; All keys relative to REGISTRY\\\\Machine\n\n#arch=win32\n");
+            Assert.Equal("win32", PeArchitecture.TryDetectPrefixArch(dir));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+
+    [Fact]
+    public void TryDetectPrefixArch_ReturnsNullWhenMissing()
+    {
+        Assert.Null(PeArchitecture.TryDetectPrefixArch(Path.Combine(Path.GetTempPath(), "lw-nope-" + Guid.NewGuid().ToString("n"))));
+        Assert.Null(PeArchitecture.TryDetectPrefixArch(null));
+    }
+}

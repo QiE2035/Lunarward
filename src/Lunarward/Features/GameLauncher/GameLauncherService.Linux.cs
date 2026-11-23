@@ -100,41 +100,80 @@ internal partial class GameLauncherService
     /// 构造启动游戏的 ProcessStartInfo。
     /// <paramref name="exe"/> 为 .exe 时经 wine 启动，为原生可执行文件时直接启动（兼容第三方工具）。
     /// </summary>
-    /// <summary>游戏运行期间持有的前缀锁（同一前缀不允许两个实例同时跑）。</summary>
-    private static FileStream? _prefixLockStream;
+    /// <summary>游戏运行期间持有的前缀锁（同一前缀不允许两个实例同时跑）。按前缀分槽，避免第二个会话把第一个的锁顶掉（R05）。</summary>
+    private static readonly Dictionary<string, FileStream> _prefixLocks = new(StringComparer.Ordinal);
 
 
-    /// <summary>独占该前缀；被占用时返回 false（不阻断，由预检决定）。</summary>
+    private static string NormalizePrefixKey(string prefix)
+    {
+        string full = Path.GetFullPath(prefix);
+        return full.Length > 1 ? full.TrimEnd(Path.DirectorySeparatorChar) : full;
+    }
+
+
+    /// <summary>独占该前缀；被占用时返回 false。</summary>
     private static bool TryLockPrefix(string prefix)
     {
-        try
+        string key = NormalizePrefixKey(prefix);
+        lock (_prefixLocks)
         {
-            string lockFile = Path.Combine(prefix, ".lunarward", "lock");
-            Directory.CreateDirectory(Path.GetDirectoryName(lockFile)!);
-            Features.PlayTime.PlayTimeSession.ActivePrefix = prefix;
-            _prefixLockStream = new FileStream(lockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-            _prefixLockStream.WriteByte((byte)'1');
-            _prefixLockStream.Flush();
-            return true;
-        }
-        catch
-        {
-            // 被占用是正常情况（另一个实例在跑），由预检的「前缀占用」项报告给用户
-            return false;
+            if (_prefixLocks.ContainsKey(key))
+            {
+                return false;
+            }
+            try
+            {
+                string lockFile = Path.Combine(key, ".lunarward", "lock");
+                Directory.CreateDirectory(Path.GetDirectoryName(lockFile)!);
+                var stream = new FileStream(lockFile, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                stream.WriteByte((byte)'1');
+                stream.Flush();
+                _prefixLocks[key] = stream;
+                Features.PlayTime.PlayTimeSession.ActivePrefix = key;
+                return true;
+            }
+            catch (IOException)
+            {
+                // 被另一个实例占用是正常情况，由调用方转成「前缀被占用」。
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Serilog.Log.Warning("Prefix lock is not writable: {prefix}", prefix);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "Try lock prefix failed: {prefix}", prefix);
+                return false;
+            }
         }
     }
 
 
-    private static void ReleasePrefixLock()
+    private static void ReleasePrefixLock(string? prefix)
     {
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            return;
+        }
+        string key = NormalizePrefixKey(prefix);
+        FileStream? stream = null;
+        lock (_prefixLocks)
+        {
+            if (_prefixLocks.Remove(key, out FileStream? held))
+            {
+                stream = held;
+            }
+        }
         try
         {
-            _prefixLockStream?.Dispose();
+            stream?.Dispose();
         }
-        catch
+        catch (Exception ex)
         {
+            Serilog.Log.Debug(ex, "Dispose prefix lock failed: {prefix}", prefix);
         }
-        _prefixLockStream = null;
     }
 
 
@@ -156,7 +195,7 @@ internal partial class GameLauncherService
     /// 游戏进程退出后：释放前缀锁，并触发 on_game_exit 的后启动程序（D24）。
     /// 前缀不再有「临时模式」（D73 §3.1），想用完即弃就让路径落在临时目录、自己删。
     /// </summary>
-    private static void AttachSessionCleanup(Process? process, GameBiz gameBiz)
+    private static void AttachSessionCleanup(Process? process, GameBiz gameBiz, string? prefix)
     {
         _ = Task.Run(async () =>
         {
@@ -164,11 +203,12 @@ internal partial class GameLauncherService
             {
                 // 不能用 process.Exited：wine 的 loader 常常在游戏真正退出前就先退了，
                 // 那样会导致「前缀锁提前释放、临时前缀被删掉"（L-62）。改用 wine 会话结束作为判据。
+                // 前缀显式传进来（R05）：多会话时不依赖静态 ActivePrefix，否则 A 的清理会释放 B 的锁。
                 if (process is not null)
                 {
                     try
                     {
-                        await Features.PlayTime.PlayTimeSession.WaitForSessionEndAsync(process.Id, Features.PlayTime.PlayTimeSession.ActivePrefix, gameBiz: gameBiz);
+                        await Features.PlayTime.PlayTimeSession.WaitForSessionEndAsync(process.Id, prefix, gameBiz: gameBiz);
                     }
                     catch (Exception ex)
                     {
@@ -178,7 +218,7 @@ internal partial class GameLauncherService
             }
             finally
             {
-                ReleasePrefixLock();
+                ReleasePrefixLock(prefix);
                 RunExitCompanions(gameBiz);
             }
         });
@@ -249,11 +289,12 @@ internal partial class GameLauncherService
                     Helpers.InAppToast.MainWindow?.Information("首次启动：正在初始化 Wine 前缀，可能需要十几秒…", null, 8000);
                 }
                 prefix = Features.Runtime.PrefixManager.EnsurePrefix(profile, key.ToLowerInvariant(), _logger);
-                TryLockPrefix(prefix);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Ensure prefix failed, fallback to environment defaults.");
+                // 不再静默降级：用户配的前缀坏了还照常启动、换个前缀跑，是最难查的一类「假生效」（R03）。
+                _logger.LogError(ex, "Ensure prefix failed, falling back to environment defaults.");
+                Helpers.InAppToast.MainWindow?.Warning(null, $"前缀创建/校验失败，本次改用默认前缀：{ex.Message}", 8000);
                 prefix = ResolvePrefix(key.ToLowerInvariant());
             }
         }
@@ -265,6 +306,11 @@ internal partial class GameLauncherService
         {
             throw new DirectoryNotFoundException(
                 $"未找到可用的 wine prefix。请设置 LUNARWARD_WINEPREFIX，或先创建 {Path.Combine(PrefixRoot, key.ToLowerInvariant())}。");
+        }
+        if (!TryLockPrefix(prefix))
+        {
+            // R05：预检与启动之间的 TOCTOU、以及同进程重复启动，都在这里挡住，而不是共用一个前缀硬跑。
+            throw new InvalidOperationException($"前缀正被另一个实例使用：{prefix}。请先关闭正在运行的游戏，或换一个前缀。");
         }
 
         // M2：启动前把选定的 DXVK / VKD3D 装进前缀（D83 两类各自独立，可以同时装；
@@ -317,16 +363,15 @@ internal partial class GameLauncherService
         {
             autoEnvironment[pair.Key] = pair.Value ?? "";
         }
-        // B32：配方参数追加在游戏自带参数之后，而不是整体替换——否则 login_auth_ticket/-use-d3d12/-popupwindow 会被吞掉。
-        string effectiveArgs = string.IsNullOrWhiteSpace(profile?.Args) ? (arg ?? "") : string.Join(' ', new[] { profile!.Args, arg }.Where(x => !string.IsNullOrWhiteSpace(x)));
+        // R02：参数合并只在 Build 里做一次（追加，不替换）——这里传游戏自带参数原始值。
         Features.Runtime.LaunchRecipe recipe = Features.Runtime.LaunchRecipeBuilder.Build(
-            profile, wine, prefix, exe, effectiveArgs, autoEnvironment);
-        if (profile?.Env is { Count: > 0 })
+            profile, wine, prefix, exe, arg, autoEnvironment);
+        // R01：以 recipe.Environment 为唯一依据整体下发（继承环境 + Proton 变量 + 增强 HUD + 配方覆盖，
+        // 且 WINEPREFIX 已被 Build 固定成真实前缀）。之前只回灌 profile.Env，导致 HUD 全静默失效、
+        // 用户写 WINEPREFIX 还能把加锁/DXVK 用的前缀和进程实际前缀拆成两个。
+        foreach ((string envKey, string envValue) in recipe.Environment)
         {
-            foreach ((string envKey, string envValue) in profile.Env)
-            {
-                info.Environment[envKey] = envValue;
-            }
+            info.Environment[envKey] = envValue;
         }
         foreach (Features.Runtime.EnvOverride overridden in recipe.Overrides)
         {

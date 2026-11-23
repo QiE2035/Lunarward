@@ -1554,3 +1554,25 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 264 通过；`lint-ui-thread.sh` 与 `lint-cli-help.sh`（A 段 51 个开关）通过。
 
 **确认方式**：用户 m01511。
+
+## D104 运行环境审查修复：批 A「启动链正确性」
+
+**背景**：2026-11-23 对「运行环境」模块做只读审查（产物 `28-runtime-env-audit.md`，R01–R42），用户 m02913「全处理了」授权修复。批 A 覆盖 R01–R06：这些不是平台差异，而是「配置读到了、启动时没用上」的实现错位——用户以为在跑自己配的环境，实际换了前缀/参数且没有任何提示。
+
+**决定**：
+
+1. **R01 配方 env 是唯一依据**：`CreateGameProcessStartInfo` 改为整体下发 `LaunchRecipe.Environment`（继承环境 + Proton 变量 + 增强 HUD + 配方覆盖），删除单独的 `profile.Env` 回灌；`WINEPREFIX` 由 `Build` 固定成真实前缀，用户写 `WINEPREFIX` 只留覆盖告警、不再影响进程实际前缀。
+2. **R02 参数只追加**：`LaunchRecipeBuilder.Build` 自己合并 `gameArgs + profile.Args`，删除「有配方参数就整体替换」的三元；调用方传游戏自带参数原始值。单测断言两者同时出现在 `Argv` 且游戏参数在前。
+3. **R03 前缀创建**：`CreateWithWineboot` 先 `Directory.CreateDirectory(父目录)`；`WINEDLLOVERRIDES` 默认 `mscoree,mshtml=`（否则 wineboot 弹 wine-mono 对话框、启动链挂死）；`WaitForExit` 加 3 分钟上限，超时 `Kill(entireProcessTree)` 并抛错。启动侧不再静默降级：`EnsurePrefix` 失败记 Error + toast 明确告知「本次改用默认前缀」。
+4. **R04 WINEARCH**：创建时 `info.Environment["WINEARCH"] = NormalizePrefixArch(profile.PrefixArch)` 并写进 `<prefix>/.lunarward/prefix.json`；预检优先读真实前缀（`system.reg` 的 `#arch=`）判断位宽冲突，配方值与实际不一致时给 Warning（以实际为准）。实测：wow64 版 wine 对 `WINEARCH=win32` 会直接报「not supported in wow64 mode」，现在会以明确错误呈现，而不是静默建出 win64。
+5. **R05 前缀锁**：`_prefixLockStream` 单槽改为 `Dictionary<string, FileStream>` 按前缀分槽；`TryLockPrefix` 失败时启动直接按「前缀被占用」失败（预检与启动之间的 TOCTOU 一起挡住）；`Process.Start` 抛异常时先释放锁；会话清理显式接收本次前缀，不再读静态 `ActivePrefix`。
+6. **R06 默认配方**：`CreateDefault` 不再把 `PrefixPath` 指向 `~/.wine`（只有用户显式设 `LUNARWARD_WINEPREFIX` 才用），空值 = `PrefixRoot/<名字>` 受管目录；默认 `Env` 带 `WINEDLLOVERRIDES=mscoree,mshtml=`。
+
+**代价边界**：已存在的旧前缀架构不改（预检给 Warning）；wine 构建不支持目标架构时创建失败并明确报错（不再「创建成功但其实 win64」）；前缀创建失败时仍允许回退系统前缀，但必须让用户看到。
+
+**验证**：
+- `dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` **268 通过**（新增 4 条：参数追加 ×2、`#arch` 读取 ×2）；`lint-ui-thread.sh` 通过。
+- 真机：`lunarward --prefix-ensure hk4e_cn <测试方案>` 在 `PrefixRoot` 不存在的情况下 9.4 s 建成 `~/.local/share/lunarward/prefix/r03test`，`system.reg` 为 `#arch=win64`、`drive_c` 存在，全程无 wine-mono 对话框（此前实测会卡住）。
+- 测试方案与临时前缀已删除，用户配置未改动。
+
+**确认方式**：用户 m02717（要求审查）+ m02913（「全处理了」）。

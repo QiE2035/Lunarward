@@ -198,7 +198,10 @@ public static class LaunchRecipeBuilder
         {
             RunnerPath = runnerPath,
             PrefixPath = prefixPath,
-            Argv = BuildArgv(Enhancements.Wrappers(profile), runnerPath, exePath, string.IsNullOrWhiteSpace(profile?.Args) ? gameArgs : profile!.Args),
+            // 配方参数只做追加，绝不替换游戏自带参数：login_auth_ticket / -use-d3d12 / -popupwindow 都在这边，
+            // 一旦被吞掉扫码登录回填就静默失效（R02）。
+            Argv = BuildArgv(Enhancements.Wrappers(profile), runnerPath, exePath,
+                string.Join(' ', new[] { gameArgs, profile?.Args }.Where(x => !string.IsNullOrWhiteSpace(x)))),
             Environment = merged,
             Overrides = overrides,
         };

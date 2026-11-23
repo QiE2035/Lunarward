@@ -42,7 +42,7 @@ public sealed class RuntimeProfile
     public bool HasGraphics => !string.IsNullOrWhiteSpace(DxvkId) || !string.IsNullOrWhiteSpace(Vkd3dId);
 
 
-    /// <summary>4) 前缀目录（真值）；空则落到 <c>~/.local/share/lunarward/prefixes/&lt;name&gt;</c>。</summary>
+    /// <summary>4) 前缀目录（真值）；空则落到 <c>~/.local/share/lunarward/prefix/&lt;name&gt;</c>（与 PrefixManager.PrefixRoot 一致）。</summary>
     public string? PrefixPath { get; set; }
 
 

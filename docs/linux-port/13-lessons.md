@@ -1389,3 +1389,10 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 4. **顺手要做的两件事**：①同一路径的抽帧任务用 `ConcurrentDictionary<string, Task>` 去重（页面与 `CachedImage` 会同时请求）；②失败结果短期缓存（本次 10 分钟），否则坏文件每次打开图库都要重新解码一遍、再失败一遍。
 
 **验证手法**：清掉 `~/.cache/lunarward/bg-thumbs`，`Lunarward --window-action backgroundview`（Debug 专用直达入口）打开图库，同时轮询 `wmctrl -l | grep -i vlc`（或 `cu_windows`）——修复前抽帧期间会出现 `vlc` 窗口，修复后始终为 0，缩略图仍按 5 张全部生成。
+
+## L-167 wineboot 卡在 wine-mono 对话框 / WINEARCH 在 wow64 版 wine 上直接失败
+
+- 现象：`lunarward --prefix-ensure …` 挂住不动，屏幕上出现 wine-mono 安装询问窗口；在真机验证里表现为「启动器卡在初始化前缀」。
+- 原因：`wineboot -u` 初始化前缀时会提示安装 mono/gecko（`mscoree`/`mshtml`）；没有 `WINEDLLOVERRIDES=mscoree,mshtml=` 就等用户点选；用 `Process.WaitForExit()` 无超时等待会永久挂起。
+- 正确做法：启动 wineboot 时同时设 `WINEDLLOVERRIDES`（取配方里的值，否则默认 `mscoree,mshtml=`），并给 `WaitForExit` 上限（本项目 3 分钟），超时 `Kill(entireProcessTree: true)` 后抛明确错误。
+- 另一个坑：wow64 版 wine（本项目测试机 `/opt/spritz-wine-tkg`）对 `WINEARCH=win32` 直接报 `WINEARCH is set to 'win32' but this is not supported in wow64 mode`——建 32 位前缀必须用 32 位 wine。预检给「以实际前缀为准」的警告，不要在配置层假装 win32 生效。

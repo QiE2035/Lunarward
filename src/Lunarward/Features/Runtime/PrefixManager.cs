@@ -28,6 +28,9 @@ public sealed class PrefixMetadata
 
     public string Mode { get; set; } = "";
 
+    /// <summary>建前缀时用的 WINEARCH（R04）；老前缀没有这个字段，读不到就回退到 system.reg。</summary>
+    public string? PrefixArch { get; set; }
+
 
     public DateTime CreatedAt { get; set; }
 }
@@ -395,13 +398,39 @@ public static class PrefixManager
             info.ArgumentList.Add("wineboot");
         }
         info.ArgumentList.Add("-u");
+        // R03：wine 不会替我们建父目录，PrefixRoot（或用户手写的上级目录）不存在时 wineboot 直接
+        // `chdir … 没有那个文件或目录`，随后启动链静默回退到 ~/.wine。
+        string? parent = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(parent))
+        {
+            Directory.CreateDirectory(parent);
+        }
         info.Environment["WINEPREFIX"] = path;
         info.Environment["WINEDEBUG"] = "-all";
+        // R04：以前 WINEARCH 从未传给 wineboot，PrefixArch 只是配置字段；现在按配方架构真正建前缀。
+        info.Environment["WINEARCH"] = PeArchitecture.NormalizePrefixArch(profile.PrefixArch);
+        // 不屏蔽 mscoree/mshtml 时 wineboot 会弹 wine-mono/Gecko 安装对话框，启动链就永远等在那里
+        // （实测：一句 `--prefix-ensure` 把整条命令挂死，用户看到的是「卡在询问 wine-mono」）。
+        info.Environment["WINEDLLOVERRIDES"] = profile.Env.TryGetValue("WINEDLLOVERRIDES", out string? overrides)
+            && !string.IsNullOrWhiteSpace(overrides)
+                ? overrides
+                : "mscoree,mshtml=";
         using Process? process = Process.Start(info);
-        process?.WaitForExit();
-        if (process is null || process.ExitCode != 0 || !Directory.Exists(Path.Combine(path, "drive_c")))
+        if (process is null || !process.WaitForExit(TimeSpan.FromMinutes(3)))
         {
-            throw new IOException($"初始化前缀失败（退出码 {process?.ExitCode}）：{path}");
+            try
+            {
+                process?.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Debug(ex, "Kill timed-out wineboot failed");
+            }
+            throw new IOException("初始化前缀超时（3 分钟）：wineboot 可能卡在 wine-mono/Gecko 安装窗口，或运行器无法执行");
+        }
+        if (process.ExitCode != 0 || !Directory.Exists(Path.Combine(path, "drive_c")))
+        {
+            throw new IOException($"初始化前缀失败（退出码 {process.ExitCode}）：{path}");
         }
         logger?.LogInformation("Created prefix with wineboot: {path}", path);
     }
@@ -442,6 +471,7 @@ public static class PrefixManager
                 GameKey = gameKey,
                 ProfileId = profile.Id,
                 Mode = "environment",
+                PrefixArch = PeArchitecture.NormalizePrefixArch(profile.PrefixArch),
                 CreatedAt = existing?.CreatedAt ?? DateTime.Now,
             }, new JsonSerializerOptions { WriteIndented = true });
         }

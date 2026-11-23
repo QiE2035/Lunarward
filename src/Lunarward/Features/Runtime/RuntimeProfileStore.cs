@@ -170,12 +170,13 @@ public static class RuntimeProfileStore
         }
         runner ??= ComponentStore.GetRunners().FirstOrDefault(x => x.Usable == true)
             ?? ComponentStore.GetRunners().FirstOrDefault();
+        // R06：默认配方不再把 PrefixPath 指向 ~/.wine —— 那会把 DXVK 的 d3d11/dxgi 覆盖进全局前缀、
+        // 把侧写写进 ~/.wine/.lunarward，污染其它 wine 应用。空 = 受管默认目录（PrefixRoot/<名字>，D74 第 1 条）。
+        // 只有用户显式设了 LUNARWARD_WINEPREFIX 才尊重它。
         string? prefix = Environment.GetEnvironmentVariable("LUNARWARD_WINEPREFIX");
         if (string.IsNullOrWhiteSpace(prefix))
         {
-            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            string winePrefix = Path.Combine(home, ".wine");
-            prefix = Directory.Exists(winePrefix) ? winePrefix : null;
+            prefix = null;
         }
         return new RuntimeProfile
         {
@@ -183,6 +184,11 @@ public static class RuntimeProfileStore
             RunnerId = runner?.Id,
             RunnerPath = runner?.Path,
             PrefixPath = prefix,
+            // 设计 §4.2 的可见默认值：不做 dll 覆盖的话，wine 首次启动会弹 wine-mono/gecko 安装框。
+            Env = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["WINEDLLOVERRIDES"] = "mscoree,mshtml=",
+            },
         };
     }
 
