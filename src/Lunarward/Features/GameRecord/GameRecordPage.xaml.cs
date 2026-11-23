@@ -101,6 +101,14 @@ public sealed partial class GameRecordPage : PageBase
         {
             try
             {
+                // 切换游戏后必须先把上一款游戏的页签与内容清掉：
+                // InitializeNavigationViewItemVisibility 只负责「本游戏要显示哪些」，不重置旧的可见项。
+                InitializeNavigationViewItemVisibility();
+                _gameRecordService.IsHoyolab = CurrentGameBiz.IsGlobalServer();
+                _gameRecordService.Language = System.Globalization.CultureInfo.CurrentUICulture.Name;
+                CurrentRole = null;
+                GameRoleList = null!;
+                NavigateTo(typeof(BlankPage));
                 if (await CheckAgreementAsync())
                 {
                     LoadGameRoles();
@@ -119,8 +127,8 @@ public sealed partial class GameRecordPage : PageBase
     protected override void OnUnloaded()
     {
         WeakReferenceMessenger.Default.UnregisterAll(this);
-        NavigationViewItem_BattleChronicle.Tapped -= NavigationViewItem_BattleChronicle_Tapped;
-        NavigationViewItem_UpdateDeviceInfo.Tapped -= NavigationViewItem_UpdateDeviceInfo_Tapped;
+        // 注意：不要在 Unloaded 里 -= XAML 的 Tapped。页面是缓存实例，Unloaded 后还会再挂载，
+        // XAML 只连接一次，退订了就再也接不回来（旧代码因此让「战绩」/「更新设备信息」在第二次进入后失效）。
         CurrentRole = null;
         GameRoleList = null!;
         _battleChronicleWindow = null;
@@ -229,8 +237,37 @@ public sealed partial class GameRecordPage : PageBase
     }
 
 
+    private static readonly string[] AllToolboxItemNames =
+    [
+        nameof(NavigationViewItem_BattleChronicle),
+        nameof(NavigationViewItem_TravelersDiary),
+        nameof(NavigationViewItem_SpiralAbyss),
+        nameof(NavigationViewItem_ImaginariumTheater),
+        nameof(NavigationViewItem_StygianOnslaught),
+        nameof(NavigationViewItem_TrailblazeMonthlyCalendar),
+        nameof(NavigationViewItem_SimulatedUniverse),
+        nameof(NavigationViewItem_ForgottenHall),
+        nameof(NavigationViewItem_PureFiction),
+        nameof(NavigationViewItem_ApocalypticShadow),
+        nameof(NavigationViewItem_ChallengePeak),
+        nameof(NavigationViewItem_InterKnotMonthlyReport),
+        nameof(NavigationViewItem_ShiyuDefense),
+        nameof(NavigationViewItem_DeadlyAssault),
+    ];
+
+
     private void InitializeNavigationViewItemVisibility()
     {
+        // 先全部收起，再按当前游戏逐项打开：不预置 Collapsed 会让上一款游戏的页签残留（用户报的 tab 遗留）。
+        foreach (string name in AllToolboxItemNames)
+        {
+            if (FindName(name) is NavigationViewItem item)
+            {
+                item.Visibility = Visibility.Collapsed;
+            }
+        }
+        NavigationViewItem_UpdateDeviceInfo.Visibility = CurrentGameBiz.IsGlobalServer() ? Visibility.Collapsed : Visibility.Visible;
+
         if (CurrentGameBiz.Game is GameBiz.bh3)
         {
             NavigationViewItem_BattleChronicle.Visibility = Visibility.Visible;

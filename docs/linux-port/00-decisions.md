@@ -1666,3 +1666,24 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 验证：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 270 通过；`lint-ui-thread.sh` 通过；真机 1200×680 复核四页签、前缀卡、编辑器固定底栏与脏检查弹窗。
 
 确认方式：m03493（审查请求）、m03736（「全部处理」）。
+
+## D109 米游社工具箱页签残留与「下载组件」选择不可用
+
+背景：用户 m04412 报两处缺陷（米游社工具箱切换游戏后页签残留；下载组件弹窗无法选择），并要求顺带排查同类问题。真机复现确认，根因如下。
+
+决定：
+
+1. 缓存页的「本游戏要显示哪些页签」必须**先全量收起再按当前游戏显示**：`GameRecordPage.InitializeNavigationViewItemVisibility()` 现在遍历 14 个页签全部 `Collapsed`，再按 `CurrentGameBiz` 打开本游戏的那几个；切游戏时 `OnGameChanged` 先重置页签、清 `CurrentRole`、`NavigateTo(BlankPage)`，再重新拉角色，避免旧角色/旧内容残留。
+2. 缓存页的 `OnUnloaded` **不得退订 XAML 里一次连上的事件**（`NavigationViewItem_BattleChronicle.Tapped` 等）：页面实例会被复用，退订后第二次进入按钮永久失效。删掉这两条 `-=` 并留注释（与 D94 的 PageBase 生命周期约定一致）。
+3. 「下载组件」弹窗不用 `ListBox` 选中态（Uno/Skia 在 `ContentDialog` 里点击不改选中），改为 `CheckBox` 行列表：勾选即入队，`已选 N 个版本` 计数，`开始下载` 按勾选数启用；支持多选排队。
+4. 切换下载源必须清空旧列表并禁用「开始下载」：不同源的类型不同（DXVK / wine / vkd3d），残留列表会让归档按新源类型导入。
+5. 空间预检改用 `DriveHelper.GetDriveAvailableSpace`（真实挂载点），不再 `DriveInfo(Path.GetPathRoot(...))`。
+6. 新增文案键 `Lunarward_RuntimeEnv_SelectedVersions`（中/英/繁四套对齐，`LocalizationKeyTests` 守护）。
+
+代价边界：组件列表改为逐行 CheckBox 后不再有「当前行」概念，键盘上下无法移动焦点（需要 Tab 逐行）；`已选 N 个版本` 只统计勾选数，不显示总大小预估。
+
+验证：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 271 通过；真机：勾第 3 行 `dxvk-3.0.2` → 「已选 1 个版本」+ 开始下载可用；切源到 wine-tkg → 列表清空、开始下载变灰；米游社工具箱从原神切到绝区零 → 页签只剩 战绩/绳网日报/式舆防卫战/危局强袭战，切回原神恢复四项。
+
+确认方式：m04412（报缺陷并要求顺带排查）。
+
+遗留观察（未修，非本轮范围）：`BattleChronicleWindow` 标题在 KDE 上显示为 `æœ«…`（UTF-8 字节被按 Latin-1 解码），属窗口标题编码问题，需单独确认是 Uno 还是 KWin 侧；该窗口目前是 M2 占位（WebView2 未移植），内容为空白也属预期。

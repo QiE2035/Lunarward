@@ -65,17 +65,28 @@ public sealed partial class RuntimeEnvironmentSetting
                 Opacity = 0.75,
                 Text = Lang.Lunarward_RuntimeEnv_DownloadHint,
             };
-            // 多选 = 队列（P3「下载队列」）：勾几个版本就依次下载并导入
-            var assetList = new ListBox { Height = 190, SelectionMode = SelectionMode.Multiple };
+            // 多选 = 队列（P3「下载队列」）：勾几个版本就依次下载并导入。
+            // 用 CheckBox 自绘而不是 ListBox：ContentDialog 里的 ListBox 在 Uno/Skia 上点击不改变选中，
+            // 鼠标也看不出选没选（用户报的「下载组件弹窗无法选择」）。
+            var assetPanel = new StackPanel { Spacing = 2 };
+            var assetScroll = new ScrollViewer
+            {
+                Content = assetPanel,
+                Height = 190,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            };
+            var selectionText = new TextBlock { FontSize = 12, Opacity = 0.75 };
             var loadButton = new Button { Content = Lang.Lunarward_RuntimeEnv_LoadVersions };
             var startButton = new Button { Content = Lang.Lunarward_RuntimeEnv_StartDownload, IsEnabled = false };
             var cancelButton = new Button { Content = Lang.Lunarward_RuntimeEnv_Cancel, IsEnabled = false };
+            List<CheckBox> assetChecks = new();
 
             var panel = new StackPanel { Spacing = 8, MinWidth = 520 };
             panel.Children.Add(new TextBlock { Text = Lang.Lunarward_RuntimeEnv_Source, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
             panel.Children.Add(sourceBox);
             panel.Children.Add(loadButton);
-            panel.Children.Add(assetList);
+            panel.Children.Add(assetScroll);
+            panel.Children.Add(selectionText);
             panel.Children.Add(startButton);
             panel.Children.Add(cancelButton);
             panel.Children.Add(status);
@@ -92,6 +103,33 @@ public sealed partial class RuntimeEnvironmentSetting
             IReadOnlyList<ComponentReleaseAsset>? assets = null;
             CancellationTokenSource? cts = null;
 
+            void UpdateSelection()
+            {
+                int count = assetChecks.Count(x => x.IsChecked == true);
+                selectionText.Text = count == 0 ? "" : string.Format(Lang.Lunarward_RuntimeEnv_SelectedVersions, count);
+                startButton.IsEnabled = count > 0;
+            }
+
+            void ClearAssets()
+            {
+                assets = null;
+                assetChecks.Clear();
+                assetPanel.Children.Clear();
+                selectionText.Text = "";
+                startButton.IsEnabled = false;
+            }
+
+            // 切下载源必须清空上一份版本列表：否则列表还显示上一个源的归档，
+            // 而「开始下载」按新源的类型/镜像去装（玩家会看到「DXVK 的列表里下 wine」这种事）。
+            sourceBox.SelectionChanged += (_, _) =>
+            {
+                if (sourceBox.SelectedIndex >= 0)
+                {
+                    ClearAssets();
+                    status.Text = Lang.Lunarward_RuntimeEnv_DownloadHint;
+                }
+            };
+
             loadButton.Click += async (_, _) =>
             {
                 int index = Math.Max(0, sourceBox.SelectedIndex);
@@ -103,18 +141,32 @@ public sealed partial class RuntimeEnvironmentSetting
                 {
                     using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
                     assets = await ComponentSources.ListAssetsAsync(http, source, 10, _logger);
-                    assetList.ItemsSource = assets.Select(x =>
-                        $"{x.Name}    {x.Size / 1048576} MB{(string.IsNullOrWhiteSpace(x.Version) ? "" : "    " + x.Version)}").ToList();
+                    assetPanel.Children.Clear();
+                    assetChecks.Clear();
+                    for (int i = 0; i < assets.Count; i++)
+                    {
+                        ComponentReleaseAsset asset = assets[i];
+                        string label = $"{asset.Name}    {asset.Size / 1048576} MB{(string.IsNullOrWhiteSpace(asset.Version) ? "" : "    " + asset.Version)}";
+                        var check = new CheckBox
+                        {
+                            Content = label,
+                            Tag = i,
+                            MinWidth = 480,
+                        };
+                        check.Checked += (_, _) => UpdateSelection();
+                        check.Unchecked += (_, _) => UpdateSelection();
+                        assetChecks.Add(check);
+                        assetPanel.Children.Add(check);
+                    }
                     if (assets.Count == 0)
                     {
                         status.Text = Lang.Lunarward_RuntimeEnv_NoAssetsForSource;
                     }
                     else
                     {
-                        assetList.SelectedIndex = 0;
-                        startButton.IsEnabled = true;
                         status.Text = string.Format(Lang.Lunarward_RuntimeEnv_ArchivesFound, assets.Count);
                     }
+                    UpdateSelection();
                 }
                 catch (Exception ex)
                 {
@@ -134,9 +186,11 @@ public sealed partial class RuntimeEnvironmentSetting
                     return;
                 }
                 // 队列：多选即排队，逐个「下载 → 导入」；一个失败不影响后面的（P3「下载队列」）
-                List<int> queue = assetList.SelectedItems is { Count: > 0 } selected
-                    ? selected.Cast<object>().Select(x => assetList.Items.IndexOf(x)).Where(x => x >= 0).Distinct().ToList()
-                    : assetList.SelectedIndex >= 0 ? new List<int> { assetList.SelectedIndex } : new List<int>();
+                List<int> queue = assetChecks
+                    .Where(x => x.IsChecked == true && x.Tag is int index)
+                    .Select(x => (int)x.Tag)
+                    .Distinct()
+                    .ToList();
                 if (queue.Count == 0)
                 {
                     status.Text = Lang.Lunarward_RuntimeEnv_SelectVersionFirst;
@@ -169,10 +223,9 @@ public sealed partial class RuntimeEnvironmentSetting
 
                         // 空间预检：归档本身 + 解压后（保守按 2 倍估）
                         long need = asset.Size * 2 + 64L * 1024 * 1024;
-                        string root = Path.GetPathRoot(ComponentStore.ComponentsFolder) ?? "/";
                         try
                         {
-                            long free = new DriveInfo(root).AvailableFreeSpace;
+                            long free = Helpers.DriveHelper.GetDriveAvailableSpace(ComponentStore.ComponentsFolder);
                             if (free < need)
                             {
                                 failed.Add(string.Format(Lang.Lunarward_RuntimeEnv_NotEnoughSpace, asset.Name, need / 1048576, free / 1048576));
@@ -255,6 +308,7 @@ public sealed partial class RuntimeEnvironmentSetting
                     startButton.IsEnabled = assets.Count > 0;
                     cts?.Dispose();
                     cts = null;
+                    UpdateSelection();
                 }
             };
 

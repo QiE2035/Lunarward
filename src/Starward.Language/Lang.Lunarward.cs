@@ -456,6 +456,7 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_DeletedProfileCleared => ResourceManager.GetString("Lunarward_RuntimeEnv_DeletedProfileCleared", resourceCulture) ?? "{0}（已清掉 {1} 个绑定）";
     public static string Lunarward_RuntimeEnv_ReadingVersions => ResourceManager.GetString("Lunarward_RuntimeEnv_ReadingVersions", resourceCulture) ?? "正在读取 {0} 的版本列表…";
     public static string Lunarward_RuntimeEnv_ArchivesFound => ResourceManager.GetString("Lunarward_RuntimeEnv_ArchivesFound", resourceCulture) ?? "共 {0} 个归档，选择一项后点「开始下载」。";
+    public static string Lunarward_RuntimeEnv_SelectedVersions => ResourceManager.GetString("Lunarward_RuntimeEnv_SelectedVersions", resourceCulture) ?? "已选 {0} 个版本";
     public static string Lunarward_RuntimeEnv_ReadFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_ReadFailed", resourceCulture) ?? "读取失败：{0}";
     public static string Lunarward_RuntimeEnv_QueuePrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_QueuePrefix", resourceCulture) ?? "队列 {0}/{1}：";
     public static string Lunarward_RuntimeEnv_NotEnoughSpace => ResourceManager.GetString("Lunarward_RuntimeEnv_NotEnoughSpace", resourceCulture) ?? "{0}（空间不足：需要约 {1} MB，只剩 {2} MB）";

@@ -4021,4 +4021,7 @@
   <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
     <value>登入</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_SelectedVersions" xml:space="preserve">
+    <value>已選 {0} 個版本</value>
+  </data>
 </root>

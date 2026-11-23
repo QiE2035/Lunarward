@@ -4028,4 +4028,7 @@
   <data name="Lunarward_RuntimeEnv_LayoutWinePrefix" xml:space="preserve">
     <value>wine 前缀</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_SelectedVersions" xml:space="preserve">
+    <value>已选 {0} 个版本</value>
+  </data>
 </root>
