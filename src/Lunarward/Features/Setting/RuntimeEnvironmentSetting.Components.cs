@@ -653,6 +653,13 @@ public sealed partial class RuntimeEnvironmentSetting
                 FontSize = 12,
                 Opacity = 0.75,
             };
+            var tokenHint = new TextBlock
+            {
+                Text = Lang.Lunarward_RuntimeEnv_SourcesTokenHint,
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 12,
+                Opacity = 0.65,
+            };
 
             Brush Res(string key) => (Brush)Application.Current.Resources[key];
 
@@ -989,6 +996,7 @@ public sealed partial class RuntimeEnvironmentSetting
 
             var page = new StackPanel { Spacing = 12, Width = 560 };
             page.Children.Add(hint);
+            page.Children.Add(tokenHint);
             page.Children.Add(toolbar);
             page.Children.Add(summary);
             page.Children.Add(list);

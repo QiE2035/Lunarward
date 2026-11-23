@@ -286,6 +286,12 @@ public static class ComponentSources
     }
 
 
+    /// <summary>D112：发布列表短期缓存（10 分钟）+ ETag，重复打开弹窗不再打 GitHub。</summary>
+    private static readonly TimeSpan AssetCacheTtl = TimeSpan.FromMinutes(10);
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTimeOffset At, string? ETag, IReadOnlyList<ComponentReleaseAsset> Items)> AssetCache = new();
+
+
     public static async Task<IReadOnlyList<ComponentReleaseAsset>> ListAssetsAsync(
         HttpClient http, ComponentSourceEntry source, int releases = 8, ILogger? logger = null,
         CancellationToken ct = default)
@@ -296,9 +302,23 @@ public static class ComponentSources
             return result;
         }
         string api = $"https://api.github.com/repos/{source.Owner}/{source.Repo}/releases?per_page={releases}";
+        string cacheKey = $"{source.Owner}/{source.Repo}|{releases}|{source.AssetPattern}|{source.Kind}";
+        string? cachedEtag = null;
+        if (AssetCache.TryGetValue(cacheKey, out var cached))
+        {
+            if (DateTimeOffset.UtcNow - cached.At < AssetCacheTtl)
+            {
+                return cached.Items;
+            }
+            cachedEtag = cached.ETag;
+        }
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, api);
+            if (!string.IsNullOrEmpty(cachedEtag))
+            {
+                request.Headers.TryAddWithoutValidation("If-None-Match", cachedEtag);
+            }
             request.Headers.UserAgent.ParseAdd("Lunarward/0.1 (+https://github.com/QiE2035/Lunarward)");
             request.Headers.Accept.ParseAdd("application/vnd.github+json");
             // 匿名请求每 IP 每小时 60 次，共享出口（代理/NAT）很容易被限流；
@@ -311,6 +331,11 @@ public static class ComponentSources
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
             }
             using HttpResponseMessage response = await http.SendAsync(request, ct).ConfigureAwait(false);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotModified && AssetCache.TryGetValue(cacheKey, out var notModified))
+            {
+                AssetCache[cacheKey] = (DateTimeOffset.UtcNow, cachedEtag, notModified.Items);
+                return notModified.Items;
+            }
             if (!response.IsSuccessStatusCode)
             {
                 int code = (int)response.StatusCode;
@@ -393,6 +418,7 @@ public static class ComponentSources
             logger?.LogWarning(ex, "[components] 列源 {Source} 异常", source.Id);
             throw new ComponentSourceException($"列版本失败：{ex.Message}");
         }
+        AssetCache[cacheKey] = (DateTimeOffset.UtcNow, cachedEtag, result);
         return result;
     }
 

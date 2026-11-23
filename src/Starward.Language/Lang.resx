@@ -3090,7 +3090,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Runner</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Components_2" xml:space="preserve">
-    <value>Graphics</value>
+    <value>Components</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Prefix" xml:space="preserve">
     <value>Prefix</value>
@@ -4210,5 +4210,8 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   </data>
   <data name="Lunarward_RuntimeEnv_BindingsSaved" xml:space="preserve">
     <value>Bindings saved.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesTokenHint" xml:space="preserve">
+    <value>Anonymous GitHub access is limited to 60 requests/hour; set LUNARWARD_GITHUB_TOKEN to raise it to 5000.</value>
   </data>
 </root>

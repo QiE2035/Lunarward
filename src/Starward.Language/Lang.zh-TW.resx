@@ -3042,7 +3042,7 @@
     <value>執行器</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Components_2" xml:space="preserve">
-    <value>圖形層</value>
+    <value>元件</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Prefix" xml:space="preserve">
     <value>字首</value>
@@ -4204,5 +4204,8 @@
   </data>
   <data name="Lunarward_RuntimeEnv_BindingsSaved" xml:space="preserve">
     <value>繫結已儲存。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesTokenHint" xml:space="preserve">
+    <value>GitHub 匿名訪問每小時只有 60 次；設定環境變數 LUNARWARD_GITHUB_TOKEN 可提高到 5000 次/小時。</value>
   </data>
 </root>

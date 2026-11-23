@@ -127,23 +127,17 @@
                         Style="{StaticResource TabButtonSelectedStyle}"
                         Tag="0" />
                     <Button
-                        x:Name="Tab_Runners"
-                        Click="Tab_Click"
-                        Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Runner}"
-                        Style="{StaticResource TabButtonStyle}"
-                        Tag="1" />
-                    <Button
                         x:Name="Tab_Components"
                         Click="Tab_Click"
                         Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Components_2}"
                         Style="{StaticResource TabButtonStyle}"
-                        Tag="2" />
+                        Tag="1" />
                     <Button
                         x:Name="Tab_Prefixes"
                         Click="Tab_Click"
                         Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Prefix}"
                         Style="{StaticResource TabButtonStyle}"
-                        Tag="3" />
+                        Tag="2" />
                 </StackPanel>
 
                 <Grid Grid.Row="1">
@@ -374,47 +368,39 @@
                     </Grid>
                 </Grid>
 
-                    <!--  ============ 运行器：全局库存 ============  -->
+                    <!--  ============ 组件：运行器 + 图形层（D112 合并，入口与内容同名） ============  -->
                     <ScrollViewer
-                        x:Name="ScrollViewer_Runners"
+                        x:Name="Page_Components"
                         HorizontalScrollBarVisibility="Disabled"
                         HorizontalScrollMode="Disabled"
                         VerticalScrollBarVisibility="Auto"
                         Visibility="Collapsed">
-                        <StackPanel Spacing="4">
+                        <StackPanel Spacing="8">
+
+                            <!--  运行器  -->
+                            <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Runner}" />
                             <TextBlock
                                 Style="{ThemeResource CaptionTextBlockStyle}"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                 Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Runners_Notice}"
                                 TextWrapping="Wrap" />
-                            <StackPanel
-                                Margin="0,4,0,0"
-                                Orientation="Horizontal"
-                                Spacing="8">
+                            <StackPanel Margin="0,2,0,0" Orientation="Horizontal" Spacing="8">
                                 <Button x:Name="Button_AddRunner" Click="Button_AddRunner_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddPath}" />
                                 <Button x:Name="Button_SetDefaultRunner" Click="Button_SetDefaultRunner_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_SetDefaultRunner}" />
                             </StackPanel>
                             <StackPanel x:Name="StackPanel_Runners" Margin="0,4,0,0" Spacing="4" />
-                        </StackPanel>
-                    </ScrollViewer>
 
-                    <!--  ============ 组件：全局库存（高频一个按钮，低频进「更多」） ============  -->
-                    <ScrollViewer
-                        x:Name="ScrollViewer_Components"
-                        HorizontalScrollBarVisibility="Disabled"
-                        HorizontalScrollMode="Disabled"
-                        VerticalScrollBarVisibility="Auto"
-                        Visibility="Collapsed">
-                        <StackPanel Spacing="4">
+                            <!--  图形层  -->
+                            <TextBlock
+                                Margin="0,16,0,0"
+                                Style="{ThemeResource SubtitleTextBlockStyle}"
+                                Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_GraphicsSectionTitle}" />
                             <TextBlock
                                 Style="{ThemeResource CaptionTextBlockStyle}"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                 Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ComponentsNote}"
                                 TextWrapping="Wrap" />
-                            <StackPanel
-                                Margin="0,4,0,0"
-                                Orientation="Horizontal"
-                                Spacing="8">
+                            <StackPanel Margin="0,2,0,0" Orientation="Horizontal" Spacing="8">
                                 <Button
                                     x:Name="Button_DownloadComponent"
                                     Click="Button_DownloadComponent_Click"

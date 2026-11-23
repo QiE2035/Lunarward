@@ -552,4 +552,5 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_BindingsHint => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsHint", resourceCulture) ?? "每个游戏启动时使用哪份方案；留空表示跟随默认（第一份方案）。";
     public static string Lunarward_RuntimeEnv_BindingsUnbound => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsUnbound", resourceCulture) ?? "（未绑定，使用默认）";
     public static string Lunarward_RuntimeEnv_BindingsSaved => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsSaved", resourceCulture) ?? "绑定已保存。";
+    public static string Lunarward_RuntimeEnv_SourcesTokenHint => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesTokenHint", resourceCulture) ?? "GitHub 匿名访问每小时只有 60 次；设置环境变量 LUNARWARD_GITHUB_TOKEN 可提高到 5000 次/小时。";
 }

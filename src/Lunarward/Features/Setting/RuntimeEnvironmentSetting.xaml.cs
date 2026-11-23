@@ -232,7 +232,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private void FocusCurrentTab()
     {
-        Button[] tabs = [Tab_Profiles, Tab_Runners, Tab_Components, Tab_Prefixes];
+        Button[] tabs = [Tab_Profiles, Tab_Components, Tab_Prefixes];
         int index = Math.Clamp(_currentTab, 0, tabs.Length - 1);
         _ = tabs[index].Focus(FocusState.Programmatic);
     }
@@ -347,8 +347,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     private void ShowTab(int index)
     {
         // D85：页签只剩四个，「增强」并进方案详情（它是方案级开关，不该要求先在下拉里挑方案）。
-        UIElement[] pages = [Page_Profiles, ScrollViewer_Runners, ScrollViewer_Components, ScrollViewer_Prefixes];
-        Button[] tabs = [Tab_Profiles, Tab_Runners, Tab_Components, Tab_Prefixes];
+        UIElement[] pages = [Page_Profiles, Page_Components, ScrollViewer_Prefixes];
+        Button[] tabs = [Tab_Profiles, Tab_Components, Tab_Prefixes];
         index = Math.Clamp(index, 0, pages.Length - 1);
         _currentTab = index;
         for (int i = 0; i < pages.Length; i++)
@@ -369,7 +369,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     /// <summary>宽度钉死用当前可见页的可视宽度（分页后每个 PivotItem 各有自己的 ScrollViewer）。</summary>
     private double CurrentViewportWidth()
     {
-        foreach (ScrollViewer viewer in new[] { ScrollViewer_ProfileDetail, ScrollViewer_Runners, ScrollViewer_Components, ScrollViewer_Prefixes })
+        foreach (ScrollViewer viewer in new[] { ScrollViewer_ProfileDetail, Page_Components, ScrollViewer_Prefixes })
         {
             if (viewer.Visibility == Visibility.Visible && viewer.ViewportWidth > 0)
             {
@@ -2663,7 +2663,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         e.Handled = true;
         ShowTab(target);
-        Button[] tabs = [Tab_Profiles, Tab_Runners, Tab_Components, Tab_Prefixes];
+        Button[] tabs = [Tab_Profiles, Tab_Components, Tab_Prefixes];
         tabs[Math.Clamp(_currentTab, 0, tabs.Length - 1)].Focus(FocusState.Programmatic);
     }
 
