@@ -29,6 +29,7 @@ public static class ComponentImporter
         string? name = null,
         string? version = null,
         string? sha256 = null,
+        string? expectedSha256 = null,
         string? sourceUrl = null,
         string? mirrorPrefix = null,
         ILogger? logger = null,
@@ -38,6 +39,16 @@ public static class ComponentImporter
         if (!File.Exists(archivePath))
         {
             throw new FileNotFoundException($"找不到归档：{archivePath}", archivePath);
+        }
+        // R34：有源端摘要就必须核对；不一致直接拒绝导入（而不是照样装、照样标「已校验」）。
+        if (!string.IsNullOrWhiteSpace(expectedSha256))
+        {
+            string actual = sha256 ?? await ComponentDownloader.ComputeSha256Async(archivePath, ct).ConfigureAwait(false);
+            if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException($"归档 SHA-256 与源端不一致：期望 {expectedSha256}，实际 {actual}");
+            }
+            sha256 = actual;
         }
         string fileName = Path.GetFileName(archivePath);
         name ??= ComponentNaming.SuggestName(fileName, kind);
@@ -85,8 +96,8 @@ public static class ComponentImporter
                 }
             }
 
-            // 搬成正式组件目录（搬解压出来的那一层，不是外层临时目录）
-            Directory.Move(extracted, target);
+            // R33：先把 manifest 写进临时目录、再整体改名，避免「目录已经在正式位置、manifest 没写成」
+            // 的半成品（这种目录既不能再导入，也不会被组件列表认出来）。
 
             var manifest = new ComponentManifest
             {
@@ -106,9 +117,10 @@ public static class ComponentImporter
                 },
                 Digest = string.IsNullOrWhiteSpace(sha256)
                     ? null
-                    : new ComponentManifestDigest { Value = sha256, FromApi = !string.IsNullOrEmpty(sourceUrl) },
+                    : new ComponentManifestDigest { Value = sha256, FromApi = !string.IsNullOrEmpty(expectedSha256) },
             };
-            ComponentManifestStore.Write(target, manifest);
+            ComponentManifestStore.Write(extracted, manifest);
+            Directory.Move(extracted, target);
             ComponentStore.Invalidate();
             logger?.LogInformation("[components] 导入完成 {Id}（kind={Kind} layout={Layout} root={Root}）",
                 manifest.Id, kind, layout, root);

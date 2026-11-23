@@ -1548,9 +1548,9 @@ internal class LunarwardProgram
             try
             {
                 Starward.Features.Runtime.ComponentDownloadResult result = Starward.Features.Runtime.ComponentDownloader
-                    .DownloadAsync(http, new Uri(Starward.Features.Runtime.ComponentDownloader.ApplyMirror(new Uri(asset.Url), source.MirrorPrefix)),
-                        downloadDir, asset.Name, asset.Sha256, 4,
-                        Starward.Features.Runtime.ComponentDownloader.DefaultChunkSize, consoleLogger,
+                    .DownloadAsync(http, new Uri(asset.Url), downloadDir, asset.Name, asset.Sha256,
+                        mirrorPrefix: source.MirrorPrefix, connections: 4,
+                        chunkSize: Starward.Features.Runtime.ComponentDownloader.DefaultChunkSize, logger: consoleLogger,
                         new Progress<Starward.Features.Runtime.ComponentDownloadProgress>(p =>
                         {
                             if (p.Total is long total and > 0)
@@ -1562,7 +1562,7 @@ internal class LunarwardProgram
                 Console.WriteLine($"下载完成：{result.Bytes} 字节，连接 {result.Connections}{(result.DegradedToSingle ? "（已降级单流）" : "")}，digest {(result.DigestMatched ? "一致" : "未校验")}");
                 Starward.Features.Runtime.ComponentManifest manifest = Starward.Features.Runtime.ComponentImporter
                     .ImportAsync(result.FilePath, source.Kind == "graphics" ? "graphics" : "wine",
-                        null, null, result.Sha256, asset.Url, source.MirrorPrefix, consoleLogger).GetAwaiter().GetResult();
+                        null, null, result.Sha256, asset.Sha256, asset.Url, source.MirrorPrefix, consoleLogger).GetAwaiter().GetResult();
                 try
                 {
                     File.Delete(result.FilePath);

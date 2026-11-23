@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Starward.Features.Runtime;
 
@@ -229,7 +231,9 @@ public static class ComponentStore
             {
                 // 受管组件优先读 manifest（D73）：布局、名字、版本都来自导入/下载时写下的记录
                 ComponentManifest? manifest = ComponentManifestStore.TryRead(dir);
-                string wine = ComponentLayouts.WinePath(dir, manifest?.Layout ?? "");
+                // R13：布局是相对归档根目录的，manifest.Root 才是组件真正的根（root ≠ "." 时以前会扫空）。
+                string manifestRoot = Path.Combine(dir, manifest?.Root ?? ".");
+                string wine = ComponentLayouts.WinePath(manifestRoot, manifest?.Layout ?? "");
                 if (string.IsNullOrEmpty(wine))
                 {
                     wine = Path.Combine(dir, "bin", "wine");
@@ -378,26 +382,23 @@ public static class ComponentStore
         return list;
     }
 
+    /// <summary>运行器版本缓存：路径 + 可执行文件修改时间 → 版本串（R16：以前每次 GetRunners 都 fork 一遍）。</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long Ticks, string Version)> RunnerVersionCache = new(StringComparer.Ordinal);
+
+
     /// <summary>读 wine 版本（`wine --version`，失败返回空）。</summary>
     public static string ReadRunnerVersion(string winePath)
     {
         try
         {
-            ProcessStartInfo info = new(winePath)
+            long ticks = File.Exists(winePath) ? File.GetLastWriteTimeUtc(winePath).Ticks : 0;
+            string cacheKey = winePath + "|" + ticks;
+            if (RunnerVersionCache.TryGetValue(cacheKey, out (long, string) cached))
             {
-                ArgumentList = { "--version" },
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            };
-            info.Environment["WINEDEBUG"] = "-all";
-            using Process? process = Process.Start(info);
-            if (process is null)
-            {
-                return "";
+                return cached.Item2;
             }
-            string output = process.StandardOutput.ReadToEnd().Trim();
-            process.WaitForExit(4000);
+            string output = ReadRunnerVersionAsync(winePath).GetAwaiter().GetResult();
+            RunnerVersionCache[cacheKey] = (ticks, output);
             return output;
         }
         catch
@@ -405,6 +406,52 @@ public static class ComponentStore
             return "";
         }
     }
+
+
+    /// <summary>
+    /// R16：以前是 `ReadToEnd()` 之后才 `WaitForExit(4000)`——stderr 不读会堵管道、超时值也被忽略；
+    /// 现在两路流并发读、4 秒超时 Kill 整个进程树，超时/失败都返回空串（不抛）。
+    /// </summary>
+    private static async Task<string> ReadRunnerVersionAsync(string winePath)
+    {
+        ProcessStartInfo info = new(winePath)
+        {
+            ArgumentList = { "--version" },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+        info.Environment["WINEDEBUG"] = "-all";
+        using Process? process = Process.Start(info);
+        if (process is null)
+        {
+            return "";
+        }
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(4));
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync(cts.Token);
+        try
+        {
+            await process.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Debug(ex, "Kill timed-out wine --version failed: {path}", winePath);
+            }
+            await Task.WhenAny(Task.WhenAll(stdoutTask, stderrTask), Task.Delay(500)).ConfigureAwait(false);
+            return "";
+        }
+        string output = (await stdoutTask.ConfigureAwait(false)).Trim();
+        _ = stderrTask;
+        return process.ExitCode == 0 ? output : "";
+    }
+
 
     /// <summary>从可执行文件路径判断布局：…/files/bin/wine → files-bin，…/bin/wine → bin。</summary>
     private static string DetectLayout(string winePath)

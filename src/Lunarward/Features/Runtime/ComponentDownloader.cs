@@ -51,7 +51,11 @@ public sealed class ComponentDownloadResult
     /// <summary>true = 因源端拒绝而降为单连接。</summary>
     public bool DegradedToSingle { get; init; }
 
+    /// <summary>true = 下载内容的 SHA-256 与源端提供的摘要一致（R34）。</summary>
     public bool DigestMatched { get; init; }
+
+    /// <summary>true = 本次下载确实有可校验的源端摘要（没有时不能把「自算哈希」当成「已校验」）。</summary>
+    public bool DigestVerified { get; init; }
 }
 
 
@@ -84,6 +88,7 @@ public static class ComponentDownloader
         string targetDirectory,
         string fileName,
         string? expectedSha256 = null,
+        string? mirrorPrefix = null,
         int connections = DefaultConnections,
         int chunkSize = DefaultChunkSize,
         ILogger? logger = null,
@@ -94,7 +99,8 @@ public static class ComponentDownloader
         string target = Path.Combine(targetDirectory, fileName);
         string workDir = Path.Combine(targetDirectory, ".download");
         Directory.CreateDirectory(workDir);
-        string actual = ApplyMirror(url, null);
+        // R12：镜像前缀由调用方传入并在内部统一套用（此前 GUI 传 null、CLI 在外面套，行为不一致）。
+        string actual = ApplyMirror(url, mirrorPrefix);
 
         (long? total, bool ranges) = await ProbeAsync(http, new Uri(actual), ct).ConfigureAwait(false);
         int useConnections = ranges ? Math.Clamp(connections, 1, 16) : 1;
@@ -128,7 +134,7 @@ public static class ComponentDownloader
         string assembled = Path.Combine(workDir, fileName);
         if (useConnections > 1)
         {
-            MergeParts(workDir, fileName, assembled, total!.Value);
+            MergeParts(workDir, fileName, assembled, total!.Value, chunkSize);
             CleanupParts(workDir, fileName);
         }
 
@@ -138,9 +144,10 @@ public static class ComponentDownloader
         }
 
         string sha = await ComputeSha256Async(assembled, ct).ConfigureAwait(false);
-        bool matched = string.IsNullOrWhiteSpace(expectedSha256)
-            || string.Equals(sha, expectedSha256, StringComparison.OrdinalIgnoreCase);
-        if (!matched)
+        // R34：没有源端摘要时不能声称「已校验」。matched 只表示「拿到的摘要与期望一致」。
+        bool verified = !string.IsNullOrWhiteSpace(expectedSha256);
+        bool matched = verified && string.Equals(sha, expectedSha256, StringComparison.OrdinalIgnoreCase);
+        if (verified && !matched)
         {
             // 不一致就删掉，让下一次重来（D73 §2.3）
             try
@@ -168,6 +175,7 @@ public static class ComponentDownloader
             Resumed = resumed,
             DegradedToSingle = degraded,
             DigestMatched = matched,
+            DigestVerified = verified,
         };
     }
 
@@ -307,6 +315,12 @@ public static class ComponentDownloader
         {
             // 由降级路径触发的取消
         }
+        catch
+        {
+            // R31：某一片彻底失败时不要留下半截分片，否则下一次重试会以「长度不一致」暴露。
+            CleanupParts(workDir, fileName);
+            throw;
+        }
         finally
         {
             linked.Cancel();
@@ -386,33 +400,64 @@ public static class ComponentDownloader
     {
         string single = Path.Combine(workDir, fileName);
         long have = File.Exists(single) ? new FileInfo(single).Length : 0;
+        // R14：只有「确实拿到过 Range 续传」才允许 Append。total 未知时不能假设半截文件可续，
+        // 否则服务器忽略 Range 返回 200 全文，这里会把整份文件追加到半截文件后面。
         bool resumed = have > 0 && total is > 0 && have < total.Value;
         if (total is > 0 && have == total.Value)
         {
             return true;
         }
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        if (resumed)
+
+        async Task<HttpResponseMessage> GetAsync(bool withRange)
         {
-            request.Headers.Range = new RangeHeaderValue(have, null);
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            if (withRange)
+            {
+                request.Headers.Range = new RangeHeaderValue(have, null);
+            }
+            HttpResponseMessage response = await http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            request.Dispose();
+            return response;
         }
-        using HttpResponseMessage response = await http
-            .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
-        await using Stream source = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-        await using var target = new FileStream(single, have > 0 ? FileMode.Append : FileMode.Create, FileAccess.Write,
-            FileShare.None, 64 * 1024, useAsync: true);
-        byte[] buffer = new byte[64 * 1024];
-        long received = have;
-        int read;
-        while ((read = await source.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
+
+        HttpResponseMessage response = await GetAsync(resumed).ConfigureAwait(false);
+        if (resumed && response.StatusCode != HttpStatusCode.PartialContent)
         {
-            await target.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
-            received += read;
-            progress?.Report(new ComponentDownloadProgress(received, total, 1, 0));
+            // 服务器不支持/忽略 Range：丢掉半截文件，从 0 重下，而不是追加到后面变成坏文件。
+            response.Dispose();
+            logger?.LogWarning("[components] 服务器忽略 Range（{Status}），删除半截文件后重新下载：{Url}",
+                response.StatusCode, url);
+            try
+            {
+                File.Delete(single);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "[components] 删除半截文件失败：{Path}", single);
+            }
+            have = 0;
+            resumed = false;
+            response = await GetAsync(false).ConfigureAwait(false);
         }
-        logger?.LogInformation("[components] 单流下载完成 {Bytes} 字节（续传：{Resumed}）", received, resumed);
-        return resumed;
+        using (response)
+        {
+            response.EnsureSuccessStatusCode();
+            await using Stream source = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            await using var target = new FileStream(single, resumed ? FileMode.Append : FileMode.Create,
+                FileAccess.Write, FileShare.None, 64 * 1024, useAsync: true);
+            byte[] buffer = new byte[64 * 1024];
+            long received = have;
+            int read;
+            while ((read = await source.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
+            {
+                await target.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                received += read;
+                progress?.Report(new ComponentDownloadProgress(received, total, 1, 0));
+            }
+            logger?.LogInformation("[components] 单流下载完成 {Bytes} 字节（续传：{Resumed}）", received, resumed);
+            return resumed;
+        }
     }
 
 
@@ -436,17 +481,26 @@ public static class ComponentDownloader
     }
 
 
-    private static void MergeParts(string workDir, string fileName, string target, long total)
+    private static void MergeParts(string workDir, string fileName, string target, long total, int chunkSize)
     {
-        int count = Directory.EnumerateFiles(workDir, $"{fileName}.part.*").Count();
+        // R31：片数由分片计划决定，不能拿「目录里现有几个 part 文件」当片数——缺一片会被静默跳过，
+        // 合并出来长度不对才报错，而且报错后原始缺片信息已经丢了。
+        int count = ChunkCount(total, chunkSize);
         using var output = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None, 256 * 1024);
         for (int i = 0; i < count; i++)
         {
             string part = PartPath(workDir, fileName, i);
             if (!File.Exists(part))
             {
-                continue;
+                throw new InvalidDataException($"缺少分片 {i}/{count}：{part}");
             }
+            (long start, long length) = PlanChunk(total, i, chunkSize);
+            long partLength = new FileInfo(part).Length;
+            if (partLength != length)
+            {
+                throw new InvalidDataException($"分片 {i}/{count} 长度不符：期望 {length}，实际 {partLength}");
+            }
+            _ = start;
             using var input = File.OpenRead(part);
             input.CopyTo(output);
         }

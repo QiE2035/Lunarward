@@ -132,7 +132,7 @@ public static class GraphicsInstaller
             return false;
         }
 
-        List<(string Source, string Target)> files = CollectFiles(component);
+        List<(string Source, string Target, bool Is32Bit)> files = CollectFiles(component);
         if (files.Count == 0)
         {
             logger?.LogWarning("No graphics files found in {path}", component.Path);
@@ -145,7 +145,8 @@ public static class GraphicsInstaller
         if (existing is not null
             && existing.Id == component.Id
             && existing.Files.Count > 0
-            && existing.Files.All(File.Exists))
+            && existing.Files.All(file => File.Exists(file)
+                && (!existing.Sizes.TryGetValue(file, out long expected) || expected <= 0 || new FileInfo(file).Length == expected)))
         {
             logger?.LogDebug("Graphics already installed: {id}", component.Id);
             return false;
@@ -158,9 +159,9 @@ public static class GraphicsInstaller
         Directory.CreateDirectory(system32);
         List<string> written = new();
         Dictionary<string, long> sizes = new();
-        foreach ((string source, string target) in files)
+        foreach ((string source, string target, bool is32Bit) in files)
         {
-            string dir = target.EndsWith("32.dll") || target.StartsWith("x86", StringComparison.Ordinal) ? syswow64 : system32;
+            string dir = is32Bit ? syswow64 : system32;
             Directory.CreateDirectory(dir);
             string dest = Path.Combine(dir, Path.GetFileName(target));
             File.Copy(source, dest, overwrite: true);
@@ -314,8 +315,10 @@ public static class GraphicsInstaller
             return false;
         }
         int removed = 0;
+        List<InstalledGraphics> keep = new();
         foreach (InstalledGraphics record in targets)
         {
+            List<string> survivors = new();
             foreach (string file in record.Files)
             {
                 try
@@ -329,11 +332,26 @@ public static class GraphicsInstaller
                 catch (Exception ex)
                 {
                     logger?.LogWarning(ex, "delete graphics file failed: {file}", file);
+                    survivors.Add(file);
+                }
+                if (survivors.Count == 0 && File.Exists(file))
+                {
+                    survivors.Add(file);
                 }
             }
-            logger?.LogInformation("Removed graphics {name} ({kind}) from {prefix}", record.Id, record.Kind, prefix);
+            if (survivors.Count == 0)
+            {
+                logger?.LogInformation("Removed graphics {name} ({kind}) from {prefix}", record.Id, record.Kind, prefix);
+            }
+            else
+            {
+                // R37：文件没删掉就不能把记录删掉，否则这些 dll 永远没人认领（也无法再「移除」）。
+                logger?.LogWarning("[graphics] {count} file(s) of {name} could not be deleted, keep record", survivors.Count, record.Id);
+                record.Files = survivors;
+                keep.Add(record);
+            }
         }
-        records = records.Where(x => !targets.Contains(x)).ToList();
+        records = records.Where(x => !targets.Contains(x) || keep.Contains(x)).ToList();
         try
         {
             if (records.Count == 0)
@@ -354,31 +372,40 @@ public static class GraphicsInstaller
     }
 
 
-    /// <summary>收集组件里需要覆盖进前缀的 dll（按架构分目录时取 x64 为主、x86 可选）。</summary>
-    private static List<(string Source, string Target)> CollectFiles(Component component)
+    /// <summary>
+    /// 收集组件里需要覆盖进前缀的 dll。R17：架构由「来源目录」决定，不再靠文件名猜
+    /// （以前 `target.EndsWith("32.dll")` 会把名字里恰好含 32 的 64 位 dll 放进 syswow64）。
+    /// DXVK 2.x 发布物是 `x64/ + x32/`（VKD3D-Proton 是 `x86/`），两种都要认，平铺目录按 64 位处理。
+    /// </summary>
+    private static List<(string Source, string Target, bool Is32Bit)> CollectFiles(Component component)
     {
-        List<(string, string)> result = new();
+        List<(string, string, bool)> result = new();
         string root = component.Path;
         string? x64 = Directory.Exists(Path.Combine(root, "x64")) ? Path.Combine(root, "x64") : null;
-        string? x86 = Directory.Exists(Path.Combine(root, "x86")) ? Path.Combine(root, "x86") : null;
-        if (x64 is null)
+        string? x32 = Directory.Exists(Path.Combine(root, "x32")) ? Path.Combine(root, "x32")
+            : Directory.Exists(Path.Combine(root, "x86")) ? Path.Combine(root, "x86")
+            : null;
+        if (x64 is null && x32 is null)
         {
-            // 平铺目录（不区分架构）：只取顶层 dll
+            // 平铺目录（不区分架构）：只取顶层 dll，按 64 位装
             foreach (string file in Directory.EnumerateFiles(root, "*.dll", SearchOption.TopDirectoryOnly))
             {
-                result.Add((file, "x64/" + Path.GetFileName(file)));
+                result.Add((file, "x64/" + Path.GetFileName(file), false));
             }
             return result;
         }
-        foreach (string file in Directory.EnumerateFiles(x64, "*.dll", SearchOption.TopDirectoryOnly))
+        if (x64 is not null)
         {
-            result.Add((file, "x64/" + Path.GetFileName(file)));
-        }
-        if (x86 is not null)
-        {
-            foreach (string file in Directory.EnumerateFiles(x86, "*.dll", SearchOption.TopDirectoryOnly))
+            foreach (string file in Directory.EnumerateFiles(x64, "*.dll", SearchOption.TopDirectoryOnly))
             {
-                result.Add((file, "x86/" + Path.GetFileName(file)));
+                result.Add((file, "x64/" + Path.GetFileName(file), false));
+            }
+        }
+        if (x32 is not null)
+        {
+            foreach (string file in Directory.EnumerateFiles(x32, "*.dll", SearchOption.TopDirectoryOnly))
+            {
+                result.Add((file, "x86/" + Path.GetFileName(file), true));
             }
         }
         return result;

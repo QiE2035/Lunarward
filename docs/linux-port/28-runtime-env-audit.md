@@ -87,32 +87,44 @@
 - 建议：保存/删除前校验 `^[A-Za-z0-9_-]{1,64}$`，并 `Path.GetFullPath` 后校验前缀仍在 `EnvironmentsFolder` 内。
 
 ### R12　组件下载：GUI 不走镜像，CLI 走（同一功能两种表现） ✔子代理核对
+
+**🛠 已修复（D106 批 C，2026-11-23）**：见 D106 对应条目；下方「建议」已按实现记录。
 - 位置：`ComponentDownloader.cs:97`、`:82-92`；调用方 `RuntimeEnvironmentSetting.Components.cs:196` vs `Program.Linux.cs:1551`。
 - 证据：`string actual = ApplyMirror(url, null);` 把 mirrorPrefix 写死 null，`DownloadAsync` 也没有该参数；页面不套镜像，只有 CLI 调 `ApplyMirror(..., source.MirrorPrefix)`。
 - 建议：`DownloadAsync` 增加 `mirrorPrefix` 参数并在内部统一处理；补一条「页面下载走镜像」的 L1 测试。
 
 ### R13　组件扫描不用 `manifest.Root`，root≠"." 的组件导入后消失 ✔子代理核对
+
+**🛠 已修复（D106 批 C，2026-11-23）**：见 D106 对应条目；下方「建议」已按实现记录。
 - 位置：`ComponentStore.cs:232`；`ComponentImport` 写 `Root`（`ComponentImporter.cs:78`、`:97`）。
 - 证据：`ComponentLayouts.WinePath(dir, manifest?.Layout ?? "")` 把组件目录当 root；全仓没有读取 `manifest.Root` 的地方。
 - 建议：`WinePath(Path.Combine(dir, manifest?.Root ?? "."), layout)`；补「归档内 wine 在子目录」的导入→扫描测试。
 
 ### R14　单流续传不校验 206，服务器忽略 Range 时把全文追加到半截文件 ✔子代理核对
+
+**🛠 已修复（D106 批 C，2026-11-23）**：见 D106 对应条目；下方「建议」已按实现记录。
 - 位置：`ComponentDownloader.cs:395-410`。
 - 证据：`resumed = have>0 && total>0 && have<total`；只要 `have>0` 就以 `FileMode.Append` 打开，`:399-401` 只 `EnsureSuccessStatusCode()`，不检查 `PartialContent`；total 为 null 时同样追加。
 - 建议：追加前要求 `StatusCode == PartialContent`，否则 `FileMode.Create` 重下并删旧文件。
 
 ### R15　`ComponentHealth` 的 15 s 超时只写进返回值，从不 Kill 进程 ✔子代理核对
+
+**🛠 已修复（D106 批 C，2026-11-23）**：见 D106 对应条目；下方「建议」已按实现记录。
 - 位置：`ComponentHealth.cs:99-129`。
 - 证据：`CancelAfter(15s)` + `WaitForExitAsync(token)`，catch 里只 append 文本；stdout/stderr 用 `CancellationToken.None` 读。
 - 影响：wine 卡住后进程常驻；无法区分「超时」与「用户取消」。
 - 建议：超时分支 `Kill(entireProcessTree:true)`，按 `ct.IsCancellationRequested` 区分。
 
 ### R16　`ComponentStore` 的 `wine --version` 4 s 超时形同虚设 ✔子代理核对
+
+**🛠 已修复（D106 批 C，2026-11-23）**：见 D106 对应条目；下方「建议」已按实现记录。
 - 位置：`ComponentStore.cs:390-400`。
 - 证据：先 `ReadToEnd()` 再 `WaitForExit(4000)`（返回值被忽略）；stderr 重定向但不读；`GetRunners` 对每个运行器都跑一次，且处于保存后的 UI 线程链路上。
 - 建议：`WaitForExitAsync` + `CancelAfter`，两路流并发读，超时 Kill；运行器版本结果加真实缓存。
 
 ### R17　图形层不识别 DXVK 的 `x32/` 目录，32 位 dll 永不安装 ✔已核对
+
+**🛠 已修复（D106 批 C，2026-11-23）**：见 D106 对应条目；下方「建议」已按实现记录。
 - 位置：`GraphicsInstaller.cs:362-383`、`:334-372`。
 - 证据：只判断 `x64/` 与 `x86/`；DXVK 2.x 发布物是 `x64/ + x32/`（VKD3D-Proton 才是 `x86/`）。另外目录选择靠 `target.EndsWith("32.dll") || target.StartsWith("x86")`（:170），名字里恰好含 32 的 64 位 dll 会落进 syswow64。
 - 建议：`x86`/`x32` 同时识别，按来源目录而不是文件名决定目标。
@@ -142,10 +154,10 @@
 - **R28　保存/删除/克隆后不刷新 chips 与失效绑定提示**（`:1336/:2258/:2347`；`RefreshChipsAsync` 只在 ctor 调）。
 - **R29　前缀路径保存零校验**（`:1315-1326`）：`/`、相对路径、`..`、不可写目录都收，错误延后到 `EnsurePrefix`。
 - **R30　`IsPrefixLocked` 把「没权限」也报成「被另一个实例使用」**（`PrefixManager.cs:67-75`；`LaunchPreflight.cs:232-245`）：动作是「查看占用进程」，权限问题下是死胡同。
-- **R31　组件分片失败被吞、MergeParts 以目录文件数当片数、缺片静默跳过、失败后不清理分片**（`ComponentDownloader.cs:256-270/:328/:441-456`）：一次 403/429 最终以「长度不一致」暴露，且重试必复现。建议：连续失败计数、任一片失败即抛并清理；合并上界用 `ChunkCount`，缺片立即抛。
-- **R32　`ArchiveExtractor` 三处边界**：符号链接校验少尾部分隔符（`:257-262` 与 `:234` 不一致）；绝对路径条目被静默改写成相对路径（`:228`，注释却说拒绝）；`tar.xz` 分支无总大小上限与逐块取消（`:171`，xz 炸弹可无限膨胀，页面 df 预检只按压缩包×2 估算）。
-- **R33　组件导入语义不一致**（`ComponentImporter.cs:49-52` vs `Program.Linux.cs:1580-1583`：页面算失败、CLI 算跳过；且先 `Directory.Move` 再写 manifest，中间失败留下不可再导入的目录）。建议：统一语义 + 先写临时目录再整体 rename。
-- **R34　下载完整性标注失真**（`ComponentDownloader.cs:140-142/:141`；`ComponentImporter.cs:107-109`）：拿不到源端 digest 时不做校验却返回 `DigestMatched=true`；`FromApi = !string.IsNullOrEmpty(sourceUrl)` 把本地自算哈希标成「源端提供」。建议：加参数区分期望值与自算值；未校验时 `DigestMatched=false` 并提示。
+- **R31　组件分片失败被吞、MergeParts 以目录文件数当片数、缺片静默跳过、失败后不清理分片**（`ComponentDownloader.cs:256-270/:328/:441-456`）：一次 403/429 最终以「长度不一致」暴露，且重试必复现。建议：连续失败计数、任一片失败即抛并清理；合并上界用 `ChunkCount`，缺片立即抛。　— **🛠 已修复（D106 批 C）**
+- **R32　`ArchiveExtractor` 三处边界**：符号链接校验少尾部分隔符（`:257-262` 与 `:234` 不一致）；绝对路径条目被静默改写成相对路径（`:228`，注释却说拒绝）；`tar.xz` 分支无总大小上限与逐块取消（`:171`，xz 炸弹可无限膨胀，页面 df 预检只按压缩包×2 估算）。　— **🛠 已修复（D106 批 C）**
+- **R33　组件导入语义不一致**（`ComponentImporter.cs:49-52` vs `Program.Linux.cs:1580-1583`：页面算失败、CLI 算跳过；且先 `Directory.Move` 再写 manifest，中间失败留下不可再导入的目录）。建议：统一语义 + 先写临时目录再整体 rename。　— **🛠 已修复（D106 批 C）**
+- **R34　下载完整性标注失真**（`ComponentDownloader.cs:140-142/:141`；`ComponentImporter.cs:107-109`）：拿不到源端 digest 时不做校验却返回 `DigestMatched=true`；`FromApi = !string.IsNullOrEmpty(sourceUrl)` 把本地自算哈希标成「源端提供」。建议：加参数区分期望值与自算值；未校验时 `DigestMatched=false` 并提示。　— **🛠 已修复（D106 批 C）**
 
 ---
 

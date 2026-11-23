@@ -170,7 +170,8 @@ public class ArchiveExtractorTests
     [InlineData("a/b/c.txt", true)]
     [InlineData("plain.txt", true)]
     [InlineData("../escape.txt", false)]
-    [InlineData("/etc/passwd", true)]
+    [InlineData("/etc/passwd", false)]           // R32：绝对路径不再静默改写成根内相对路径，而是拒绝
+    [InlineData("C:/Windows/system.ini", false)] // R32：盘符开头同样视为绝对路径
     [InlineData("a/../../escape.txt", false)]
     public void ResolveTarget_GuardsAgainstEscape(string name, bool allowed)
     {

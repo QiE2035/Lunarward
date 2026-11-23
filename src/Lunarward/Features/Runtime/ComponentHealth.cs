@@ -81,6 +81,7 @@ public static class ComponentHealth
         builder.Append("$ ").AppendLine(command);
         var stopwatch = Stopwatch.StartNew();
         int exitCode = -1;
+        Process? process = null;
         try
         {
             var startInfo = new ProcessStartInfo(component.Path)
@@ -93,13 +94,39 @@ public static class ComponentHealth
             // 前缀无关：--version 不需要 WINEPREFIX，显式给一个不存在的值也无作用，
             // 这里干脆不设，避免误建或误用某个前缀。
             startInfo.Environment.Remove("WINEPREFIX");
-            using var process = new Process { StartInfo = startInfo };
+            process = new Process { StartInfo = startInfo };
             process.Start();
             Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
             Task<string> stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
             timeout.CancelAfter(Timeout);
-            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // R15：区分「用户取消」与「超时」，并结束残留进程；以前超时只写一句返回值、wine 继续常驻。
+                TryKill(process);
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                TryKill(process);
+                stopwatch.Stop();
+                builder.Append("timeout: 15 秒内没有返回").AppendLine();
+                logger?.LogWarning("[components] 健康检查超时，已结束进程：{Id}", component.Id);
+                return new ComponentHealthResult
+                {
+                    Id = component.Id,
+                    Name = component.DisplayName,
+                    Ok = false,
+                    Summary = "超时（15 秒）",
+                    Output = builder.ToString(),
+                    ExitCode = exitCode,
+                    Elapsed = stopwatch.Elapsed,
+                };
+            }
             string stdout = (await stdoutTask.ConfigureAwait(false)).Trim();
             string stderr = (await stderrTask.ConfigureAwait(false)).Trim();
             exitCode = process.ExitCode;
@@ -126,22 +153,6 @@ public static class ComponentHealth
                 Elapsed = stopwatch.Elapsed,
             };
         }
-        catch (OperationCanceledException)
-        {
-            stopwatch.Stop();
-            builder.Append("timeout: 15 秒内没有返回").AppendLine();
-            logger?.LogWarning("[components] 健康检查超时：{Id}", component.Id);
-            return new ComponentHealthResult
-            {
-                Id = component.Id,
-                Name = component.DisplayName,
-                Ok = false,
-                Summary = "超时（15 秒）",
-                Output = builder.ToString(),
-                ExitCode = exitCode,
-                Elapsed = stopwatch.Elapsed,
-            };
-        }
         catch (Exception ex)
         {
             stopwatch.Stop();
@@ -157,6 +168,22 @@ public static class ComponentHealth
                 ExitCode = exitCode,
                 Elapsed = stopwatch.Elapsed,
             };
+        }
+    }
+
+
+    private static void TryKill(Process? process)
+    {
+        try
+        {
+            if (process is { HasExited: false })
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "Kill health-check process failed");
         }
     }
 }

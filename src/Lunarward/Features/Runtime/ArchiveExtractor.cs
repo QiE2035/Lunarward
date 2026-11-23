@@ -155,6 +155,9 @@ public static class ArchiveExtractor
         IProgress<ArchiveProgress>? progress, ILogger? logger, CancellationToken ct)
     {
         await using FileStream file = File.OpenRead(archivePath);
+        // R32：xz 解压比其它格式更容易被做成「炸弹」。按预估总大小设上限（至少 32 GiB，
+        // 或归档大小的 200 倍），并在拷贝循环里检查取消。
+        long sizeLimit = Math.Max(32L << 30, file.Length * 200);
         // SharpCompress 自己识别外层压缩（xz）并给出 tar 条目；逐条写盘，方便取消与计时。
         using IReader reader = ReaderFactory.Open(file, new ReaderOptions { LeaveStreamOpen = false });
         while (reader.MoveToNextEntry())
@@ -168,9 +171,9 @@ public static class ArchiveExtractor
             string target = ResolveTarget(destination, reader.Entry.Key);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             await using FileStream output = new(target, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize);
-            reader.WriteEntryTo(output);
+            await using Stream input = reader.OpenEntryStream();
+            await CopyAsync(input, output, state, progress, ct, sizeLimit).ConfigureAwait(false);
             state.Entries++;
-            state.Bytes += output.Length;
             Report(state, progress);
         }
     }
@@ -201,7 +204,7 @@ public static class ArchiveExtractor
 
 
     private static async Task CopyAsync(Stream input, Stream output, Counter state,
-        IProgress<ArchiveProgress>? progress, CancellationToken ct)
+        IProgress<ArchiveProgress>? progress, CancellationToken ct, long sizeLimit = 0)
     {
         byte[] buffer = new byte[BufferSize];
         int read;
@@ -209,6 +212,10 @@ public static class ArchiveExtractor
         {
             await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
             state.Bytes += read;
+            if (sizeLimit > 0 && state.Bytes > sizeLimit)
+            {
+                throw new InvalidDataException($"解压体积超过上限（{sizeLimit / 1024 / 1024} MB），疑似压缩炸弹");
+            }
             Report(state, progress);
         }
     }
@@ -225,7 +232,16 @@ public static class ArchiveExtractor
     /// </summary>
     internal static string ResolveTarget(string destination, string name)
     {
-        string normalized = name.Replace('\\', '/').TrimStart('/');
+        string raw = name.Replace('\\', '/');
+        // R32：归档里的绝对路径不是「相对根目录的路径」，以前 TrimStart('/') 会把它悄悄改写进目标目录，
+        // 注释写着拒绝、实际接受。Windows 盘符（C:/...）同样拒绝。
+        if (raw.StartsWith('/')
+            || raw.StartsWith("//", StringComparison.Ordinal)
+            || (raw.Length >= 2 && char.IsAsciiLetter(raw[0]) && raw[1] == ':'))
+        {
+            throw new InvalidDataException($"归档条目是绝对路径，拒绝解压：{name}");
+        }
+        string normalized = raw;
         string root = Path.GetFullPath(destination);
         string target = Path.GetFullPath(Path.Combine(root, normalized));
         string rootWithSeparator = root.EndsWith(Path.DirectorySeparatorChar)
@@ -257,7 +273,11 @@ public static class ArchiveExtractor
             return;
         }
         string root = Path.GetFullPath(destination);
-        if (!resolved.StartsWith(root, StringComparison.Ordinal))
+        // R32：和 ResolveTarget 一样必须带分隔符，否则 /tmp/extract-evil 会被当成 /tmp/extract 的后代。
+        string rootWithSeparator = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+        if (!resolved.StartsWith(rootWithSeparator, StringComparison.Ordinal))
         {
             logger?.LogWarning("[components] 跳过可疑符号链接：{Target} -> {Link}", target, linkTarget);
             return;

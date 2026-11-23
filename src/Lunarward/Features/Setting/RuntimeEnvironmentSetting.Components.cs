@@ -194,7 +194,8 @@ public sealed partial class RuntimeEnvironmentSetting
                             });
                             ComponentDownloadResult result = await ComponentDownloader.DownloadAsync(
                                 http, new Uri(asset.Url), downloadDir, asset.Name, asset.Sha256,
-                                connections: 4, logger: _logger, progress: downloadProgress, ct: token);
+                                mirrorPrefix: source.MirrorPrefix, connections: 4,
+                                logger: _logger, progress: downloadProgress, ct: token);
 
                             status.Text = prefix + (result.Resumed ? Lang.Lunarward_RuntimeEnv_DownloadedResumed : Lang.Lunarward_RuntimeEnv_Downloaded);
                             var extractProgress = new Progress<ArchiveProgress>(p =>
@@ -202,7 +203,8 @@ public sealed partial class RuntimeEnvironmentSetting
                                 status.Text = $"{prefix}解压中 {p.Entries} 项 / {p.Bytes / 1048576} MB";
                             });
                             ComponentManifest manifest = await ComponentImporter.ImportAsync(
-                                result.FilePath, kind, sha256: result.Sha256, sourceUrl: asset.Url,
+                                result.FilePath, kind, sha256: result.Sha256, expectedSha256: asset.Sha256,
+                                sourceUrl: asset.Url,
                                 mirrorPrefix: source.MirrorPrefix, logger: _logger, ct: token,
                                 progress: extractProgress);
                             try

@@ -1594,3 +1594,25 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` **269 通过**（新增并发原子写 1 条）；`lint-ui-thread.sh` 通过。
 
 **确认方式**：用户 m02717（审查）+ m02913（「全处理了」）。
+
+## D106 运行环境审查修复：批 C「组件层」
+
+**背景**：批 C 覆盖 `28-runtime-env-audit.md` 的组件组（R12–R17、R31–R34）。共同点是「下载、校验、解压、导入四段各自为政」：镜像只对 CLI 生效、源端没给摘要也算「已校验」、续传不看 206、分片合并数错、解压只防 `..` 不防绝对路径与炸弹、导入先改名后写清单。
+
+**决定**：
+
+1. **R12 镜像前缀单一来源**：`ComponentDownloader.DownloadAsync(..., string? mirrorPrefix = null)` 内部 `ApplyMirror`；页面与 CLI 都传 `source.MirrorPrefix`，外部不再各自套前缀。
+2. **R14 续传以服务器为准**：带 Range 的请求若返回 200（服务器忽略 Range），删除半截文件、`have=0`、重发无 Range 请求；`FileMode` 由本次是否真的续传决定，不再看本地文件大小。
+3. **R31 分片合并可验证**：片数用 `ChunkCount(total, chunkSize)` 计算；缺片或长度不符立即抛错；任一分片任务失败先 `CleanupParts` 再抛，避免「半套分片 + 半截文件」留着下次复用。
+4. **R34 完整性三态**：`ComponentDownloadResult` 增加 `DigestVerified`；只有源端给了期望摘要才算验证过，`DigestMatched` 只在验证通过时为 true；`ComponentImporter.ImportAsync` 增加 `expectedSha256` 参数（源端值），与本地计算值不一致抛错，`Digest.FromApi` 以「是否有期望值」为准。
+5. **R32 解压边界**：绝对路径（`/`、`//`、盘符）直接拒绝而不是 `TrimStart('/')` 改写；符号链接目标校验带尾分隔符（与主路径检查一致）；`tar.xz` 解压设体积上限 `max(32 GiB, 归档大小 × 200)`，`CopyAsync` 逐块检查并响应取消。
+6. **R13/R16 组件扫描**：受管运行器路径读 `manifest.Root`（`Path.Combine(dir, manifest?.Root ?? ".")`）；`wine --version` 结果按「路径 + mtime」缓存，超时 4 s 用 `WaitForExitAsync` + `Kill(entireProcessTree)`，stdout/stderr 并发读取，非 0 退出返回空串。
+7. **R15 健康检查**：15 s 超时与用户取消都 Kill 进程；取消向上抛 `OperationCanceledException`，超时返回「超时」结果（两者语义分开）。
+8. **R17/R37 图形层**：`CollectFiles` 识别 `x64/`、`x32/`、`x86/`（x32 优先于 x86），平铺按 64 位，目标目录按条目 `Is32Bit` 决定而不是文件名猜；`EnsureInstalled` 跳过时逐文件比 size；`Remove` 删不掉的文件保留记录（只移除真正删掉的）。
+9. **R33 导入原子性**：manifest 先写进临时目录，再 `Directory.Move` 整体改名；中途失败只留临时目录（由 finally 清理），不会出现「有目录、没清单」的不可导入状态。
+
+**代价边界**：解压上限 32 GiB 是经验值（当前组件最大约 1 GiB），超大组件需调；`DigestVerified=false` 的下载仍写入磁盘但结果会明确提示「未校验」；镜像前缀只对 `ComponentSource` 里声明了 `MirrorPrefix` 的源生效。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` **270 通过**（更新 `ResolveTarget_GuardsAgainstEscape`：绝对路径/盘符改为期望拒绝，新增盘符用例）；`lint-ui-thread.sh` 通过。下载与解压路径未做联网实测（本机无可用组件源），按代码路径与单元测试覆盖判断。
+
+**确认方式**：用户 m02717（审查）+ m02913（「全处理了」）。
