@@ -1330,7 +1330,12 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             profile.Notes = string.IsNullOrWhiteSpace(_editorNotes?.Text) ? null : _editorNotes.Text.Trim();
             profile.Shell = _editorShell?.Text?.Trim() ?? "";
 
-            RuntimeProfileStore.Save(profile, _logger);
+            if (!RuntimeProfileStore.Save(profile, _logger))
+            {
+                // R07：保存失败不能再弹「已保存」，否则用户以为改好了，重启就没了。
+                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_SaveFailed);
+                return;
+            }
             ComponentStore.Invalidate();
             CloseEditor();
             LoadProfiles();
@@ -2141,7 +2146,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         GameBiz biz = usages[Math.Max(0, combo.SelectedIndex)];
         RuntimeProfile clone = CopyProfile(profile, $"{profile.Name} · {biz.ToGameName()}", clearPrefix: true);
-        RuntimeProfileStore.Save(clone, _logger);
+        if (!RuntimeProfileStore.Save(clone, _logger))
+        {
+            Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_SaveFailed);
+            return;
+        }
         ProfileBinding.Set(biz, clone.Id);
         LoadProfiles();
         await RefreshChipsAsync();
@@ -2254,7 +2263,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             return;
         }
         RuntimeProfile clone = CopyProfile(profile, profile.Name + Lang.Lunarward_RuntimeEnv_CopySuffix);
-        RuntimeProfileStore.Save(clone, _logger);
+        if (!RuntimeProfileStore.Save(clone, _logger))
+        {
+            Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_SaveFailed);
+            return;
+        }
         LoadProfiles();
         Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_Clone_Result, clone.Name), 3000);
     }
@@ -2325,10 +2338,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             {
                 return;
             }
-            string file = Path.Combine(RuntimeProfileStore.ProfilesFolder, profile.Id + ".json");
-            if (File.Exists(file))
+            // R09/R10：删除也走 Store（Id 校验 + 统一的错误处理），失败要明确提示。
+            if (!RuntimeProfileStore.Delete(profile, _logger))
             {
-                File.Delete(file);
+                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_SaveFailed);
+                return;
             }
             int cleared = Features.Runtime.ProfileBinding.ClearFor(profile.Id);
             if (deletePrefixBox.IsChecked == true && prefixExists)

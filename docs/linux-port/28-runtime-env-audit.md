@@ -56,12 +56,12 @@
 - 影响：首次使用就把 DXVK 的 d3d11/dxgi 覆盖进 `~/.wine/drive_c/windows/system32`，并把侧写写进 `~/.wine/.lunarward/`——其它 wine 应用被污染；首次启动仍弹 wine-mono/gecko。
 - 建议：默认 `PrefixPath` 留空（空 = `PrefixRoot/<名字>`，D74 第 1 条）；`Env` 带默认 `WINEDLLOVERRIDES`。
 
-### R07　配置保存失败仍提示「已保存」 ✔已核对
+### R07　（🛠 已修复，D105 批 B）配置保存失败仍提示「已保存」 ✔已核对
 - 位置：`RuntimeProfileStore.cs:124-141`；调用方 `RuntimeEnvironmentSetting.xaml.cs:1336-1338`、`Enhancements.cs:291`；`ProfileBinding.cs:215-216`。
 - 证据：`Save` 是 `void`，catch 只 `LogWarning`；调用方无条件 `Success(Lang.Lunarward_RuntimeEnv_Saved)`；`EnsureFor` 保存失败后仍写绑定 → 每次启动新建一份悬挂配方。
 - 建议：`Save` 返回 bool 或抛；UI 按结果提示；`EnsureFor` 失败不写绑定。
 
-### R08　JSON 原子写用固定 `.tmp` 名且无锁，GUI/CLI 并发会发布半截文件 ✔已核对
+### R08　（🛠 已修复，D105 批 B）JSON 原子写用固定 `.tmp` 名且无锁，GUI/CLI 并发会发布半截文件 ✔已核对
 - 位置：`Helpers/JsonFile.cs:20-45`；并发入口 `App.xaml.cs:70`（CLI 分派在单实例锁之前）。
 - 证据：`string temp = path + ".tmp";` + `FileShare.None` + `File.Move(temp, path, overwrite)`；无进程内锁，`Move` 后不 fsync 父目录。GUI 开着时 `--profile-ensure` / `--launch` 会同时写 `env/<id>.json.tmp`、`profile-bindings.json.tmp`：A 的 Move 可能把 B 正在写的同址 tmp 改名成目标文件，B 再 Move 直接 `FileNotFoundException`（被 `RuntimeProfileStore.cs:137-140` 吞掉），期间目标文件是半截 JSON，下次 `LoadAll` 会把它改名 `.corrupt-*`。
 - 建议：临时名带 Guid、进程内锁保护「备份 + 改名」、Move 后 fsync 父目录；失败必须让调用方知道。
@@ -70,18 +70,18 @@
 
 ## 2 · High
 
-### R09　绑定文件读失败一次，下一次 `Set` 就抹掉全部绑定 ✔已核对
+### R09　（🛠 已修复，D105 批 B）绑定文件读失败一次，下一次 `Set` 就抹掉全部绑定 ✔已核对
 - 位置：`ProfileBinding.cs:51-84`。
 - 证据：`Load()` catch 后返回空字典；`Set` 直接用该字典写回。半截文件（R08）、权限、磁盘满都会触发。
 - 建议：fail-closed——区分「文件不存在」与「存在但读不了」，后者抛错并保留原文件；`Set` 前把旧文件复制成 `.bak`。
 
-### R10　旧的 `profiles/` → `env/` 迁移代码整段被删 ✔已核对（git 证据）
+### R10　（🛠 已修复，D105 批 B）旧的 `profiles/` → `env/` 迁移代码整段被删 ✔已核对（git 证据）
 - 位置：`RuntimeProfileStore.cs:61-102`（现只扫 `EnvironmentsFolder`）；`git log -S MigrateFromLegacyFolder`。
 - 证据：`2b79261` 里有 `MigrateFromLegacyFolder`（113-153，末尾 `Directory.Move` 到 `profiles.migrated-*`），`3d2e9ba` 起消失；23 号设计 §8 与 D58 都承诺自动迁移。
 - 影响：老用户升级后 `env/` 为空 → `CreateDefault()` 生成新 id 的默认方案，`gameBiz→旧 id` 绑定全部悬挂，每局静默用新方案（可能不同运行器/前缀）启动。
 - 建议：恢复迁移（逐份解析成功再改名旧目录，失败文件留在原目录），或至少在「旧目录存在而新目录为空」时弹一次迁移确认。
 
-### R11　`profile.Id` 未校验就拼路径，可写/删 `env/` 之外的文件 ✔已核对
+### R11　（🛠 已修复，D105 批 B）`profile.Id` 未校验就拼路径，可写/删 `env/` 之外的文件 ✔已核对
 - 位置：`RuntimeProfileStore.cs:134`、`:148`；`RuntimeEnvironmentSetting.xaml.cs:2328`。
 - 证据：`Path.Combine(EnvironmentsFolder, profile.Id + ".json")`，而 `Id` 可被 JSON 文件内容覆盖（`RuntimeProfile.cs:21`）；`"id": "/home/u/.config/autostart/x"` 或 `"../../a"` 会逃逸。
 - 建议：保存/删除前校验 `^[A-Za-z0-9_-]{1,64}$`，并 `Path.GetFullPath` 后校验前缀仍在 `EnvironmentsFolder` 内。

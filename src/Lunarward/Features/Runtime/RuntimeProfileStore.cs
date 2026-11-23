@@ -57,10 +57,37 @@ public static class RuntimeProfileStore
     public static string ProfilesFolder => EnvironmentsFolder;
 
 
+    /// <summary>
+    /// 配方 Id 只允许字母/数字/下划线/短横（D104/R11）：Id 要拼进文件名，带 <c>/</c> 或 <c>..</c>
+    /// 的 Id 会把保存/删除写到目录外，或者让两个不同 Id 指向同一个文件。
+    /// </summary>
+    private static readonly System.Text.RegularExpressions.Regex IdPattern = new("^[A-Za-z0-9_-]{1,32}$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+
+    public static bool IsValidId(string? id) => !string.IsNullOrEmpty(id) && IdPattern.IsMatch(id);
+
+
+    private static string ProfileFile(string id)
+    {
+        if (!IsValidId(id))
+        {
+            throw new ArgumentException($"非法的运行环境 Id：{id}", nameof(id));
+        }
+        string file = Path.GetFullPath(Path.Combine(EnvironmentsFolder, id + ".json"));
+        string folder = Path.GetFullPath(EnvironmentsFolder) + Path.DirectorySeparatorChar;
+        if (!file.StartsWith(folder, StringComparison.Ordinal))
+        {
+            throw new ArgumentException($"运行环境路径越界：{id}", nameof(id));
+        }
+        return file;
+    }
+
+
     /// <summary>读取全部配方；为空时创建一份基于系统现状的默认配方。</summary>
     public static List<RuntimeProfile> LoadAll(ILogger? logger = null)
     {
         Directory.CreateDirectory(EnvironmentsFolder);
+        MigrateLegacyProfiles(logger);
 
         var profiles = new List<RuntimeProfile>();
         foreach (string file in Directory.EnumerateFiles(EnvironmentsFolder, "*.json"))
@@ -71,6 +98,21 @@ public static class RuntimeProfileStore
                 if (profile is not null)
                 {
                     bool changed = Normalize(profile, logger);
+                    // R11：文件名才是落盘真理。Id 与文件名不一致（手改、复制文件）时以文件名为准，
+                    // 否则下一次保存会写出第二份同名 Id 的文件，删除只删其中一份。
+                    string fileId = Path.GetFileNameWithoutExtension(file);
+                    if (IsValidId(fileId) && !string.Equals(profile.Id, fileId, StringComparison.Ordinal))
+                    {
+                        logger?.LogWarning("Runtime environment id mismatch, using file name: {fileId} (was {id})", fileId, profile.Id);
+                        profile.Id = fileId;
+                        changed = true;
+                    }
+                    else if (!IsValidId(profile.Id))
+                    {
+                        profile.Id = Guid.NewGuid().ToString("n")[..8];
+                        logger?.LogWarning("Runtime environment id invalid, regenerated: {id}", profile.Id);
+                        changed = true;
+                    }
                     profiles.Add(profile);
                     if (changed)
                     {
@@ -123,7 +165,8 @@ public static class RuntimeProfileStore
     }
 
 
-    public static void Save(RuntimeProfile profile, ILogger? logger = null)
+    /// <summary>保存一份配方；返回是否真的落盘（R07：调用方要按结果提示，不能无条件弹「已保存」）。</summary>
+    public static bool Save(RuntimeProfile profile, ILogger? logger = null)
     {
         try
         {
@@ -131,29 +174,94 @@ public static class RuntimeProfileStore
             // 而直接退出（实测 `wine: launching from steam.exe stub!`）。
             profile.PrefixPath = PrefixManager.ExpandPath(profile.PrefixPath);
             Directory.CreateDirectory(EnvironmentsFolder);
-            string file = Path.Combine(EnvironmentsFolder, profile.Id + ".json");
-            JsonFile.WriteAtomic(file, profile, JsonOptions);
+            JsonFile.WriteAtomic(ProfileFile(profile.Id), profile, JsonOptions);
+            return true;
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Save runtime environment failed: {id}", profile.Id);
+            logger?.LogError(ex, "Save runtime environment failed: {id}", profile.Id);
+            return false;
         }
     }
 
 
-    public static void Delete(RuntimeProfile profile, ILogger? logger = null)
+    /// <summary>删除配方文件；返回是否删除成功（R09：调用方要提示失败，不能弹「已删除」）。</summary>
+    public static bool Delete(RuntimeProfile profile, ILogger? logger = null)
     {
         try
         {
-            string file = Path.Combine(EnvironmentsFolder, profile.Id + ".json");
+            string file = ProfileFile(profile.Id);
             if (File.Exists(file))
             {
                 File.Delete(file);
             }
+            return true;
         }
         catch (Exception ex)
         {
-            logger?.LogWarning(ex, "Delete runtime environment failed: {id}", profile.Id);
+            logger?.LogError(ex, "Delete runtime environment failed: {id}", profile.Id);
+            return false;
+        }
+    }
+
+
+    /// <summary>
+    /// R10：旧版本把配方放在 <c>config/lunarward/profiles/</c>，迁移代码曾被删除，升级后等于「配置全丢」。
+    /// 这里逐份导入到 <c>env/</c>：全部成功才把旧目录改名存档；有任何一份失败就保留旧目录，下次再试。
+    /// </summary>
+    private static void MigrateLegacyProfiles(ILogger? logger)
+    {
+        string legacy = Path.Combine(ConfigHome, "profiles");
+        if (!Directory.Exists(legacy))
+        {
+            return;
+        }
+        List<string> failed = new();
+        foreach (string file in Directory.EnumerateFiles(legacy, "*.json"))
+        {
+            try
+            {
+                RuntimeProfile? profile = JsonSerializer.Deserialize<RuntimeProfile>(File.ReadAllText(file), JsonOptions);
+                if (profile is null)
+                {
+                    failed.Add(file);
+                    continue;
+                }
+                profile.Id = Path.GetFileNameWithoutExtension(file);
+                if (!IsValidId(profile.Id))
+                {
+                    profile.Id = Guid.NewGuid().ToString("n")[..8];
+                }
+                profile.PrefixPath = PrefixManager.ExpandPath(profile.PrefixPath);
+                string target = ProfileFile(profile.Id);
+                if (!File.Exists(target))
+                {
+                    JsonFile.WriteAtomic(target, profile, JsonOptions);
+                }
+                File.Delete(file);
+                logger?.LogInformation("Migrated runtime environment: {file} -> {id}", file, profile.Id);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Migrate runtime environment failed: {file}", file);
+                failed.Add(file);
+            }
+        }
+        if (failed.Count == 0)
+        {
+            try
+            {
+                Directory.Move(legacy, legacy + ".migrated-" + DateTime.Now.ToString("yyyyMMddHHmmss"));
+                logger?.LogInformation("Legacy runtime environment folder archived");
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Archive legacy runtime environment folder failed");
+            }
+        }
+        else
+        {
+            logger?.LogWarning("Legacy runtime environment migration incomplete: {count} file(s) failed, folder kept", failed.Count);
         }
     }
 

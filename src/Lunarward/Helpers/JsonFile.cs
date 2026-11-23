@@ -5,7 +5,9 @@
 // 「写临时文件 → fsync → 原子改名」，并顺手留一份 .bak 便于人工找回。
 
 using System;
+using System.Collections.Concurrent;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 
@@ -14,34 +16,65 @@ namespace Starward.Helpers;
 internal static class JsonFile
 {
 
-    /// <summary>原子写入：先写 <c>path.tmp</c>，再改名覆盖目标。</summary>
+    /// <summary>同一路径的保存串行化：两个窗口同时保存同一份配置时，后一个不能把前一个的临时文件改名覆盖掉。</summary>
+    private static readonly ConcurrentDictionary<string, object> PathLocks = new(StringComparer.Ordinal);
+
+
+    /// <summary>
+    /// 原子写入：写唯一的 <c>path.&lt;guid&gt;.tmp</c> → fsync → 备份旧文件 → 改名覆盖。
+    /// R08：固定 <c>.tmp</c> 会让两次并发保存互相踩（第二个进程读到半截、或改名把第一个的临时文件搬走）；
+    /// 改名后还要 fsync 目录，否则崩溃时「文件已改名但目录项未落盘」。（D104）
+    /// </summary>
     public static void WriteAtomic(string path, string content)
     {
-        string? dir = Path.GetDirectoryName(path);
+        string full = Path.GetFullPath(path);
+        string? dir = Path.GetDirectoryName(full);
         if (!string.IsNullOrEmpty(dir))
         {
             Directory.CreateDirectory(dir);
         }
-        string temp = path + ".tmp";
-        using (var stream = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
-        using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+        object gate = PathLocks.GetOrAdd(full, static _ => new object());
+        lock (gate)
         {
-            writer.Write(content);
-            writer.Flush();
-            stream.Flush(flushToDisk: true);
-        }
-        if (File.Exists(path))
-        {
+            string temp = full + "." + Guid.NewGuid().ToString("n") + ".tmp";
             try
             {
-                File.Copy(path, path + ".bak", overwrite: true);
+                using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                using (var writer = new StreamWriter(stream, new UTF8Encoding(false)))
+                {
+                    writer.Write(content);
+                    writer.Flush();
+                    stream.Flush(flushToDisk: true);
+                }
+                if (File.Exists(full))
+                {
+                    try
+                    {
+                        File.Copy(full, full + ".bak", overwrite: true);
+                    }
+                    catch
+                    {
+                        // 备份是尽力而为，不能因为它失败就不保存
+                    }
+                }
+                File.Move(temp, full, overwrite: true);
             }
             catch
             {
-                // 备份是尽力而为，不能因为它失败就不保存
+                try
+                {
+                    if (File.Exists(temp))
+                    {
+                        File.Delete(temp);
+                    }
+                }
+                catch
+                {
+                }
+                throw;
             }
+            FsyncDirectory(dir);
         }
-        File.Move(temp, path, overwrite: true);
     }
 
 
@@ -85,6 +118,44 @@ internal static class JsonFile
             {
             }
             return null;
+        }
+    }
+
+
+    [DllImport("libc", EntryPoint = "open", SetLastError = true)]
+    private static extern int PosixOpen([MarshalAs(UnmanagedType.LPUTF8Str)] string path, int flags);
+
+    [DllImport("libc", EntryPoint = "fsync", SetLastError = true)]
+    private static extern int PosixFsync(int fd);
+
+    [DllImport("libc", EntryPoint = "close", SetLastError = true)]
+    private static extern int PosixClose(int fd);
+
+
+    private static void FsyncDirectory(string? dir)
+    {
+        if (string.IsNullOrEmpty(dir) || OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        try
+        {
+            int fd = PosixOpen(dir, 0);
+            if (fd < 0)
+            {
+                return;
+            }
+            try
+            {
+                PosixFsync(fd);
+            }
+            finally
+            {
+                PosixClose(fd);
+            }
+        }
+        catch
+        {
         }
     }
 

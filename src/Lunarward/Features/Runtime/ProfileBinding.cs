@@ -48,28 +48,86 @@ public static class ProfileBinding
     }
 
 
-    private static Dictionary<string, string> Load()
+    /// <summary>最近一次读取失败的原因（页面据此提示；null = 正常）。</summary>
+    public static string? LastError { get; private set; }
+
+
+    /// <summary>
+    /// R09：读失败不再当成空字典。坏文件原地保留（不静默覆盖），先尝试 <c>.bak</c> 恢复；
+    /// 调用方通过返回值区分「没有绑定」和「绑定文件坏了」。（D104）
+    /// </summary>
+    private static bool TryLoad(out Dictionary<string, string> map, out string? error)
     {
+        map = new Dictionary<string, string>(StringComparer.Ordinal);
+        error = null;
+        LastError = null;
         try
         {
-            if (File.Exists(FilePath))
+            if (!File.Exists(FilePath))
             {
-                return JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(FilePath)) ?? new();
+                return true;
+            }
+            string json = File.ReadAllText(FilePath);
+            Dictionary<string, string>? parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+            if (parsed is null)
+            {
+                error = "绑定文件内容为空";
+            }
+            else
+            {
+                map = new Dictionary<string, string>(parsed, StringComparer.Ordinal);
+                return true;
             }
         }
-        catch
+        catch (Exception ex)
         {
+            error = ex.Message;
+            Serilog.Log.Warning(ex, "Read game profile bindings failed: {file}", FilePath);
         }
-        return new();
+        // 主文件坏了：先试 .bak（JsonFile 每次保存都会留一份）
+        try
+        {
+            string bak = FilePath + ".bak";
+            if (File.Exists(bak))
+            {
+                Dictionary<string, string>? parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(bak));
+                if (parsed is not null)
+                {
+                    map = new Dictionary<string, string>(parsed, StringComparer.Ordinal);
+                    Serilog.Log.Warning("Recovered game profile bindings from {bak}", bak);
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "Read game profile bindings backup failed: {file}", FilePath + ".bak");
+        }
+        LastError = error ?? "绑定文件无法解析";
+        return false;
+    }
+
+
+    private static Dictionary<string, string> Load()
+    {
+        // 读给展示/统计用：坏了就返回空并在 LastError 里留原因，但绝不写回（Set 会拒绝覆盖）。
+        TryLoad(out Dictionary<string, string> map, out _);
+        return map;
     }
 
 
     public static string? Get(GameBiz biz) => Load().GetValueOrDefault(biz.Value);
 
 
+    /// <summary>
+    /// 写绑定。R09：原文件损坏且没有可用备份时直接抛错，避免「只写进一条」的字典把其余绑定抹掉。
+    /// </summary>
     public static void Set(GameBiz biz, string? profileId)
     {
-        Dictionary<string, string> map = Load();
+        if (!TryLoad(out Dictionary<string, string> map, out string? error))
+        {
+            throw new InvalidOperationException($"游戏绑定文件已损坏，已保留原文件；请修复或删除 {FilePath}（{error}）");
+        }
         if (string.IsNullOrWhiteSpace(profileId))
         {
             map.Remove(biz.Value);

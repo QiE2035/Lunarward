@@ -1,6 +1,7 @@
 using Starward.Helpers;
 using System;
 using System.IO;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Lunarward.Tests;
@@ -24,6 +25,25 @@ public class JsonFileTests : IDisposable
         Assert.Equal("{\"x\":1}", File.ReadAllText(path));
         Assert.False(File.Exists(path + ".tmp"));
     }
+
+    [Fact]
+    public void WriteAtomic_ConcurrentSaves_DoNotShareTempFile()
+    {
+        // R08：固定 `path.tmp` 时，并发保存会互相踩（后改名者把前一个临时文件搬走/读到半截）。
+        string path = Path.Combine(_dir, "concurrent.json");
+        string[] payloads = new string[24];
+        for (int i = 0; i < payloads.Length; i++)
+        {
+            payloads[i] = "{\"n\":" + i + "}";
+        }
+
+        Parallel.For(0, payloads.Length, i => JsonFile.WriteAtomic(path, payloads[i]));
+
+        string text = File.ReadAllText(path);
+        Assert.Contains(text, payloads);
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
 
     [Fact]
     public void WriteAtomic_Keeps_Backup_On_Overwrite()

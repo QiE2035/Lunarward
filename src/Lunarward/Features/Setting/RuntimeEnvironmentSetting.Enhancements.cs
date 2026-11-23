@@ -287,7 +287,11 @@ public sealed partial class RuntimeEnvironmentSetting
         profile.GameMode = Toggle_GameMode.IsOn;
         profile.GameScope = Toggle_GameScope.IsOn;
         profile.GameScopeArgs = Box_GameScopeArgs.Text?.Trim() ?? "";
-        RuntimeProfileStore.Save(profile, _logger);
+        if (!RuntimeProfileStore.Save(profile, _logger))
+        {
+            Helpers.InAppToast.MainWindow?.Error(Lang.Lunarward_RuntimeEnv_SaveFailed, null, 4000);
+            return;
+        }
         Helpers.InAppToast.MainWindow?.Success($"已保存「{profile.Name}」的增强设置", Enhancements.Describe(profile), 4000);
         LoadProfiles();
         await RefreshChipsAsync();
