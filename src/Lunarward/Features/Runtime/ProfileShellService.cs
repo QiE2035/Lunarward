@@ -88,32 +88,8 @@ public static class ProfileShellService
     /// </param>
     public static IReadOnlyDictionary<string, string> BuildEnvironment(RuntimeProfile profile, string? gameKey = null)
     {
-        Dictionary<string, string> env = new();
-        if (!string.IsNullOrWhiteSpace(profile.RunnerPath))
-        {
-            env["LUNARWARD_WINE"] = profile.RunnerPath;
-        }
-        string? prefix = null;
-        if (!string.IsNullOrWhiteSpace(gameKey))
-        {
-            prefix = PrefixManager.TryGetExistingPrefix(profile, gameKey);
-        }
-        prefix ??= PrefixManager.ExpandPath(profile.PrefixPath);
-        if (!string.IsNullOrWhiteSpace(prefix) && Directory.Exists(prefix))
-        {
-            env["WINEPREFIX"] = prefix;
-        }
-        env["WINEDEBUG"] = "-all";
-        env["LUNARWARD_PROFILE"] = profile.Name;
-        env["LUNARWARD_PROFILE_ID"] = profile.Id;
-        foreach ((string key, string value) in profile.Env)
-        {
-            if (!string.IsNullOrWhiteSpace(key))
-            {
-                env[key] = value;
-            }
-        }
-        return env;
+        // R19：和启动器共用同一份装配（含 Proton 变量与增强开关），不再各拼一套。
+        return RuntimeEnvironment.Assemble(profile, gameKey);
     }
 
 

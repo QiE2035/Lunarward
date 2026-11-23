@@ -27,6 +27,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private readonly ILogger<RuntimeEnvironmentSetting> _logger = AppConfig.GetLogger<RuntimeEnvironmentSetting>();
 
+    /// <summary>R23：ContentDialog 同一时间只允许一个；连点检查类按钮时第二次 ShowAsync 会直接抛。</summary>
+    private bool _dialogOpen;
+
 
     public RuntimeEnvironmentSetting()
     {
@@ -41,6 +44,75 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         LoadPrefixes();
         InitializeEnhance();
         _ = RefreshChipsAsync();
+    }
+
+
+    /// <summary>R22/R29：路径比较统一口径（GetFullPath + 去尾部分隔符），避免 `..` 或尾斜杠导致「没人在用」的误判。</summary>
+    private static string NormalizePrefix(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "";
+        }
+        try
+        {
+            return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch
+        {
+            return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+    }
+
+
+    private static bool SamePrefix(string? a, string? b) => string.Equals(NormalizePrefix(a), NormalizePrefix(b), StringComparison.Ordinal);
+
+
+    /// <summary>R29：手动填的前缀路径在保存时就校验，不要等到启动时 EnsurePrefix 才炸。</summary>
+    private static string? ValidatePrefixPathInput(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+        if (!Path.IsPathFullyQualified(path))
+        {
+            return "前缀路径必须是绝对路径。";
+        }
+        string full = Path.GetFullPath(path);
+        string root = Path.GetPathRoot(full) ?? "/";
+        if (full.TrimEnd(Path.DirectorySeparatorChar) == root.TrimEnd(Path.DirectorySeparatorChar))
+        {
+            return "不能把文件系统根目录当作游戏前缀。";
+        }
+        return null;
+    }
+
+
+    /// <summary>R26：预检「去设置」带过来的目标方案/分组，在页面挂载后消费一次。</summary>
+    protected override void OnNavigatedTo(Microsoft.UI.Xaml.Navigation.NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+        (string? ProfileId, bool Enhance)? target = SettingNavigation.TakeRuntimeTarget();
+        if (target is null || _profiles is null || _profiles.Count == 0)
+        {
+            return;
+        }
+        RuntimeProfile? profile = target.Value.ProfileId is { Length: > 0 } id
+            ? _profiles.FirstOrDefault(x => x.Id == id)
+            : null;
+        profile ??= _profiles[0];
+        _selectedProfileId = profile.Id;
+        UpdateProfileListSelection();
+        ShowProfileDetail(profile);
+        if (target.Value.Enhance)
+        {
+            OpenEnhance(profile);
+        }
+        else
+        {
+            ShowDetailPane();
+        }
     }
 
 
@@ -295,7 +367,20 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot,
         };
-        ContentDialogResult result = await dialog.ShowAsync();
+        if (_dialogOpen)
+        {
+            return;
+        }
+        ContentDialogResult result;
+        _dialogOpen = true;
+        try
+        {
+            result = await dialog.ShowAsync();
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
         if (result == ContentDialogResult.Primary)
         {
             try
@@ -544,10 +629,17 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     /// <summary>前缀段：来源、大小、被几个方案共用、状态（D63）。</summary>
     private void LoadPrefixes()
     {
-        StackPanel_Prefixes.Children.Clear();
+        _ = LoadPrefixesAsync();
+    }
+
+
+    /// <summary>R20：前缀体积是递归全量 stat，必须在后台算；这是页面上最后一条「扫盘落在 UI 线程」的路径。</summary>
+    private async Task LoadPrefixesAsync()
+    {
         IReadOnlyList<RuntimeProfile> profiles = RuntimeProfileStore.LoadAll(_logger);
-        IReadOnlyList<Starward.Features.Runtime.PrefixManager.PrefixInspection> prefixes =
-            Starward.Features.Runtime.PrefixManager.EnumerateKnownPrefixes(profiles);
+        IReadOnlyList<Starward.Features.Runtime.PrefixManager.PrefixInspection> prefixes = await Task.Run(
+            () => Starward.Features.Runtime.PrefixManager.EnumerateKnownPrefixes(profiles)).ConfigureAwait(true);
+        StackPanel_Prefixes.Children.Clear();
         if (prefixes.Count == 0)
         {
             StackPanel_Prefixes.Children.Add(new TextBlock
@@ -1057,6 +1149,15 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         actions.Children.Add(cancel);
         StackPanel_ProfileEditor.Children.Add(actions);
 
+        if (_editorName is not null)
+        {
+            // R27：新建方案时名字会决定默认前缀目录，改名要立刻反映到预览与「前缀将建在」那一行。
+            _editorName.TextChanged += (_, _) =>
+            {
+                UpdateEditorPrefixRow();
+                UpdateEditorPreview();
+            };
+        }
         _editorRunner.SelectionChanged += (_, _) => UpdateEditorPreview();
         _editorPrefixPath.TextChanged += (_, _) => UpdateEditorPreview();
         _editorArgs.TextChanged += (_, _) => UpdateEditorPreview();
@@ -1201,6 +1302,12 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 Args = _editorArgs?.Text ?? "",
                 Wrappers = ParseWrappers(_editorWrappers?.Text),
                 Env = ParseEnv(_editorEnv?.Text),
+                // R27：增强项不在编辑器里，但属于同一份方案——预览必须带上，否则看不到 gamemode/mangohud。
+                Hud = _editingProfile?.Hud ?? "off",
+                HudOptions = _editingProfile?.HudOptions ?? "",
+                GameMode = _editingProfile?.GameMode ?? false,
+                GameScope = _editingProfile?.GameScope ?? false,
+                GameScopeArgs = _editingProfile?.GameScopeArgs ?? "",
             };
             string prefix = Starward.Features.Runtime.PrefixManager.ExpandPath(_editorPrefixPath?.Text)
                 ?? EnvironmentResolver.EffectivePrefixPath(draft);
@@ -1313,6 +1420,12 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 return;
             }
             string prefixPath = _editorPrefixPath?.Text?.Trim() ?? "";
+            string? prefixError = ValidatePrefixPathInput(prefixPath);
+            if (prefixError is not null)
+            {
+                Helpers.InAppToast.MainWindow?.Warning((string?)null, prefixError, 5000);
+                return;
+            }
 
             List<RuntimeProfile> all = RuntimeProfileStore.LoadAll(_logger).ToList();
             RuntimeProfile profile = _editingProfile is null
@@ -1340,6 +1453,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             CloseEditor();
             LoadProfiles();
             LoadPrefixes();
+            _ = RefreshChipsAsync();
             Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_Saved, 3000);
             // P3：第一次选用这个运行器时顺手自检一次（后台跑，不挡保存；结果只提示一句）
             if (runner.Usable is null)
@@ -1820,7 +1934,20 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
         };
-        ContentDialogResult choice = await dialog.ShowAsync();
+        if (_dialogOpen)
+        {
+            return;
+        }
+        ContentDialogResult choice;
+        _dialogOpen = true;
+        try
+        {
+            choice = await dialog.ShowAsync();
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
         if (choice == ContentDialogResult.Primary)
         {
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
@@ -2347,6 +2474,18 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             int cleared = Features.Runtime.ProfileBinding.ClearFor(profile.Id);
             if (deletePrefixBox.IsChecked == true && prefixExists)
             {
+                // R22：克隆出来的方案默认共用同一个前缀目录；删之前必须确认没别人在用。
+                List<string> sharers = RuntimeProfileStore.LoadAll(_logger)
+                    .Where(x => x.Id != profile.Id && SamePrefix(EnvironmentResolver.EffectivePrefixPath(x), prefixPath))
+                    .Select(x => x.Name)
+                    .ToList();
+                if (sharers.Count > 0)
+                {
+                    Helpers.InAppToast.MainWindow?.Warning((string?)null,
+                        "还有其它方案在用这个前缀，已跳过删除目录：" + string.Join("、", sharers), 6000);
+                }
+                else
+                {
                 try
                 {
                     await Task.Run(() => Directory.Delete(prefixPath, recursive: true));
@@ -2357,8 +2496,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                     _logger.LogError(ex, "Delete prefix folder failed");
                     Helpers.InAppToast.MainWindow?.Error((string?)null, "前缀目录没删干净：" + ex.Message);
                 }
+                }
             }
             LoadProfiles();
+            LoadPrefixes();
+            _ = RefreshChipsAsync();
             Helpers.InAppToast.MainWindow?.Success((string?)null,
                 cleared > 0
                     ? $"{string.Format(Lang.Lunarward_Delete_Result, profile.Name)}（已清掉 {cleared} 个绑定）"

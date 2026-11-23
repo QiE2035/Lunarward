@@ -86,6 +86,8 @@ public static class RuntimeProfileStore
     /// <summary>读取全部配方；为空时创建一份基于系统现状的默认配方。</summary>
     public static List<RuntimeProfile> LoadAll(ILogger? logger = null)
     {
+        // R24：只有「第一次跑」才自动建默认方案；用户删光所有方案后不该又被凭空造回来。
+        bool firstRun = !Directory.Exists(EnvironmentsFolder);
         Directory.CreateDirectory(EnvironmentsFolder);
         MigrateLegacyProfiles(logger);
 
@@ -134,7 +136,7 @@ public static class RuntimeProfileStore
                 }
             }
         }
-        if (profiles.Count == 0)
+        if (profiles.Count == 0 && firstRun)
         {
             RuntimeProfile profile = CreateDefault();
             Save(profile, logger);
@@ -160,7 +162,32 @@ public static class RuntimeProfileStore
                 changed = true;
             }
         }
-        EnvironmentResolver.Refresh(profile, null, logger);
+        // R41：旧版（D73 之前）只有 graphicsId，一个 id 同时在装 DXVK/VKD3D；按组件的 Kind 迁移成两列。
+        if (!string.IsNullOrWhiteSpace(profile.LegacyGraphicsId))
+        {
+            string legacy = profile.LegacyGraphicsId!;
+            Component? component = ComponentStore.GetGraphics().FirstOrDefault(x => x.Id == legacy);
+            if (component is not null)
+            {
+                if (component.Kind == ComponentKind.Vkd3dProton)
+                {
+                    profile.Vkd3dId = component.Id;
+                }
+                else
+                {
+                    profile.DxvkId = component.Id;
+                }
+                logger?.LogInformation("Migrated legacy graphics id {id} -> DXVK={dxvk} VKD3D={vkd3d}", legacy, profile.DxvkId, profile.Vkd3dId);
+            }
+            else
+            {
+                logger?.LogWarning("Legacy graphics id {id} not found, cleared; please pick a graphics component again", legacy);
+            }
+            profile.LegacyGraphicsId = null;
+            changed = true;
+        }
+        // RunnerPath 只是缓存：以 RunnerId 为准，读配置时不在这里 fork `wine --version`（R21）。
+        EnvironmentResolver.Refresh(profile, ComponentStore.CachedRunners, logger);
         return changed;
     }
 

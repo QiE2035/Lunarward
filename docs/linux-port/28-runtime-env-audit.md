@@ -2,7 +2,7 @@
 
 > 日期：2026-11-23　范围：`src/Lunarward/Features/Runtime/`（25 文件）、`Features/Setting/RuntimeEnvironmentSetting.*`（4 个 partial，4040 行）、`Features/GameLauncher/LaunchPreflight.cs`、`GameLauncherService(.Linux).cs` 的启动链。
 > 方法：本人读码 + 4 组只读子代理（页面 / 启动 / 存储 / 组件），结论逐条回到源码核对。
-> 状态：2026-11-23 用户 m02913「全处理了」→ 按批修复，进度见各条 `- 🛠` 行；决策 D104（批 A）起。
+> 状态：2026-11-23 用户 m02913「全处理了」→ 42 条全部修完（批 A D104 / 批 B D105 / 批 C D106 / 批 D D107），进度见各条 🛠 标记。
 > 设计依据：`23-runtime-env-design.md`（605 行）、D73–D85 / D80 / D82 / D95–D103。
 
 ## 0 · 结论摘要
@@ -129,12 +129,12 @@
 - 证据：只判断 `x64/` 与 `x86/`；DXVK 2.x 发布物是 `x64/ + x32/`（VKD3D-Proton 才是 `x86/`）。另外目录选择靠 `target.EndsWith("32.dll") || target.StartsWith("x86")`（:170），名字里恰好含 32 的 64 位 dll 会落进 syswow64。
 - 建议：`x86`/`x32` 同时识别，按来源目录而不是文件名决定目标。
 
-### R18　gamescope/gamemoderun 无条件拼进 argv，缺程序时启动直接失败 ✔子代理核对
+### R18　（🛠 已修复，D107 批 D）gamescope/gamemoderun 无条件拼进 argv，缺程序时启动直接失败 ✔子代理核对
 - 位置：`Enhancements.cs:97-101`；`LaunchPreflight.cs:364-375`；`GameLauncherService.Linux.cs:335`。
 - 证据：wrappers 直接 `"gamescope"`/`"gamemoderun"`，不 `FindInPath`；预检只给 Warning；启动时 `Process.Start` 抛 Win32Exception（并把 R05 的锁一起泄漏）。
 - 建议：找不到的 wrapper 跳过并给可见提示，或预检判 Failed 并带「打开运行环境」。
 
-### R19　「Shell / RunOnce」与真实启动不是同一套环境 ✔子代理核对
+### R19　（🛠 已修复，D107 批 D）「Shell / RunOnce」与真实启动不是同一套环境 ✔子代理核对
 - 位置：`RunOnceService.cs:64`；`ProfileShellService.cs:89-116`。
 - 证据：只拼 `profile.Env`，不应用 `recipe.Environment`；`PrefixPath` 为空的方案直接没有 `WINEPREFIX`（落进 `~/.wine`），也没有 Proton 的 `WINEDLLPATH`/`LD_LIBRARY_PATH`/`PROTONPATH` 与 HUD；全程不取前缀锁。两个文件的开头都写着「环境变量与游戏启动完全一致」。
 - 建议：抽出唯一的环境装配函数给「启动 / Shell / RunOnce / 伴随启动」共用，锁作为参数传入。
@@ -143,17 +143,17 @@
 
 ## 3 · Medium
 
-- **R20　前缀体积在 UI 线程扫盘**：`RuntimeEnvironmentSetting.xaml.cs:545-567 LoadPrefixes()` 同步调 `PrefixManager.EnumerateKnownPrefixes(profiles)`（默认 `computeSize:true`，递归 stat），ctor `:41` 与保存/删除/克隆都会走到；同页 `RefreshChipsAsync`、占用汇总都已后台。设计 §3.6 明确「后台算、10 分钟缓存、不放列表卡片」。另有 `Profiles.cs:41/:210` 每方案 `Inspect(computeSize:true)`，同一前缀被算三遍。建议：列表 `computeSize:false`，选中时后台算。
-- **R21　保存后 `ComponentStore.Invalidate()` → `LoadAll` → 每个运行器 `wine --version` 冷 fork，全在 UI 线程**（`xaml.cs:1336`；同类 `:39/:51/:531/:548/:1915-1918`）。违反硬规则 10。建议：`LoadAll` 只展开路径、页面 `await Task.Run(...)`；版本结果真缓存。
-- **R22　删除配方勾「连前缀一起删」会连坐共用前缀**（`xaml.cs:2291-2346`、`store #5`）：只查绑定用量，不查其它方案是否指向同一路径；克隆默认共享前缀。建议：删前统计同路径方案数，>1 时列出并禁止一键删。
-- **R23　`ContentDialog.ShowAsync` 未防重入**（`xaml.cs:298/:693/:1818`）：连点两个检查类按钮时第二次抛 `InvalidOperationException`（async void 未处理）。建议：加 `_dialogOpen` 守卫 + try。
-- **R24　删除最后一份方案又被自动重建**（`RuntimeProfileStore.cs:95-99`）：`LoadAll` 见 0 份就 `CreateDefault()`，「删了又回来」，页面空列表分支不可达。建议：只在首次启动创建。
-- **R25　`LastKnownGoodStore` 只写不读**（写：`GameLauncherService.cs:493`；读：仅 `DiagnosticBundle`）：设计 §6「上次成功：11-14 21:03 / 用上次能跑的组合重新启动」未实现；且条目缺 `runnerId`/`graphicsId`，`PrefixPath` 记的是未展开值。建议：补字段与消费方。
-- **R26　预检「去设置」不带 profileId/tab**：页面无 `OnNavigatedTo`，永远选第一份方案 → §13.10「跳到 运行环境 → 增强」未实现。
-- **R27　编辑器预览的 draft 不含 Enhancements**（`xaml.cs:1198-1204`）：预览看不到 gamemode/mangohud；名字 `TextChanged` 也不刷新预览与前缀行（`:1060-1064`）。
-- **R28　保存/删除/克隆后不刷新 chips 与失效绑定提示**（`:1336/:2258/:2347`；`RefreshChipsAsync` 只在 ctor 调）。
-- **R29　前缀路径保存零校验**（`:1315-1326`）：`/`、相对路径、`..`、不可写目录都收，错误延后到 `EnsurePrefix`。
-- **R30　`IsPrefixLocked` 把「没权限」也报成「被另一个实例使用」**（`PrefixManager.cs:67-75`；`LaunchPreflight.cs:232-245`）：动作是「查看占用进程」，权限问题下是死胡同。
+- **R20（🛠 已修复 D107 批 D）**　前缀体积在 UI 线程扫盘**：`RuntimeEnvironmentSetting.xaml.cs:545-567 LoadPrefixes()` 同步调 `PrefixManager.EnumerateKnownPrefixes(profiles)`（默认 `computeSize:true`，递归 stat），ctor `:41` 与保存/删除/克隆都会走到；同页 `RefreshChipsAsync`、占用汇总都已后台。设计 §3.6 明确「后台算、10 分钟缓存、不放列表卡片」。另有 `Profiles.cs:41/:210` 每方案 `Inspect(computeSize:true)`，同一前缀被算三遍。建议：列表 `computeSize:false`，选中时后台算。
+- **R21（🛠 已修复 D107 批 D）**　保存后 `ComponentStore.Invalidate()` → `LoadAll` → 每个运行器 `wine --version` 冷 fork，全在 UI 线程**（`xaml.cs:1336`；同类 `:39/:51/:531/:548/:1915-1918`）。违反硬规则 10。建议：`LoadAll` 只展开路径、页面 `await Task.Run(...)`；版本结果真缓存。
+- **R22（🛠 已修复 D107 批 D）**　删除配方勾「连前缀一起删」会连坐共用前缀**（`xaml.cs:2291-2346`、`store #5`）：只查绑定用量，不查其它方案是否指向同一路径；克隆默认共享前缀。建议：删前统计同路径方案数，>1 时列出并禁止一键删。
+- **R23（🛠 已修复 D107 批 D）**　`ContentDialog.ShowAsync` 未防重入**（`xaml.cs:298/:693/:1818`）：连点两个检查类按钮时第二次抛 `InvalidOperationException`（async void 未处理）。建议：加 `_dialogOpen` 守卫 + try。
+- **R24（🛠 已修复 D107 批 D）**　删除最后一份方案又被自动重建**（`RuntimeProfileStore.cs:95-99`）：`LoadAll` 见 0 份就 `CreateDefault()`，「删了又回来」，页面空列表分支不可达。建议：只在首次启动创建。
+- **R25（🛠 已修复 D107 批 D）**　`LastKnownGoodStore` 只写不读**（写：`GameLauncherService.cs:493`；读：仅 `DiagnosticBundle`）：设计 §6「上次成功：11-14 21:03 / 用上次能跑的组合重新启动」未实现；且条目缺 `runnerId`/`graphicsId`，`PrefixPath` 记的是未展开值。建议：补字段与消费方。
+- **R26（🛠 已修复 D107 批 D）**　预检「去设置」不带 profileId/tab**：页面无 `OnNavigatedTo`，永远选第一份方案 → §13.10「跳到 运行环境 → 增强」未实现。
+- **R27（🛠 已修复 D107 批 D）**　编辑器预览的 draft 不含 Enhancements**（`xaml.cs:1198-1204`）：预览看不到 gamemode/mangohud；名字 `TextChanged` 也不刷新预览与前缀行（`:1060-1064`）。
+- **R28（🛠 已修复 D107 批 D）**　保存/删除/克隆后不刷新 chips 与失效绑定提示**（`:1336/:2258/:2347`；`RefreshChipsAsync` 只在 ctor 调）。
+- **R29（🛠 已修复 D107 批 D）**　前缀路径保存零校验**（`:1315-1326`）：`/`、相对路径、`..`、不可写目录都收，错误延后到 `EnsurePrefix`。
+- **R30（🛠 已修复 D107 批 D）**　`IsPrefixLocked` 把「没权限」也报成「被另一个实例使用」**（`PrefixManager.cs:67-75`；`LaunchPreflight.cs:232-245`）：动作是「查看占用进程」，权限问题下是死胡同。
 - **R31　组件分片失败被吞、MergeParts 以目录文件数当片数、缺片静默跳过、失败后不清理分片**（`ComponentDownloader.cs:256-270/:328/:441-456`）：一次 403/429 最终以「长度不一致」暴露，且重试必复现。建议：连续失败计数、任一片失败即抛并清理；合并上界用 `ChunkCount`，缺片立即抛。　— **🛠 已修复（D106 批 C）**
 - **R32　`ArchiveExtractor` 三处边界**：符号链接校验少尾部分隔符（`:257-262` 与 `:234` 不一致）；绝对路径条目被静默改写成相对路径（`:228`，注释却说拒绝）；`tar.xz` 分支无总大小上限与逐块取消（`:171`，xz 炸弹可无限膨胀，页面 df 预检只按压缩包×2 估算）。　— **🛠 已修复（D106 批 C）**
 - **R33　组件导入语义不一致**（`ComponentImporter.cs:49-52` vs `Program.Linux.cs:1580-1583`：页面算失败、CLI 算跳过；且先 `Directory.Move` 再写 manifest，中间失败留下不可再导入的目录）。建议：统一语义 + 先写临时目录再整体 rename。　— **🛠 已修复（D106 批 C）**
@@ -163,14 +163,14 @@
 
 ## 4 · Low / 文档漂移
 
-- **R35　`ComponentNaming.Sanitize` 不移除 `.`/`..`**（`ComponentManifest.cs:188-195`）；`EnvironmentResolver.EffectivePrefixPath`（`:95-103`）直接 `Path.Combine` → 方案名 `..` 把前缀算到 `~/.local/share/lunarward`，`.` 算到 PrefixRoot。建议：名称白名单化（`^[A-Za-z0-9_-]{1,64}$`）+ 拼完校验。
-- **R36　`LaunchRecipeBuilder.SplitArgs` 对引号外的 `\` 做转义**（`LaunchRecipe.cs:62-117`）：`C:\Games\...` 这类参数会被吃掉反斜杠。建议：引号外不处理反斜杠（与 `ArgumentList` 语义一致）。
+- **R35（🛠 已修复 D107 批 D）**　`ComponentNaming.Sanitize` 不移除 `.`/`..`**（`ComponentManifest.cs:188-195`）；`EnvironmentResolver.EffectivePrefixPath`（`:95-103`）直接 `Path.Combine` → 方案名 `..` 把前缀算到 `~/.local/share/lunarward`，`.` 算到 PrefixRoot。建议：名称白名单化（`^[A-Za-z0-9_-]{1,64}$`）+ 拼完校验。
+- **R36（🛠 已修复 D107 批 D）**　`LaunchRecipeBuilder.SplitArgs` 对引号外的 `\` 做转义**（`LaunchRecipe.cs:62-117`）：`C:\Games\...` 这类参数会被吃掉反斜杠。建议：引号外不处理反斜杠（与 `ArgumentList` 语义一致）。
 - **R37　`GraphicsInstaller` 两处一致性**：`EnsureInstalled` 的「同 Id 跳过」不看文件大小（`:141-150`，`Verify` 却校验 size）；`Remove(kind)` 在文件删除失败时仍删记录（`:300-330`）→ 无主 dll。
-- **R38　`--launch-plan` 与真实启动不同源**（`GameLauncherService.Linux.cs:434-452`）：plan 用 `ResolveRunner` + 原始 arg，真实启动用 `profile.RunnerPath` + effectiveArgs，两者命令行必然不同（叠加 R02）。建议：plan 复用 `CreateGameProcessStartInfo`，只打印不启动。
-- **R39　第二实例深链启动的 Task 被丢弃**（`App.xaml.cs:168`）：`Task ignoredLaunch = …StartGameAsync(gameId);` 无 await/catch，预检失败与启动异常无 UI 反馈。
-- **R40　文档 / 注释漂移**：默认前缀代码是 `~/.local/share/lunarward/prefix`，设计 §4.1/§8 写 `prefixes/`；`PrefixManager.cs:1-12` 文件头仍列 D73 已删除的五种模式；`ProfileBinding` 文件名是 `profile-bindings.json`，设计 §8 写 `env-bindings.json`（且无迁移）。
-- **R41　旧 `graphicsId` 读入即丢、`RunnerPath` 缓存字段被持久化**（`RuntimeProfile.cs:100-103`、`store #14`）：升级用户不会收到「图形层需重选」提示；导出配置会带上别处绝对路径。
-- **R42　`LastKnownGoodStore.Load` 出错后用空表覆盖**（`LastKnownGoodStore.cs:58-77/:106-107`）；`LaunchHistoryStore` 截断用非原子 `WriteAllLines`、并发追加抛 IOException 被吞（`LaunchHistoryStore.cs:167-175/:107`）。
+- **R38（🛠 已修复 D107 批 D）**　`--launch-plan` 与真实启动不同源**（`GameLauncherService.Linux.cs:434-452`）：plan 用 `ResolveRunner` + 原始 arg，真实启动用 `profile.RunnerPath` + effectiveArgs，两者命令行必然不同（叠加 R02）。建议：plan 复用 `CreateGameProcessStartInfo`，只打印不启动。
+- **R39（🛠 已修复 D107 批 D）**　第二实例深链启动的 Task 被丢弃**（`App.xaml.cs:168`）：`Task ignoredLaunch = …StartGameAsync(gameId);` 无 await/catch，预检失败与启动异常无 UI 反馈。
+- **R40（🛠 已修复 D107 批 D）**　文档 / 注释漂移**：默认前缀代码是 `~/.local/share/lunarward/prefix`，设计 §4.1/§8 写 `prefixes/`；`PrefixManager.cs:1-12` 文件头仍列 D73 已删除的五种模式；`ProfileBinding` 文件名是 `profile-bindings.json`，设计 §8 写 `env-bindings.json`（且无迁移）。
+- **R41（🛠 已修复 D107 批 D）**　旧 `graphicsId` 读入即丢、`RunnerPath` 缓存字段被持久化**（`RuntimeProfile.cs:100-103`、`store #14`）：升级用户不会收到「图形层需重选」提示；导出配置会带上别处绝对路径。
+- **R42（🛠 已修复 D107 批 D）**　`LastKnownGoodStore.Load` 出错后用空表覆盖**（`LastKnownGoodStore.cs:58-77/:106-107`）；`LaunchHistoryStore` 截断用非原子 `WriteAllLines`、并发追加抛 IOException 被吞（`LaunchHistoryStore.cs:167-175/:107`）。
 
 ---
 

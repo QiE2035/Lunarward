@@ -229,17 +229,28 @@ public static class LaunchPreflight
 
             // 只读检查占用：以前这里会 Directory.CreateDirectory(prefix/.lunarward) 再建锁文件，
             // 结果「点一下预检」就往 external 前缀（例如 ~/.wine）里塞了 .lunarward/（L-62）。
-            bool locked = PrefixManager.IsPrefixLocked(prefix);
-            result.Items.Add(locked
-                ? new PreflightItem
+            var lockState = PrefixManager.CheckPrefixLock(prefix);
+            result.Items.Add(lockState switch
+            {
+                PrefixManager.PrefixLockState.Locked => new PreflightItem
                 {
                     Name = "前缀占用",
                     Status = PreflightStatus.Failed,
                     Detail = "这个前缀正被另一个实例使用",
                     Fix = "等它退出，或给这个游戏换一份独立的前缀",
                     Action = PreflightAction.ShowPrefixProcesses,
-                }
-                : new PreflightItem { Name = "前缀占用", Status = PreflightStatus.Ok, Detail = "未被占用" });
+                },
+                // R30：权限问题不是「被占用」，不能把用户引到「查看占用进程」这条死路。
+                PrefixManager.PrefixLockState.Unknown => new PreflightItem
+                {
+                    Name = "前缀占用",
+                    Status = PreflightStatus.Warning,
+                    Detail = "锁文件存在，但当前用户没有权限检查它",
+                    Fix = "确认前缀目录的所有者与权限（sudo chown -R $USER <prefix>）",
+                    Action = PreflightAction.OpenPrefixFolder,
+                },
+                _ => new PreflightItem { Name = "前缀占用", Status = PreflightStatus.Ok, Detail = "未被占用" },
+            });
         }
 
         // 5) 图形组件（D83：DXVK 与 VKD3D 各查一遍，两类互不替代）

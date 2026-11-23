@@ -165,7 +165,21 @@ public partial class App : Application
                 if (GameBiz.TryParse(bizName, out GameBiz biz) && GameId.FromGameBiz(biz) is GameId gameId)
                 {
                     EnsureMainWindow();
-                    Task ignoredLaunch = AppConfig.GetService<GameLauncherService>().StartGameAsync(gameId);
+                    // R39：以前把 Task 直接丢掉，预检失败/启动抛异常都没有任何反馈。
+                    async Task LaunchAsync()
+                    {
+                        try
+                        {
+                            await AppConfig.GetService<GameLauncherService>().StartGameAsync(gameId);
+                        }
+                        catch (Exception ex)
+                        {
+                            Serilog.Log.Error(ex, "Second instance launch failed: {game}", gameId.Id);
+                            Helpers.InAppToast.MainWindow?.Error(ex.Message, null, 8000);
+                        }
+                    }
+                    Task launchTask = LaunchAsync();
+                    Serilog.Log.Debug("Second instance launch scheduled: {status}", launchTask.Status);
                 }
             }));
         if (Environment.GetCommandLineArgs().Contains("--hide"))

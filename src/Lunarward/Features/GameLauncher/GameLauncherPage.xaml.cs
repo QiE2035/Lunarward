@@ -759,7 +759,8 @@ public sealed partial class GameLauncherPage : PageBase
                     return;
 
                 case PreflightAction.OpenRuntimeSettings:
-                    MainWindow.Current?.OpenRuntimeSettings();
+                    // R26：带上当前游戏绑定的方案与「增强」意图，别再永远落在第一份方案上。
+                    MainWindow.Current?.OpenRuntimeSettings(Features.Runtime.ProfileBinding.Resolve(CurrentGameBiz)?.Id);
                     return;
 
                 case PreflightAction.OpenGameFolder:

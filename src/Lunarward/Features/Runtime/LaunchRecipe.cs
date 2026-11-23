@@ -28,6 +28,9 @@ public sealed class LaunchRecipe
 
     public List<EnvOverride> Overrides { get; init; } = new();
 
+    /// <summary>PATH 里找不到、被跳过的 wrapper（R18：缺程序时跳过并提示，不让启动直接失败）。</summary>
+    public List<string> MissingWrappers { get; init; } = new();
+
 
     /// <summary>可直接贴进终端的一行命令（带引号）。</summary>
     public string CommandLine => LaunchRecipeBuilder.JoinCommandLine(Argv);
@@ -68,11 +71,19 @@ public static class LaunchRecipeBuilder
                 quote = '\0';
                 continue;
             }
-            if (quote == '\0' && c == '\\' && i + 1 < text.Length)
+            if (c == '\\' && i + 1 < text.Length)
             {
-                current.Append(text[++i]);
-                has = true;
-                continue;
+                char next = text[i + 1];
+                // 只吞「转义引号/转义反斜杠」这一种反斜杠：
+                // 引号内是 \" 与 \\（Windows 风格），引号外只有 \' 与 \"；
+                // 其余反斜杠是字面量，否则 C:\Games\… 这种参数会被吃成 C:Gamess…（R36）。
+                if (quote != '\0' ? (next == quote || next == '\\') : (next == '"' || next == '\''))
+                {
+                    current.Append(next);
+                    i++;
+                    has = true;
+                    continue;
+                }
             }
             if (quote == '\0' && char.IsWhiteSpace(c))
             {
@@ -101,6 +112,13 @@ public static class LaunchRecipeBuilder
     public static List<string> BuildArgv(IReadOnlyList<string>? wrappers, string runnerPath, string exePath,
         string? extraArgs)
     {
+        return BuildArgv(wrappers, runnerPath, exePath, extraArgs, null, null);
+    }
+
+
+    public static List<string> BuildArgv(IReadOnlyList<string>? wrappers, string runnerPath, string exePath,
+        string? extraArgs, Func<string, bool>? wrapperAvailable, List<string>? missingWrappers)
+    {
         var argv = new List<string>();
         if (wrappers is not null)
         {
@@ -110,7 +128,17 @@ public static class LaunchRecipeBuilder
                 {
                     continue;
                 }
-                argv.AddRange(SplitArgs(wrapper));
+                List<string> tokens = SplitArgs(wrapper);
+                if (tokens.Count == 0)
+                {
+                    continue;
+                }
+                if (wrapperAvailable is not null && !wrapperAvailable(tokens[0]))
+                {
+                    missingWrappers?.Add(wrapper);
+                    continue;
+                }
+                argv.AddRange(tokens);
             }
         }
         if (!string.IsNullOrWhiteSpace(runnerPath))
@@ -168,7 +196,8 @@ public static class LaunchRecipeBuilder
         string prefixPath,
         string exePath,
         string? gameArgs,
-        IReadOnlyDictionary<string, string> autoEnvironment)
+        IReadOnlyDictionary<string, string> autoEnvironment,
+        Func<string, bool>? wrapperAvailable = null)
     {
         // 增强开关（D81）展开成「自动注入层」的同名变量：用户在配方 env 里手写 DXVK_HUD 依然能覆盖它，并会被标红。
         var auto = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -194,16 +223,20 @@ public static class LaunchRecipeBuilder
             }
             merged["WINEPREFIX"] = prefixPath;
         }
+        var missingWrappers = new List<string>();
+        List<string> argv = BuildArgv(Enhancements.Wrappers(profile), runnerPath, exePath,
+            string.Join(' ', new[] { gameArgs, profile?.Args }.Where(x => !string.IsNullOrWhiteSpace(x))),
+            wrapperAvailable, missingWrappers);
         return new LaunchRecipe
         {
             RunnerPath = runnerPath,
             PrefixPath = prefixPath,
             // 配方参数只做追加，绝不替换游戏自带参数：login_auth_ticket / -use-d3d12 / -popupwindow 都在这边，
             // 一旦被吞掉扫码登录回填就静默失效（R02）。
-            Argv = BuildArgv(Enhancements.Wrappers(profile), runnerPath, exePath,
-                string.Join(' ', new[] { gameArgs, profile?.Args }.Where(x => !string.IsNullOrWhiteSpace(x)))),
+            Argv = argv,
             Environment = merged,
             Overrides = overrides,
+            MissingWrappers = missingWrappers,
         };
     }
 

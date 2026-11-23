@@ -150,6 +150,10 @@ public static class ComponentStore
         }
     }
 
+    /// <summary>已扫描过的运行器列表（不触发磁盘扫描）；R21：读配置时只做「对齐」不做冷扫描。</summary>
+    public static IReadOnlyList<Component>? CachedRunners => _runners;
+
+
     private static List<Component>? _runners;
 
     private static List<Component>? _graphics;

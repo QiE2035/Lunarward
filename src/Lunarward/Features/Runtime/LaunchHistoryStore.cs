@@ -4,6 +4,7 @@
 // 预检失败根本不会留下文件，而用户最想看的恰恰是「为什么这次没起来」。
 // 这里用 JSONL 追加，一次启动一行，读完按时间倒序给页面用。
 using Microsoft.Extensions.Logging;
+using Starward.Helpers;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -171,7 +172,8 @@ public static class LaunchHistoryStore
         {
             return;
         }
-        File.WriteAllLines(path, lines[^KeepLines..]);
+        // R42：截断也要原子写，否则崩在中间就是半份历史。
+        JsonFile.WriteAtomic(path, string.Join(Environment.NewLine, lines[^KeepLines..]) + Environment.NewLine);
     }
 
 

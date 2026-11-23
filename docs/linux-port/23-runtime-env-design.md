@@ -257,7 +257,7 @@ wine 不允许 root 运行。**已实现（D77）**：`Helpers/PosixIdentity` �
 | 1 | `name` | string | 必填 | 展示名 |
 | 2 | `runnerId` | string | 首个可用运行器 | 引用的组件 id |
 | 3 | `dxvkId` / `vkd3dId` | string? ×2 | `null` | 两个独立的层，可同时装（D83，schema 4）；旧字段 `graphicsId` 不再读 |
-| 4 | `prefixPath` | path | `~/.local/share/lunarward/prefixes/<name>` | 前缀目录 |
+| 4 | `prefixPath` | path | `~/.local/share/lunarward/prefix/<name>` | 前缀目录 |
 | 5 | `env` | map | `{ "WINEDLLOVERRIDES": "mscoree,mshtml=" }` | 见 §4.3，**可见可删** |
 | 6 | `args` | string | `""` | 启动参数（原样拼给游戏 exe） |
 | 7 | `wrappers` | string[] | `[]` | 命令包装，见 §4.4 |
@@ -377,7 +377,7 @@ wine 不允许 root 运行。**已实现（D77）**：`Helpers/PosixIdentity` �
   "name": "genshin",
   "runnerId": "wine-staging-10.13",
   "graphicsId": "dxvk-2.7",
-  "prefixPath": "~/.local/share/lunarward/prefixes/genshin",
+  "prefixPath": "~/.local/share/lunarward/prefix/genshin",
   "env": { "WINEDLLOVERRIDES": "mscoree,mshtml=" },
   "args": "",
   "wrappers": [],

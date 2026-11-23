@@ -360,9 +360,12 @@ public sealed partial class MainWindow : WindowEx
     public void OpenSettings() => MainContentHost?.NavigateToSettings();
 
 
-    /// <summary>打开「运行环境」（预检修复按钮用；D80 起它是一级页，不再需要 SettingNavigation 的一次性目标）。</summary>
-    public void OpenRuntimeSettings()
+    /// <summary>打开「运行环境」（预检修复按钮用；D80 起它是一级页）。</summary>
+    /// <param name="profileId">R26：优先定位到这个方案；为空时停在页面默认选择。</param>
+    /// <param name="enhance">R26：直接打开该方案的「增强」分组（预检的 HUD/包装程序项用）。</param>
+    public void OpenRuntimeSettings(string? profileId = null, bool enhance = false)
     {
+        Starward.Features.Setting.SettingNavigation.SetRuntimeTarget(profileId, enhance);
         MainContentHost?.NavigateToRuntimeEnvironment();
     }
 

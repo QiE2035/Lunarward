@@ -1,0 +1,74 @@
+# Maintainer: Lunarward contributors
+# AUR 稳定版：跟 GitHub 上的 tag（v$pkgver）。
+#
+# 发布前置条件：仓库里必须先有对应的 tag —— `git tag v0.1.0 && git push origin v0.1.0`。
+# 没有 tag 时 source 会 404、makepkg 直接失败（历史上这份就一直指向不存在的 v0.1.0）。
+# 想跟最新提交请装 lunarward-git。
+#
+# 依赖清单由 scripts/test/lint-pkgbuild.sh 校验，改了源码里的原生依赖要同步三份 PKGBUILD。
+
+pkgname=lunarward
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Linux launcher for miHoYo/HoYoverse games, ported from Starward"
+arch=('x86_64')
+url="https://github.com/QiE2035/Lunarward"
+license=('MIT')
+
+# 硬依赖（缺了就不可用，不能靠降级兜住）：
+#   dotnet-runtime  框架依赖发布，运行时必需（Arch 上 dotnet-runtime-bin provides 它）
+#   fontconfig      Skia 文本渲染
+#   libx11          X11KeyState 的 P/Invoke（libX11.so.6）
+#   libxcb          X11Window 的 P/Invoke（libxcb.so.1）
+#   xdg-utils       OpenUrl 走 xdg-open
+#   webkitgtk-6.0   登录窗（D76）
+depends=('dotnet-runtime>=10.0' 'fontconfig' 'libx11' 'libxcb' 'xdg-utils' 'webkitgtk-6.0')
+makedepends=('dotnet-sdk>=10.0' 'git')
+optdepends=(
+  'wine: 使用系统 wine 作为运行器'
+  'proton: 用 Proton 作为运行器'
+  'vlc: 视频壁纸与视频预览（缺失时回退静态壁纸，D33）'
+  'xdotool: libxcb 不可用时唤回最小化窗口的兜底'
+  'webkit2gtk-4.1: 登录窗的 python3 + WebKitGTK 4.1 兜底路径（只在没有 webkitgtk-6.0 时用）'
+  'python-gobject: 上述兜底路径需要 python3 + PyGObject'
+  'kdialog: 文件/目录选择对话框（或 zenity）'
+  'zenity: 文件/目录选择对话框（GTK 环境的替代）'
+  'spectacle: 截图（KDE；也支持 grim / gnome-screenshot）'
+  'grim: 截图（wlroots 系合成器）'
+  'xdg-desktop-portal: 截图与文件选择走 portal（D75）'
+)
+
+# 跟 tag 的 git 源：sha256sums 用 SKIP 是合规的（VCS 源）；换回 tarball 时必须填真实哈希。
+source=("$pkgname::git+https://github.com/QiE2035/Lunarward.git#tag=v$pkgver")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$pkgname"
+}
+
+build() {
+  # 必须进到项目目录再执行：dotnet 从**当前工作目录**向上找 global.json。
+  # 其中 sdk.version 只钉到最低 feature band（10.0.100），实际由 Arch 装的
+  # dotnet-sdk 向上滚 —— 别改回 10.0.3xx 之类，否则低版本 SDK 的环境会直接报
+  # "A compatible .NET SDK was not found"（D89 / L-163）。
+  cd "$pkgname/src/Lunarward"
+  export DOTNET_CLI_TELEMETRY_OPTOUT=1
+  dotnet publish Lunarward.csproj -c Release -r linux-x64 --self-contained false \
+    -p:Version="${pkgver}" -o "$srcdir/publish"
+}
+
+package() {
+  install -d "$pkgdir/usr/lib/lunarward" "$pkgdir/usr/bin" \
+             "$pkgdir/usr/share/applications" \
+             "$pkgdir/usr/share/icons/hicolor/256x256/apps" \
+             "$pkgdir/usr/share/licenses/$pkgname"
+
+  cp -a "$srcdir/publish/." "$pkgdir/usr/lib/lunarward/"
+
+  printf '#!/bin/sh\nexec /usr/lib/lunarward/Lunarward "$@"\n' > "$pkgdir/usr/bin/lunarward"
+  chmod 755 "$pkgdir/usr/bin/lunarward"
+
+  install -m 644 "$srcdir/$pkgname/packaging/lunarward.desktop" "$pkgdir/usr/share/applications/lunarward.desktop"
+  install -m 644 "$srcdir/$pkgname/packaging/lunarward.png" "$pkgdir/usr/share/icons/hicolor/256x256/apps/lunarward.png"
+  install -m 644 "$srcdir/$pkgname/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

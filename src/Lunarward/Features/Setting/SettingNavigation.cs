@@ -27,4 +27,22 @@ public static class SettingNavigation
         _target = page;
     }
 
+
+    private static (string? ProfileId, bool Enhance)? _runtimeTarget;
+
+
+    /// <summary>R26：预检项要把用户送到「运行环境」里对应方案的指定分组，而不是永远停在第一份方案上。</summary>
+    public static void SetRuntimeTarget(string? profileId, bool enhance)
+    {
+        _runtimeTarget = (profileId, enhance);
+    }
+
+
+    public static (string? ProfileId, bool Enhance)? TakeRuntimeTarget()
+    {
+        (string? ProfileId, bool Enhance)? target = _runtimeTarget;
+        _runtimeTarget = null;
+        return target;
+    }
+
 }

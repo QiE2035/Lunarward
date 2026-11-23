@@ -187,11 +187,18 @@ public static class ComponentNaming
 
     public static string Sanitize(string name)
     {
+        // R35：以前只替换 Path.GetInvalidFileNameChars()（Linux 只有 '/' 和 '\0'），
+        // 名字叫 ".." 会把前缀算到父目录、"." 会算到 PrefixRoot 本身。
+        // 现在只保留字母/数字/下划线/点/短横线/CJK，其余一律折成 '-'，再把 ".."/"." 去掉。
+        name ??= "";
         foreach (char c in Path.GetInvalidFileNameChars())
         {
             name = name.Replace(c, '-');
         }
-        return Regex.Replace(name, @"\s+", "-");
+        name = Regex.Replace(name, @"[^A-Za-z0-9_.\-\u4e00-\u9fff]+", "-");
+        name = Regex.Replace(name, @"-{2,}", "-");
+        name = name.Trim('-', '.', ' ');
+        return string.IsNullOrWhiteSpace(name) ? "default" : name;
     }
 }
 

@@ -38,7 +38,8 @@ public sealed partial class RuntimeEnvironmentSetting
 
     private UIElement CreateProfileListRow(RuntimeProfile profile)
     {
-        PrefixManager.PrefixInspection inspection = PrefixManager.Inspect(EnvironmentResolver.EffectivePrefixPath(profile));
+        // R20：列表每行都递归算前缀体积会拖死 UI；体积只在「前缀」页后台算。
+        PrefixManager.PrefixInspection inspection = PrefixManager.Inspect(EnvironmentResolver.EffectivePrefixPath(profile), computeSize: false);
         (string dot, string text) = DescribeHealth(profile, inspection);
         int bindings = ProfileBinding.Usages(profile.Id).Count;
 
@@ -207,7 +208,8 @@ public sealed partial class RuntimeEnvironmentSetting
             return;
         }
         string prefixPath = EnvironmentResolver.EffectivePrefixPath(profile);
-        PrefixManager.PrefixInspection inspection = PrefixManager.Inspect(prefixPath);
+        // R20：详情只关心「存在/健康/被谁用」，体积交给前缀页后台统计。
+        PrefixManager.PrefixInspection inspection = PrefixManager.Inspect(prefixPath, computeSize: false);
         IReadOnlyList<GameBiz> bindings = ProfileBinding.Usages(profile.Id);
 
         StackPanel_ProfileDetail.Children.Add(CreateProfileHeader(profile, inspection, bindings, prefixPath));
@@ -432,6 +434,46 @@ public sealed partial class RuntimeEnvironmentSetting
     private Border CreateHistorySection(RuntimeProfile profile)
     {
         var body = new StackPanel { Spacing = 2 };
+        // R25：上次成功启动的组合只写不读等于没记；这里给出时间并允许一键恢复。
+        LastGoodEntry? lastGood = LastKnownGoodStore.Get(profile.Id);
+        if (lastGood is not null)
+        {
+            body.Children.Add(new TextBlock
+            {
+                Text = string.Format("上次成功启动：{0}", lastGood.At.ToLocalTime().ToString("MM-dd HH:mm")),
+                FontSize = 12,
+                Opacity = 0.85,
+                TextWrapping = TextWrapping.Wrap,
+            });
+            var restore = new Button { Content = "恢复上次的组件组合", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 4) };
+            restore.Click += async (_, _) =>
+            {
+                try
+                {
+                    RuntimeProfile? fresh = RuntimeProfileStore.LoadAll(_logger).FirstOrDefault(x => x.Id == profile.Id);
+                    if (fresh is null)
+                    {
+                        return;
+                    }
+                    if (!string.IsNullOrWhiteSpace(lastGood.RunnerId)) fresh.RunnerId = lastGood.RunnerId!;
+                    if (!string.IsNullOrWhiteSpace(lastGood.DxvkId)) fresh.DxvkId = lastGood.DxvkId;
+                    if (!string.IsNullOrWhiteSpace(lastGood.Vkd3dId)) fresh.Vkd3dId = lastGood.Vkd3dId;
+                    if (!string.IsNullOrWhiteSpace(lastGood.RunnerPath)) fresh.RunnerPath = lastGood.RunnerPath;
+                    if (RuntimeProfileStore.Save(fresh, _logger))
+                    {
+                        LoadProfiles();
+                        ShowProfileDetail(fresh);
+                        Helpers.InAppToast.MainWindow?.Success((string?)null, "已恢复上次成功的组件组合", 3000);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Restore last good failed");
+                }
+                await Task.CompletedTask;
+            };
+            body.Children.Add(restore);
+        }
         IReadOnlyList<LaunchAttempt> attempts = LaunchHistoryStore.Recent(profile.Id, 3);
         if (attempts.Count == 0)
         {

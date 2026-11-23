@@ -37,6 +37,11 @@ public sealed class RuntimeProfile
     public string? Vkd3dId { get; set; }
 
 
+    /// <summary>R41：旧版（D73 之前）的 graphicsId，仅用于迁移；迁移后置空。</summary>
+    [JsonPropertyName("graphicsId")]
+    public string? LegacyGraphicsId { get; set; }
+
+
     /// <summary>当前选中的图形组件 id（两类各自独立，这里只用于「有没有配图形层」这种粗判断）。</summary>
     [JsonIgnore]
     public bool HasGraphics => !string.IsNullOrWhiteSpace(DxvkId) || !string.IsNullOrWhiteSpace(Vkd3dId);

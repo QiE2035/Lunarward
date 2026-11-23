@@ -24,7 +24,14 @@ public sealed class LastGoodEntry
     /// <summary>当时的版本串（`wine --version`，取不到就空）。</summary>
     public string RunnerVersion { get; set; } = "";
 
-    /// <summary>当时使用的前缀路径（可能为空：external 且用户没填）。</summary>
+    /// <summary>当次的运行器组件 id 与两个图形组件 id（R25：恢复时按 id 还原，不按路径猜）。</summary>
+    public string? RunnerId { get; set; }
+
+    public string? DxvkId { get; set; }
+
+    public string? Vkd3dId { get; set; }
+
+    /// <summary>当时使用的前缀路径（可能为空：external 且用户没填）。已展开的绝对路径（R25）。</summary>
     public string? PrefixPath { get; set; }
 
     /// <summary>这次成功启动的时间。</summary>
@@ -69,9 +76,17 @@ public static class LastKnownGoodStore
                 ? new Dictionary<string, LastGoodEntry>(StringComparer.Ordinal)
                 : new Dictionary<string, LastGoodEntry>(map, StringComparer.Ordinal);
         }
-        catch
+        catch (Exception ex)
         {
-            // 文件坏了就当没有记录：这个文件只用于「切回去」，不该阻塞任何流程
+            // R42：文件坏了先改名留证据，再当没有记录——不能下次写的时候把坏文件直接覆盖掉。
+            try
+            {
+                File.Move(FilePath, $"{FilePath}.corrupt-{DateTime.Now:yyyyMMddHHmmss}", overwrite: true);
+            }
+            catch
+            {
+            }
+            Serilog.Log.Warning(ex, "last-good: file unreadable, moved aside");
             return new Dictionary<string, LastGoodEntry>(StringComparer.Ordinal);
         }
     }
@@ -99,9 +114,12 @@ public static class LastKnownGoodStore
         map[profile.Id] = new LastGoodEntry
         {
             ProfileId = profile.Id,
+            RunnerId = profile.RunnerId,
+            DxvkId = profile.DxvkId,
+            Vkd3dId = profile.Vkd3dId,
             RunnerPath = profile.RunnerPath,
             RunnerVersion = string.IsNullOrWhiteSpace(profile.RunnerPath) ? "" : ComponentStore.ReadRunnerVersion(profile.RunnerPath) ?? "",
-            PrefixPath = profile.PrefixPath,
+            PrefixPath = PrefixManager.ExpandPath(profile.PrefixPath),
             At = DateTimeOffset.Now,
         };
         try

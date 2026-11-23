@@ -355,23 +355,26 @@ internal partial class GameLauncherService
         Features.PlayTime.PlayTimeSession.ActiveWine = wine;
         // 不接管 wine 的输出：游戏日志独立，避免阻塞 GUI 线程（D27 输出可见性模型）。
         info.Environment["WINEDEBUG"] = info.Environment.TryGetValue("WINEDEBUG", out var dbg) ? dbg : "-all";
-        ApplyWineRuntimeEnvironment(info, wine);
 
-        // D73 §4.3/§4.4：配方 env 覆盖运行器自动注入的值（覆盖要留痕），wrappers 按顺序排在 wine 前面。
-        var autoEnvironment = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var pair in info.Environment)
-        {
-            autoEnvironment[pair.Key] = pair.Value ?? "";
-        }
+        // R19：自动注入层与调试 Shell / RunOnce 共用同一份装配（含 Proton 变量与增强开关）。
+        Dictionary<string, string> autoEnvironment = Features.Runtime.RuntimeEnvironment.Assemble(profile, key, prefix);
         // R02：参数合并只在 Build 里做一次（追加，不替换）——这里传游戏自带参数原始值。
+        // R18：PATH 里没有的 wrapper 跳过并记下来，启动前提示；不再让 Process.Start 直接抛。
         Features.Runtime.LaunchRecipe recipe = Features.Runtime.LaunchRecipeBuilder.Build(
-            profile, wine, prefix, exe, arg, autoEnvironment);
+            profile, wine, prefix, exe, arg, autoEnvironment,
+            wrapper => Features.Runtime.Enhancements.FindInPath(wrapper) is not null);
         // R01：以 recipe.Environment 为唯一依据整体下发（继承环境 + Proton 变量 + 增强 HUD + 配方覆盖，
         // 且 WINEPREFIX 已被 Build 固定成真实前缀）。之前只回灌 profile.Env，导致 HUD 全静默失效、
         // 用户写 WINEPREFIX 还能把加锁/DXVK 用的前缀和进程实际前缀拆成两个。
         foreach ((string envKey, string envValue) in recipe.Environment)
         {
             info.Environment[envKey] = envValue;
+        }
+        if (recipe.MissingWrappers.Count > 0)
+        {
+            string names = string.Join("、", recipe.MissingWrappers);
+            _logger.LogWarning("Wrappers not found in PATH, skipped: {names}", names);
+            Helpers.InAppToast.MainWindow?.Warning(null, $"未找到启动包装程序，已跳过：{names}", 8000);
         }
         foreach (Features.Runtime.EnvOverride overridden in recipe.Overrides)
         {
@@ -489,13 +492,15 @@ internal partial class GameLauncherService
             return sb.ToString();
         }
 
-        var auto = new Dictionary<string, string>(StringComparer.Ordinal)
-        {
-            ["WINEPREFIX"] = prefix,
-            ["WINEDEBUG"] = "-all",
-        };
-        LaunchRecipe recipe = LaunchRecipeBuilder.Build(profile, wine, prefix, exe, arg, auto);
+        // R38：与真实启动同源——用同一份装配、同一套 wrapper 过滤，plan 里看到的就是启动时的命令行。
+        Dictionary<string, string> auto = Features.Runtime.RuntimeEnvironment.Assemble(profile, null, prefix);
+        LaunchRecipe recipe = LaunchRecipeBuilder.Build(profile, wine, prefix, exe, arg, auto,
+            wrapper => Features.Runtime.Enhancements.FindInPath(wrapper) is not null);
         sb.AppendLine($"命令    : {recipe.CommandLine}");
+        if (recipe.MissingWrappers.Count > 0)
+        {
+            sb.AppendLine($"包装    : 未找到并跳过 {string.Join("、", recipe.MissingWrappers)}");
+        }
         foreach ((string key, string value) in recipe.SortedEnvironment)
         {
             sb.AppendLine($"env     : {key}={value}");

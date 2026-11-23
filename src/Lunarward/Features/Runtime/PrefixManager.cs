@@ -1,11 +1,7 @@
-// Lunarward：Wine 前缀的生命周期（D28/03-runtime-model §Prefix）。
+// Lunarward：Wine 前缀的定位、创建与检查（D73 起「前缀只是路径」）。
 //
-// 五种模式：
-//   external  —— 就地使用用户已有前缀（不复制、不创建，缺失即报错）
-//   dedicated —— 每游戏一个长期前缀，缺失时用 wineboot 初始化
-//   shared    —— 多个游戏共用一个长期前缀
-//   template  —— 从一个「模板前缀」克隆出本游戏专用前缀（reflink，秒级）
-//   ephemeral —— 每次启动克隆一份，退出即丢弃（用于测试组合，不污染既有前缀）
+// 一份方案只有 prefixPath（可空 → 用 PrefixRoot/<方案名>）。前缀不是「模式」，
+// 不再有 external/dedicated/shared/template/ephemeral 这套 D28 时期的枚举（D73 已删除）。
 using Starward.Helpers;
 using Microsoft.Extensions.Logging;
 using Starward.Features.GameLauncher;
@@ -54,31 +50,48 @@ public static class PrefixManager
     /// <summary>
     /// 该前缀是否正被别的进程/任务占用（与启动游戏时用的锁同一个文件，D39）。
     /// </summary>
-    public static bool IsPrefixLocked(string? prefix)
+    public enum PrefixLockState
+    {
+        Free,
+        Locked,
+        /// <summary>锁文件存在但打不开（多半是权限/属主问题，不是「被占用」）。</summary>
+        Unknown,
+    }
+
+
+    /// <summary>R30：把「被占用」和「没权限判断」分开，预检不要给用户指到死胡同。</summary>
+    public static PrefixLockState CheckPrefixLock(string? prefix)
     {
         if (string.IsNullOrWhiteSpace(prefix))
         {
-            return false;
+            return PrefixLockState.Free;
         }
         string lockPath = System.IO.Path.Combine(prefix, LockRelativePath);
         if (!System.IO.File.Exists(lockPath))
         {
-            return false;
+            return PrefixLockState.Free;
         }
         try
         {
             using var stream = new System.IO.FileStream(lockPath, System.IO.FileMode.Open, System.IO.FileAccess.ReadWrite, System.IO.FileShare.None);
-            return false;
+            return PrefixLockState.Free;
         }
         catch (System.IO.IOException)
         {
-            return true;
+            return PrefixLockState.Locked;
         }
         catch (System.UnauthorizedAccessException)
         {
-            return true;
+            return PrefixLockState.Unknown;
+        }
+        catch (System.Exception)
+        {
+            return PrefixLockState.Unknown;
         }
     }
+
+
+    public static bool IsPrefixLocked(string? prefix) => CheckPrefixLock(prefix) == PrefixLockState.Locked;
 
 
     public static string PrefixRoot

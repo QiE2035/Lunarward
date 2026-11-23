@@ -1616,3 +1616,30 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` **270 通过**（更新 `ResolveTarget_GuardsAgainstEscape`：绝对路径/盘符改为期望拒绝，新增盘符用例）；`lint-ui-thread.sh` 通过。下载与解压路径未做联网实测（本机无可用组件源），按代码路径与单元测试覆盖判断。
 
 **确认方式**：用户 m02717（审查）+ m02913（「全处理了」）。
+
+---
+
+## D107 运行环境审查修复：批 D「页面体验与一致性」
+
+背景：D104–D106 修完启动链、持久化与组件层后，剩余 20 条集中在页面交互、跨入口一致性与文档漂移（28 号 R18–R30、R35、R36、R38–R42）。
+
+决定：
+
+1. 环境装配收敛到唯一函数 `RuntimeEnvironment.Assemble`：启动、Shell、RunOnce、`--launch-plan` 预览共用（R19/R38），不再各自拼 `profile.Env`。
+2. 命令包装缺程序时按「跳过并提示」处理，`LaunchRecipe.MissingWrappers` 交给调用方弹一次警告；不再让启动直接失败（R18）。
+3. 页面读配置阶段不 fork `wine --version`：`EnvironmentResolver.Refresh` 只用 `ComponentStore.CachedRunners`，空缓存就跳过（R21）。
+4. 前缀体积统计移到后台：`LoadPrefixes` 变异步 + `Task.Run`；方案列表与详情的 `Inspect` 传 `computeSize:false`（R20）。
+5. 删除前缀前检查同路径方案，有别人在用就跳过并列出名字；路径比较统一 `GetFullPath` 口径（R22/R29 的一部分）。
+6. 编辑器的启动预览把当前方案的增强项一起填进 draft（HUD/gamemode/gamescope），改名字立刻刷新预览与前缀行（R27）。
+7. 保存/删除后同时刷新 chips 与失效绑定提示（R28）。
+8. `LastKnownGoodStore` 从只写变可读：详情页显示「上次成功启动：…」并可一键恢复 Runner/DXVK/VKD3D；`Load` 出错先把坏文件改名 `.corrupt-*`（R25/R42）。
+9. 预检「去设置」带 `profileId`：`SettingNavigation` 增加一次性 runtime 目标，页面 `OnNavigatedTo` 消费并定位方案/分组（R26）。
+10. 前缀路径保存时校验绝对路径、拒绝根目录（R29）；`ContentDialog` 加防重入标志（R23）。
+11. `CreateDefault` 只在「首次启动」创建（R24）；旧 `graphicsId` 按组件 `Kind` 迁移到 dxvkId/vkd3dId（R41）。
+12. 名称清洗补 `.`/`..` 与空白（R35）；`SplitArgs` 只吞「转义引号/反斜杠」的反斜杠（R36）；第二实例启动异常落日志并弹提示（R39）；文档与注释里的 `prefixes/`、五种前缀模式描述同步为现状（R40）。
+
+代价边界：`LoadPrefixes` 变异步后，前缀列表在扫盘完成后才刷新（切换页签可能先看到空再补齐）；`OnNavigatedTo` 定位只在页面首次挂载生效；恢复上次组合只恢复组件 id 与运行器路径，不改 `prefixPath` 与增强项。
+
+验证：`dotnet build Starward.slnx -c Debug/Release` 0 错误；`dotnet test` 270 通过；`lint-ui-thread.sh`、`lint-cli-help.sh`、`lint-pkgbuild.sh` 通过。
+
+确认方式：m02717（审查请求）、m02913（「全处理了」）。

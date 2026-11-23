@@ -75,6 +75,12 @@ public static class EnvironmentResolver
         {
             return;
         }
+        // R21：读配置阶段只对齐「已扫描过」的组件表，绝不在这里 fork `wine --version`。
+        runners ??= ComponentStore.CachedRunners;
+        if (runners is null)
+        {
+            return;
+        }
         Component? component = ResolveRunner(profile, runners);
         if (component is null)
         {
@@ -98,7 +104,14 @@ public static class EnvironmentResolver
             return configured!;
         }
         string name = string.IsNullOrWhiteSpace(profile?.Name) ? (profile?.Id ?? "default") : profile!.Name;
-        return Path.Combine(PrefixManager.PrefixRoot, ComponentNaming.Sanitize(name).ToLowerInvariant());
+        string root = Path.GetFullPath(PrefixManager.PrefixRoot);
+        string combined = Path.GetFullPath(Path.Combine(root, ComponentNaming.Sanitize(name).ToLowerInvariant()));
+        // R35：名字再奇怪也不能把前缀算到 PrefixRoot 外面。
+        if (!combined.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            combined = Path.Combine(root, string.IsNullOrWhiteSpace(profile?.Id) ? "default" : profile!.Id);
+        }
+        return combined;
     }
 
 }
