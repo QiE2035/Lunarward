@@ -3027,7 +3027,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Prefix Templates</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
-    <value>Runners and graphics (DXVK / VKD3D) are discovered in system folders, Steam, and ~/.local/share/lunarward/components. Nothing is downloaded by the launcher.</value>
+    <value>Graphics layers can be downloaded or imported, and are installed into a prefix.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
     <value>No templates yet. In any profile, use "Save this prefix as a template…" to store a tuned prefix.</value>
@@ -3105,7 +3105,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Each game binds one profile, and a profile can be shared by several games. The "used by" list below shows a profile's blast radius.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Runners_Notice" xml:space="preserve">
-    <value>Read-only list: the launcher only discovers and selects runners, it never installs, copies or deletes the wine on your system. To pin a version, install it to a separate directory with your package manager and point here with "Add path...". Proton builds in Steam's compatibilitytools.d and in custom libraries are listed too (D78).</value>
+    <value>Read-only list: finds existing wine / Proton, never installs or modifies. Use &quot;Add path...&quot; to include a folder you already installed.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPath" xml:space="preserve">
     <value>Add path...</value>
@@ -3774,10 +3774,10 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Managed runners (downloaded/imported by this app, {0})</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ExternalRunners" xml:space="preserve">
-    <value>External runners (system / Steam / other launchers, {0})</value>
+    <value>External ({0})</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ManagedGraphicsGroups" xml:space="preserve">
-    <value>Managed graphics ({0} group(s))</value>
+    <value>Managed graphics ({0})</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ExternalGraphicsGroups" xml:space="preserve">
     <value>External graphics ({0} group(s))</value>

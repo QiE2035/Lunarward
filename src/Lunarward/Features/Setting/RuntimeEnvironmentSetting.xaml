@@ -368,67 +368,92 @@
                     </Grid>
                 </Grid>
 
-                    <!--  ============ 组件：运行器 + 图形层（D112 合并，入口与内容同名） ============  -->
+                    <!--  ============ 组件：运行器 / 图形层 分段（D114：一页两段太像文档，改为分段切换） ============  -->
                     <ScrollViewer
                         x:Name="Page_Components"
                         HorizontalScrollBarVisibility="Disabled"
                         HorizontalScrollMode="Disabled"
                         VerticalScrollBarVisibility="Auto"
                         Visibility="Collapsed">
-                        <StackPanel Spacing="8">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Button
+                                    x:Name="Seg_Runners"
+                                    Click="Seg_Components_Click"
+                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_RunnerSectionTitle}"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    Tag="0" />
+                                <Button
+                                    x:Name="Seg_Graphics"
+                                    Click="Seg_Components_Click"
+                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Graphics}"
+                                    Style="{StaticResource TabButtonStyle}"
+                                    Tag="1" />
+                            </StackPanel>
 
                             <!--  运行器  -->
-                            <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Runner}" />
-                            <TextBlock
-                                Style="{ThemeResource CaptionTextBlockStyle}"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Runners_Notice}"
-                                TextWrapping="Wrap" />
-                            <StackPanel Margin="0,2,0,0" Orientation="Horizontal" Spacing="8">
-                                <Button x:Name="Button_AddRunner" Click="Button_AddRunner_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddPath}" />
-                                <Button x:Name="Button_SetDefaultRunner" Click="Button_SetDefaultRunner_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_SetDefaultRunner}" />
+                            <StackPanel x:Name="Pane_Runners" Spacing="6">
+                                <TextBlock
+                                    Style="{ThemeResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Runners_Notice}"
+                                    TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button x:Name="Button_AddRunner" Click="Button_AddRunner_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddPath}" />
+                                    <Button x:Name="Button_RunnerMore" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_More}">
+                                        <Button.Flyout>
+                                            <MenuFlyout>
+                                                <MenuFlyoutItem
+                                                    x:Name="Button_SetDefaultRunner"
+                                                    Click="Button_SetDefaultRunner_Click"
+                                                    Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_SetDefaultRunner}" />
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                </StackPanel>
+                                <StackPanel x:Name="StackPanel_Runners" Margin="0,2,0,0" Spacing="4" />
                             </StackPanel>
-                            <StackPanel x:Name="StackPanel_Runners" Margin="0,4,0,0" Spacing="4" />
 
                             <!--  图形层  -->
-                            <TextBlock
-                                Margin="0,16,0,0"
-                                Style="{ThemeResource SubtitleTextBlockStyle}"
-                                Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_GraphicsSectionTitle}" />
-                            <TextBlock
-                                Style="{ThemeResource CaptionTextBlockStyle}"
-                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ComponentsNote}"
-                                TextWrapping="Wrap" />
-                            <StackPanel Margin="0,2,0,0" Orientation="Horizontal" Spacing="8">
-                                <Button
-                                    x:Name="Button_DownloadComponent"
-                                    Click="Button_DownloadComponent_Click"
-                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddComponents}"
-                                    Style="{StaticResource AccentButtonStyle}" />
-                                <Button
-                                    x:Name="Button_ManageSources"
-                                    Click="Button_ManageSources_Click"
-                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ManageSources}" />
-                                <Button x:Name="Button_ComponentMore" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_More}">
-                                    <Button.Flyout>
-                                        <MenuFlyout>
-                                            <MenuFlyoutItem Click="Button_ImportArchive_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportArchive}" />
-                                            <MenuFlyoutItem Click="Button_ImportGraphics_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportGraphics}" />
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Click="Button_Staging_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Staging}" />
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem Click="Button_CleanupComponents_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_CleanupUnused}" />
-                                        </MenuFlyout>
-                                    </Button.Flyout>
-                                </Button>
-                                <ComboBox
-                                    x:Name="Combo_ComponentFilter"
-                                    MinWidth="150"
-                                    SelectionChanged="Combo_ComponentFilter_SelectionChanged"
-                                    VerticalAlignment="Center" />
+                            <StackPanel
+                                x:Name="Pane_Graphics"
+                                Spacing="6"
+                                Visibility="Collapsed">
+                                <TextBlock
+                                    Style="{ThemeResource CaptionTextBlockStyle}"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ComponentsNote}"
+                                    TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button
+                                        x:Name="Button_DownloadComponent"
+                                        Click="Button_DownloadComponent_Click"
+                                        Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_AddComponents}"
+                                        Style="{StaticResource AccentButtonStyle}" />
+                                    <Button
+                                        x:Name="Button_ManageSources"
+                                        Click="Button_ManageSources_Click"
+                                        Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ManageSources}" />
+                                    <Button x:Name="Button_ComponentMore" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_More}">
+                                        <Button.Flyout>
+                                            <MenuFlyout>
+                                                <MenuFlyoutItem Click="Button_ImportArchive_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportArchive}" />
+                                                <MenuFlyoutItem Click="Button_ImportGraphics_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_ImportGraphics}" />
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Click="Button_Staging_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Staging}" />
+                                                <MenuFlyoutSeparator />
+                                                <MenuFlyoutItem Click="Button_CleanupComponents_Click" Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_CleanupUnused}" />
+                                            </MenuFlyout>
+                                        </Button.Flyout>
+                                    </Button>
+                                    <ComboBox
+                                        x:Name="Combo_ComponentFilter"
+                                        MinWidth="150"
+                                        SelectionChanged="Combo_ComponentFilter_SelectionChanged"
+                                        VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel x:Name="StackPanel_Components" Margin="0,2,0,0" Spacing="4" />
                             </StackPanel>
-                            <StackPanel x:Name="StackPanel_Components" Margin="0,4,0,0" Spacing="4" />
                         </StackPanel>
                     </ScrollViewer>
 

@@ -3027,7 +3027,7 @@
     <value>前缀模板库</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
-    <value>运行器与图形组件（DXVK / VKD3D）来自系统目录、Steam 与 ~/.local/share/lunarward/components。组件本体不随启动器下载。</value>
+    <value>图形层可下载或导入，安装到前缀后生效。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
     <value>还没有模板。可以在任意方案里用「把现有前缀做成模板…」把一份调好的前缀存进来。</value>
@@ -3105,7 +3105,7 @@
     <value>每个游戏绑定一个方案；一套方案可以被多个游戏共用。编辑方案时下面的「使用中的游戏」就是它的影响面。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Runners_Notice" xml:space="preserve">
-    <value>只读清单：启动器只发现和选择，不安装、不复制、不删除系统里的 wine。要固定某个版本请用包管理器装到独立目录，再用「添加路径…」指过来。Steam 的 compatibilitytools.d 与自定义库里的 Proton 也会列出来（D78）。</value>
+    <value>只读清单：只发现已有的 wine / Proton，不安装、不修改；用「添加路径…」把已装好的目录加进来。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPath" xml:space="preserve">
     <value>添加路径…</value>
@@ -3774,10 +3774,10 @@
     <value>受管运行器（本程序下载/导入，{0}）</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ExternalRunners" xml:space="preserve">
-    <value>外部运行器（系统 / Steam / 其它启动器，{0}）</value>
+    <value>系统 / Steam / 其它启动器（{0}）</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ManagedGraphicsGroups" xml:space="preserve">
-    <value>受管图形层（{0} 组）</value>
+    <value>受管图形层（{0}）</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ExternalGraphicsGroups" xml:space="preserve">
     <value>外部图形层（{0} 组）</value>

@@ -124,6 +124,27 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     {
         ToolTipService.SetToolTip(Button_AddRunner, Lang.Lunarward_RuntimeEnv_AddPathTip);
         ToolTipService.SetToolTip(Button_SetDefaultRunner, Lang.Lunarward_RuntimeEnv_SetDefaultRunnerTip);
+        ToolTipService.SetToolTip(Button_RunnerMore, Lang.Lunarward_RuntimeEnv_More);
+    }
+
+
+    /// <summary>D114：组件页内分段（运行器 / 图形层），一次只显示一类，避免两个清单堆成一篇文档。</summary>
+    private void Seg_Components_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string tag } || !int.TryParse(tag, out int index))
+        {
+            return;
+        }
+        bool runners = index == 0;
+        Pane_Runners.Visibility = runners ? Visibility.Visible : Visibility.Collapsed;
+        Pane_Graphics.Visibility = runners ? Visibility.Collapsed : Visibility.Visible;
+        // Uno 下运行时替换 Style 不会重算 Background（实测），改用不透明度 + 字重表达选中。
+        Seg_Runners.Opacity = runners ? 1.0 : 0.55;
+        Seg_Graphics.Opacity = runners ? 0.55 : 1.0;
+        Seg_Runners.FontWeight = runners ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
+        Seg_Graphics.FontWeight = runners ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold;
+        AutomationProperties.SetItemStatus(Seg_Runners, runners ? "Selected" : "");
+        AutomationProperties.SetItemStatus(Seg_Graphics, runners ? "" : "Selected");
     }
 
 
@@ -2001,11 +2022,17 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             row.Children.Add(installButton);
         }
 
+        // D114：每行一个实心「检查」按钮像一列噪音，降级成低强调文字。
         var healthButton = new Button
         {
             Content = Lang.Lunarward_RuntimeEnv_Check,
             Tag = component,
             VerticalAlignment = VerticalAlignment.Center,
+            Background = null,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(8, 2, 8, 2),
+            FontSize = 12,
+            Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
         };
         ToolTipService.SetToolTip(healthButton, Lang.Lunarward_RuntimeEnv_CheckHint);
         healthButton.Click += Button_ComponentHealth_Click;
