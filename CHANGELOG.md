@@ -7,6 +7,7 @@
 - ⋯ 菜单分组、删除项标红、调试 Shell 仅开发构建可见；编辑器加未保存修改确认；页签/⋯ 补自动化名；Ctrl+N / Ctrl+S / Delete 快捷键。
 - `--subpage RuntimeEnvironmentSetting` 可直达运行环境页。
 - 21 条审查项与逐条处置见 `docs/linux-port/29-runtime-env-ui-audit.md`。
+- 文案本地化：简体/英文共 331 键，繁体（zh-TW / zh-HK）用 OpenCC 补齐 313 键；新增 `LocalizationKeyTests` 保证三套对齐；其它语言沿用资源回落。
 
 ## 2026-11-23 —— 运行环境审查修复批 D：页面体验与一致性（D107）
 

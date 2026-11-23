@@ -1659,6 +1659,8 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 7. 编辑器加脏检查（切页签/返回先确认）；页签与 ⋯ 按钮补 `AutomationProperties`；Ctrl+N / Ctrl+S / Delete 快捷键。
 8. `MainView_Loaded` 在只有 `--subpage` 时先导航 `SettingPage`，深链可直达。
 
+文案与本地化：简体与英文（中性 `Lang.resx`）各 331 个 `Lunarward_RuntimeEnv_*` 键；繁体（zh-TW / zh-HK）用 OpenCC 从简体转换补齐 313 个键；新增 `LocalizationKeyTests` 钉住「简体 ⊆ 英文 / zh-TW / zh-HK」，以后加键只写一份测试就会报。德/西/意/日/韩/俄/泰/越等语言沿用资源回落（中性英文），不复制英文冒充翻译。
+
 代价边界：`AddHandler(KeyDownEvent)` 在页面层拦截，焦点在文本框内时 Delete 也走页面级删除确认（目前详情页没有可编辑文本框，后续加编辑框要复查）；`ShortenPath` 只是展示层缩写，复制/ToolTip 仍是完整路径；新增键只有中英，其它语言回落英文（与既有 `Lunarward_*` 一致）。
 
 验证：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 270 通过；`lint-ui-thread.sh` 通过；真机 1200×680 复核四页签、前缀卡、编辑器固定底栏与脏检查弹窗。
