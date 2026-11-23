@@ -30,6 +30,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     /// <summary>R23：ContentDialog 同一时间只允许一个；连点检查类按钮时第二次 ShowAsync 会直接抛。</summary>
     private bool _dialogOpen;
+    private bool _shortcutsAttached;
 
 
     public RuntimeEnvironmentSetting()
@@ -207,9 +208,53 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     };
 
 
-    /// <summary>D108：键盘快捷键——Ctrl+N 新建方案、Ctrl+S 保存编辑、Delete 删除当前选中的方案（详情页时）。</summary>
-    private void RegisterShortcuts() => AddHandler(KeyDownEvent, new KeyEventHandler((_, e) =>
+    /// <summary>D108：键盘快捷键——Ctrl+N 新建方案、Ctrl+S 保存编辑、Delete 删除当前选中的方案（详情页时）。
+    /// 注在窗口根元素上：页面本身不可聚焦，按键事件不会落到 Page，只有挂在 XamlRoot.Content 才能收到。</summary>
+    private void RegisterShortcuts()
     {
+        Loaded -= OnPageLoadedAttachShortcuts;
+        Loaded += OnPageLoadedAttachShortcuts;
+        if (IsLoaded)
+        {
+            AttachShortcutsToWindow();
+        }
+    }
+
+
+    private void OnPageLoadedAttachShortcuts(object sender, RoutedEventArgs e)
+    {
+        AttachShortcutsToWindow();
+        // 按键事件从「当前有焦点的元素」开始冒泡；页面刚导航进来时焦点可能不在页面里，
+        // 所以把焦点放到当前页签按钮上，快捷键才收得到（真机实测：不点任何控件按 Ctrl+N 无反应）。
+        FocusCurrentTab();
+    }
+
+
+    private void FocusCurrentTab()
+    {
+        Button[] tabs = [Tab_Profiles, Tab_Runners, Tab_Components, Tab_Prefixes];
+        int index = Math.Clamp(_currentTab, 0, tabs.Length - 1);
+        _ = tabs[index].Focus(FocusState.Programmatic);
+    }
+
+
+    private void AttachShortcutsToWindow()
+    {
+        if (_shortcutsAttached || XamlRoot?.Content is not UIElement root)
+        {
+            return;
+        }
+        _shortcutsAttached = true;
+        root.AddHandler(KeyDownEvent, new KeyEventHandler(OnShortcutKeyDown), true);
+    }
+
+
+    private void OnShortcutKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (Visibility != Visibility.Visible)
+        {
+            return;
+        }
         bool editorOpen = ShowEditorPaneVisible;
         bool ctrl = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
                      & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
@@ -230,7 +275,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             var fake = new Grid { Tag = profile };
             Button_Delete_Click(fake, new RoutedEventArgs());
         }
-    }), true);
+    }
 
 
     /// <summary>D108：体积一律走同一个格式化函数，避免 chip 与卡片出现 370.7 / 370.71 两种写法。</summary>
@@ -281,9 +326,14 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     {
         if (sender is FrameworkElement element && element.Tag is string tag && int.TryParse(tag, out int index))
         {
-            if (ShowEditorPaneVisible && !await ConfirmLeaveEditorAsync())
+            if (ShowEditorPaneVisible)
             {
-                return;
+                if (!await ConfirmLeaveEditorAsync())
+                {
+                    return;
+                }
+                // 放弃修改后必须先把右栏从编辑器切回详情，否则 ShowTab 只切页签可见性，编辑器会留在原地。
+                CloseEditor();
             }
             ShowTab(index);
         }
@@ -309,6 +359,10 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             AutomationProperties.SetItemStatus(tabs[i], i == index ? "Selected" : "");
         }
         UpdateContentWidth();
+        if (!ShowEditorPaneVisible)
+        {
+            FocusCurrentTab();
+        }
     }
 
 
