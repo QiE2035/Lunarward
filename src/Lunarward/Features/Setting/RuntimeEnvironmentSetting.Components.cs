@@ -691,7 +691,8 @@ public sealed partial class RuntimeEnvironmentSetting
                 {
                     SourceDraft current = draft;
                     string id = draft.Id;
-                    var enabled = new CheckBox { IsChecked = draft.Enabled, VerticalAlignment = VerticalAlignment.Center };
+                    // WinUI CheckBox 默认 MinWidth=120，会把名称推到半个弹窗之外（用户报「左边一大块空白」）。
+                    var enabled = new CheckBox { IsChecked = draft.Enabled, VerticalAlignment = VerticalAlignment.Center, MinWidth = 0 };
                     var name = new TextBlock
                     {
                         Text = draft.DisplayName,
