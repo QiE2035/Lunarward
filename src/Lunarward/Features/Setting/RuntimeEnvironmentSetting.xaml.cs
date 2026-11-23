@@ -3,6 +3,7 @@
 // 存在测量问题（行高被压成一行、内容被裁），M1 先用确定性代码路径；M2 换回模板并复测（见 12-shims-and-gaps）。
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -34,6 +35,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     public RuntimeEnvironmentSetting()
     {
         this.InitializeComponent();
+        RegisterShortcuts();
         // Uno 的 ScrollViewer 在「禁用横向滚动」时仍会给内容无限宽度，横向 StackPanel/Grid 的星号列就没有约束，
         // 表现为文字不省略、右侧徽标压到文字上甚至超出窗口（D58 v2 截图实测）。这里显式把列表宽度钉到可视区。
         SizeChanged += (_, _) => UpdateContentWidth();
@@ -77,13 +79,13 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         if (!Path.IsPathFullyQualified(path))
         {
-            return "前缀路径必须是绝对路径。";
+            return Lang.Lunarward_RuntimeEnv_PrefixMustBeAbsolute;
         }
         string full = Path.GetFullPath(path);
         string root = Path.GetPathRoot(full) ?? "/";
         if (full.TrimEnd(Path.DirectorySeparatorChar) == root.TrimEnd(Path.DirectorySeparatorChar))
         {
-            return "不能把文件系统根目录当作游戏前缀。";
+            return Lang.Lunarward_RuntimeEnv_PrefixMustNotBeRoot;
         }
         return null;
     }
@@ -156,25 +158,25 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         Component? runner = EnvironmentResolver.ResolveRunner(profile);
         if (runner is null)
         {
-            return ("#C42B1C", Lang.Lunarward_RuntimeEnv_NoUsableRunner);
+            return ("Critical", Lang.Lunarward_RuntimeEnv_NoUsableRunner);
         }
         if (runner.Usable != true)
         {
-            return ("#C42B1C", $"运行器不可用：{runner.UsabilityReason}");
+            return ("Critical", string.Format(Lang.Lunarward_RuntimeEnv_RunnerUnavailable, runner.UsabilityReason));
         }
         if (inspection.Exists && !inspection.HasDriveC)
         {
-            return ("#C42B1C", Lang.Lunarward_RuntimeEnv_PrefixNotWine);
+            return ("Critical", Lang.Lunarward_RuntimeEnv_PrefixNotWine);
         }
         if (inspection.Exists && inspection.Locked)
         {
-            return ("#9D5D00", Lang.Lunarward_RuntimeEnv_PrefixLocked);
+            return ("Caution", Lang.Lunarward_RuntimeEnv_PrefixLocked);
         }
         if (!inspection.Exists)
         {
-            return ("#9D5D00", Lang.Lunarward_RuntimeEnv_PrefixMissing);
+            return ("Caution", Lang.Lunarward_RuntimeEnv_PrefixMissing);
         }
-        return ("#0F7B0F", Lang.Lunarward_RuntimeEnv_Usable);
+        return ("Success", Lang.Lunarward_RuntimeEnv_Usable);
     }
 
 
@@ -184,30 +186,56 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(profile.Args))
         {
-            parts.Add($"启动参数：{profile.Args}");
+            parts.Add(string.Format(Lang.Lunarward_RuntimeEnv_LaunchArgsPrefix, profile.Args));
         }
         if (profile.Wrappers.Count > 0)
         {
-            parts.Add($"包装：{string.Join(" ", profile.Wrappers)}");
+            parts.Add(string.Format(Lang.Lunarward_RuntimeEnv_WrappersPrefix, string.Join(" ", profile.Wrappers)));
         }
         return string.Join("   ", parts);
     }
 
 
-    private static string FormatSize(long bytes)
+    /// <summary>D108：布局标记（bin/system/prefix）翻成人话，别把裸标记直接上屏。</summary>
+    private static string DescribeLayout(string? layout) => layout switch
     {
-        if (bytes < 1024)
+        null or "" => "",
+        "bin" => Lang.Lunarward_RuntimeEnv_LayoutBin,
+        "system" => Lang.Lunarward_RuntimeEnv_LayoutSystem,
+        "prefix" => Lang.Lunarward_RuntimeEnv_LayoutWinePrefix,
+        _ => layout,
+    };
+
+
+    /// <summary>D108：键盘快捷键——Ctrl+N 新建方案、Ctrl+S 保存编辑、Delete 删除当前选中的方案（详情页时）。</summary>
+    private void RegisterShortcuts() => AddHandler(KeyDownEvent, new KeyEventHandler((_, e) =>
+    {
+        bool editorOpen = ShowEditorPaneVisible;
+        bool ctrl = (Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+                     & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
+        if (e.Key == Windows.System.VirtualKey.N && ctrl)
         {
-            return $"{bytes} B";
+            e.Handled = true;
+            Button_New_Click(this, new RoutedEventArgs());
         }
-        double kb = bytes / 1024.0;
-        if (kb < 1024)
+        else if (e.Key == Windows.System.VirtualKey.S && ctrl && editorOpen)
         {
-            return $"{kb:0.#} KB";
+            e.Handled = true;
+            Button_EditorSave_Click(this, new RoutedEventArgs());
         }
-        double mb = kb / 1024.0;
-        return mb < 1024 ? $"{mb:0.#} MB" : $"{mb / 1024.0:0.##} GB";
-    }
+        else if (e.Key == Windows.System.VirtualKey.Delete && !editorOpen && _selectedProfileId is { } id
+                 && _profiles.FirstOrDefault(x => x.Id == id) is { } profile)
+        {
+            e.Handled = true;
+            var fake = new Grid { Tag = profile };
+            Button_Delete_Click(fake, new RoutedEventArgs());
+        }
+    }), true);
+
+
+    /// <summary>D108：体积一律走同一个格式化函数，避免 chip 与卡片出现 370.7 / 370.71 两种写法。</summary>
+    private static string FormatSize(long bytes)
+        => Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(bytes);
 
 
     private void Button_RepairBindings_Click(object sender, RoutedEventArgs e)
@@ -224,7 +252,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         LoadProfiles();
         _ = RefreshChipsAsync();
-        Helpers.InAppToast.MainWindow?.Success($"已改绑 {dangling.Count} 个游戏", null, 4000);
+        Helpers.InAppToast.MainWindow?.Success(string.Format(Lang.Lunarward_RuntimeEnv_ReboundGames, dangling.Count), null, 4000);
     }
 
 
@@ -238,18 +266,25 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         LoadProfiles();
         _ = RefreshChipsAsync();
-        Helpers.InAppToast.MainWindow?.Success($"已清除 {dangling.Count} 个失效绑定", null, 4000);
+        Helpers.InAppToast.MainWindow?.Success(string.Format(Lang.Lunarward_RuntimeEnv_ClearedDangling, dangling.Count), null, 4000);
     }
 
 
     /// <summary>当前页签序号（0 概览 / 1 运行器 / 2 组件 / 3 前缀 / 4 增强）。</summary>
     private int _currentTab = -1;
 
+    /// <summary>D108：编辑器打开时的字段快照，用于判断是否有未保存改动。</summary>
+    private string _editorSnapshot = string.Empty;
 
-    private void Tab_Click(object sender, RoutedEventArgs e)
+
+    private async void Tab_Click(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement element && element.Tag is string tag && int.TryParse(tag, out int index))
         {
+            if (ShowEditorPaneVisible && !await ConfirmLeaveEditorAsync())
+            {
+                return;
+            }
             ShowTab(index);
         }
     }
@@ -270,6 +305,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             pages[i].Visibility = i == index ? Visibility.Visible : Visibility.Collapsed;
             tabs[i].Style = (Style)Resources[i == index ? "TabButtonSelectedStyle" : "TabButtonStyle"];
+            // D108：读屏要能听出当前选中哪个页签（自绘 Button 没有 SelectionItem 语义）。
+            AutomationProperties.SetItemStatus(tabs[i], i == index ? "Selected" : "");
         }
         UpdateContentWidth();
     }
@@ -297,7 +334,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             PrefixManager.PrefixInspection? computed = await Task.Run(() => PrefixManager.Inspect(prefix));
             if (computed is { Exists: true, SizeBytes: > 0 })
             {
-                target.Text = $"前缀占用：{FormatSize(computed.SizeBytes)}";
+                target.Text = string.Format(Lang.Lunarward_RuntimeEnv_PrefixUsage, FormatSize(computed.SizeBytes));
             }
             else
             {
@@ -345,7 +382,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         };
         var dialog = new ContentDialog
         {
-            Title = $"{profile.Name} · 配置文本（只读）",
+            Title = string.Format(Lang.Lunarward_RuntimeEnv_ConfigTextTitle, profile.Name),
             Content = new StackPanel
             {
                 Spacing = 8,
@@ -353,7 +390,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 {
                     new TextBlock
                     {
-                        Text = $"文件：{Path.Combine(RuntimeProfileStore.EnvironmentsFolder, profile.Id + ".json")}",
+                        Text = string.Format(Lang.Lunarward_RuntimeEnv_ConfigTextFile, Path.Combine(RuntimeProfileStore.EnvironmentsFolder, profile.Id + ".json")),
                         FontSize = 12,
                         Opacity = 0.65,
                         TextWrapping = TextWrapping.Wrap,
@@ -438,7 +475,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             }
             if (!prefixKnown)
             {
-                parts.Add($"{label}：{id}（启动前安装到前缀）");
+                parts.Add(string.Format(Lang.Lunarward_RuntimeEnv_GraphicsWillInstall, label, id));
                 continue;
             }
             try
@@ -446,13 +483,13 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 InstalledGraphics? installed = GraphicsInstaller.GetInstalled(prefix, kind);
                 if (installed is not null && installed.Id == id)
                 {
-                    parts.Add($"{label}：{installed.Name}（已安装，{installed.InstalledAt:yyyy-MM-dd}）");
+                    parts.Add(string.Format(Lang.Lunarward_RuntimeEnv_GraphicsInstalledAt, label, installed.Name, installed.InstalledAt.ToString("yyyy-MM-dd")));
                 }
                 else
                 {
                     parts.Add(installed is null
-                        ? $"{label}：{id}（前缀中尚未安装，启动前会装上）"
-                        : $"{label}：{id}（前缀里现在是 {installed.Name}，启动前会替换）");
+                        ? string.Format(Lang.Lunarward_RuntimeEnv_GraphicsNotInstalled, label, id)
+                        : string.Format(Lang.Lunarward_RuntimeEnv_GraphicsWillReplace, label, id, installed.Name));
                 }
             }
             catch
@@ -488,7 +525,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                     Children =
                     {
                         new TextBlock { Text = file, FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap },
-                        new TextBlock { Text = $"环境：{profile.Name}", FontSize = 12, Opacity = 0.7 },
+                        new TextBlock { Text = string.Format(Lang.Lunarward_RuntimeEnv_EnvironmentLabel, profile.Name), FontSize = 12, Opacity = 0.7 },
                         argsBox,
                     },
                 },
@@ -507,7 +544,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_RunOnceFailed);
                 return;
             }
-            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已启动（PID {process.Id}）", 4000);
+            Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_StartedPid, process.Id), 4000);
         }
         catch (Exception ex)
         {
@@ -558,7 +595,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             List<Component> externalRunners = runners.Where(x => !x.Managed).ToList();
             if (managedRunners.Count > 0)
             {
-                StackPanel_Runners.Children.Add(GroupTitle($"受管运行器（本程序下载/导入，{managedRunners.Count}）"));
+                StackPanel_Runners.Children.Add(GroupTitle(string.Format(Lang.Lunarward_RuntimeEnv_ManagedRunners, managedRunners.Count)));
                 foreach (Component runner in managedRunners)
                 {
                     StackPanel_Runners.Children.Add(CreateComponentRow(runner, CountProfilesUsingRunner(runner)));
@@ -566,7 +603,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             }
             if (externalRunners.Count > 0)
             {
-                StackPanel_Runners.Children.Add(GroupTitle($"外部运行器（系统 / Steam / 其它启动器，{externalRunners.Count}）"));
+                StackPanel_Runners.Children.Add(GroupTitle(string.Format(Lang.Lunarward_RuntimeEnv_ExternalRunners, externalRunners.Count)));
                 foreach (Component runner in externalRunners)
                 {
                     StackPanel_Runners.Children.Add(CreateComponentRow(runner, CountProfilesUsingRunner(runner)));
@@ -586,7 +623,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             List<List<Component>> externalGroups = groups.Where(g => !g[0].Managed).ToList();
             if (managedGroups.Count > 0)
             {
-                StackPanel_Components.Children.Add(GroupTitle($"受管图形层（{managedGroups.Count} 组）"));
+                StackPanel_Components.Children.Add(GroupTitle(string.Format(Lang.Lunarward_RuntimeEnv_ManagedGraphicsGroups, managedGroups.Count)));
                 foreach (List<Component> group in managedGroups)
                 {
                     StackPanel_Components.Children.Add(CreateComponentRow(group[0], 0, group.Count, group));
@@ -594,7 +631,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             }
             if (externalGroups.Count > 0)
             {
-                StackPanel_Components.Children.Add(GroupTitle($"外部图形层（{externalGroups.Count} 组）"));
+                StackPanel_Components.Children.Add(GroupTitle(string.Format(Lang.Lunarward_RuntimeEnv_ExternalGraphicsGroups, externalGroups.Count)));
                 foreach (List<Component> group in externalGroups)
                 {
                     StackPanel_Components.Children.Add(CreateComponentRow(group[0], 0, group.Count, group));
@@ -674,33 +711,42 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             ? Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(prefix.SizeBytes)
             : "—";
 
+        List<string> owners = profiles
+            .Where(x => string.Equals(EnvironmentResolver.EffectivePrefixPath(x), prefix.Path, StringComparison.Ordinal))
+            .Select(x => x.Name)
+            .ToList();
+
+        // D108：标题说人话——「谁在用 + 目录名」，不再直接拼 environment · hk4e_cn 这类内部标识。
+        string folder = Path.GetFileName(prefix.Path.TrimEnd('/'));
+        string titleText = owners.Count switch
+        {
+            0 when !prefix.Managed => $"{Lang.Lunarward_RuntimeEnv_ExternalPrefix} · {folder}",
+            0 => $"{Lang.Lunarward_RuntimeEnv_Unused} · {folder}",
+            1 => $"{owners[0]} · {folder}",
+            _ => $"{owners[0]} {string.Format(Lang.Lunarward_RuntimeEnv_PrefixOwnersSuffix, owners.Count)} · {folder}",
+        };
         var title = new TextBlock
         {
-            Text = (prefix.Mode, prefix.GameKey, prefix.Managed) switch
-            {
-                (null, null, false) => Lang.Lunarward_RuntimeEnv_ExternalPrefix,
-                (null, null, true) => Path.GetFileName(prefix.Path),
-                (null, _, _) => prefix.GameKey!,
-                (_, null, _) => $"{prefix.Mode} · {Path.GetFileName(prefix.Path)}",
-                _ => $"{prefix.Mode} · {prefix.GameKey}",
-            },
+            Text = titleText,
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,
         };
         var info = new TextBlock
         {
-            Text = $"{sizeText} · {used} 个方案使用 · {state}",
+            Text = $"{sizeText} · {string.Format(Lang.Lunarward_RuntimeEnv_PrefixUsedBy, used)} · {state}",
             Opacity = 0.6,
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
         };
         var pathText = new TextBlock
         {
-            Text = Ellipsize(prefix.Path, 90),
+            Text = ShortenPath(prefix.Path, 72),
             Opacity = 0.5,
             FontSize = 12,
-            TextTrimming = TextTrimming.CharacterEllipsis,
+            IsTextSelectionEnabled = true,
+            TextWrapping = TextWrapping.NoWrap,
         };
+        ToolTipService.SetToolTip(pathText, prefix.Path);
 
         // 前缀里的图形层：状态 + 安装/重装/移除/校验（D63 §5 第 3、4 条）
         Starward.Features.Runtime.GraphicsInstaller.GraphicsStatus status =
@@ -748,27 +794,39 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         // D85：占用条 + 谁在用 —— 「370 MB 是多是少」没有参照看不出来，「这份前缀归哪份方案」原来要点进去才知道
         if (prefix.Exists && prefix.SizeBytes > 0 && maxBytes > 0)
         {
-            var barHost = new Grid { Height = 4, HorizontalAlignment = HorizontalAlignment.Stretch };
+            // D108：占用条按比例分列，宽度随容器走；旁边给百分比，不再是一条没有刻度的蓝线。
+            double ratio = Math.Clamp((double)prefix.SizeBytes / maxBytes, 0.02, 1.0);
+            var barHost = new Grid { Height = 6, HorizontalAlignment = HorizontalAlignment.Stretch };
+            barHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ratio, GridUnitType.Star) });
+            barHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1 - ratio + 0.0001, GridUnitType.Star) });
+            var track = new Border
+            {
+                CornerRadius = new CornerRadius(3),
+                Background = (Brush)Application.Current.Resources["ControlFillColorTertiaryBrush"],
+            };
+            Grid.SetColumnSpan(track, 2);
+            barHost.Children.Add(track);
             barHost.Children.Add(new Border
             {
-                CornerRadius = new CornerRadius(2),
-                Background = (Brush)Application.Current.Resources["ControlFillColorTertiaryBrush"],
-            });
-            var filled = new Border
-            {
-                CornerRadius = new CornerRadius(2),
+                CornerRadius = new CornerRadius(3),
                 Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Width = Math.Max(4, 320 * Math.Min(1.0, (double)prefix.SizeBytes / maxBytes)),
+            });
+            var barRow = new Grid { ColumnSpacing = 8 };
+            barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            barRow.Children.Add(barHost);
+            var pctText = new TextBlock
+            {
+                Text = string.Format(Lang.Lunarward_RuntimeEnv_PrefixShare, Math.Round(ratio * 100)),
+                FontSize = 12,
+                Opacity = 0.6,
+                VerticalAlignment = VerticalAlignment.Center,
             };
-            barHost.Children.Add(filled);
-            content.Children.Add(barHost);
+            Grid.SetColumn(pctText, 1);
+            barRow.Children.Add(pctText);
+            content.Children.Add(barRow);
         }
 
-        List<string> owners = profiles
-            .Where(x => string.Equals(EnvironmentResolver.EffectivePrefixPath(x), prefix.Path, StringComparison.Ordinal))
-            .Select(x => x.Name)
-            .ToList();
         if (owners.Count > 0)
         {
             content.Children.Add(new TextBlock
@@ -791,7 +849,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
         content.Children.Add(new TextBlock
         {
-            Text = $"图形层：{status.Text}",
+            Text = string.Format(Lang.Lunarward_RuntimeEnv_GraphicsStatus, status.Text),
             FontSize = 12,
             Opacity = status.IsGuardBroken ? 1 : 0.7,
             Foreground = status.IsGuardBroken
@@ -835,7 +893,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             Starward.Features.Runtime.ManualRunners.Add(file);
             Starward.Features.Runtime.ComponentStore.Invalidate();
             LoadComponents();
-            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已添加：{version}", 4000);
+            Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_RunnerAdded, version), 4000);
         }
         catch (Exception ex)
         {
@@ -906,7 +964,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 Starward.Features.Runtime.GraphicsInstaller.EnsureInstalled(prefixPath, chosen, _logger));
             LoadPrefixes();
             Helpers.InAppToast.MainWindow?.Success((string?)null,
-                installed ? $"已装 {string.Join(" · ", chosen.Select(x => x.Name))}" : "记录与文件都齐全，已跳过", 4000);
+                installed ? string.Format(Lang.Lunarward_RuntimeEnv_GraphicsInstalledNow, string.Join(" · ", chosen.Select(x => x.Name))) : Lang.Lunarward_RuntimeEnv_GraphicsAlreadyInstalled, 4000);
         }
         catch (Exception ex)
         {
@@ -927,7 +985,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         ContentDialogResult result = await new ContentDialog
         {
             Title = external ? Lang.Lunarward_RuntimeEnv_ConfirmRemoveExternal : Lang.Lunarward_RuntimeEnv_ConfirmRemoveGraphics,
-            Content = "会按记录删掉装进 system32 / syswow64 的那几个 dll，并删除记录（保留 .bak）。游戏会回到 wine 自带的 d3d 实现。\n" + prefixPath,
+            Content = Lang.Lunarward_RuntimeEnv_GraphicsMoveToPrefixBody + "\n" + prefixPath,
             PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Remove,
             CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
             DefaultButton = ContentDialogButton.Close,
@@ -961,7 +1019,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         Starward.Features.Runtime.GraphicsInstaller.GraphicsStatus status =
             Starward.Features.Runtime.GraphicsInstaller.Verify(prefixPath);
         Helpers.InAppToast.MainWindow?.Information((string?)null,
-            $"{status.Text}（{status.TotalFiles - status.MissingFiles}/{status.TotalFiles} 个文件在位）", 6000);
+            string.Format(Lang.Lunarward_RuntimeEnv_VerifyResult, status.Text, status.TotalFiles - status.MissingFiles, status.TotalFiles), 6000);
     }
 
 
@@ -1019,7 +1077,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         _editorRunner = new ComboBox { MinWidth = 420, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (Component runner in _editorRunners)
         {
-            _editorRunner.Items.Add($"{runner.Name} {runner.Version} · {runner.LayoutText}");
+            _editorRunner.Items.Add($"{runner.Name} {runner.Version} · {DescribeLayout(runner.LayoutText)}");
         }
         int runnerIndex = _editorRunners.FindIndex(x => MatchesComponent(x, profile?.RunnerPath, profile?.RunnerId));
         _editorRunner.SelectedIndex = runnerIndex >= 0 ? runnerIndex : (_editorRunners.Count > 0 ? 0 : -1);
@@ -1028,7 +1086,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             && !string.IsNullOrWhiteSpace(profile.RunnerPath)
             && runnerIndex < 0)
         {
-            StackPanel_ProfileEditor.Children.Add(Hint($"原运行器已不在检测结果里：{profile.RunnerPath}"));
+            StackPanel_ProfileEditor.Children.Add(Hint(string.Format(Lang.Lunarward_RuntimeEnv_RunnerMissing, profile.RunnerPath)));
         }
 
         // 2) 图形层（D83：DXVK 与 VKD3D-Proton 是两个独立的层，可以同时选）
@@ -1139,15 +1197,14 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         expander.Content = advanced;
         StackPanel_ProfileEditor.Children.Add(expander);
 
-        // 保存 / 取消
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 12, 0, 0) };
+        // 保存 / 取消：D108 放到编辑器底栏，680 高窗口下不用滚到底才能保存
+        StackPanel_EditorFooter.Children.Clear();
         var save = new Button { Content = Lang.Lunarward_RuntimeEnv_Save, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
         save.Click += Button_EditorSave_Click;
         var cancel = new Button { Content = Lang.Lunarward_RuntimeEnv_Cancel };
         cancel.Click += (_, _) => CloseEditor();
-        actions.Children.Add(save);
-        actions.Children.Add(cancel);
-        StackPanel_ProfileEditor.Children.Add(actions);
+        StackPanel_EditorFooter.Children.Add(save);
+        StackPanel_EditorFooter.Children.Add(cancel);
 
         if (_editorName is not null)
         {
@@ -1166,12 +1223,54 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
         UpdateEditorPrefixRow();
         UpdateEditorPreview();
+        _editorSnapshot = SnapshotEditor();
         ShowEditorPane();
+    }
+
+
+    /// <summary>D108：编辑器快照，用来判断「有没有未保存的改动」。</summary>
+    private string SnapshotEditor() => string.Join('\u0001',
+        _editorName?.Text,
+        _editorRunner?.SelectedIndex,
+        _editorDxvk?.SelectedIndex,
+        _editorVkd3d?.SelectedIndex,
+        _editorPrefixPath?.Text,
+        _editorEnv?.Text,
+        _editorArgs?.Text,
+        _editorWrappers?.Text,
+        _editorNotes?.Text,
+        _editorShell?.Text);
+
+
+    private bool EditorDirty => ShowEditorPaneVisible && _editorSnapshot != SnapshotEditor();
+
+    private bool ShowEditorPaneVisible => Grid_ProfileEditor.Visibility == Visibility.Visible;
+
+
+    /// <summary>D108：离开编辑器前确认，避免切页签/切方案时静默丢草稿。</summary>
+    private async Task<bool> ConfirmLeaveEditorAsync()
+    {
+        if (!EditorDirty)
+        {
+            return true;
+        }
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = Lang.Lunarward_RuntimeEnv_DiscardEditTitle,
+            Content = Lang.Lunarward_RuntimeEnv_DiscardEditBody,
+            PrimaryButtonText = Lang.Lunarward_RuntimeEnv_DiscardEditConfirm,
+            CloseButtonText = Lang.Lunarward_RuntimeEnv_DiscardEditKeep,
+            DefaultButton = ContentDialogButton.Close,
+        };
+        ContentDialogResult result = await dialog.ShowAsync();
+        return result == ContentDialogResult.Primary;
     }
 
 
     private void CloseEditor()
     {
+        _editorSnapshot = string.Empty;
         StackPanel_ProfileEditor.Children.Clear();
         _editingProfile = null;
         ShowDetailPane();
@@ -1326,7 +1425,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             _editorPreview.Text = recipe.CommandLine;
             _editorEnvInfo.Text = recipe.Overrides.Count == 0
                 ? ""
-                : Lang.Lunarward_RuntimeEnv_OverriddenByRecipe + string.Join("；", recipe.Overrides.Select(x => $"{x.Key}（自动 {x.AutoValue} → 配方 {x.RecipeValue}）"));
+                : Lang.Lunarward_RuntimeEnv_OverriddenByRecipe + string.Join("；", recipe.Overrides.Select(x => string.Format(Lang.Lunarward_RuntimeEnv_OverriddenByValue, x.Key, x.AutoValue, x.RecipeValue)));
         }
         catch (Exception ex)
         {
@@ -1375,7 +1474,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 _editorPrefixPath.Text = target;
             }
             await Task.Run(() => Starward.Features.Runtime.PrefixManager.ClonePrefix(source, target, _logger));
-            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已复制到 {target}", 4000);
+            Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_CopiedTo, target), 4000);
             UpdateEditorPrefixRow();
         }
         catch (Exception ex)
@@ -1416,7 +1515,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             Component runner = _editorRunners[_editorRunner.SelectedIndex];
             if (runner.Usable == false)
             {
-                Helpers.InAppToast.MainWindow?.Warning((string?)null, $"这个运行器不可用：{runner.UsabilityReason}", 6000);
+                Helpers.InAppToast.MainWindow?.Warning((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_RunnerUnusable, runner.UsabilityReason), 6000);
                 return;
             }
             string prefixPath = _editorPrefixPath?.Text?.Trim() ?? "";
@@ -1534,7 +1633,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         ContentDialogResult result = await new ContentDialog
         {
             Title = Lang.Lunarward_RuntimeEnv_ConfirmCleanupPrefix,
-            Content = "会删除目录及其内容，不可恢复：\n" + path + "\n\n如果是你还想保留的 wine 环境，请点「取消」。",
+            Content = string.Format(Lang.Lunarward_RuntimeEnv_DeletePrefixBody, path),
             PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Delete,
             CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
             DefaultButton = ContentDialogButton.Close,
@@ -1579,6 +1678,24 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         public string VersionRaw { get; }
 
         public double ReservedWidth { get; }
+    }
+
+
+    /// <summary>D108：路径按目录段截断（根 + 末尾两段），不要把目录名从中间切碎；完整路径放 ToolTip。</summary>
+    private static string ShortenPath(string path, int maxChars)
+    {
+        if (string.IsNullOrEmpty(path) || path.Length <= maxChars)
+        {
+            return path;
+        }
+        string[] parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length <= 2)
+        {
+            return path;
+        }
+        string tail = string.Join('/', parts[^2..]);
+        string withHead = $"/{parts[0]}/…/{tail}";
+        return withHead.Length <= maxChars ? withHead : $"…/{tail}";
     }
 
 
@@ -1641,13 +1758,15 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
+        string shortPath = ShortenPath(component.Path, 52);
         var version = new TextBlock
         {
-            Text = string.IsNullOrWhiteSpace(component.Version) ? component.Path : $"{component.Version}  ·  {component.Path}",
+            Text = string.IsNullOrWhiteSpace(component.Version) ? shortPath : $"{component.Version}  ·  {shortPath}",
             FontSize = 12,
             Opacity = 0.6,
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
+        ToolTipService.SetToolTip(version, component.Path);
         var text = new StackPanel { Spacing = 2 };
         text.Children.Add(name);
         text.Children.Add(version);
@@ -1694,17 +1813,17 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 badge.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
                 if (!string.IsNullOrWhiteSpace(component.LayoutText))
                 {
-                    badge.Text = $"可用 · {component.LayoutText}";
+                    badge.Text = string.Format(Lang.Lunarward_RuntimeEnv_BadgeUsableLayout, DescribeLayout(component.LayoutText));
                 }
                 // D63：一眼看出这行有没有人在用，避免删掉/换掉还在用的运行器
                 if (usedByProfiles > 0)
                 {
-                    badge.Text = $"{badge.Text} · {usedByProfiles} 个方案在用";
+                    badge.Text = string.Format(Lang.Lunarward_RuntimeEnv_BadgeUsedBy, badge.Text, usedByProfiles);
                 }
             }
             else if (!string.IsNullOrWhiteSpace(component.LayoutText))
             {
-                badge.Text = $"{badge.Text}（{component.LayoutText}）";
+                badge.Text = $"{badge.Text}（{DescribeLayout(component.LayoutText)}）";
             }
             right.Children.Add(badge);
         }
@@ -1715,7 +1834,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             {
                 var copies = new TextBlock
                 {
-                    Text = $"共 {groupCount} 份",
+                    Text = string.Format(Lang.Lunarward_RuntimeEnv_CopiesCount, groupCount),
                     FontSize = 12,
                     Opacity = 0.6,
                     VerticalAlignment = VerticalAlignment.Center,
@@ -1754,7 +1873,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 Tag = component,
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            ToolTipService.SetToolTip(deleteButton, $"删除磁盘上的 {managedRoot}（之后要重新下载才能用）");
+            ToolTipService.SetToolTip(deleteButton, string.Format(Lang.Lunarward_RuntimeEnv_DeleteComponentTip, managedRoot));
             deleteButton.Click += Button_ComponentDelete_Click;
             right.Children.Add(deleteButton);
         }
@@ -1788,7 +1907,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             string? root = ComponentStore.ManagedRootOf(component);
             if (root is null)
             {
-                Helpers.InAppToast.MainWindow?.Warning((string?)null, "这个组件只是引用，不在本程序的管理目录里。", 5000);
+                Helpers.InAppToast.MainWindow?.Warning((string?)null, Lang.Lunarward_RuntimeEnv_ExternalComponentInfo, 5000);
                 return;
             }
             List<string> users = new();
@@ -1807,8 +1926,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             body.Children.Add(new TextBlock
             {
                 Text = users.Count == 0
-                    ? $"会删除磁盘上的组件目录（不可恢复）：\n{root}"
-                    : $"{users.Count} 个方案还在用这个组件，删掉后它们会变成「组件找不到」，启动前预检会拦下来：\n{root}",
+                    ? string.Format(Lang.Lunarward_RuntimeEnv_DeleteGraphicsBody, root)
+                    : string.Format(Lang.Lunarward_RuntimeEnv_DeleteGraphicsSharedBody, users.Count, root),
                 TextWrapping = TextWrapping.Wrap,
             });
             foreach (string name in users)
@@ -1837,7 +1956,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             LoadComponents();
             if (outcome.Ok)
             {
-                Helpers.InAppToast.MainWindow?.Success((string?)null, $"已删除 {component.Name}", 4000);
+                Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_DeletedComponent, component.Name), 4000);
             }
             else
             {
@@ -1861,7 +1980,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 .CheckAsync(runner, _logger)
                 .ConfigureAwait(true);
             Helpers.InAppToast.MainWindow?.Information(
-                $"自检「{runner.Name}」：{result.Summary}", null,
+                string.Format(Lang.Lunarward_RuntimeEnv_SelfCheckTitle, runner.Name, result.Summary), null,
                 result.Ok ? 5000 : 8000);
         }
         catch (Exception ex)
@@ -1899,7 +2018,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         };
         var meta = new TextBlock
         {
-            Text = $"退出码：{result.ExitCode} · 耗时 {result.Elapsed.TotalMilliseconds:0} ms · {component.Path}",
+            Text = string.Format(Lang.Lunarward_RuntimeEnv_SelfCheckDetail, result.ExitCode, result.Elapsed.TotalMilliseconds.ToString("0"), component.Path),
             FontSize = 12,
             Opacity = 0.6,
             TextWrapping = TextWrapping.Wrap,
@@ -1923,7 +2042,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
         var dialog = new ContentDialog
         {
-            Title = $"健康检查 · {component.Name}",
+            Title = string.Format(Lang.Lunarward_RuntimeEnv_HealthCheckTitle, component.Name),
             Content = new StackPanel
             {
                 Spacing = 8,
@@ -1980,7 +2099,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             await Task.Run(() => CopyDirectory(dir, target));
             ComponentStore.Invalidate();
             LoadComponents();
-            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已导入 {kind}「{name}」", 4000);
+            Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_ImportedComponent, kind, name), 4000);
         }
         catch (Exception ex)
         {
@@ -2027,7 +2146,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 Features.Runtime.GraphicsInstaller.EnsureInstalled(prefix, component, _logger));
             if (ok)
             {
-                Helpers.InAppToast.MainWindow?.Success((string?)null, $"已把「{component.Name}」安装到该前缀", 4000);
+                Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_InstalledToPrefix, component.Name), 4000);
             }
             else
             {
@@ -2173,15 +2292,15 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             InstalledGraphics? record = status.RecordOf(kind);
             if (record is null)
             {
-                problems.Add($"{label}：前缀里还没装（选的是 {name}）");
+                problems.Add(string.Format(Lang.Lunarward_RuntimeEnv_PrefixMissingSelected, label, name));
             }
             else if (record.Id != id)
             {
-                problems.Add($"{label}：前缀里是 {record.Name}，选的是 {name}");
+                problems.Add(string.Format(Lang.Lunarward_RuntimeEnv_PrefixDifferentSelected, label, record.Name, name));
             }
             else if (!status.IsHealthy(kind))
             {
-                problems.Add($"{label}：前缀里的 {record.Name} 文件不全");
+                problems.Add(string.Format(Lang.Lunarward_RuntimeEnv_PrefixIncomplete, label, record.Name));
             }
         }
         return problems.Count == 0
@@ -2218,12 +2337,12 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             LoadPrefixes();
             await RefreshChipsAsync();
             Helpers.InAppToast.MainWindow?.Success((string?)null,
-                $"已同步到前缀：{string.Join(" · ", components.Select(x => x.Name))}", 4000);
+                string.Format(Lang.Lunarward_RuntimeEnv_SyncedToPrefix, string.Join(" · ", components.Select(x => x.Name))), 4000);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Sync graphics to prefix failed");
-            Helpers.InAppToast.MainWindow?.Error((string?)null, "同步失败：" + ex.Message);
+            Helpers.InAppToast.MainWindow?.Error((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_SyncFailed, ex.Message));
         }
     }
 
@@ -2256,7 +2375,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 {
                     new TextBlock
                     {
-                        Text = $"从「{profile.Name}」复制一份新方案，并把下面这个游戏绑过去。新方案的前缀是独立的，启动时自动创建。",
+                        Text = string.Format(Lang.Lunarward_RuntimeEnv_CloneBody, profile.Name),
                         TextWrapping = TextWrapping.Wrap,
                     },
                     combo,
@@ -2282,7 +2401,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         LoadProfiles();
         await RefreshChipsAsync();
         Helpers.InAppToast.MainWindow?.Success((string?)null,
-            $"已为「{biz.ToGameName()}」拆出独立方案「{clone.Name}」。", 4000);
+            string.Format(Lang.Lunarward_RuntimeEnv_CloneDone, biz.ToGameName(), clone.Name), 4000);
     }
 
 
@@ -2299,13 +2418,13 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         if (unused.Count == 0)
         {
             Helpers.InAppToast.MainWindow?.Information((string?)null,
-                "没有可清理的组件：受管目录里的每个组件都有方案在用。", 4000);
+                Lang.Lunarward_RuntimeEnv_NothingToClean, 4000);
             return;
         }
         var body = new StackPanel { Spacing = 6 };
         body.Children.Add(new TextBlock
         {
-            Text = $"下面 {unused.Count} 个组件没有任何方案在用，删除后要重新下载才能用：",
+            Text = string.Format(Lang.Lunarward_RuntimeEnv_CleanConfirmHeader, unused.Count),
             TextWrapping = TextWrapping.Wrap,
         });
         foreach (Component component in unused)
@@ -2319,7 +2438,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         body.Children.Add(new TextBlock
         {
-            Text = "外部目录（opt / Steam / 自己放的）本来就不归本程序管，不会出现在这个列表里。",
+            Text = Lang.Lunarward_RuntimeEnv_ExternalDirsNotManaged,
             FontSize = 12,
             Opacity = 0.6,
             TextWrapping = TextWrapping.Wrap,
@@ -2328,7 +2447,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             Title = Lang.Lunarward_RuntimeEnv_CleanupUnused,
             Content = body,
-            PrimaryButtonText = $"删除 {unused.Count} 个",
+            PrimaryButtonText = string.Format(Lang.Lunarward_RuntimeEnv_CleanConfirmPrimary, unused.Count),
             CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
@@ -2357,7 +2476,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         LoadComponents();
         await RefreshChipsAsync();
         Helpers.InAppToast.MainWindow?.Success((string?)null,
-            failed.Count == 0 ? $"已清理 {deleted} 个组件。" : $"已清理 {deleted} 个，失败：{string.Join("、", failed)}", 4000);
+            failed.Count == 0 ? string.Format(Lang.Lunarward_RuntimeEnv_CleanResult, deleted) : string.Format(Lang.Lunarward_RuntimeEnv_CleanResultFailed, deleted, string.Join("、", failed)), 4000);
     }
 
 
@@ -2415,8 +2534,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             body.Children.Add(new TextBlock
             {
                 Text = usages.Count == 0
-                    ? $"「{profile.Name}」目前没有游戏在用。删除只移除这份配置文件，前缀目录保留。"
-                    : $"「{profile.Name}」正被 {usages.Count} 个游戏使用。删除后这些绑定会一起清掉，下次启动会重新选/建环境：",
+                    ? string.Format(Lang.Lunarward_RuntimeEnv_DeleteProfileUnused, profile.Name)
+                    : string.Format(Lang.Lunarward_RuntimeEnv_DeleteProfileInUse, profile.Name, usages.Count),
                 TextWrapping = TextWrapping.Wrap,
             });
             foreach (GameBiz biz in usages)
@@ -2482,7 +2601,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 if (sharers.Count > 0)
                 {
                     Helpers.InAppToast.MainWindow?.Warning((string?)null,
-                        "还有其它方案在用这个前缀，已跳过删除目录：" + string.Join("、", sharers), 6000);
+                        string.Format(Lang.Lunarward_RuntimeEnv_PrefixSharedSkip, string.Join("、", sharers)), 6000);
                 }
                 else
                 {
@@ -2494,7 +2613,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Delete prefix folder failed");
-                    Helpers.InAppToast.MainWindow?.Error((string?)null, "前缀目录没删干净：" + ex.Message);
+                    Helpers.InAppToast.MainWindow?.Error((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_PrefixCleanFailed, ex.Message));
                 }
                 }
             }
@@ -2503,7 +2622,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             _ = RefreshChipsAsync();
             Helpers.InAppToast.MainWindow?.Success((string?)null,
                 cleared > 0
-                    ? $"{string.Format(Lang.Lunarward_Delete_Result, profile.Name)}（已清掉 {cleared} 个绑定）"
+                    ? string.Format(Lang.Lunarward_RuntimeEnv_DeletedProfileCleared, string.Format(Lang.Lunarward_Delete_Result, profile.Name), cleared)
                     : string.Format(Lang.Lunarward_Delete_Result, profile.Name), 3000);
         }
         catch (Exception ex)

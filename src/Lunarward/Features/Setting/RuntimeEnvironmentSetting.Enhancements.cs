@@ -136,7 +136,7 @@ public sealed partial class RuntimeEnvironmentSetting
         Text_HudHint.Text = hud switch
         {
             Enhancements.HudDxvk => string.IsNullOrWhiteSpace(draft.HudOptions)
-                ? $"留空则用默认：{Enhancements.DefaultDxvkHud}（DXVK_HUD）"
+                ? string.Format(Lang.Lunarward_RuntimeEnv_HudDefaultHint, Enhancements.DefaultDxvkHud)
                 : Lang.Lunarward_RuntimeEnv_HudDxvkHint,
             Enhancements.HudMangoHud => draft.GameScope
                 ? Lang.Lunarward_RuntimeEnv_HudMangoScopeHint
@@ -152,7 +152,7 @@ public sealed partial class RuntimeEnvironmentSetting
         foreach (string binary in Enhancements.RequiredBinaries(draft))
         {
             string? found = Enhancements.FindInPath(binary);
-            status.Add(found is null ? $"✗ {binary}（PATH 里没找到）" : $"✓ {binary} · {found}");
+            status.Add(found is null ? string.Format(Lang.Lunarward_RuntimeEnv_NotFoundInPath, binary) : string.Format(Lang.Lunarward_RuntimeEnv_FoundInPath, binary, found));
         }
         if (draft.GameScope || !string.IsNullOrWhiteSpace(draft.GameScopeArgs))
         {
@@ -292,7 +292,7 @@ public sealed partial class RuntimeEnvironmentSetting
             Helpers.InAppToast.MainWindow?.Error(Lang.Lunarward_RuntimeEnv_SaveFailed, null, 4000);
             return;
         }
-        Helpers.InAppToast.MainWindow?.Success($"已保存「{profile.Name}」的增强设置", Enhancements.Describe(profile), 4000);
+        Helpers.InAppToast.MainWindow?.Success(string.Format(Lang.Lunarward_RuntimeEnv_EnhanceSaved, profile.Name), Enhancements.Describe(profile), 4000);
         LoadProfiles();
         await RefreshChipsAsync();
     }

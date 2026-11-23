@@ -2799,16 +2799,16 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Runtime Environment</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
-    <value>A profile is a runner, a Wine prefix and graphics components. Each game can be bound to one profile.</value>
+    <value>Each profile consists of a runner, a wine prefix and a graphics layer; each game can bind to one profile.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
-    <value>New Profile</value>
+    <value>New profile</value>
   </data>
   <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
     <value>Open Debug Shell</value>
   </data>
   <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
-    <value>Config Text</value>
+    <value>Text view</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
     <value>Close</value>
@@ -2829,7 +2829,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Prefix Templates</value>
   </data>
   <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
-    <value>No templates yet. Create one from a profile when editing it.</value>
+    <value>No templates yet. Create one while editing a profile with "Save this prefix as a template".</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
     <value>Installed</value>
@@ -3030,7 +3030,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Runners and graphics (DXVK / VKD3D) are discovered in system folders, Steam, and ~/.local/share/lunarward/components. Nothing is downloaded by the launcher.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
-    <value>No templates yet. In any profile use “Save this prefix as a template…” to store a prepared prefix.</value>
+    <value>No templates yet. In any profile, use "Save this prefix as a template…" to store a tuned prefix.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
     <value>template / ephemeral clone the prefix (reflink on the same volume, 650 MB in under 0.2 s); external uses the given folder as is.</value>
@@ -3090,7 +3090,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Runner</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Components_2" xml:space="preserve">
-    <value>Components</value>
+    <value>Graphics</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Prefix" xml:space="preserve">
     <value>Prefix</value>
@@ -3582,7 +3582,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Prefix usage summary</value>
   </data>
   <data name="Lunarward_RuntimeEnv_NoProfilesHint" xml:space="preserve">
-    <value>No profile to configure yet. Create one in the Overview tab first.</value>
+    <value>No profiles yet. Create one from the overview first.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_HudDxvkHint" xml:space="preserve">
     <value>Sets DXVK_HUD; add more as comma separated names, e.g. fps,frametimes,gpuload,devinfo</value>
@@ -3669,7 +3669,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>{0}/{1} runners usable</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ChipGraphics" xml:space="preserve">
-    <value>{0} graphics</value>
+    <value>Graphics {0}</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ChipPrefix" xml:space="preserve">
     <value>{0} prefixes</value>
@@ -3706,5 +3706,326 @@ You are welcome to submit the exported data to the following repository:</value>
   </data>
   <data name="Lunarward_RuntimeEnv_PrefixDefaultDir" xml:space="preserve">
     <value>Uses the default folder, created on first launch</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixOwnersSuffix" xml:space="preserve">
+    <value>+{0} more</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixUsedBy" xml:space="preserve">
+    <value>used by {0} profiles</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixShare" xml:space="preserve">
+    <value>{0}% of the largest prefix</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_UnusedPrefixTitle" xml:space="preserve">
+    <value>unused prefix</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Profile" xml:space="preserve">
+    <value>profile</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Prefixes" xml:space="preserve">
+    <value>Prefixes</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixMustBeAbsolute" xml:space="preserve">
+    <value>The prefix path must be absolute.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixMustNotBeRoot" xml:space="preserve">
+    <value>The filesystem root cannot be used as a game prefix.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_RunnerUnavailable" xml:space="preserve">
+    <value>Runner unavailable: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_LaunchArgsPrefix" xml:space="preserve">
+    <value>Launch args: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_WrappersPrefix" xml:space="preserve">
+    <value>Wrappers: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ReboundGames" xml:space="preserve">
+    <value>Re-bound {0} game(s)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ClearedDangling" xml:space="preserve">
+    <value>Cleared {0} dangling binding(s)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixUsage" xml:space="preserve">
+    <value>Prefix usage: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ConfigTextTitle" xml:space="preserve">
+    <value>{0} · text view (read-only)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ConfigTextFile" xml:space="preserve">
+    <value>File: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_GraphicsWillInstall" xml:space="preserve">
+    <value>{0}: {1} (installed into the prefix before launch)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_GraphicsInstalledAt" xml:space="preserve">
+    <value>{0}: {1} (installed {2})</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_GraphicsNotInstalled" xml:space="preserve">
+    <value>{0}: {1} (not installed in the prefix yet; it will be installed before launch)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_GraphicsWillReplace" xml:space="preserve">
+    <value>{0}: {1} (the prefix currently has {2}; it will be replaced before launch)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnvironmentLabel" xml:space="preserve">
+    <value>Environment: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_StartedPid" xml:space="preserve">
+    <value>Started (PID {0})</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ManagedRunners" xml:space="preserve">
+    <value>Managed runners (downloaded/imported by this app, {0})</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ExternalRunners" xml:space="preserve">
+    <value>External runners (system / Steam / other launchers, {0})</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ManagedGraphicsGroups" xml:space="preserve">
+    <value>Managed graphics ({0} group(s))</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ExternalGraphicsGroups" xml:space="preserve">
+    <value>External graphics ({0} group(s))</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_GraphicsStatus" xml:space="preserve">
+    <value>Graphics: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_RunnerAdded" xml:space="preserve">
+    <value>Added: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_GraphicsInstalledNow" xml:space="preserve">
+    <value>Installed {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_GraphicsAlreadyInstalled" xml:space="preserve">
+    <value>Records and files are complete; skipped</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_GraphicsMoveToPrefixBody" xml:space="preserve">
+    <value>The DLLs recorded in system32 / syswow64 will be removed along with the record (.bak is kept). The game will fall back to wine's built-in d3d implementation.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_VerifyResult" xml:space="preserve">
+    <value>{0} ({1}/{2} files present)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_RunnerMissing" xml:space="preserve">
+    <value>The original runner is no longer detected: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_OverriddenByValue" xml:space="preserve">
+    <value>{0} (auto {1} → recipe {2})</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CopiedTo" xml:space="preserve">
+    <value>Copied to {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_RunnerUnusable" xml:space="preserve">
+    <value>This runner is unavailable: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeletePrefixBody" xml:space="preserve">
+    <value>The directory and its contents will be deleted, which cannot be undone:
+{0}
+
+If this is a wine environment you want to keep, click Cancel.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BadgeUsableLayout" xml:space="preserve">
+    <value>Usable · {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BadgeUsedBy" xml:space="preserve">
+    <value>{0} · used by {1} profile(s)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CopiesCount" xml:space="preserve">
+    <value>{0} copy(ies)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeleteComponentTip" xml:space="preserve">
+    <value>Delete {0} from disk (you will need to download it again)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ExternalComponentInfo" xml:space="preserve">
+    <value>This component is only referenced; it is not inside the app's managed directory.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeleteGraphicsBody" xml:space="preserve">
+    <value>The component directory on disk will be deleted (cannot be undone):
+{0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeleteGraphicsSharedBody" xml:space="preserve">
+    <value>{0} profile(s) still use this component; deleting it will leave them with a missing component, and the pre-launch check will block them:
+{1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeletedComponent" xml:space="preserve">
+    <value>Deleted {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SelfCheckTitle" xml:space="preserve">
+    <value>Self-check "{0}": {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SelfCheckDetail" xml:space="preserve">
+    <value>Exit code: {0} · {1} ms · {2}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_HealthCheckTitle" xml:space="preserve">
+    <value>Health check · {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ImportedComponent" xml:space="preserve">
+    <value>Imported {0} "{1}"</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstalledToPrefix" xml:space="preserve">
+    <value>Installed "{0}" into the prefix</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixMissingSelected" xml:space="preserve">
+    <value>{0}: not installed in the prefix (selected {1})</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixDifferentSelected" xml:space="preserve">
+    <value>{0}: the prefix has {1}, selected {2}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixIncomplete" xml:space="preserve">
+    <value>{0}: files of {1} in the prefix are incomplete</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SyncedToPrefix" xml:space="preserve">
+    <value>Synced to the prefix: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SyncFailed" xml:space="preserve">
+    <value>Sync failed: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CloneBody" xml:space="preserve">
+    <value>Create a new profile as a copy of "{0}" and bind this game to it. The new profile gets its own prefix, created on first launch.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CloneDone" xml:space="preserve">
+    <value>Created a separate profile "{1}" for "{0}".</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NothingToClean" xml:space="preserve">
+    <value>Nothing to clean up: every managed component is used by a profile.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CleanConfirmHeader" xml:space="preserve">
+    <value>{0} component(s) below are not used by any profile; deleting them means downloading again:</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ExternalDirsNotManaged" xml:space="preserve">
+    <value>External directories (opt / Steam / your own) are not managed by this app and never appear in this list.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CleanConfirmPrimary" xml:space="preserve">
+    <value>Delete {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CleanResult" xml:space="preserve">
+    <value>Cleaned up {0} component(s).</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CleanResultFailed" xml:space="preserve">
+    <value>Cleaned up {0}, failed: {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeleteProfileUnused" xml:space="preserve">
+    <value>"{0}" is not used by any game. Deleting it only removes the configuration file; the prefix directory is kept.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeleteProfileInUse" xml:space="preserve">
+    <value>"{0}" is used by {1} game(s). Deleting it also clears these bindings; the environment will be re-selected/created on next launch:</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixSharedSkip" xml:space="preserve">
+    <value>Other profiles still use this prefix; the directory was not deleted: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixCleanFailed" xml:space="preserve">
+    <value>The prefix directory was not fully deleted: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeletedProfileCleared" xml:space="preserve">
+    <value>{0} ({1} binding(s) cleared)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ReadingVersions" xml:space="preserve">
+    <value>Reading the version list of {0}…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ArchivesFound" xml:space="preserve">
+    <value>{0} archive(s); pick one and click Download.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ReadFailed" xml:space="preserve">
+    <value>Failed to read: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_QueuePrefix" xml:space="preserve">
+    <value>Queue {0}/{1}: </value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NotEnoughSpace" xml:space="preserve">
+    <value>{0} (not enough space: needs about {1} MB, {2} MB free)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Downloading" xml:space="preserve">
+    <value>{0}downloading {1} MB / {2} ({3} connections, {4} MB/s)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_StageDone" xml:space="preserve">
+    <value>{0}done: {1} {2}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstalledToast" xml:space="preserve">
+    <value>Installed {0} {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_QueueAllOk" xml:space="preserve">
+    <value>Queue finished: {0}/{1} all succeeded.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_QueuePartial" xml:space="preserve">
+    <value>Queue finished: {0}/{1} succeeded; failed: {2}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_FailedPrefix" xml:space="preserve">
+    <value>Failed: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_UnsupportedArchive" xml:space="preserve">
+    <value>Unsupported archive: {0} (supported: {1})</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ImportTitle" xml:space="preserve">
+    <value>Import {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ImportedToast" xml:space="preserve">
+    <value>Imported {0} {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesHint" xml:space="preserve">
+    <value>Leave the mirror prefix empty to download directly. Saved to: {0}
+To add or remove sources, edit that file (this dialog only changes mirrors).</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_StagingSummary" xml:space="preserve">
+    <value>{0} archive(s), {1} total ({2})</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_StagingPart" xml:space="preserve">
+    <value>{0} · {1} part(s)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeletedStaging" xml:space="preserve">
+    <value>Deleted staged chunks of {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixSummaryChip" xml:space="preserve">
+    <value>{0} prefix(es), {1} total</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_HudDefaultHint" xml:space="preserve">
+    <value>Leave empty to use the default: {0} (DXVK_HUD)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NotFoundInPath" xml:space="preserve">
+    <value>✗ {0} (not found in PATH)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_FoundInPath" xml:space="preserve">
+    <value>✓ {0} · {1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EnhanceSaved" xml:space="preserve">
+    <value>Saved enhancement settings of "{0}"</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_LastGoodAt" xml:space="preserve">
+    <value>Last successful launch: {0}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_RestoreLastGood" xml:space="preserve">
+    <value>Restore the last working components</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_RestoredLastGood" xml:space="preserve">
+    <value>Restored the last working components</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ChipTip" xml:space="preserve">
+    <value>{0} · click to view</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DiscardEditTitle" xml:space="preserve">
+    <value>Discard unsaved changes?</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DiscardEditBody" xml:space="preserve">
+    <value>This profile has unsaved changes. Going back will lose them.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DiscardEditConfirm" xml:space="preserve">
+    <value>Discard</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DiscardEditKeep" xml:space="preserve">
+    <value>Keep editing</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_RunnerChange" xml:space="preserve">
+    <value>Change</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_GraphicsEdit" xml:space="preserve">
+    <value>Edit graphics</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_FollowPrefixGraphics" xml:space="preserve">
+    <value>Graphics: keep what is already in the prefix</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_LayoutBin" xml:space="preserve">
+    <value>bin folder</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_LayoutSystem" xml:space="preserve">
+    <value>system folder</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_LayoutWinePrefix" xml:space="preserve">
+    <value>wine prefix</value>
   </data>
 </root>

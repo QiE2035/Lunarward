@@ -1643,3 +1643,24 @@ CI 同步改为从根构建解决方案，少一层子目录 cd。
 验证：`dotnet build Starward.slnx -c Debug/Release` 0 错误；`dotnet test` 270 通过；`lint-ui-thread.sh`、`lint-cli-help.sh`、`lint-pkgbuild.sh` 通过。
 
 确认方式：m02717（审查请求）、m02913（「全处理了」）。
+
+## D108 运行环境页面 UI 审查（21 条）：术语、布局、i18n 与可达性
+
+背景：D104–D107 修完运行环境模块的 42 条实现错位后，用户要求「把这一块的 UI 也仔细审一遍」（m03493）。真机逐页走查 + 对照 23 设计 §7/§13，发现 21 条（术语/i18n 7、布局视觉 8、交互可达性 6），用户 m03736「全部处理」。审查与逐条处置见 `29-runtime-env-ui-audit.md`。
+
+决定：
+
+1. 术语统一为「方案 / 运行器 / 图形层 / 前缀」四词，「配置」不再出现在用户可见文案里（含 resx 值改写）。
+2. 运行环境页用户可见文案全部走 `Lang.Lunarward_RuntimeEnv_*`（新增约 110 个键，中英双语）；`RuntimeEnvironmentSetting*.cs` 的中文硬编码清零。
+3. 编辑器与增强面板都改成「内容星号行 + 固定底栏」的 Grid：保存/取消、命令预览不再随表单滚走。
+4. 颜色一律用主题 token（`SystemFillColorCritical/Caution/SuccessBrush`），`DescribeHealth` 不再返回 hex。
+5. 长路径按目录分段缩写（`ShortenPath`）并配 ToolTip 全文；体积统一两位小数。
+6. ⋯ 菜单：调试 Shell 仅 `DevSwitches.IsEnabled`（Release 不出现）；删除项标危险色；菜单项分组。
+7. 编辑器加脏检查（切页签/返回先确认）；页签与 ⋯ 按钮补 `AutomationProperties`；Ctrl+N / Ctrl+S / Delete 快捷键。
+8. `MainView_Loaded` 在只有 `--subpage` 时先导航 `SettingPage`，深链可直达。
+
+代价边界：`AddHandler(KeyDownEvent)` 在页面层拦截，焦点在文本框内时 Delete 也走页面级删除确认（目前详情页没有可编辑文本框，后续加编辑框要复查）；`ShortenPath` 只是展示层缩写，复制/ToolTip 仍是完整路径；新增键只有中英，其它语言回落英文（与既有 `Lunarward_*` 一致）。
+
+验证：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 270 通过；`lint-ui-thread.sh` 通过；真机 1200×680 复核四页签、前缀卡、编辑器固定底栏与脏检查弹窗。
+
+确认方式：m03493（审查请求）、m03736（「全部处理」）。

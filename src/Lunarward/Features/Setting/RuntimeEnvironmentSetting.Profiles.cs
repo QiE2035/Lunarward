@@ -3,6 +3,7 @@
 // 详情里的每段都是手写 Border 卡片，没有 Uno Toolkit（本工程 <UnoFeatures> 不含 Toolkit，没有 SettingsCard）。
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
@@ -123,27 +124,18 @@ public sealed partial class RuntimeEnvironmentSetting
     /// 把健康灯的 <c>#RRGGBB</c> 转成 Brush。选中底色用主题画刷，
     /// 传 <c>Secondary</c> 表示「次要填充」（和页签选中同一档视觉）。
     /// </summary>
-    private static Brush BrushOf(string colorOrKeyword)
+    private static Brush BrushOf(string token) => token switch
     {
-        if (colorOrKeyword == "Secondary")
-        {
-            return Application.Current.Resources["ControlFillColorSecondaryBrush"] as Brush
-                ?? new SolidColorBrush(Microsoft.UI.Colors.DimGray);
-        }
-        try
-        {
-            string hex = colorOrKeyword.TrimStart('#');
-            byte r = Convert.ToByte(hex[..2], 16);
-            byte g = Convert.ToByte(hex.Substring(2, 2), 16);
-            byte b = Convert.ToByte(hex.Substring(4, 2), 16);
-            return new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, r, g, b));
-        }
-        catch (Exception ex)
-        {
-            Serilog.Log.Debug(ex, "brush from {color} failed", colorOrKeyword);
-            return new SolidColorBrush(Microsoft.UI.Colors.Gray);
-        }
-    }
+        // D108：状态色一律走主题画刷，别再用 #RRGGBB（深色主题对比度差，且违反「禁止硬编码颜色」）。
+        "Critical" => Application.Current.Resources["SystemFillColorCriticalBrush"] as Brush
+                      ?? new SolidColorBrush(Microsoft.UI.Colors.IndianRed),
+        "Caution" => Application.Current.Resources["SystemFillColorCautionBrush"] as Brush
+                     ?? new SolidColorBrush(Microsoft.UI.Colors.DarkOrange),
+        "Success" => Application.Current.Resources["SystemFillColorSuccessBrush"] as Brush
+                     ?? new SolidColorBrush(Microsoft.UI.Colors.SeaGreen),
+        _ => Application.Current.Resources["ControlFillColorSecondaryBrush"] as Brush
+             ?? new SolidColorBrush(Microsoft.UI.Colors.DimGray),
+    };
 
 
     // ───────────────────────────── 右栏三态 ─────────────────────────────
@@ -153,8 +145,8 @@ public sealed partial class RuntimeEnvironmentSetting
     private void ShowDetailPane()
     {
         ScrollViewer_ProfileDetail.Visibility = Visibility.Visible;
-        ScrollViewer_ProfileEditor.Visibility = Visibility.Collapsed;
-        ScrollViewer_ProfileEnhance.Visibility = Visibility.Collapsed;
+        Grid_ProfileEditor.Visibility = Visibility.Collapsed;
+        Grid_ProfileEnhance.Visibility = Visibility.Collapsed;
         UpdateContentWidth();
     }
 
@@ -163,8 +155,8 @@ public sealed partial class RuntimeEnvironmentSetting
     private void ShowEditorPane()
     {
         ScrollViewer_ProfileDetail.Visibility = Visibility.Collapsed;
-        ScrollViewer_ProfileEditor.Visibility = Visibility.Visible;
-        ScrollViewer_ProfileEnhance.Visibility = Visibility.Collapsed;
+        Grid_ProfileEditor.Visibility = Visibility.Visible;
+        Grid_ProfileEnhance.Visibility = Visibility.Collapsed;
         UpdateContentWidth();
     }
 
@@ -173,13 +165,19 @@ public sealed partial class RuntimeEnvironmentSetting
     private void ShowEnhancePane()
     {
         ScrollViewer_ProfileDetail.Visibility = Visibility.Collapsed;
-        ScrollViewer_ProfileEditor.Visibility = Visibility.Collapsed;
-        ScrollViewer_ProfileEnhance.Visibility = Visibility.Visible;
+        Grid_ProfileEditor.Visibility = Visibility.Collapsed;
+        Grid_ProfileEnhance.Visibility = Visibility.Visible;
         UpdateContentWidth();
     }
 
 
-    private void Button_EditorBack_Click(object sender, RoutedEventArgs e) => CloseEditor();
+    private async void Button_EditorBack_Click(object sender, RoutedEventArgs e)
+    {
+        if (await ConfirmLeaveEditorAsync())
+        {
+            CloseEditor();
+        }
+    }
 
 
     private void Button_EnhanceBack_Click(object sender, RoutedEventArgs e)
@@ -285,12 +283,20 @@ public sealed partial class RuntimeEnvironmentSetting
         // 低频动作进 ⋯ 菜单：一屏里六个同权重按钮谁都不突出（D85 诊断第 2 条）
         var moreButton = new Button { Content = "\uE712", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 14 };
         ToolTipService.SetToolTip(moreButton, Lang.Lunarward_RuntimeEnv_More);
+        AutomationProperties.SetName(moreButton, Lang.Lunarward_RuntimeEnv_More);
         var moreFlyout = new MenuFlyout();
         moreFlyout.Items.Add(MenuItem(Lang.Lunarward_RuntimeEnv_Clone, profile, Button_Clone_Click));
         moreFlyout.Items.Add(MenuItem(Lang.Lunarward_RuntimeEnv_TextView, profile, Button_TextView_Click));
-        moreFlyout.Items.Add(MenuItem(Lang.Lunarward_RuntimeEnv_OpenShell, profile, Button_OpenShell_Click));
-        moreFlyout.Items.Add(new MenuFlyoutSeparator());
-        moreFlyout.Items.Add(MenuItem(Lang.Lunarward_RuntimeEnv_Delete, profile, Button_Delete_Click));
+        // D108：调试 Shell 只给开发构建（AGENTS 硬规则 6：危险入口不进发行版）；
+        // 文本视图与克隆是常用动作，中间加分隔线，删除单独一组并标红。
+        if (Starward.Features.Dev.DevSwitches.IsEnabled)
+        {
+            moreFlyout.Items.Add(MenuItem(Lang.Lunarward_RuntimeEnv_OpenShell, profile, Button_OpenShell_Click));
+            moreFlyout.Items.Add(new MenuFlyoutSeparator());
+        }
+        MenuFlyoutItem deleteItem = MenuItem(Lang.Lunarward_RuntimeEnv_Delete, profile, Button_Delete_Click);
+        deleteItem.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+        moreFlyout.Items.Add(deleteItem);
         moreButton.Flyout = moreFlyout;
         buttons.Children.Add(moreButton);
 
@@ -345,7 +351,7 @@ public sealed partial class RuntimeEnvironmentSetting
         {
             body.Children.Add(Hint(profile.RunnerPath!));
         }
-        var editButton = new Button { Content = Lang.Common_Change, Tag = profile, VerticalAlignment = VerticalAlignment.Top };
+        var editButton = new Button { Content = Lang.Lunarward_RuntimeEnv_RunnerChange, Tag = profile, VerticalAlignment = VerticalAlignment.Top };
         editButton.Click += Button_Edit_Click;
         return Section(Lang.Lunarward_RuntimeEnv_RunnerSectionTitle, body, editButton);
     }
@@ -364,14 +370,14 @@ public sealed partial class RuntimeEnvironmentSetting
             {
                 Text = syncText,
                 FontSize = 12,
-                Foreground = BrushOf("9D5D00"),
+                Foreground = BrushOf("Caution"),
                 TextWrapping = TextWrapping.Wrap,
             });
             var syncButton = new Button { Content = Lang.Lunarward_RuntimeEnv_SyncGraphics, Tag = profile };
             syncButton.Click += Button_SyncGraphics_Click;
             actions.Children.Add(syncButton);
         }
-        var editButton = new Button { Content = Lang.Lunarward_RuntimeEnv_EditProfile, Tag = profile };
+        var editButton = new Button { Content = Lang.Lunarward_RuntimeEnv_GraphicsEdit, Tag = profile };
         editButton.Click += Button_Edit_Click;
         actions.Children.Add(editButton);
         return Section(Lang.Lunarward_RuntimeEnv_GraphicsSectionTitle, body, actions);
@@ -440,12 +446,12 @@ public sealed partial class RuntimeEnvironmentSetting
         {
             body.Children.Add(new TextBlock
             {
-                Text = string.Format("上次成功启动：{0}", lastGood.At.ToLocalTime().ToString("MM-dd HH:mm")),
+                Text = string.Format(Lang.Lunarward_RuntimeEnv_LastGoodAt, lastGood.At.ToLocalTime().ToString("MM-dd HH:mm")),
                 FontSize = 12,
                 Opacity = 0.85,
                 TextWrapping = TextWrapping.Wrap,
             });
-            var restore = new Button { Content = "恢复上次的组件组合", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 4) };
+            var restore = new Button { Content = Lang.Lunarward_RuntimeEnv_RestoreLastGood, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 4) };
             restore.Click += async (_, _) =>
             {
                 try
@@ -463,7 +469,7 @@ public sealed partial class RuntimeEnvironmentSetting
                     {
                         LoadProfiles();
                         ShowProfileDetail(fresh);
-                        Helpers.InAppToast.MainWindow?.Success((string?)null, "已恢复上次成功的组件组合", 3000);
+                        Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_RestoredLastGood, 3000);
                     }
                 }
                 catch (Exception ex)
@@ -563,7 +569,7 @@ public sealed partial class RuntimeEnvironmentSetting
 
         StackPanel_Chips.Children.Clear();
         StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipProfiles, profiles.Count), 0, Lang.Lunarward_RuntimeEnv_Profiles));
-        StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipBindings, ProfileBinding.BindingCount()), 0, Lang.Lunarward_RuntimeEnv_Profiles));
+        StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipBindings, ProfileBinding.BindingCount()), BindingsChipTag, Lang.Lunarward_RuntimeEnv_Profiles));
         StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipRunners, usableRunners, runners.Count), 1, Lang.Lunarward_RuntimeEnv_Runner));
         StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipGraphics, graphics.Count), 2, Lang.Lunarward_RuntimeEnv_Components_2));
         StackPanel_Chips.Children.Add(CreateChip($"{string.Format(Lang.Lunarward_RuntimeEnv_ChipPrefix, prefixes.Count)} · {FormatSize(totalBytes)}", 3, Lang.Lunarward_RuntimeEnv_Prefix));
@@ -584,17 +590,37 @@ public sealed partial class RuntimeEnvironmentSetting
             BorderThickness = new Thickness(0),
         };
         chip.Click += Button_Chip_Click;
-        ToolTipService.SetToolTip(chip, $"{tooltip} · 点这里看");
+        ToolTipService.SetToolTip(chip, string.Format(Lang.Lunarward_RuntimeEnv_ChipTip, tooltip));
         return chip;
     }
 
 
+    /// <summary>D108：「已绑定 N 个游戏」点开后除了切到方案页，还要选中当前游戏绑定的那份方案，否则看起来没反应。</summary>
+    private const int BindingsChipTag = 10;
+
+
     private void Button_Chip_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { Tag: int tab })
+        if (sender is not FrameworkElement { Tag: int tag })
         {
-            ShowTab(tab);
+            return;
         }
+        if (tag == BindingsChipTag)
+        {
+            ShowTab(0);
+            RuntimeProfile? bound = ProfileBinding.Resolve(AppConfig.CurrentGameBiz) is { } binding
+                ? RuntimeProfileStore.LoadAll(_logger).FirstOrDefault(x => x.Id == binding.Id)
+                : null;
+            if (bound is not null && _profiles.Any(x => x.Id == bound.Id))
+            {
+                // 列表行按 _profiles 顺序生成，下标即选择下标。
+                _selectedProfileId = bound.Id;
+                UpdateProfileListSelection();
+                ShowProfileDetail(bound);
+            }
+            return;
+        }
+        ShowTab(tag);
     }
 
 

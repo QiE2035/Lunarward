@@ -191,41 +191,68 @@
                                     <StackPanel x:Name="StackPanel_ProfileDetail" Spacing="8" />
                                 </ScrollViewer>
 
-                                <ScrollViewer
-                                    x:Name="ScrollViewer_ProfileEditor"
-                                    HorizontalScrollBarVisibility="Disabled"
-                                    HorizontalScrollMode="Disabled"
-                                    VerticalScrollBarVisibility="Auto"
+                                <Grid
+                                    x:Name="Grid_ProfileEditor"
+                                    RowSpacing="8"
                                     Visibility="Collapsed">
-                                    <StackPanel Spacing="8">
-                                        <Button
-                                            x:Name="Button_EditorBack"
-                                            Click="Button_EditorBack_Click"
-                                            HorizontalAlignment="Left"
-                                            Style="{StaticResource TabButtonStyle}">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <FontIcon FontSize="14" Glyph="&#xE72B;" />
-                                                <TextBlock Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Back}" />
-                                            </StackPanel>
-                                        </Button>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <ScrollViewer
+                                        x:Name="ScrollViewer_ProfileEditor"
+                                        HorizontalScrollBarVisibility="Disabled"
+                                        HorizontalScrollMode="Disabled"
+                                        VerticalScrollBarVisibility="Auto">
+                                        <StackPanel Spacing="8">
+                                            <Button
+                                                x:Name="Button_EditorBack"
+                                                Click="Button_EditorBack_Click"
+                                                HorizontalAlignment="Left"
+                                                Style="{StaticResource TabButtonStyle}">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon FontSize="14" Glyph="&#xE72B;" />
+                                                    <TextBlock Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Back}" />
+                                                </StackPanel>
+                                            </Button>
+                                            <StackPanel
+                                                x:Name="StackPanel_ProfileEditor"
+                                                MaxWidth="760"
+                                                HorizontalAlignment="Left"
+                                                Spacing="8" />
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                    <!--  D108：保存/取消固定在右栏底部，长表单不用滚到底才能保存。  -->
+                                    <Border
+                                        Grid.Row="1"
+                                        Padding="0,8,0,0"
+                                        BorderThickness="0,1,0,0"
+                                        BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
                                         <StackPanel
-                                            x:Name="StackPanel_ProfileEditor"
+                                            x:Name="StackPanel_EditorFooter"
+                                            Orientation="Horizontal"
+                                            Spacing="8" />
+                                    </Border>
+                                </Grid>
+
+                                <Grid
+                                    x:Name="Grid_ProfileEnhance"
+                                    RowSpacing="8"
+                                    Visibility="Collapsed">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <ScrollViewer
+                                        x:Name="ScrollViewer_ProfileEnhance"
+                                        HorizontalScrollBarVisibility="Disabled"
+                                        HorizontalScrollMode="Disabled"
+                                        VerticalScrollBarVisibility="Auto">
+                                        <StackPanel
                                             MaxWidth="760"
                                             HorizontalAlignment="Left"
-                                            Spacing="8" />
-                                    </StackPanel>
-                                </ScrollViewer>
-
-                                <ScrollViewer
-                                    x:Name="ScrollViewer_ProfileEnhance"
-                                    HorizontalScrollBarVisibility="Disabled"
-                                    HorizontalScrollMode="Disabled"
-                                    VerticalScrollBarVisibility="Auto"
-                                    Visibility="Collapsed">
-                                    <StackPanel
-                                        MaxWidth="760"
-                                        HorizontalAlignment="Left"
-                                        Spacing="8">
+                                            Spacing="8">
                                         <Button
                                             x:Name="Button_EnhanceBack"
                                             Click="Button_EnhanceBack_Click"
@@ -299,46 +326,49 @@
                                             PlaceholderText="-f -W 1920 -H 1080"
                                             TextChanged="Box_GameScopeArgs_TextChanged" />
 
-                                        <!--  命令预览固定在这里，改完立刻能看到会怎么拼（不随表单滚走）  -->
-                                        <Border
-                                            Padding="10,8"
-                                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                            CornerRadius="6">
-                                            <StackPanel Spacing="4">
-                                                <TextBlock
-                                                    Style="{ThemeResource CaptionTextBlockStyle}"
-                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                    Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_LaunchPreview}" />
-                                                <TextBlock
-                                                    x:Name="Text_EnhancePreview"
-                                                    FontFamily="Consolas"
-                                                    FontSize="12"
-                                                    IsTextSelectionEnabled="True"
-                                                    TextWrapping="Wrap" />
-                                                <TextBlock
-                                                    x:Name="Text_EnhanceStatus"
-                                                    FontSize="12"
-                                                    Opacity="0.75"
-                                                    TextWrapping="Wrap" />
-                                            </StackPanel>
-                                        </Border>
-
-                                        <StackPanel
-                                            Margin="0,4,0,0"
-                                            Orientation="Horizontal"
-                                            Spacing="8">
-                                            <Button
-                                                x:Name="Button_EnhanceSave"
-                                                Click="Button_EnhanceSave_Click"
-                                                Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_SaveToProfile}"
-                                                Style="{StaticResource AccentButtonStyle}" />
-                                            <Button x:Name="Button_EnhanceReload" Click="Button_EnhanceReload_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Revert}" />
-                                        </StackPanel>
+                                        <!--  D108：命令预览固定在底部，改完立刻能看到最终命令；不再随表单滚走。  -->
                                     </StackPanel>
                                 </ScrollViewer>
+
+                                <Border
+                                    Grid.Row="1"
+                                    Padding="10,8"
+                                    Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                    CornerRadius="6">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock
+                                            Style="{ThemeResource CaptionTextBlockStyle}"
+                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_LaunchPreview}" />
+                                        <TextBlock
+                                            x:Name="Text_EnhancePreview"
+                                            FontFamily="Consolas"
+                                            FontSize="12"
+                                            IsTextSelectionEnabled="True"
+                                            TextWrapping="Wrap" />
+                                        <TextBlock
+                                            x:Name="Text_EnhanceStatus"
+                                            FontSize="12"
+                                            Opacity="0.75"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+
+                                <StackPanel
+                                    Grid.Row="2"
+                                    Orientation="Horizontal"
+                                    Spacing="8">
+                                    <Button
+                                        x:Name="Button_EnhanceSave"
+                                        Click="Button_EnhanceSave_Click"
+                                        Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_SaveToProfile}"
+                                        Style="{StaticResource AccentButtonStyle}" />
+                                    <Button x:Name="Button_EnhanceReload" Click="Button_EnhanceReload_Click" Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Revert}" />
+                                </StackPanel>
                             </Grid>
                         </Grid>
                     </Grid>
+                </Grid>
 
                     <!--  ============ 运行器：全局库存 ============  -->
                     <ScrollViewer

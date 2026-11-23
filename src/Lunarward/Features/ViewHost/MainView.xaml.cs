@@ -156,6 +156,11 @@ public sealed partial class MainView : UserControl
 #endif
         // Lunarward：M1 截图验证用，LUNARWARD_PAGE=setting 时直接跳转到指定页（正式版移除）
         string? debugPage = Starward.Features.Dev.DevSwitches.Page;
+        // D108：只给 --subpage 时也要能直达（以前必须先 --page setting，否则参数被忽略）。
+        if (string.IsNullOrEmpty(debugPage) && !string.IsNullOrEmpty(Starward.Features.Dev.DevSwitches.SubPage))
+        {
+            NavigateTo(typeof(SettingPage));
+        }
         if (!string.IsNullOrEmpty(debugPage))
         {
             Type? target = debugPage switch

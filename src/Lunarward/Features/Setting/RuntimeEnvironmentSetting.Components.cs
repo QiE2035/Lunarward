@@ -98,7 +98,7 @@ public sealed partial class RuntimeEnvironmentSetting
                 ComponentSourceEntry source = sources[index];
                 loadButton.IsEnabled = false;
                 startButton.IsEnabled = false;
-                status.Text = $"正在读取 {source.DisplayName} 的版本列表…";
+                status.Text = string.Format(Lang.Lunarward_RuntimeEnv_ReadingVersions, source.DisplayName);
                 try
                 {
                     using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) };
@@ -113,13 +113,13 @@ public sealed partial class RuntimeEnvironmentSetting
                     {
                         assetList.SelectedIndex = 0;
                         startButton.IsEnabled = true;
-                        status.Text = $"共 {assets.Count} 个归档，选择一项后点「开始下载」。";
+                        status.Text = string.Format(Lang.Lunarward_RuntimeEnv_ArchivesFound, assets.Count);
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "list component assets failed");
-                    status.Text = $"读取失败：{ex.Message}";
+                    status.Text = string.Format(Lang.Lunarward_RuntimeEnv_ReadFailed, ex.Message);
                 }
                 finally
                 {
@@ -165,7 +165,7 @@ public sealed partial class RuntimeEnvironmentSetting
                     for (int i = 0; i < queue.Count; i++)
                     {
                         ComponentReleaseAsset asset = assets[queue[i]];
-                        string prefix = queue.Count > 1 ? $"队列 {i + 1}/{queue.Count}：" : "";
+                        string prefix = queue.Count > 1 ? string.Format(Lang.Lunarward_RuntimeEnv_QueuePrefix, i + 1, queue.Count) : "";
 
                         // 空间预检：归档本身 + 解压后（保守按 2 倍估）
                         long need = asset.Size * 2 + 64L * 1024 * 1024;
@@ -175,7 +175,7 @@ public sealed partial class RuntimeEnvironmentSetting
                             long free = new DriveInfo(root).AvailableFreeSpace;
                             if (free < need)
                             {
-                                failed.Add($"{asset.Name}（空间不足：需要约 {need / 1048576} MB，只剩 {free / 1048576} MB）");
+                                failed.Add(string.Format(Lang.Lunarward_RuntimeEnv_NotEnoughSpace, asset.Name, need / 1048576, free / 1048576));
                                 continue;
                             }
                         }
@@ -190,7 +190,7 @@ public sealed partial class RuntimeEnvironmentSetting
                             var downloadProgress = new Progress<ComponentDownloadProgress>(p =>
                             {
                                 string total = p.Total is > 0 ? $"{(p.Total.Value / 1048576)} MB" : Lang.Lunarward_RuntimeEnv_Unknown2;
-                                status.Text = $"{prefix}下载中 {p.Received / 1048576} MB / {total}（{p.ActiveConnections} 连接，{p.BytesPerSecond / 1024 / 1024:F1} MB/s）";
+                                status.Text = string.Format(Lang.Lunarward_RuntimeEnv_Downloading, prefix, p.Received / 1048576, total, p.ActiveConnections, (p.BytesPerSecond / 1024.0 / 1024.0).ToString("F1"));
                             });
                             ComponentDownloadResult result = await ComponentDownloader.DownloadAsync(
                                 http, new Uri(asset.Url), downloadDir, asset.Name, asset.Sha256,
@@ -200,7 +200,7 @@ public sealed partial class RuntimeEnvironmentSetting
                             status.Text = prefix + (result.Resumed ? Lang.Lunarward_RuntimeEnv_DownloadedResumed : Lang.Lunarward_RuntimeEnv_Downloaded);
                             var extractProgress = new Progress<ArchiveProgress>(p =>
                             {
-                                status.Text = $"{prefix}解压中 {p.Entries} 项 / {p.Bytes / 1048576} MB";
+                                status.Text = string.Format(Lang.Lunarward_RuntimeEnv_Extracting, prefix, p.Entries, p.Bytes / 1048576);
                             });
                             ComponentManifest manifest = await ComponentImporter.ImportAsync(
                                 result.FilePath, kind, sha256: result.Sha256, expectedSha256: asset.Sha256,
@@ -218,8 +218,8 @@ public sealed partial class RuntimeEnvironmentSetting
                             ComponentStore.Invalidate();
                             LoadComponents();
                             okCount++;
-                            status.Text = $"{prefix}完成：{manifest.Name} {manifest.Version}";
-                            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已安装 {manifest.Name} {manifest.Version}", 4000);
+                            status.Text = string.Format(Lang.Lunarward_RuntimeEnv_StageDone, prefix, manifest.Name, manifest.Version);
+                            Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_InstalledToast, manifest.Name, manifest.Version), 4000);
                         }
                         catch (OperationCanceledException)
                         {
@@ -235,8 +235,8 @@ public sealed partial class RuntimeEnvironmentSetting
                     if (queue.Count > 1)
                     {
                         status.Text = failed.Count == 0
-                            ? $"队列完成：{okCount}/{queue.Count} 全部成功。"
-                            : $"队列完成：{okCount}/{queue.Count} 成功；失败：{string.Join("；", failed)}";
+                            ? string.Format(Lang.Lunarward_RuntimeEnv_QueueAllOk, okCount, queue.Count)
+                            : string.Format(Lang.Lunarward_RuntimeEnv_QueuePartial, okCount, queue.Count, string.Join("；", failed));
                     }
                     else if (failed.Count > 0)
                     {
@@ -246,7 +246,7 @@ public sealed partial class RuntimeEnvironmentSetting
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "download queue failed");
-                    status.Text = $"失败：{ex.Message}";
+                    status.Text = string.Format(Lang.Lunarward_RuntimeEnv_FailedPrefix, ex.Message);
                 }
                 finally
                 {
@@ -287,7 +287,7 @@ public sealed partial class RuntimeEnvironmentSetting
             if (!ArchiveExtractor.IsSupported(archive))
             {
                 Helpers.InAppToast.MainWindow?.Error((string?)null,
-                    $"不支持的归档：{Path.GetFileName(archive)}（支持 {string.Join("、", ArchiveExtractor.SupportedExtensions)}）", 6000);
+                    string.Format(Lang.Lunarward_RuntimeEnv_UnsupportedArchive, Path.GetFileName(archive), string.Join("、", ArchiveExtractor.SupportedExtensions)), 6000);
                 return;
             }
 
@@ -299,7 +299,7 @@ public sealed partial class RuntimeEnvironmentSetting
             };
             var dialog = new ContentDialog
             {
-                Title = $"导入 {Path.GetFileName(archive)}",
+                Title = string.Format(Lang.Lunarward_RuntimeEnv_ImportTitle, Path.GetFileName(archive)),
                 Content = kindBox,
                 PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Import,
                 CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
@@ -319,7 +319,7 @@ public sealed partial class RuntimeEnvironmentSetting
                 archive, kind, logger: _logger, progress: progress);
             ComponentStore.Invalidate();
             LoadComponents();
-            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已导入 {manifest.Name} {manifest.Version}", 4000);
+            Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_ImportedToast, manifest.Name, manifest.Version), 4000);
         }
         catch (Exception ex)
         {
@@ -347,7 +347,7 @@ public sealed partial class RuntimeEnvironmentSetting
             var panel = new StackPanel { Spacing = 10, MinWidth = 560 };
             panel.Children.Add(new TextBlock
             {
-                Text = $"镜像前缀留空即走直连。保存后写到：{ComponentSources.FilePath}\n新增/删除源请直接编辑该文件（这里是逐条改镜像，不做增删）。",
+                Text = string.Format(Lang.Lunarward_RuntimeEnv_SourcesHint, ComponentSources.FilePath),
                 TextWrapping = TextWrapping.Wrap,
                 FontSize = 12,
                 Opacity = 0.75,
@@ -498,7 +498,7 @@ public sealed partial class RuntimeEnvironmentSetting
                 long total = groups.Sum(x => x.Bytes);
                 panel.Children.Add(new TextBlock
                 {
-                    Text = $"{groups.Count} 个归档、共 {FormatSize(total)}（{dir}）",
+                    Text = string.Format(Lang.Lunarward_RuntimeEnv_StagingSummary, groups.Count, FormatSize(total), dir),
                     FontSize = 12,
                     Opacity = 0.7,
                     TextWrapping = TextWrapping.Wrap,
@@ -518,7 +518,7 @@ public sealed partial class RuntimeEnvironmentSetting
                     row.Children.Add(name);
                     var size = new TextBlock
                     {
-                        Text = $"{FormatSize(bytes)} · {parts} 片",
+                        Text = string.Format(Lang.Lunarward_RuntimeEnv_StagingPart, FormatSize(bytes), parts),
                         FontSize = 12,
                         Opacity = 0.7,
                         VerticalAlignment = VerticalAlignment.Center,
@@ -544,7 +544,7 @@ public sealed partial class RuntimeEnvironmentSetting
                                     }
                                 }
                             });
-                            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已删除 {key} 的暂存分片", 3000);
+                            Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_DeletedStaging, key), 3000);
                         }
                         catch (Exception ex)
                         {
@@ -631,7 +631,7 @@ public sealed partial class RuntimeEnvironmentSetting
             long total = items.Sum(x => Math.Max(0, x.SizeBytes));
             panel.Children.Add(new TextBlock
             {
-                Text = $"{items.Count} 个前缀，合计 {FormatSize(total)}",
+                Text = string.Format(Lang.Lunarward_RuntimeEnv_PrefixSummaryChip, items.Count, FormatSize(total)),
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             });
             foreach (Features.Runtime.PrefixManager.PrefixInspection item in items.OrderByDescending(x => x.SizeBytes))
