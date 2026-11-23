@@ -129,25 +129,6 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
 
     /// <summary>D114：组件页内分段（运行器 / 图形层），一次只显示一类，避免两个清单堆成一篇文档。</summary>
-    private void Seg_Components_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: string tag } || !int.TryParse(tag, out int index))
-        {
-            return;
-        }
-        bool runners = index == 0;
-        Pane_Runners.Visibility = runners ? Visibility.Visible : Visibility.Collapsed;
-        Pane_Graphics.Visibility = runners ? Visibility.Collapsed : Visibility.Visible;
-        // Uno 下运行时替换 Style 不会重算 Background（实测），改用不透明度 + 字重表达选中。
-        Seg_Runners.Opacity = runners ? 1.0 : 0.55;
-        Seg_Graphics.Opacity = runners ? 0.55 : 1.0;
-        Seg_Runners.FontWeight = runners ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal;
-        Seg_Graphics.FontWeight = runners ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold;
-        AutomationProperties.SetItemStatus(Seg_Runners, runners ? "Selected" : "");
-        AutomationProperties.SetItemStatus(Seg_Graphics, runners ? "" : "Selected");
-    }
-
-
     private void LoadProfiles()
     {
         // D85：方案页是「左清单 + 右详情」。左列只放名字、状态点与绑定数，
@@ -395,6 +376,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             // D108：读屏要能听出当前选中哪个页签（自绘 Button 没有 SelectionItem 语义）。
             AutomationProperties.SetItemStatus(tabs[i], i == index ? "Selected" : "");
         }
+        // 切到组件页时布局还没跑完，等这一帧结束再按新视口宽度钉列表（否则拿到上一个页签的宽度）
+        if (index == 1)
+        {
+            DispatcherQueue.TryEnqueue(UpdateContentWidth);
+        }
         UpdateContentWidth();
         if (!ShowEditorPaneVisible)
         {
@@ -406,14 +392,19 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     /// <summary>宽度钉死用当前可见页的可视宽度（分页后每个 PivotItem 各有自己的 ScrollViewer）。</summary>
     private double CurrentViewportWidth()
     {
-        foreach (ScrollViewer viewer in new[] { ScrollViewer_ProfileDetail, Page_Components, ScrollViewer_Prefixes })
+        // 只有组件页自己可见时才有意义：别的页签的视口宽度更窄，钉过去会让图形层列表缩成一窄条（真机实测）。
+        if (Page_Components.Visibility == Visibility.Visible)
         {
-            if (viewer.Visibility == Visibility.Visible && viewer.ViewportWidth > 0)
+            if (Page_Components.ViewportWidth > 0)
             {
-                return viewer.ViewportWidth;
+                return Page_Components.ViewportWidth;
+            }
+            if (Page_Components.ActualWidth > 0)
+            {
+                return Page_Components.ActualWidth - 32;
             }
         }
-        return RootGrid.ActualWidth > 0 ? RootGrid.ActualWidth - 64 : 0;
+        return 0;
     }
 
 
@@ -1895,6 +1886,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         if (width > 0)
         {
             StackPanel_Components.Width = width;
+            StackPanel_Components.HorizontalAlignment = HorizontalAlignment.Left;
         }
         // Uno 的测量链在这里不认「星号列 + TextTrimming」：文字仍会顶出可视区（截图实测）。
         // 因此按可用像素估算可容纳的字符数，直接用「中间省略」的字符串，布局就不再依赖测量行为。

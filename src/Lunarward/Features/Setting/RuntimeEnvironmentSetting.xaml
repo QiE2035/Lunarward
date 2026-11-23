@@ -376,23 +376,11 @@
                         VerticalScrollBarVisibility="Auto"
                         Visibility="Collapsed">
                         <StackPanel Spacing="10">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <Button
-                                    x:Name="Seg_Runners"
-                                    Click="Seg_Components_Click"
-                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_RunnerSectionTitle}"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    Tag="0" />
-                                <Button
-                                    x:Name="Seg_Graphics"
-                                    Click="Seg_Components_Click"
-                                    Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Graphics}"
-                                    Style="{StaticResource TabButtonStyle}"
-                                    Tag="1" />
-                            </StackPanel>
-
                             <!--  运行器  -->
                             <StackPanel x:Name="Pane_Runners" Spacing="6">
+                                <TextBlock
+                                    Style="{StaticResource SubtitleTextBlockStyle}"
+                                    Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_RunnerSectionTitle}" />
                                 <TextBlock
                                     Style="{ThemeResource CaptionTextBlockStyle}"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -418,7 +406,10 @@
                             <StackPanel
                                 x:Name="Pane_Graphics"
                                 Spacing="6"
-                                Visibility="Collapsed">
+                                Margin="0,16,0,0">
+                                <TextBlock
+                                    Style="{StaticResource SubtitleTextBlockStyle}"
+                                    Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Graphics}" />
                                 <TextBlock
                                     Style="{ThemeResource CaptionTextBlockStyle}"
                                     Foreground="{ThemeResource TextFillColorSecondaryBrush}"
