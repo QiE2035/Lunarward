@@ -221,8 +221,8 @@
                                             </Button>
                                             <StackPanel
                                                 x:Name="StackPanel_ProfileEditor"
-                                                MaxWidth="760"
-                                                HorizontalAlignment="Left"
+                                                MaxWidth="680"
+                                                HorizontalAlignment="Stretch"
                                                 Spacing="8" />
                                         </StackPanel>
                                     </ScrollViewer>

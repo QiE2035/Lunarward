@@ -3959,10 +3959,10 @@
     <value>繼續編輯</value>
   </data>
   <data name="Lunarward_RuntimeEnv_RunnerChange" xml:space="preserve">
-    <value>更換</value>
+    <value>修改</value>
   </data>
   <data name="Lunarward_RuntimeEnv_GraphicsEdit" xml:space="preserve">
-    <value>編輯圖形層</value>
+    <value>修改</value>
   </data>
   <data name="Lunarward_RuntimeEnv_FollowPrefixGraphics" xml:space="preserve">
     <value>圖形層：沿用前綴裏已有的</value>
@@ -4137,5 +4137,71 @@
   </data>
   <data name="Lunarward_RuntimeEnv_PreviewNote" xml:space="preserve">
     <value>與真實啓動同一套解析（命令 + 環境變量覆蓋），只讀預覽。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Enabled" xml:space="preserve">
+    <value>啓用</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddSource" xml:space="preserve">
+    <value>新增源</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EditSource" xml:space="preserve">
+    <value>編輯</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeleteSource" xml:space="preserve">
+    <value>刪除</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceSearch" xml:space="preserve">
+    <value>搜索名稱或倉庫…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesCount" xml:space="preserve">
+    <value>共 {0} 個源</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesFilterEmpty" xml:space="preserve">
+    <value>沒有匹配的源。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceKindLabel" xml:space="preserve">
+    <value>類型</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceOwnerLabel" xml:space="preserve">
+    <value>倉庫屬主</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceRepoLabel" xml:space="preserve">
+    <value>倉庫名</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcePatternLabel" xml:space="preserve">
+    <value>資產名正則</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceNameRequired" xml:space="preserve">
+    <value>名稱不能為空。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceNameDuplicate" xml:space="preserve">
+    <value>已經有同名源。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceRepoInvalid" xml:space="preserve">
+    <value>倉庫屬主/倉庫名不能為空，也不能包含空格或斜槓。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcePatternInvalid" xml:space="preserve">
+    <value>資產名正則無效。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeleteSourceConfirm" xml:space="preserve">
+    <value>刪除「{0}」？這只是把它從下載源列表裏移除。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SaveAndRun" xml:space="preserve">
+    <value>保存並運行…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstalledBadgeTip" xml:space="preserve">
+    <value>這個版本已經在受管組件或當前前綴裏。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsTitle" xml:space="preserve">
+    <value>遊戲與方案綁定</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsHint" xml:space="preserve">
+    <value>每個遊戲啓動時使用哪份方案；留空表示跟隨默認（第一份方案）。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsUnbound" xml:space="preserve">
+    <value>（未綁定，使用默認）</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsSaved" xml:space="preserve">
+    <value>綁定已保存。</value>
   </data>
 </root>

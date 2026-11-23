@@ -4011,7 +4011,7 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
     <value>Change</value>
   </data>
   <data name="Lunarward_RuntimeEnv_GraphicsEdit" xml:space="preserve">
-    <value>Edit graphics</value>
+    <value>Edit</value>
   </data>
   <data name="Lunarward_RuntimeEnv_FollowPrefixGraphics" xml:space="preserve">
     <value>Graphics: keep what is already in the prefix</value>
@@ -4144,5 +4144,71 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   </data>
   <data name="Lunarward_RuntimeEnv_PreviewNote" xml:space="preserve">
     <value>Same resolution as a real launch (command plus environment overrides); read-only preview.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Enabled" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddSource" xml:space="preserve">
+    <value>Add source</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_EditSource" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeleteSource" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceSearch" xml:space="preserve">
+    <value>Search name or repository…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesCount" xml:space="preserve">
+    <value>{0} sources</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesFilterEmpty" xml:space="preserve">
+    <value>No matching sources. Try another keyword.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceKindLabel" xml:space="preserve">
+    <value>Kind</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceOwnerLabel" xml:space="preserve">
+    <value>Owner</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceRepoLabel" xml:space="preserve">
+    <value>Repository</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcePatternLabel" xml:space="preserve">
+    <value>Asset name pattern</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceNameRequired" xml:space="preserve">
+    <value>Name is required.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceNameDuplicate" xml:space="preserve">
+    <value>A source with this name already exists.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourceRepoInvalid" xml:space="preserve">
+    <value>Owner / repository cannot be empty or contain spaces or slashes.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcePatternInvalid" xml:space="preserve">
+    <value>The asset name pattern is not a valid regular expression.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DeleteSourceConfirm" xml:space="preserve">
+    <value>Delete “{0}”? Built-in sources can be restored with “Reset to defaults”.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SaveAndRun" xml:space="preserve">
+    <value>Save and run…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstalledBadgeTip" xml:space="preserve">
+    <value>This version is already present in managed components or the current prefix.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsTitle" xml:space="preserve">
+    <value>Game bindings</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsHint" xml:space="preserve">
+    <value>Which profile each game uses. Leave empty to follow the default (first profile).</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsUnbound" xml:space="preserve">
+    <value>(unbound, follow default)</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsSaved" xml:space="preserve">
+    <value>Bindings saved.</value>
   </data>
 </root>

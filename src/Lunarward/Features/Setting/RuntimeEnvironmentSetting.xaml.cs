@@ -562,6 +562,13 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             return;
         }
+        await RunOnceAsync(profile);
+    }
+
+
+    /// <summary>D111：「保存并运行」与详情页「运行一次」共用这一条路径。</summary>
+    private async Task RunOnceAsync(RuntimeProfile profile)
+    {
         try
         {
             string? file = await Helpers.FileDialogHelper.PickSingleFileAsync(XamlRoot);
@@ -1080,6 +1087,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     // ── 方案编辑（D63 §4）：整页视图，四段：运行器 / 图形层 / 前缀 / 高级 ──
 
     private RuntimeProfile? _editingProfile;
+    private bool _saveThenRun;
 
     private TextBox? _editorName;
     private ComboBox? _editorRunner;
@@ -1121,47 +1129,36 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         });
         StackPanel_ProfileEditor.Children.Add(header);
 
-        // 0) 名称
-        StackPanel_ProfileEditor.Children.Add(SectionTitle(Lang.Lunarward_RuntimeEnv_Name));
+        // 0) 名称（D111：统一 EditorField 栅格，标签列固定、控件拉伸）
         _editorName = new TextBox
         {
             Text = profile?.Name ?? Lang.Lunarward_RuntimeEnv_NewProfileDefaultName,
-            MinWidth = 420,
-            HorizontalAlignment = HorizontalAlignment.Left,
         };
-        StackPanel_ProfileEditor.Children.Add(_editorName);
+        StackPanel_ProfileEditor.Children.Add(Field(Lang.Lunarward_RuntimeEnv_Name, _editorName));
 
         // 1) 运行器
-        StackPanel_ProfileEditor.Children.Add(SectionTitle(Lang.Lunarward_RuntimeEnv_Runner));
-        _editorRunner = new ComboBox { MinWidth = 420, HorizontalAlignment = HorizontalAlignment.Left };
+        _editorRunner = new ComboBox();
         foreach (Component runner in _editorRunners)
         {
             _editorRunner.Items.Add($"{runner.Name} {runner.Version} · {DescribeLayout(runner.LayoutText)}");
         }
         int runnerIndex = _editorRunners.FindIndex(x => MatchesComponent(x, profile?.RunnerPath, profile?.RunnerId));
         _editorRunner.SelectedIndex = runnerIndex >= 0 ? runnerIndex : (_editorRunners.Count > 0 ? 0 : -1);
-        StackPanel_ProfileEditor.Children.Add(_editorRunner);
-        if (profile is not null
-            && !string.IsNullOrWhiteSpace(profile.RunnerPath)
-            && runnerIndex < 0)
-        {
-            StackPanel_ProfileEditor.Children.Add(Hint(string.Format(Lang.Lunarward_RuntimeEnv_RunnerMissing, profile.RunnerPath)));
-        }
+        StackPanel_ProfileEditor.Children.Add(Field(Lang.Lunarward_RuntimeEnv_Runner, _editorRunner,
+            profile is not null && !string.IsNullOrWhiteSpace(profile.RunnerPath) && runnerIndex < 0
+                ? string.Format(Lang.Lunarward_RuntimeEnv_RunnerMissing, profile.RunnerPath)
+                : null));
 
         // 2) 图形层（D83：DXVK 与 VKD3D-Proton 是两个独立的层，可以同时选）
         StackPanel_ProfileEditor.Children.Add(SectionTitle(Lang.Lunarward_RuntimeEnv_Graphics));
         _editorDxvk = GraphicsCombo([ComponentKind.Dxvk], profile?.DxvkId);
-        StackPanel_ProfileEditor.Children.Add(Row("DXVK", _editorDxvk));
         _editorVkd3d = GraphicsCombo([ComponentKind.Vkd3dProton], profile?.Vkd3dId);
-        StackPanel_ProfileEditor.Children.Add(Row("VKD3D-Proton", _editorVkd3d));
-        StackPanel_ProfileEditor.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_GraphicsHint));
+        StackPanel_ProfileEditor.Children.Add(Field("DXVK", _editorDxvk));
+        StackPanel_ProfileEditor.Children.Add(Field("VKD3D-Proton", _editorVkd3d));
 
         // 3) 前缀（D73 §3.1：只是路径；新建/指向/复制是动作，不是模式）
-        StackPanel_ProfileEditor.Children.Add(SectionTitle(Lang.Lunarward_RuntimeEnv_Prefix));
-        var pathRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         _editorPrefixPath = new TextBox
         {
-            MinWidth = 420,
             Text = profile?.PrefixPath ?? "",
             PlaceholderText = Lang.Lunarward_RuntimeEnv_PrefixPlaceholderShort,
         };
@@ -1169,13 +1166,21 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         _editorBrowse.Click += Button_EditorBrowsePrefix_Click;
         var copyPrefix = new Button { Content = Lang.Lunarward_RuntimeEnv_ClonePrefix };
         copyPrefix.Click += Button_EditorCopyPrefix_Click;
+        // D111：路径框独占整行，按钮另起一行——三个按钮挤在一行会把路径吃掉一半。
+        var prefixButtons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        prefixButtons.Children.Add(_editorBrowse);
+        prefixButtons.Children.Add(copyPrefix);
+        var pathRow = new StackPanel { Spacing = 4 };
         pathRow.Children.Add(_editorPrefixPath);
-        pathRow.Children.Add(_editorBrowse);
-        pathRow.Children.Add(copyPrefix);
-        StackPanel_ProfileEditor.Children.Add(pathRow);
+        pathRow.Children.Add(prefixButtons);
+        StackPanel_ProfileEditor.Children.Add(Field(Lang.Lunarward_RuntimeEnv_Prefix, pathRow));
         _editorPrefixInfo = new TextBlock { FontSize = 12, Opacity = 0.7, TextWrapping = TextWrapping.Wrap };
         StackPanel_ProfileEditor.Children.Add(_editorPrefixInfo);
-        StackPanel_ProfileEditor.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_PrefixHint));
 
         // 4) 启动预览：和真启动同一套解析（D73 §4），改哪一项都能立刻看到结果
         StackPanel_ProfileEditor.Children.Add(SectionTitle(Lang.Lunarward_RuntimeEnv_LaunchPreview));
@@ -1201,17 +1206,19 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
         advanced.Children.Add(SubTitle(Lang.Lunarward_RuntimeEnv_AdvancedLaunch));
         _editorShell = new TextBox { Text = profile?.Shell ?? "", PlaceholderText = "/bin/bash" };
-        advanced.Children.Add(Row("Shell", _editorShell));
-        advanced.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_ShellHint));
+        advanced.Children.Add(Field("Shell", _editorShell, Lang.Lunarward_RuntimeEnv_ShellHint));
         _editorArgs = new TextBox { Text = profile?.Args ?? "", PlaceholderText = "-windowed -nologo" };
-        advanced.Children.Add(Row(Lang.Lunarward_RuntimeEnv_AdvancedArgs, _editorArgs));
-        advanced.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_ArgsHint));
+        advanced.Children.Add(Field(Lang.Lunarward_RuntimeEnv_AdvancedArgs, _editorArgs, Lang.Lunarward_RuntimeEnv_ArgsHint));
 
         advanced.Children.Add(SubTitle(Lang.Lunarward_RuntimeEnv_Wrappers));
         _editorWrapperHost = new StackPanel { Spacing = 6 };
         advanced.Children.Add(_editorWrapperHost);
-        var wrapperRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        _editorWrapperInput = new TextBox { PlaceholderText = "gamemoderun", MinWidth = 320 };
+        var wrapperRow = new Grid
+        {
+            ColumnDefinitions = { new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }, new ColumnDefinition { Width = GridLength.Auto } },
+            ColumnSpacing = 8,
+        };
+        _editorWrapperInput = new TextBox { PlaceholderText = "gamemoderun" };
         var addWrapper = new Button { Content = Lang.Lunarward_RuntimeEnv_Add, Padding = new Thickness(10, 4, 10, 4) };
         addWrapper.Click += (_, _) =>
         {
@@ -1228,9 +1235,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             }
         };
         wrapperRow.Children.Add(_editorWrapperInput);
+        Grid.SetColumn(addWrapper, 1);
         wrapperRow.Children.Add(addWrapper);
-        advanced.Children.Add(wrapperRow);
-        advanced.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_WrappersHelp));
+        advanced.Children.Add(Field(Lang.Lunarward_RuntimeEnv_Wrappers, wrapperRow, Lang.Lunarward_RuntimeEnv_WrappersHelp));
 
         advanced.Children.Add(SubTitle(Lang.Lunarward_RuntimeEnv_EnvTitle));
         _editorEnvHost = new StackPanel { Spacing = 6 };
@@ -1271,8 +1278,15 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         advanced.Children.Add(Hint(Lang.Lunarward_RuntimeEnv_EnvHint2));
 
         advanced.Children.Add(SubTitle(Lang.Lunarward_RuntimeEnv_Notes));
-        _editorNotes = new TextBox { Text = profile?.Notes ?? "", PlaceholderText = Lang.Lunarward_RuntimeEnv_NotesPlaceholder };
-        advanced.Children.Add(_editorNotes);
+        _editorNotes = new TextBox
+        {
+            Text = profile?.Notes ?? "",
+            PlaceholderText = Lang.Lunarward_RuntimeEnv_NotesPlaceholder,
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            MinHeight = 64,
+        };
+        advanced.Children.Add(Field(Lang.Lunarward_RuntimeEnv_Notes, _editorNotes));
 
         expander.Content = advanced;
         StackPanel_ProfileEditor.Children.Add(expander);
@@ -1293,9 +1307,16 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         StackPanel_EditorFooter.Children.Clear();
         var save = new Button { Content = Lang.Lunarward_RuntimeEnv_Save, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
         save.Click += Button_EditorSave_Click;
+        var saveAndRun = new Button { Content = Lang.Lunarward_RuntimeEnv_SaveAndRun };
+        saveAndRun.Click += (_, _) =>
+        {
+            _saveThenRun = true;
+            Button_EditorSave_Click(this, new RoutedEventArgs());
+        };
         var cancel = new Button { Content = Lang.Lunarward_RuntimeEnv_Cancel };
         cancel.Click += (_, _) => CloseEditor();
         StackPanel_EditorFooter.Children.Add(save);
+        StackPanel_EditorFooter.Children.Add(saveAndRun);
         StackPanel_EditorFooter.Children.Add(cancel);
 
         if (_editorName is not null)
@@ -1398,6 +1419,46 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         Opacity = 0.7,
         TextWrapping = TextWrapping.Wrap,
     };
+
+
+    /// <summary>D111：统一的编辑字段栅格——标签列固定 110px，控件拉伸，提示落在控件列下方。</summary>
+    private static Grid Field(string label, FrameworkElement control, string? hint = null)
+    {
+        var grid = new Grid { ColumnSpacing = 12, RowSpacing = 4 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(110) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var labelText = new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            Opacity = 0.8,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+        };
+        grid.Children.Add(labelText);
+
+        control.HorizontalAlignment = HorizontalAlignment.Stretch;
+        Grid.SetColumn(control, 1);
+        grid.Children.Add(control);
+
+        if (!string.IsNullOrWhiteSpace(hint))
+        {
+            var hintText = new TextBlock
+            {
+                Text = hint,
+                FontSize = 12,
+                Opacity = 0.65,
+                TextWrapping = TextWrapping.Wrap,
+            };
+            Grid.SetColumn(hintText, 1);
+            Grid.SetRow(hintText, 1);
+            grid.Children.Add(hintText);
+        }
+        return grid;
+    }
 
 
     private static StackPanel Row(string label, UIElement control)
@@ -1597,7 +1658,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
-    private void Button_EditorSave_Click(object sender, RoutedEventArgs e)
+    private async void Button_EditorSave_Click(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -1654,6 +1715,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             LoadPrefixes();
             _ = RefreshChipsAsync();
             Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_Saved, 3000);
+            if (_saveThenRun)
+            {
+                _saveThenRun = false;
+                await RunOnceAsync(profile);
+            }
             // P3：第一次选用这个运行器时顺手自检一次（后台跑，不挡保存；结果只提示一句）
             if (runner.Usable is null)
             {

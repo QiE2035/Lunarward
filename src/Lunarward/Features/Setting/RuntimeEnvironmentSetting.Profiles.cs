@@ -293,7 +293,7 @@ public sealed partial class RuntimeEnvironmentSetting
         if (Starward.Features.Dev.DevSwitches.IsEnabled)
         {
             moreFlyout.Items.Add(MenuItem(Lang.Lunarward_RuntimeEnv_OpenShell, profile, Button_OpenShell_Click));
-            moreFlyout.Items.Add(new MenuFlyoutSeparator());
+            moreFlyout.Items.Add(MenuDivider());
         }
         MenuFlyoutItem deleteItem = MenuItem(Lang.Lunarward_RuntimeEnv_Delete, profile, Button_Delete_Click);
         deleteItem.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
@@ -304,6 +304,19 @@ public sealed partial class RuntimeEnvironmentSetting
         body.Children.Add(buttons);
         return Card(body);
     }
+
+
+    /// <summary>D111：深色主题下 MenuFlyoutSeparator 几乎看不见，用一条禁用的点线当分隔。</summary>
+    private static MenuFlyoutItem MenuDivider() => new()
+    {
+        Text = "·  ·  ·",
+        IsEnabled = false,
+        IsTabStop = false,
+        FontSize = 11,
+        Opacity = 0.45,
+        Padding = new Thickness(12, 0, 12, 0),
+        MinHeight = 12,
+    };
 
 
     private static MenuFlyoutItem MenuItem(string text, object? tag, RoutedEventHandler handler)
@@ -600,7 +613,7 @@ public sealed partial class RuntimeEnvironmentSetting
     private const int BindingsChipTag = 10;
 
 
-    private void Button_Chip_Click(object sender, RoutedEventArgs e)
+    private async void Button_Chip_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: int tag })
         {
@@ -608,20 +621,72 @@ public sealed partial class RuntimeEnvironmentSetting
         }
         if (tag == BindingsChipTag)
         {
-            ShowTab(0);
-            RuntimeProfile? bound = ProfileBinding.Resolve(AppConfig.CurrentGameBiz) is { } binding
-                ? RuntimeProfileStore.LoadAll(_logger).FirstOrDefault(x => x.Id == binding.Id)
-                : null;
-            if (bound is not null && _profiles.Any(x => x.Id == bound.Id))
-            {
-                // 列表行按 _profiles 顺序生成，下标即选择下标。
-                _selectedProfileId = bound.Id;
-                UpdateProfileListSelection();
-                ShowProfileDetail(bound);
-            }
+            await ShowBindingsDialogAsync();
             return;
         }
         ShowTab(tag);
+    }
+
+
+    /// <summary>D111：「已绑定 N 个游戏」点开就是绑定表，不再是「看起来没反应」。</summary>
+    private async Task ShowBindingsDialogAsync()
+    {
+        List<RuntimeProfile> profiles = RuntimeProfileStore.LoadAll(_logger).ToList();
+        if (profiles.Count == 0)
+        {
+            return;
+        }
+        var body = new StackPanel { Spacing = 8 };
+        body.Children.Add(new TextBlock { Text = Lang.Lunarward_RuntimeEnv_BindingsHint, FontSize = 12, Opacity = 0.75, TextWrapping = TextWrapping.Wrap });
+        var rows = new List<(GameBiz Biz, ComboBox Combo)>();
+        foreach (GameBiz biz in GameBiz.AllGameBizs)
+        {
+            var combo = new ComboBox { MinWidth = 240 };
+            combo.Items.Add(Lang.Lunarward_RuntimeEnv_BindingsUnbound);
+            foreach (RuntimeProfile profile in profiles)
+            {
+                combo.Items.Add(profile.Name);
+            }
+            string? bound = ProfileBinding.Get(biz);
+            int index = bound is null ? -1 : profiles.FindIndex(x => x.Id == bound);
+            combo.SelectedIndex = index >= 0 ? index + 1 : 0;
+            var label = new TextBlock
+            {
+                Text = biz.ToGameName(),
+                MinWidth = 130,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+            };
+            var line = new Grid { ColumnSpacing = 10 };
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            Grid.SetColumn(combo, 1);
+            line.Children.Add(label);
+            line.Children.Add(combo);
+            body.Children.Add(line);
+            rows.Add((biz, combo));
+        }
+        var dialog = new ContentDialog
+        {
+            Title = Lang.Lunarward_RuntimeEnv_BindingsTitle,
+            Content = new ScrollViewer { Content = body, MaxHeight = 520 },
+            PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Save,
+            CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = XamlRoot,
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+        foreach ((GameBiz biz, ComboBox combo) in rows)
+        {
+            int index = combo.SelectedIndex;
+            ProfileBinding.Set(biz, index <= 0 ? null : profiles[index - 1].Id);
+        }
+        _ = RefreshChipsAsync();
+        LoadProfiles();
+        Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_BindingsSaved, 3000);
     }
 
 
@@ -777,11 +842,19 @@ public sealed partial class RuntimeEnvironmentSetting
         {
             FontFamily = new FontFamily("Consolas, monospace"),
             FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
+            TextWrapping = TextWrapping.NoWrap,
             IsTextSelectionEnabled = true,
             Opacity = 0.9,
         };
-        body.Children.Add(command);
+        // D111：长命令行不再靠换行，横向滚动 + 一键复制。
+        var scroll = new ScrollViewer
+        {
+            Content = command,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        body.Children.Add(scroll);
         body.Children.Add(new TextBlock
         {
             Text = Lang.Lunarward_RuntimeEnv_PreviewNote,
@@ -820,7 +893,15 @@ public sealed partial class RuntimeEnvironmentSetting
             _logger.LogWarning(ex, "build launch preview failed");
             command.Text = ex.Message;
         }
-        return Section(Lang.Lunarward_RuntimeEnv_LaunchPreview, body);
+        var copy = new Button { Content = Lang.Lunarward_RuntimeEnv_Copy };
+        copy.Click += (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(command.Text))
+            {
+                Helpers.ClipboardHelper.SetText(command.Text);
+            }
+        };
+        return Section(Lang.Lunarward_RuntimeEnv_LaunchPreview, body, copy);
     }
 
 }

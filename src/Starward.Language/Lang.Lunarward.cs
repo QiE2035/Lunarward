@@ -530,4 +530,26 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_LayoutBin => ResourceManager.GetString("Lunarward_RuntimeEnv_LayoutBin", resourceCulture) ?? "bin 目录";
     public static string Lunarward_RuntimeEnv_LayoutSystem => ResourceManager.GetString("Lunarward_RuntimeEnv_LayoutSystem", resourceCulture) ?? "系统目录";
     public static string Lunarward_RuntimeEnv_LayoutWinePrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_LayoutWinePrefix", resourceCulture) ?? "wine 前缀";
+    public static string Lunarward_RuntimeEnv_Enabled => ResourceManager.GetString("Lunarward_RuntimeEnv_Enabled", resourceCulture) ?? "启用";
+    public static string Lunarward_RuntimeEnv_AddSource => ResourceManager.GetString("Lunarward_RuntimeEnv_AddSource", resourceCulture) ?? "新增源";
+    public static string Lunarward_RuntimeEnv_EditSource => ResourceManager.GetString("Lunarward_RuntimeEnv_EditSource", resourceCulture) ?? "编辑";
+    public static string Lunarward_RuntimeEnv_DeleteSource => ResourceManager.GetString("Lunarward_RuntimeEnv_DeleteSource", resourceCulture) ?? "删除";
+    public static string Lunarward_RuntimeEnv_SourceSearch => ResourceManager.GetString("Lunarward_RuntimeEnv_SourceSearch", resourceCulture) ?? "搜索名称或仓库…";
+    public static string Lunarward_RuntimeEnv_SourcesCount => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesCount", resourceCulture) ?? "共 {0} 个源";
+    public static string Lunarward_RuntimeEnv_SourcesFilterEmpty => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesFilterEmpty", resourceCulture) ?? "没有匹配的源，换个关键词试试。";
+    public static string Lunarward_RuntimeEnv_SourceKindLabel => ResourceManager.GetString("Lunarward_RuntimeEnv_SourceKindLabel", resourceCulture) ?? "类型";
+    public static string Lunarward_RuntimeEnv_SourceOwnerLabel => ResourceManager.GetString("Lunarward_RuntimeEnv_SourceOwnerLabel", resourceCulture) ?? "仓库属主";
+    public static string Lunarward_RuntimeEnv_SourceRepoLabel => ResourceManager.GetString("Lunarward_RuntimeEnv_SourceRepoLabel", resourceCulture) ?? "仓库名";
+    public static string Lunarward_RuntimeEnv_SourcePatternLabel => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcePatternLabel", resourceCulture) ?? "资产名正则";
+    public static string Lunarward_RuntimeEnv_SourceNameRequired => ResourceManager.GetString("Lunarward_RuntimeEnv_SourceNameRequired", resourceCulture) ?? "名称不能为空。";
+    public static string Lunarward_RuntimeEnv_SourceNameDuplicate => ResourceManager.GetString("Lunarward_RuntimeEnv_SourceNameDuplicate", resourceCulture) ?? "已有同名源，换一个名称。";
+    public static string Lunarward_RuntimeEnv_SourceRepoInvalid => ResourceManager.GetString("Lunarward_RuntimeEnv_SourceRepoInvalid", resourceCulture) ?? "仓库属主 / 仓库名不能为空，也不能包含空格或斜杠。";
+    public static string Lunarward_RuntimeEnv_SourcePatternInvalid => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcePatternInvalid", resourceCulture) ?? "资产名正则无效。";
+    public static string Lunarward_RuntimeEnv_DeleteSourceConfirm => ResourceManager.GetString("Lunarward_RuntimeEnv_DeleteSourceConfirm", resourceCulture) ?? "删除「{0}」？内置源删除后可以在「恢复默认源」里找回。";
+    public static string Lunarward_RuntimeEnv_SaveAndRun => ResourceManager.GetString("Lunarward_RuntimeEnv_SaveAndRun", resourceCulture) ?? "保存并运行…";
+    public static string Lunarward_RuntimeEnv_InstalledBadgeTip => ResourceManager.GetString("Lunarward_RuntimeEnv_InstalledBadgeTip", resourceCulture) ?? "这个版本已经在受管组件或当前前缀里。";
+    public static string Lunarward_RuntimeEnv_BindingsTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsTitle", resourceCulture) ?? "游戏与方案绑定";
+    public static string Lunarward_RuntimeEnv_BindingsHint => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsHint", resourceCulture) ?? "每个游戏启动时使用哪份方案；留空表示跟随默认（第一份方案）。";
+    public static string Lunarward_RuntimeEnv_BindingsUnbound => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsUnbound", resourceCulture) ?? "（未绑定，使用默认）";
+    public static string Lunarward_RuntimeEnv_BindingsSaved => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsSaved", resourceCulture) ?? "绑定已保存。";
 }

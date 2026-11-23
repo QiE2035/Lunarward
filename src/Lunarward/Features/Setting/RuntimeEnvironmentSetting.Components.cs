@@ -17,6 +17,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -66,7 +67,20 @@ public sealed partial class RuntimeEnvironmentSetting
             IReadOnlyList<ComponentSourceEntry> sources = LoadSourceEntries().Where(x => x.Enabled).ToList();
             if (sources.Count == 0)
             {
-                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_NoEnabledSource);
+                // D111：空态就说清楚下一步能做什么，别只弹一条 toast。
+                ContentDialogResult empty = await new ContentDialog
+                {
+                    Title = Lang.Lunarward_RuntimeEnv_AddComponents,
+                    Content = Lang.Lunarward_RuntimeEnv_NoEnabledSource,
+                    PrimaryButtonText = Lang.Lunarward_RuntimeEnv_ManageSources,
+                    CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = XamlRoot,
+                }.ShowAsync();
+                if (empty == ContentDialogResult.Primary)
+                {
+                    await ShowSourcesDialogAsync();
+                }
                 return;
             }
 
@@ -216,6 +230,7 @@ public sealed partial class RuntimeEnvironmentSetting
                             Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"],
                         },
                     };
+                    ToolTipService.SetToolTip(badge, Lang.Lunarward_RuntimeEnv_InstalledBadgeTip);
                     titleRow.Children.Add(badge);
                 }
                 var meta = new TextBlock
@@ -582,33 +597,55 @@ public sealed partial class RuntimeEnvironmentSetting
 
 
     /// <summary>
-    /// 「组件源…」：编辑 components-sources.json 里用户覆盖的那一份（镜像前缀为主）。
-    /// 只写用户覆盖，不动内置默认——默认源跟着程序版本走，用户改动独立成文件（D73 §2.3）。
+    /// D111「管理下载源」：真正的增删改查。
+    /// 自定义源可新增/删除；内置源删除时写墓碑（Removed），避免下次 Load 又从 Defaults 合并回来。
     /// </summary>
-    private sealed class SourceEditRow
+    private sealed class SourceDraft
     {
-        public required ComponentSourceEntry Source { get; init; }
-        public required CheckBox Enabled { get; init; }
-        public required TextBox Mirror { get; init; }
-        public required TextBlock MirrorError { get; init; }
-        public required TextBlock ProbeText { get; init; }
-        public required TextBlock CheckText { get; init; }
+        public string Id { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Kind { get; set; } = "wine";
+        public string Owner { get; set; } = "";
+        public string Repo { get; set; } = "";
+        public string Pattern { get; set; } = "";
+        public string Mirror { get; set; } = "";
+        public bool Enabled { get; set; } = true;
     }
+
 
     private async void Button_Sources_Click(object sender, RoutedEventArgs e) => await ShowSourcesDialogAsync();
 
     private async void Button_ManageSources_Click(object sender, RoutedEventArgs e) => await ShowSourcesDialogAsync();
 
-    /// <summary>
-    /// D110「管理下载源」：启用/停用、排序、镜像前缀校验、单行测速、源自检、恢复默认。
-    /// 源文件仍然是 components-sources.json，这里只做可视化编辑（Rank 按当前顺序重排）。
-    /// </summary>
+
     private async Task ShowSourcesDialogAsync()
     {
         try
         {
-            List<SourceEditRow> rows = [];
-            var list = new StackPanel { Spacing = 12 };
+            List<SourceDraft> drafts = LoadSourceEntries().Select(ToDraft).ToList();
+            var probeState = new Dictionary<string, (string Text, bool Ok)>();
+            var checkState = new Dictionary<string, (string Text, bool Ok)>();
+            var list = new StackPanel { Spacing = 10 };
+            var summary = new TextBlock { FontSize = 12, Opacity = 0.7 };
+
+            var search = new TextBox
+            {
+                PlaceholderText = Lang.Lunarward_RuntimeEnv_SourceSearch,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var addButton = new Button { Content = Lang.Lunarward_RuntimeEnv_AddSource, VerticalAlignment = VerticalAlignment.Center };
+            var probeAll = new Button { Content = Lang.Lunarward_RuntimeEnv_ProbeAll, VerticalAlignment = VerticalAlignment.Center };
+            var reset = new Button { Content = Lang.Lunarward_RuntimeEnv_ResetSources, VerticalAlignment = VerticalAlignment.Center };
+
+            // D111：搜索框独占一行，三个按钮另起一行——挤在一行时右侧按钮会被弹窗裁掉。
+            var toolbarButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            toolbarButtons.Children.Add(probeAll);
+            toolbarButtons.Children.Add(reset);
+            toolbarButtons.Children.Add(addButton);
+            var toolbar = new StackPanel { Spacing = 8 };
+            toolbar.Children.Add(search);
+            toolbar.Children.Add(toolbarButtons);
+
             var hint = new TextBlock
             {
                 Text = string.Format(Lang.Lunarward_RuntimeEnv_SourcesHint, ComponentSources.FilePath),
@@ -616,225 +653,317 @@ public sealed partial class RuntimeEnvironmentSetting
                 FontSize = 12,
                 Opacity = 0.75,
             };
-            var resetButton = new Button { Content = Lang.Lunarward_RuntimeEnv_ResetSources };
-            var probeAllButton = new Button { Content = Lang.Lunarward_RuntimeEnv_ProbeAll };
-            var actions = new Grid { ColumnSpacing = 8 };
-            actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            actions.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            actions.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetColumn(resetButton, 0);
-            Grid.SetColumn(probeAllButton, 2);
-            actions.Children.Add(resetButton);
-            actions.Children.Add(probeAllButton);
+
+            Brush Res(string key) => (Brush)Application.Current.Resources[key];
+
+            IEnumerable<SourceDraft> Filtered()
+            {
+                string q = (search.Text ?? "").Trim();
+                if (q.Length == 0)
+                {
+                    return drafts;
+                }
+                return drafts.Where(x =>
+                    x.DisplayName.Contains(q, StringComparison.OrdinalIgnoreCase)
+                    || x.Owner.Contains(q, StringComparison.OrdinalIgnoreCase)
+                    || x.Repo.Contains(q, StringComparison.OrdinalIgnoreCase)
+                    || x.Kind.Contains(q, StringComparison.OrdinalIgnoreCase));
+            }
 
             void Rebuild()
             {
                 list.Children.Clear();
-                for (int i = 0; i < rows.Count; i++)
+                List<SourceDraft> visible = Filtered().ToList();
+                summary.Text = string.Format(Lang.Lunarward_RuntimeEnv_SourcesCount, drafts.Count);
+                if (visible.Count == 0)
                 {
-                    SourceEditRow entry = rows[i];
-                    int index = i;
+                    list.Children.Add(new TextBlock
+                    {
+                        Text = Lang.Lunarward_RuntimeEnv_SourcesFilterEmpty,
+                        Opacity = 0.7,
+                        FontSize = 12,
+                        Margin = new Thickness(4, 8, 0, 0),
+                    });
+                    return;
+                }
 
-                    var enabled = entry.Enabled;
+                foreach (SourceDraft draft in visible)
+                {
+                    SourceDraft current = draft;
+                    string id = draft.Id;
+                    var enabled = new CheckBox { IsChecked = draft.Enabled, VerticalAlignment = VerticalAlignment.Center };
                     var name = new TextBlock
                     {
-                        Text = entry.Source.DisplayName,
+                        Text = draft.DisplayName,
                         FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
                         VerticalAlignment = VerticalAlignment.Center,
+                    };
+                    var meta = new TextBlock
+                    {
+                        Text = $"{draft.Owner}/{draft.Repo} · " + (draft.Kind == "wine" ? Lang.Lunarward_RuntimeEnv_Runner : Lang.Lunarward_RuntimeEnv_Graphics),
+                        FontSize = 11,
+                        Opacity = 0.65,
                         TextTrimming = TextTrimming.CharacterEllipsis,
                     };
-                    var kind = new TextBlock
-                    {
-                        Text = entry.Source.Kind == "wine" ? Lang.Lunarward_RuntimeEnv_Runner : Lang.Lunarward_RuntimeEnv_Graphics,
-                        FontSize = 11,
-                        Opacity = 0.7,
-                        VerticalAlignment = VerticalAlignment.Center,
-                    };
-                    var up = new Button { Content = "▲", IsEnabled = index > 0, Padding = new Thickness(8, 2, 8, 2) };
-                    var down = new Button { Content = "▼", IsEnabled = index < rows.Count - 1, Padding = new Thickness(8, 2, 8, 2) };
+                    var edit = new Button { Content = Lang.Lunarward_RuntimeEnv_EditSource, Padding = new Thickness(8, 2, 8, 2) };
+                    var remove = new Button { Content = Lang.Lunarward_RuntimeEnv_DeleteSource, Padding = new Thickness(8, 2, 8, 2) };
                     var probe = new Button { Content = Lang.Lunarward_RuntimeEnv_Probe, Padding = new Thickness(8, 2, 8, 2) };
                     var check = new Button { Content = Lang.Lunarward_RuntimeEnv_SelfCheck, Padding = new Thickness(8, 2, 8, 2) };
 
-                    // D110：三行布局（标题 / 镜像 / 状态），窄弹窗里不再把测速与自检按钮挤出可视区。
+                    // 名称一行、操作一行：四个按钮放同一行会把「删除」挤出弹窗（实测裁掉）。
                     var titleLine = new Grid { ColumnSpacing = 8 };
                     titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                     titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                    titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                    titleLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                     Grid.SetColumn(enabled, 0);
                     Grid.SetColumn(name, 1);
-                    Grid.SetColumn(kind, 2);
-                    Grid.SetColumn(up, 3);
-                    Grid.SetColumn(down, 4);
                     titleLine.Children.Add(enabled);
                     titleLine.Children.Add(name);
-                    titleLine.Children.Add(kind);
-                    titleLine.Children.Add(up);
-                    titleLine.Children.Add(down);
 
-                    var toolLine = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-                    toolLine.Children.Add(probe);
-                    toolLine.Children.Add(check);
-                    toolLine.Children.Add(entry.ProbeText);
-                    toolLine.Children.Add(entry.CheckText);
+                    var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(28, 0, 0, 0) };
+                    actions.Children.Add(probe);
+                    actions.Children.Add(check);
+                    actions.Children.Add(edit);
+                    actions.Children.Add(remove);
 
-                    var mirrorLine = new Grid { ColumnSpacing = 8 };
-                    mirrorLine.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    mirrorLine.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                    Grid.SetColumn(entry.Mirror, 0);
-                    Grid.SetColumn(entry.MirrorError, 1);
-                    mirrorLine.Children.Add(entry.Mirror);
-                    mirrorLine.Children.Add(entry.MirrorError);
+                    var statuses = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+                    if (probeState.TryGetValue(id, out var p))
+                    {
+                        statuses.Children.Add(new TextBlock
+                        {
+                            Text = p.Text,
+                            FontSize = 12,
+                            Foreground = Res(p.Ok ? "SystemFillColorSuccessBrush" : "SystemFillColorCriticalBrush"),
+                        });
+                    }
+                    if (checkState.TryGetValue(id, out var c))
+                    {
+                        statuses.Children.Add(new TextBlock
+                        {
+                            Text = c.Text,
+                            FontSize = 12,
+                            Foreground = Res(c.Ok ? "SystemFillColorSuccessBrush" : "SystemFillColorCautionBrush"),
+                        });
+                    }
 
-                    var block = new StackPanel { Spacing = 4 };
+                    var block = new StackPanel { Spacing = 3 };
                     block.Children.Add(titleLine);
-                    block.Children.Add(mirrorLine);
-                    block.Children.Add(toolLine);
+                    block.Children.Add(meta);
+                    block.Children.Add(actions);
+                    block.Children.Add(statuses);
                     list.Children.Add(block);
 
-                    up.Click += (_, _) =>
-                    {
-                        (rows[index], rows[index - 1]) = (rows[index - 1], rows[index]);
-                        Rebuild();
-                    };
-                    down.Click += (_, _) =>
-                    {
-                        (rows[index], rows[index + 1]) = (rows[index + 1], rows[index]);
-                        Rebuild();
-                    };
+                    enabled.Click += (_, _) => current.Enabled = enabled.IsChecked == true;
                     probe.Click += async (_, _) =>
                     {
                         probe.IsEnabled = false;
-                        entry.ProbeText.Text = "…";
                         try
                         {
                             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-                            ComponentSourceEntry probeSource = ToEntry(entry, rows.IndexOf(entry));
-                            ComponentSourceProbe result = await ComponentSources.ProbeAsync(http, probeSource);
-                            entry.ProbeText.Text = result.Text;
-                            entry.ProbeText.Foreground = (Brush)Application.Current.Resources[
-                                result.Ok ? "SystemFillColorSuccessBrush" : "SystemFillColorCriticalBrush"];
+                            ComponentSourceProbe result = await ComponentSources.ProbeAsync(http, ToEntry(current, drafts.IndexOf(current)));
+                            probeState[id] = (result.Text, result.Ok);
                         }
                         catch (Exception ex)
                         {
                             _logger.LogWarning(ex, "probe source failed");
-                            entry.ProbeText.Text = Lang.Lunarward_RuntimeEnv_ProbeFailedShort;
+                            probeState[id] = (Lang.Lunarward_RuntimeEnv_ProbeFailedShort, false);
                         }
                         finally
                         {
                             probe.IsEnabled = true;
                         }
+                        Rebuild();
                     };
                     check.Click += async (_, _) =>
                     {
                         check.IsEnabled = false;
-                        entry.CheckText.Text = "…";
                         try
                         {
                             using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(1) };
                             IReadOnlyList<ComponentReleaseAsset> found = await ComponentSources.ListAssetsAsync(
-                                http, ToEntry(entry, rows.IndexOf(entry)), 3, _logger);
-                            entry.CheckText.Text = found.Count == 0
-                                ? Lang.Lunarward_RuntimeEnv_SelfCheckEmpty
-                                : string.Format(Lang.Lunarward_RuntimeEnv_SelfCheckOk, found.Count);
-                            entry.CheckText.Foreground = (Brush)Application.Current.Resources[
-                                found.Count == 0 ? "SystemFillColorCautionBrush" : "SystemFillColorSuccessBrush"];
+                                http, ToEntry(current, drafts.IndexOf(current)), 3, _logger);
+                            checkState[id] = found.Count == 0
+                                ? (Lang.Lunarward_RuntimeEnv_SelfCheckEmpty, false)
+                                : (string.Format(Lang.Lunarward_RuntimeEnv_SelfCheckOk, found.Count), true);
                         }
                         catch (Exception ex)
                         {
                             _logger.LogWarning(ex, "self check source failed");
-                            entry.CheckText.Text = FormatFriendlyError(ex);
-                            entry.CheckText.Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+                            checkState[id] = (FormatFriendlyError(ex), false);
                         }
                         finally
                         {
                             check.IsEnabled = true;
                         }
+                        Rebuild();
                     };
+                    edit.Click += async (_, _) => await OpenSourceEditorAsync(current, isNew: false);
+                    remove.Click += async (_, _) => await RemoveSourceAsync(current);
                 }
             }
 
-            ComponentSourceEntry ToEntry(SourceEditRow row, int index) => new()
+            async Task RemoveSourceAsync(SourceDraft draft)
             {
-                Id = row.Source.Id,
-                DisplayName = row.Source.DisplayName,
-                Kind = row.Source.Kind,
-                Owner = row.Source.Owner,
-                Repo = row.Source.Repo,
-                AssetPattern = row.Source.AssetPattern,
-                MirrorPrefix = row.Mirror.Text?.Trim() ?? "",
-                Rank = (index + 1) * 10,
-                Enabled = row.Enabled.IsChecked == true,
-            };
-
-            void LoadRows()
-            {
-            rows.Clear();
-            foreach (ComponentSourceEntry source in LoadSourceEntries())
-            {
-                var mirror = new TextBox
+                ContentDialogResult confirm = await new ContentDialog
                 {
-                    Text = source.MirrorPrefix,
-                    PlaceholderText = Lang.Lunarward_RuntimeEnv_MirrorPlaceholder,
-                };
-                var mirrorError = new TextBlock
+                    Title = Lang.Lunarward_RuntimeEnv_DeleteSource,
+                    Content = string.Format(Lang.Lunarward_RuntimeEnv_DeleteSourceConfirm, draft.DisplayName),
+                    PrimaryButtonText = Lang.Lunarward_RuntimeEnv_DeleteSource,
+                    CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = XamlRoot,
+                }.ShowAsync();
+                if (confirm != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+                drafts.Remove(draft);
+                probeState.Remove(draft.Id);
+                checkState.Remove(draft.Id);
+                Rebuild();
+            }
+
+            async Task OpenSourceEditorAsync(SourceDraft draft, bool isNew)
+            {
+                var nameBox = new TextBox { Text = draft.DisplayName };
+                var kindBox = new ComboBox();
+                kindBox.Items.Add(Lang.Lunarward_RuntimeEnv_Runner);
+                kindBox.Items.Add(Lang.Lunarward_RuntimeEnv_Graphics);
+                kindBox.SelectedIndex = draft.Kind == "graphics" ? 1 : 0;
+                var ownerBox = new TextBox { Text = draft.Owner, PlaceholderText = "Kron4ek" };
+                var repoBox = new TextBox { Text = draft.Repo, PlaceholderText = "Wine-Builds" };
+                var patternBox = new TextBox { Text = draft.Pattern, PlaceholderText = @"wine-[\d.]+-(amd64|x86_64)\.tar\.xz$" };
+                var mirrorBox = new TextBox { Text = draft.Mirror, PlaceholderText = Lang.Lunarward_RuntimeEnv_MirrorPlaceholder };
+                var enabledBox = new CheckBox { Content = Lang.Lunarward_RuntimeEnv_Enabled, IsChecked = draft.Enabled };
+                var error = new TextBlock
                 {
                     FontSize = 12,
-                    Foreground = (Brush)Application.Current.Resources["SystemFillColorCriticalBrush"],
-                    VerticalAlignment = VerticalAlignment.Center,
-                    IsHitTestVisible = false,
+                    Foreground = Res("SystemFillColorCriticalBrush"),
+                    TextWrapping = TextWrapping.Wrap,
                 };
-                var probeText = new TextBlock { FontSize = 12, Opacity = 0.75, VerticalAlignment = VerticalAlignment.Center };
-                var checkText = new TextBlock { FontSize = 12, Opacity = 0.75, VerticalAlignment = VerticalAlignment.Center };
-                var enabled = new CheckBox { IsChecked = source.Enabled, VerticalAlignment = VerticalAlignment.Center };
-                var row = new SourceEditRow
+
+                static Grid FormRow(string label, FrameworkElement control)
                 {
-                    Source = source,
-                    Enabled = enabled,
-                    Mirror = mirror,
-                    MirrorError = mirrorError,
-                    ProbeText = probeText,
-                    CheckText = checkText,
-                };
-                mirror.TextChanged += (_, _) =>
+                    var grid = new Grid { ColumnSpacing = 10 };
+                    grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) });
+                    grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    var text = new TextBlock { Text = label, FontSize = 12, Opacity = 0.8, VerticalAlignment = VerticalAlignment.Center };
+                    control.HorizontalAlignment = HorizontalAlignment.Stretch;
+                    Grid.SetColumn(control, 1);
+                    grid.Children.Add(text);
+                    grid.Children.Add(control);
+                    return grid;
+                }
+
+                var form = new StackPanel { Spacing = 8 };
+                form.Children.Add(FormRow(Lang.Lunarward_RuntimeEnv_Name, nameBox));
+                form.Children.Add(FormRow(Lang.Lunarward_RuntimeEnv_SourceKindLabel, kindBox));
+                form.Children.Add(FormRow(Lang.Lunarward_RuntimeEnv_SourceOwnerLabel, ownerBox));
+                form.Children.Add(FormRow(Lang.Lunarward_RuntimeEnv_SourceRepoLabel, repoBox));
+                form.Children.Add(FormRow(Lang.Lunarward_RuntimeEnv_SourcePatternLabel, patternBox));
+                form.Children.Add(FormRow("Mirror", mirrorBox));
+                form.Children.Add(enabledBox);
+                form.Children.Add(error);
+
+                var dialog = new ContentDialog
                 {
-                    bool valid = ComponentSources.IsValidMirrorPrefix(mirror.Text);
-                    mirrorError.Text = valid ? "" : Lang.Lunarward_RuntimeEnv_MirrorInvalid;
+                    Title = isNew ? Lang.Lunarward_RuntimeEnv_AddSource : Lang.Lunarward_RuntimeEnv_EditSource,
+                    Content = form,
+                    PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Save,
+                    CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = XamlRoot,
                 };
-                rows.Add(row);
-            }
+                dialog.PrimaryButtonClick += (_, args) =>
+                {
+                    string name = (nameBox.Text ?? "").Trim();
+                    string owner = (ownerBox.Text ?? "").Trim();
+                    string repo = (repoBox.Text ?? "").Trim();
+                    string pattern = (patternBox.Text ?? "").Trim();
+                    string mirror = (mirrorBox.Text ?? "").Trim();
+                    string? problem = null;
+                    if (name.Length == 0)
+                    {
+                        problem = Lang.Lunarward_RuntimeEnv_SourceNameRequired;
+                    }
+                    else if (drafts.Any(x => !ReferenceEquals(x, draft) && string.Equals(x.DisplayName, name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        problem = Lang.Lunarward_RuntimeEnv_SourceNameDuplicate;
+                    }
+                    else if (!ComponentSources.IsValidRepoPart(owner) || !ComponentSources.IsValidRepoPart(repo))
+                    {
+                        problem = Lang.Lunarward_RuntimeEnv_SourceRepoInvalid;
+                    }
+                    else if (!ComponentSources.IsValidMirrorPrefix(mirror))
+                    {
+                        problem = Lang.Lunarward_RuntimeEnv_MirrorInvalid;
+                    }
+                    else if (pattern.Length > 0)
+                    {
+                        try
+                        {
+                            Regex.IsMatch(string.Empty, pattern);
+                        }
+                        catch (ArgumentException)
+                        {
+                            problem = Lang.Lunarward_RuntimeEnv_SourcePatternInvalid;
+                        }
+                    }
+                    if (problem is not null)
+                    {
+                        args.Cancel = true;
+                        error.Text = problem;
+                    }
+                };
+
+                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                {
+                    return;
+                }
+                draft.DisplayName = (nameBox.Text ?? "").Trim();
+                draft.Kind = kindBox.SelectedIndex == 1 ? "graphics" : "wine";
+                draft.Owner = (ownerBox.Text ?? "").Trim();
+                draft.Repo = (repoBox.Text ?? "").Trim();
+                draft.Pattern = (patternBox.Text ?? "").Trim();
+                draft.Mirror = (mirrorBox.Text ?? "").Trim();
+                draft.Enabled = enabledBox.IsChecked == true;
+                if (isNew)
+                {
+                    draft.Id = ComponentSources.NewCustomId();
+                    drafts.Add(draft);
+                }
+                Rebuild();
             }
 
-            probeAllButton.Click += async (_, _) =>
+            search.TextChanged += (_, _) => Rebuild();
+            addButton.Click += async (_, _) => await OpenSourceEditorAsync(new SourceDraft { Enabled = true }, isNew: true);
+            probeAll.Click += async (_, _) =>
             {
-                probeAllButton.IsEnabled = false;
+                probeAll.IsEnabled = false;
                 try
                 {
                     using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-                    foreach (SourceEditRow row in rows)
+                    foreach (SourceDraft draft in drafts.ToList())
                     {
-                        row.ProbeText.Text = "…";
                         try
                         {
-                            ComponentSourceProbe result = await ComponentSources.ProbeAsync(http, ToEntry(row, rows.IndexOf(row)));
-                            row.ProbeText.Text = result.Text;
-                            row.ProbeText.Foreground = (Brush)Application.Current.Resources[
-                                result.Ok ? "SystemFillColorSuccessBrush" : "SystemFillColorCriticalBrush"];
+                            ComponentSourceProbe result = await ComponentSources.ProbeAsync(http, ToEntry(draft, drafts.IndexOf(draft)));
+                            probeState[draft.Id] = (result.Text, result.Ok);
                         }
                         catch (Exception ex)
                         {
                             _logger.LogWarning(ex, "probe source failed");
-                            row.ProbeText.Text = Lang.Lunarward_RuntimeEnv_ProbeFailedShort;
+                            probeState[draft.Id] = (Lang.Lunarward_RuntimeEnv_ProbeFailedShort, false);
                         }
                     }
                 }
                 finally
                 {
-                    probeAllButton.IsEnabled = true;
+                    probeAll.IsEnabled = true;
                 }
+                Rebuild();
             };
-            resetButton.Click += async (_, _) =>
+            reset.Click += async (_, _) =>
             {
                 ContentDialogResult confirm = await new ContentDialog
                 {
@@ -845,19 +974,22 @@ public sealed partial class RuntimeEnvironmentSetting
                     DefaultButton = ContentDialogButton.Close,
                     XamlRoot = XamlRoot,
                 }.ShowAsync();
-                if (confirm == ContentDialogResult.Primary)
+                if (confirm != ContentDialogResult.Primary)
                 {
-                    ComponentSources.ResetUserEntries();
-                    Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_SourcesResetDone, 4000);
-                    LoadRows();
-                    Rebuild();
+                    return;
                 }
+                ComponentSources.ResetUserEntries();
+                drafts = LoadSourceEntries().Select(ToDraft).ToList();
+                probeState.Clear();
+                checkState.Clear();
+                Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_SourcesResetDone, 4000);
+                Rebuild();
             };
 
-            // D110：固定宽度，避免长源名/长镜像把行内按钮挤出可视区。
-            var page = new StackPanel { Spacing = 12, Width = 470 };
+            var page = new StackPanel { Spacing = 12, Width = 560 };
             page.Children.Add(hint);
-            page.Children.Add(actions);
+            page.Children.Add(toolbar);
+            page.Children.Add(summary);
             page.Children.Add(list);
 
             var dialog = new ContentDialog
@@ -870,17 +1002,23 @@ public sealed partial class RuntimeEnvironmentSetting
                 XamlRoot = XamlRoot,
             };
 
-            LoadRows();
             Rebuild();
             if (await dialog.ShowAsync() != ContentDialogResult.Primary)
             {
                 return;
             }
-            List<ComponentSourceEntry> result = rows.Select((row, index) => ToEntry(row, index)).ToList();
-            if (result.Any(x => !ComponentSources.IsValidMirrorPrefix(x.MirrorPrefix)))
+            if (drafts.Any(x => !ComponentSources.IsValidMirrorPrefix(x.Mirror)))
             {
                 Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_MirrorInvalid);
                 return;
+            }
+            List<ComponentSourceEntry> result = drafts.Select((draft, index) => ToEntry(draft, index)).ToList();
+            foreach (ComponentSourceEntry def in ComponentSources.Defaults)
+            {
+                if (drafts.All(x => x.Id != def.Id))
+                {
+                    result.Add(new ComponentSourceEntry { Id = def.Id, Removed = true });
+                }
             }
             ComponentSources.SaveUserEntries(result);
             Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_SourcesSaved, 4000);
@@ -891,6 +1029,33 @@ public sealed partial class RuntimeEnvironmentSetting
             Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_SourcesSaveFailed);
         }
     }
+
+
+    private static SourceDraft ToDraft(ComponentSourceEntry entry) => new()
+    {
+        Id = entry.Id,
+        DisplayName = entry.DisplayName,
+        Kind = entry.Kind,
+        Owner = entry.Owner,
+        Repo = entry.Repo,
+        Pattern = entry.AssetPattern,
+        Mirror = entry.MirrorPrefix,
+        Enabled = entry.Enabled,
+    };
+
+
+    private static ComponentSourceEntry ToEntry(SourceDraft draft, int index) => new()
+    {
+        Id = draft.Id,
+        DisplayName = draft.DisplayName,
+        Kind = draft.Kind,
+        Owner = draft.Owner,
+        Repo = draft.Repo,
+        AssetPattern = draft.Pattern,
+        MirrorPrefix = draft.Mirror,
+        Rank = (index + 1) * 10,
+        Enabled = draft.Enabled,
+    };
 
 
     /// <summary>

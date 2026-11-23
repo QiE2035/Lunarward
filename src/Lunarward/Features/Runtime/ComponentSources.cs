@@ -45,6 +45,9 @@ public sealed class ComponentSourceEntry
 
     /// <summary>D110：勾掉就不出现在「添加组件」的源列表里；源管理页仍显示。</summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>D111：内置源被删除时留墓碑，防止下次 Load 又从 Defaults 合并回来。</summary>
+    public bool Removed { get; set; }
 }
 
 
@@ -176,12 +179,13 @@ public static class ComponentSources
             {
                 list[index] = entry;
             }
-            else
+            else if (!entry.Removed)
             {
                 list.Add(entry);
             }
         }
-        return list.OrderBy(x => x.Rank).ToList();
+        // D111：墓碑（Removed）只写不显示；内置源被删后不会再从 Defaults 冒出来。
+        return list.Where(x => !x.Removed).OrderBy(x => x.Rank).ToList();
     }
 
 
@@ -204,6 +208,19 @@ public static class ComponentSources
             // 删不掉就保持原状，下次保存再试。
         }
     }
+
+
+    /// <summary>D111：这个 Id 是不是内置源（删除内置源要留墓碑）。</summary>
+    public static bool IsDefault(string? id) => id is not null && Defaults.Any(x => x.Id == id);
+
+
+    /// <summary>D111：新增自定义源的 Id。</summary>
+    public static string NewCustomId() => "user-" + Guid.NewGuid().ToString("N")[..8];
+
+
+    /// <summary>D111：仓库写法的粗校验（owner/repo 分开，不能含空白与斜杠）。</summary>
+    public static bool IsValidRepoPart(string? value) =>
+        !string.IsNullOrWhiteSpace(value) && !value.Any(char.IsWhiteSpace) && !value.Contains('/');
 
 
     /// <summary>D110：镜像前缀要么空（直连），要么是 http(s) 且以 / 结尾的基地址。</summary>
@@ -236,6 +253,7 @@ public static class ComponentSources
         MirrorPrefix = source.MirrorPrefix,
         Rank = source.Rank,
         Enabled = source.Enabled,
+        Removed = source.Removed,
     };
 
 
