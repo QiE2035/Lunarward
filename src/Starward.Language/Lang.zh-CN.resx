@@ -3105,7 +3105,7 @@
     <value>每个游戏绑定一个方案；一套方案可以被多个游戏共用。编辑方案时下面的「使用中的游戏」就是它的影响面。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Runners_Notice" xml:space="preserve">
-    <value>只读清单：只发现已有的 wine / Proton，不安装、不修改；用「添加路径…」把已装好的目录加进来。</value>
+    <value>只读清单：只发现已有的 wine / Proton，不安装、不修改；用「添加运行器…」把已装好的目录加进来。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPath" xml:space="preserve">
     <value>添加路径…</value>
@@ -4224,9 +4224,42 @@
     <value>＋ 新建方案</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPathTip" xml:space="preserve">
-    <value>把一个已存在的 wine / Proton 目录加入清单，不复制、不安装。</value>
+    <value>把一个既有的 wine / Proton 目录加入清单，不复制、不安装。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_SetDefaultRunnerTip" xml:space="preserve">
     <value>把当前选中的运行器写进默认方案；其它方案不受影响。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddRunner" xml:space="preserve">
+    <value>添加运行器…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddGraphics" xml:space="preserve">
+    <value>添加图形层…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesStripTitle" xml:space="preserve">
+    <value>下载源</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesStripNotice" xml:space="preserve">
+    <value>组件（wine / Proton / DXVK / VKD3D）从这些源获取。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CheckAllSources" xml:space="preserve">
+    <value>检查全部</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CheckAllSourcesRunning" xml:space="preserve">
+    <value>正在检查下载源…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesSummaryFormat" xml:space="preserve">
+    <value>{0} 个启用 / 共 {1} 个</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesCheckResult" xml:space="preserve">
+    <value>可访问：{0}/{1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoEnabledSource" xml:space="preserve">
+    <value>没有启用的下载源。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CheckAllSourcesFailed" xml:space="preserve">
+    <value>检查下载源失败。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SectionCount" xml:space="preserve">
+    <value>{0} 项</value>
   </data>
 </root>

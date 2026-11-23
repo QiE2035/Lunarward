@@ -3105,7 +3105,7 @@ You are welcome to submit the exported data to the following repository:</value>
     <value>Each game binds one profile, and a profile can be shared by several games. The "used by" list below shows a profile's blast radius.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Runners_Notice" xml:space="preserve">
-    <value>Read-only list: finds existing wine / Proton, never installs or modifies. Use &quot;Add path...&quot; to include a folder you already installed.</value>
+    <value>Read-only list: only discovers existing wine / Proton, never installs or modifies. Use "Add runner…" to register a folder you installed yourself.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPath" xml:space="preserve">
     <value>Add path...</value>
@@ -4224,9 +4224,42 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
     <value>+ New profile</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPathTip" xml:space="preserve">
-    <value>Add an existing wine/Proton folder to the list; nothing is copied or installed.</value>
+    <value>Adds an existing wine / Proton folder to the list; nothing is copied or installed.</value>
   </data>
   <data name="Lunarward_RuntimeEnv_SetDefaultRunnerTip" xml:space="preserve">
     <value>Write the selected runner into the default profile; other profiles are untouched.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddRunner" xml:space="preserve">
+    <value>Add runner…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddGraphics" xml:space="preserve">
+    <value>Add graphics layer…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesStripTitle" xml:space="preserve">
+    <value>Download sources</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesStripNotice" xml:space="preserve">
+    <value>Components (wine / Proton / DXVK / VKD3D) come from these sources.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CheckAllSources" xml:space="preserve">
+    <value>Check all</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CheckAllSourcesRunning" xml:space="preserve">
+    <value>Checking download sources…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesSummaryFormat" xml:space="preserve">
+    <value>{0} of {1} enabled</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesCheckResult" xml:space="preserve">
+    <value>Reachable: {0}/{1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoEnabledSource" xml:space="preserve">
+    <value>No download source is enabled.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CheckAllSourcesFailed" xml:space="preserve">
+    <value>Failed to check download sources.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SectionCount" xml:space="preserve">
+    <value>{0} items</value>
   </data>
 </root>

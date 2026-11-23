@@ -16,6 +16,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 using System.Linq;
 
@@ -124,6 +125,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     {
         ToolTipService.SetToolTip(Button_AddRunner, Lang.Lunarward_RuntimeEnv_AddPathTip);
         ToolTipService.SetToolTip(Button_SetDefaultRunner, Lang.Lunarward_RuntimeEnv_SetDefaultRunnerTip);
+        ToolTipService.SetToolTip(Button_RunnerMore, Lang.Lunarward_RuntimeEnv_SetDefaultRunnerTip);
         ToolTipService.SetToolTip(Button_More, Lang.Lunarward_RuntimeEnv_More);
     }
 
@@ -155,14 +157,6 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             StackPanel_ProfileList.Children.Add(CreateProfileListRow(profile));
         }
-        var addProfile = new HyperlinkButton
-        {
-            Content = Lang.Lunarward_RuntimeEnv_NewProfileInline,
-            Margin = new Thickness(8, 4, 8, 8),
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        addProfile.Click += Button_New_Click;
-        StackPanel_ProfileList.Children.Add(addProfile);
         ShowProfileDetail(_profiles.First(x => x.Id == _selectedProfileId));
         UpdateProfileListSelection();
     }
@@ -652,6 +646,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private async Task LoadComponentsAsync()
     {
+        UpdateSourcesSummary();
         (IReadOnlyList<Component> runners, IReadOnlyList<Component> allGraphics) = await Task.Run(() =>
             (ComponentStore.GetRunners(false, _logger), ComponentStore.GetGraphics(false, _logger)));
         // D85：组件页的筛选只作用于图形层（运行器是另一页的事）
@@ -661,6 +656,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             2 => allGraphics.Where(x => x.Kind == ComponentKind.Vkd3dProton).ToList(),
             _ => allGraphics,
         };
+
+        Text_RunnersCount.Text = string.Format(Lang.Lunarward_RuntimeEnv_SectionCount, runners.Count);
+        Text_GraphicsCount.Text = string.Format(Lang.Lunarward_RuntimeEnv_SectionCount, graphics.Count);
 
         // D63 三段式：运行器进第一段、图形组件留在最后的组件区（P3 再收敛到前缀行）
         StackPanel_Runners.Children.Clear();
@@ -2365,6 +2363,58 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         else
         {
             Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_Shell_NoTerminal);
+        }
+    }
+
+
+    /// <summary>D114 修订 3：组件页顶部的下载源摘要（启用数 / 总数）。</summary>
+    private void UpdateSourcesSummary()
+    {
+        IReadOnlyList<ComponentSourceEntry> sources = ComponentSources.Load();
+        int enabled = sources.Count(x => x.Enabled && !x.Removed);
+        Text_SourcesSummary.Text = string.Format(Lang.Lunarward_RuntimeEnv_SourcesSummaryFormat, enabled, sources.Count);
+    }
+
+
+    /// <summary>D114 修订 3：检查全部启用的源是否可达（只发 HEAD，不改配置）。</summary>
+    private async void Button_CheckSources_Click(object sender, RoutedEventArgs e)
+    {
+        Button_CheckSources.IsEnabled = false;
+        Text_SourcesSummary.Text = Lang.Lunarward_RuntimeEnv_CheckAllSourcesRunning;
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            IReadOnlyList<ComponentSourceEntry> sources = ComponentSources.Load()
+                .Where(x => x.Enabled && !x.Removed).ToList();
+            if (sources.Count == 0)
+            {
+                Text_SourcesSummary.Text = string.Format(Lang.Lunarward_RuntimeEnv_SourcesSummaryFormat, 0, ComponentSources.Load().Count);
+                Helpers.InAppToast.MainWindow?.Warning((string?)null, Lang.Lunarward_RuntimeEnv_NoEnabledSource, 5000);
+                return;
+            }
+            ComponentSourceProbe[] results = await Task.WhenAll(sources.Select(x => ComponentSources.ProbeAsync(http, x)));
+            int ok = results.Count(x => x.Ok);
+            string summary = string.Format(Lang.Lunarward_RuntimeEnv_SourcesCheckResult, ok, results.Length);
+            Text_SourcesSummary.Text = summary;
+            if (ok == results.Length)
+            {
+                Helpers.InAppToast.MainWindow?.Success((string?)null, summary, 3000);
+            }
+            else
+            {
+                string detail = string.Join("; ", results.Where(x => !x.Ok).Select(x => $"{x.DisplayName}: {x.Detail}"));
+                Helpers.InAppToast.MainWindow?.Warning((string?)null, $"{summary} ({detail})", 8000);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "check sources failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_CheckAllSourcesFailed);
+            UpdateSourcesSummary();
+        }
+        finally
+        {
+            Button_CheckSources.IsEnabled = true;
         }
     }
 

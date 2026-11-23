@@ -615,7 +615,12 @@ public sealed partial class RuntimeEnvironmentSetting
 
     private async void Button_Sources_Click(object sender, RoutedEventArgs e) => await ShowSourcesDialogAsync();
 
-    private async void Button_ManageSources_Click(object sender, RoutedEventArgs e) => await ShowSourcesDialogAsync();
+    private async void Button_ManageSources_Click(object sender, RoutedEventArgs e)
+    {
+        await ShowSourcesDialogAsync();
+        // D114 修订 3：源管理里可能增删/启停源，回来把顶部摘要刷新一下。
+        UpdateSourcesSummary();
+    }
 
 
     private async Task ShowSourcesDialogAsync()

@@ -3056,7 +3056,7 @@
     <value>每個遊戲綁定一個方案；一套方案可以被多個遊戲共用。編輯方案時下面的「使用中的遊戲」就是它的影響面。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Runners_Notice" xml:space="preserve">
-    <value>唯讀清單：只發現既有的 wine / Proton，不安裝、不修改；用「新增路徑…」把已裝好的目錄加進來。</value>
+    <value>唯讀清單：只發現既有的 wine / Proton，不安裝、不修改；用「新增運行器…」把已裝好的目錄加進來。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPath" xml:space="preserve">
     <value>添加路徑…</value>
@@ -4221,5 +4221,38 @@
   </data>
   <data name="Lunarward_RuntimeEnv_SetDefaultRunnerTip" xml:space="preserve">
     <value>把目前選取的 runner 寫進預設方案；其它方案不受影響。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddRunner" xml:space="preserve">
+    <value>新增運行器…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddGraphics" xml:space="preserve">
+    <value>新增圖形層…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesStripTitle" xml:space="preserve">
+    <value>下載源</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesStripNotice" xml:space="preserve">
+    <value>組件（wine / Proton / DXVK / VKD3D）從這些源取得。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CheckAllSources" xml:space="preserve">
+    <value>檢查全部</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CheckAllSourcesRunning" xml:space="preserve">
+    <value>正在檢查下載源…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesSummaryFormat" xml:space="preserve">
+    <value>{0} 個已啟用 / 共 {1} 個</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SourcesCheckResult" xml:space="preserve">
+    <value>可連線：{0}/{1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoEnabledSource" xml:space="preserve">
+    <value>沒有已啟用的下載源。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_CheckAllSourcesFailed" xml:space="preserve">
+    <value>檢查下載源失敗。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SectionCount" xml:space="preserve">
+    <value>{0} 項</value>
   </data>
 </root>

@@ -1791,3 +1791,17 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - `InitializeRunnerButtonTips()` 的 `Button_RunnerMore` 引用改成 `Button_More`；删掉错位的 `D114：组件页内分段` 注释。
 - 验证：build 0 错误；真机 1200×704 下工具条一行放下（`dsh-cu-area-1795438496013.jpg`），滚动到图形层确认清单上方无按钮（`dsh-cu-area-1795438524425.jpg`）。
 
+**2026-11-23 修订 3（用户 m06364「把该放到顶部的放到顶部，其他各自的放到各自标题下」+ m06378「下载源不应该是组件的下载源吗」）**：按语义层级重排组件页，取代修订 2 的「全部动作进顶部工具条」。
+
+- 事实先对齐：`ComponentSources.Defaults` 的 5 条源 Kind 为 wine / wine / proton / graphics / graphics，即下载源服务的是**组件整体**（运行器 + 图形层），既不属于图形层，也不属于某一段。
+- 层级规则：上位概念（组件、下载源）在页面级；下位概念（运行器、图形层）在段内；段内按钮只说本段名词。
+- 落地：
+  1. 页面顶部固定一条「下载源」信息条（`FontIcon E896` + `Text_SourcesSummary`「N 个启用 / 共 M 个」+ 一句说明 + `Button_CheckSources`「检查全部」+ `Button_ManageSources`「管理下载源…」），不再藏在任何段里。
+  2. 运行器段标题行只放 `Button_AddRunner`「添加运行器…」（原「添加路径…」，名字必须说明加的是什么）与 `Button_RunnerMore`（Flyout 只含「设为新方案默认」）。
+  3. 图形层段标题行只放 `Button_DownloadComponent`「添加图形层…」（Accent）、`Combo_ComponentFilter` 筛选、`Button_More`（导入安装包 / 导入图形层 / 暂存区 / 清理未使用）；「管理下载源」移出本段。
+  4. 两段标题带数量（`Text_RunnersCount` / `Text_GraphicsCount`，`SectionCount` =「{0} 项」），页面头部只剩「刷新」「打开配置文件夹」。
+  5. 「新建方案」从页头下移到方案段左列顶部（`StackPanel` 内 `Button_New` + 列表），删除 `LoadProfiles()` 里重复的内联 HyperlinkButton，空列表时也只有一个入口。
+- 暂缓（下一批）：`添加运行器…` 与 `添加图形层…` 弹窗合并为「下载 / 本地文件 / 暂存区」三入口；本次两段仍是各自弹窗。
+- 验证：build 0 错误；`dotnet test` 271 通过；`lint-ui-thread.sh`、`lint-cli-help.sh`（A 段）通过；真机 1200×860 截图确认下载源条、运行器段标题行、方案页唯一「＋ 新建方案」（`dsh-cu-area-1795446923280.jpg`）。图形层段因注入滚轮在本环境不生效（设置→高级 同样不滚，属工具限制）未能截图目视，行渲染与运行器共用同一 `CreateGraphicsRow` 路径。
+
+**确认方式**：用户 m06397「先按这个来吧」。
