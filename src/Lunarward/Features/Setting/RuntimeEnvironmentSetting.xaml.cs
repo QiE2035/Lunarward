@@ -119,6 +119,14 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
+    /// <summary>D113：两个按钮的作用域容易误解，补 tooltip（加路径是全局清单，设默认只改默认方案）。</summary>
+    private void InitializeRunnerButtonTips()
+    {
+        ToolTipService.SetToolTip(Button_AddRunner, Lang.Lunarward_RuntimeEnv_AddPathTip);
+        ToolTipService.SetToolTip(Button_SetDefaultRunner, Lang.Lunarward_RuntimeEnv_SetDefaultRunnerTip);
+    }
+
+
     private void LoadProfiles()
     {
         // D85：方案页是「左清单 + 右详情」。左列只放名字、状态点与绑定数，
@@ -146,6 +154,14 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             StackPanel_ProfileList.Children.Add(CreateProfileListRow(profile));
         }
+        var addProfile = new HyperlinkButton
+        {
+            Content = Lang.Lunarward_RuntimeEnv_NewProfileInline,
+            Margin = new Thickness(8, 4, 8, 8),
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        addProfile.Click += Button_New_Click;
+        StackPanel_ProfileList.Children.Add(addProfile);
         ShowProfileDetail(_profiles.First(x => x.Id == _selectedProfileId));
         UpdateProfileListSelection();
     }
@@ -778,13 +794,12 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             .ToList();
 
         // D108：标题说人话——「谁在用 + 目录名」，不再直接拼 environment · hk4e_cn 这类内部标识。
-        string folder = Path.GetFileName(prefix.Path.TrimEnd('/'));
         string titleText = owners.Count switch
         {
-            0 when !prefix.Managed => $"{Lang.Lunarward_RuntimeEnv_ExternalPrefix} · {folder}",
-            0 => $"{Lang.Lunarward_RuntimeEnv_Unused} · {folder}",
-            1 => $"{owners[0]} · {folder}",
-            _ => $"{owners[0]} {string.Format(Lang.Lunarward_RuntimeEnv_PrefixOwnersSuffix, owners.Count)} · {folder}",
+            0 when !prefix.Managed => Lang.Lunarward_RuntimeEnv_ExternalPrefix,
+            0 => Lang.Lunarward_RuntimeEnv_Unused,
+            1 => owners[0],
+            _ => $"{owners[0]} {string.Format(Lang.Lunarward_RuntimeEnv_PrefixOwnersSuffix, owners.Count)}",
         };
         var title = new TextBlock
         {
@@ -792,13 +807,23 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             FontWeight = FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,
         };
-        var info = new TextBlock
+        string infoText = $"{sizeText} · {string.Format(Lang.Lunarward_RuntimeEnv_PrefixUsedBy, used)} · {state}";
+        FrameworkElement info;
+        if (owners.Count > 0)
         {
-            Text = $"{sizeText} · {string.Format(Lang.Lunarward_RuntimeEnv_PrefixUsedBy, used)} · {state}",
-            Opacity = 0.6,
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-        };
+            var link = new HyperlinkButton
+            {
+                Content = new TextBlock { Text = infoText, FontSize = 12, Opacity = 0.6, TextWrapping = TextWrapping.Wrap },
+                Padding = new Thickness(0),
+                Tag = (prefix, owners),
+            };
+            link.Click += Button_PrefixUsage_Click;
+            info = link;
+        }
+        else
+        {
+            info = new TextBlock { Text = infoText, Opacity = 0.6, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        }
         var pathText = new TextBlock
         {
             Text = ShortenPath(prefix.Path, 72),
@@ -852,43 +877,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         content.Children.Add(info);
         content.Children.Add(pathText);
 
-        // D85：占用条 + 谁在用 —— 「370 MB 是多是少」没有参照看不出来，「这份前缀归哪份方案」原来要点进去才知道
-        if (prefix.Exists && prefix.SizeBytes > 0 && maxBytes > 0)
-        {
-            // D108：占用条按比例分列，宽度随容器走；旁边给百分比，不再是一条没有刻度的蓝线。
-            double ratio = Math.Clamp((double)prefix.SizeBytes / maxBytes, 0.02, 1.0);
-            var barHost = new Grid { Height = 6, HorizontalAlignment = HorizontalAlignment.Stretch };
-            barHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ratio, GridUnitType.Star) });
-            barHost.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1 - ratio + 0.0001, GridUnitType.Star) });
-            var track = new Border
-            {
-                CornerRadius = new CornerRadius(3),
-                Background = (Brush)Application.Current.Resources["ControlFillColorTertiaryBrush"],
-            };
-            Grid.SetColumnSpan(track, 2);
-            barHost.Children.Add(track);
-            barHost.Children.Add(new Border
-            {
-                CornerRadius = new CornerRadius(3),
-                Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"],
-            });
-            var barRow = new Grid { ColumnSpacing = 8 };
-            barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            barRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            barRow.Children.Add(barHost);
-            var pctText = new TextBlock
-            {
-                Text = string.Format(Lang.Lunarward_RuntimeEnv_PrefixShare, Math.Round(ratio * 100)),
-                FontSize = 12,
-                Opacity = 0.6,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            Grid.SetColumn(pctText, 1);
-            barRow.Children.Add(pctText);
-            content.Children.Add(barRow);
-        }
-
-        if (owners.Count > 0)
+        // D112 后：去掉「占最大前缀」进度条——它没有容量含义，容易被读成磁盘占用。
+        if (owners.Count > 1)
         {
             content.Children.Add(new TextBlock
             {
@@ -1977,19 +1967,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             if (component.Usable == true)
             {
                 badge.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
-                if (!string.IsNullOrWhiteSpace(component.LayoutText))
-                {
-                    badge.Text = string.Format(Lang.Lunarward_RuntimeEnv_BadgeUsableLayout, DescribeLayout(component.LayoutText));
-                }
                 // D63：一眼看出这行有没有人在用，避免删掉/换掉还在用的运行器
                 if (usedByProfiles > 0)
                 {
                     badge.Text = string.Format(Lang.Lunarward_RuntimeEnv_BadgeUsedBy, badge.Text, usedByProfiles);
                 }
-            }
-            else if (!string.IsNullOrWhiteSpace(component.LayoutText))
-            {
-                badge.Text = $"{badge.Text}（{DescribeLayout(component.LayoutText)}）";
             }
             right.Children.Add(badge);
         }

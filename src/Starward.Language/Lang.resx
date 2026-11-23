@@ -4214,4 +4214,19 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   <data name="Lunarward_RuntimeEnv_SourcesTokenHint" xml:space="preserve">
     <value>Anonymous GitHub access is limited to 60 requests/hour; set LUNARWARD_GITHUB_TOKEN to raise it to 5000.</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_Modify" xml:space="preserve">
+    <value>Modify</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsLabel" xml:space="preserve">
+    <value>Bound</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NewProfileInline" xml:space="preserve">
+    <value>+ New profile</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddPathTip" xml:space="preserve">
+    <value>Add an existing wine/Proton folder to the list; nothing is copied or installed.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SetDefaultRunnerTip" xml:space="preserve">
+    <value>Write the selected runner into the default profile; other profiles are untouched.</value>
+  </data>
 </root>

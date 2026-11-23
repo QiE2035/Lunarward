@@ -553,4 +553,10 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_BindingsUnbound => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsUnbound", resourceCulture) ?? "（未绑定，使用默认）";
     public static string Lunarward_RuntimeEnv_BindingsSaved => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsSaved", resourceCulture) ?? "绑定已保存。";
     public static string Lunarward_RuntimeEnv_SourcesTokenHint => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesTokenHint", resourceCulture) ?? "GitHub 匿名访问每小时只有 60 次；设置环境变量 LUNARWARD_GITHUB_TOKEN 可提高到 5000 次/小时。";
+    public static string Lunarward_RuntimeEnv_Modify => ResourceManager.GetString("Lunarward_RuntimeEnv_Modify", resourceCulture) ?? "修改";
+    public static string Lunarward_RuntimeEnv_BindingsLabel => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsLabel", resourceCulture) ?? "绑定";
+    public static string Lunarward_RuntimeEnv_NewProfileInline => ResourceManager.GetString("Lunarward_RuntimeEnv_NewProfileInline", resourceCulture) ?? "＋ 新建方案";
+    public static string Lunarward_RuntimeEnv_AddPathTip => ResourceManager.GetString("Lunarward_RuntimeEnv_AddPathTip", resourceCulture) ?? "把一个已存在的 wine / Proton 目录加入清单，不复制、不安装。";
+    public static string Lunarward_RuntimeEnv_SetDefaultRunnerTip => ResourceManager.GetString("Lunarward_RuntimeEnv_SetDefaultRunnerTip", resourceCulture) ?? "把当前选中的运行器写进默认方案；其它方案不受影响。";
 }
+

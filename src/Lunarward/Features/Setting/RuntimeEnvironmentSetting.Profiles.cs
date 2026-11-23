@@ -261,7 +261,7 @@ public sealed partial class RuntimeEnvironmentSetting
         {
             Text = bindings.Count == 0
                 ? Lang.Lunarward_RuntimeEnv_UsedByNone
-                : string.Join("、", bindings.Select(x => x.ToGameName())),
+                : $"{Lang.Lunarward_RuntimeEnv_BindingsLabel}：{string.Join("、", bindings.Select(x => x.ToGameName()))}",
             FontSize = 12,
             Opacity = 0.7,
             TextWrapping = TextWrapping.Wrap,
@@ -277,7 +277,7 @@ public sealed partial class RuntimeEnvironmentSetting
         runButton.Click += Button_RunOnce_Click;
         buttons.Children.Add(runButton);
 
-        var editButton = new Button { Content = Lang.Lunarward_RuntimeEnv_EditProfile, Tag = profile };
+        var editButton = new Button { Content = Lang.Lunarward_RuntimeEnv_Modify, Tag = profile };
         editButton.Click += Button_Edit_Click;
         buttons.Children.Add(editButton);
 
@@ -365,9 +365,7 @@ public sealed partial class RuntimeEnvironmentSetting
         {
             body.Children.Add(Hint(profile.RunnerPath!));
         }
-        var editButton = new Button { Content = Lang.Lunarward_RuntimeEnv_RunnerChange, Tag = profile, VerticalAlignment = VerticalAlignment.Top };
-        editButton.Click += Button_Edit_Click;
-        return Section(Lang.Lunarward_RuntimeEnv_RunnerSectionTitle, body, editButton);
+        return Section(Lang.Lunarward_RuntimeEnv_RunnerSectionTitle, body);
     }
 
 
@@ -391,10 +389,9 @@ public sealed partial class RuntimeEnvironmentSetting
             syncButton.Click += Button_SyncGraphics_Click;
             actions.Children.Add(syncButton);
         }
-        var editButton = new Button { Content = Lang.Lunarward_RuntimeEnv_GraphicsEdit, Tag = profile };
-        editButton.Click += Button_Edit_Click;
-        actions.Children.Add(editButton);
-        return Section(Lang.Lunarward_RuntimeEnv_GraphicsSectionTitle, body, actions);
+        return actions.Children.Count > 0
+            ? Section(Lang.Lunarward_RuntimeEnv_GraphicsSectionTitle, body, actions)
+            : Section(Lang.Lunarward_RuntimeEnv_GraphicsSectionTitle, body);
     }
 
 

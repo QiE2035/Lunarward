@@ -3618,10 +3618,10 @@
     <value>執行器 {0}/{1} 可用</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ChipGraphics" xml:space="preserve">
-    <value>圖形層 {0}</value>
+    <value>圖形層 {0} 個</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ChipPrefix" xml:space="preserve">
-    <value>字首 {0}</value>
+    <value>字首 {0} 個</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Unused" xml:space="preserve">
     <value>未使用</value>
@@ -4207,5 +4207,20 @@
   </data>
   <data name="Lunarward_RuntimeEnv_SourcesTokenHint" xml:space="preserve">
     <value>GitHub 匿名訪問每小時只有 60 次；設定環境變數 LUNARWARD_GITHUB_TOKEN 可提高到 5000 次/小時。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Modify" xml:space="preserve">
+    <value>修改</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsLabel" xml:space="preserve">
+    <value>綁定</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NewProfileInline" xml:space="preserve">
+    <value>＋ 新增方案</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddPathTip" xml:space="preserve">
+    <value>把一個既有的 wine / Proton 目錄加入清單，不複製、不安裝。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SetDefaultRunnerTip" xml:space="preserve">
+    <value>把目前選取的 runner 寫進預設方案；其它方案不受影響。</value>
   </data>
 </root>

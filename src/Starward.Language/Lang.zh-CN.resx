@@ -3126,7 +3126,7 @@
     <value>下载暂存</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Prefixes_Notice" xml:space="preserve">
-    <value>wine 的 C 盘。会坏、会占几十 G、会被多个方案共用，所以单独列出来；外部前缀只显示不清理。</value>
+    <value>wine 的 C 盘目录，通常几十 GB，可能被多个方案共用；这里会列出本机已知的前缀，外部前缀只显示不清理。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_UsageSummary" xml:space="preserve">
     <value>占用汇总</value>
@@ -3666,10 +3666,10 @@
     <value>运行器 {0}/{1} 可用</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ChipGraphics" xml:space="preserve">
-    <value>图形层 {0}</value>
+    <value>图形层 {0} 个</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ChipPrefix" xml:space="preserve">
-    <value>前缀 {0}</value>
+    <value>前缀 {0} 个</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Unused" xml:space="preserve">
     <value>未使用</value>
@@ -4213,5 +4213,20 @@
   </data>
   <data name="Lunarward_RuntimeEnv_SourcesTokenHint" xml:space="preserve">
     <value>GitHub 匿名访问每小时只有 60 次；设置环境变量 LUNARWARD_GITHUB_TOKEN 可提高到 5000 次/小时。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Modify" xml:space="preserve">
+    <value>修改</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_BindingsLabel" xml:space="preserve">
+    <value>绑定</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NewProfileInline" xml:space="preserve">
+    <value>＋ 新建方案</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_AddPathTip" xml:space="preserve">
+    <value>把一个已存在的 wine / Proton 目录加入清单，不复制、不安装。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SetDefaultRunnerTip" xml:space="preserve">
+    <value>把当前选中的运行器写进默认方案；其它方案不受影响。</value>
   </data>
 </root>
