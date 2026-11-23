@@ -124,11 +124,10 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     {
         ToolTipService.SetToolTip(Button_AddRunner, Lang.Lunarward_RuntimeEnv_AddPathTip);
         ToolTipService.SetToolTip(Button_SetDefaultRunner, Lang.Lunarward_RuntimeEnv_SetDefaultRunnerTip);
-        ToolTipService.SetToolTip(Button_RunnerMore, Lang.Lunarward_RuntimeEnv_More);
+        ToolTipService.SetToolTip(Button_More, Lang.Lunarward_RuntimeEnv_More);
     }
 
 
-    /// <summary>D114：组件页内分段（运行器 / 图形层），一次只显示一类，避免两个清单堆成一篇文档。</summary>
     private void LoadProfiles()
     {
         // D85：方案页是「左清单 + 右详情」。左列只放名字、状态点与绑定数，

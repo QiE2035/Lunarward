@@ -1784,3 +1784,10 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 1. 分段把「添加组件…」藏进二级切换——用户要的是在组件页直接看到两个清单和各自入口，而不是先点一次分段；这正是 D112 合并页签想解决的反直觉，分段把它以另一种形式引了回来。
 2. 分段切换还连带暴露一个宽度 bug：`UpdateContentWidth()` 用「当前可见页的视口宽度」钉住图形层列表，切页签瞬间取到的是**上一个页签**的宽度（实测 784 vs 应有 ~1064），列表缩成一条且被 `HorizontalAlignment` 影响偏向一侧。改为只认 `Page_Components` 自己的视口、切页签后下一帧重算（`DispatcherQueue.TryEnqueue(UpdateContentWidth)`），并在取不到时放弃钉宽度而不是拿别的页签凑。
 
+**2026-11-23 修订 2（用户 m06323「按钮还是和图形层同级，路径依旧反直觉」）**：动作按钮从两个清单里提到**组件页顶部工具条**，两个清单只剩标题、一行说明和列表。
+
+- 依据：组件页的语义是「运行器 + 图形层」两个并列清单，`添加路径…`/`添加组件…`/`管理下载源`/`更多` 是整页动作，不是图形层的子控件；放在图形层标题下会被读成「这是图形层的东西」，这也正是 m05687 抱怨的原始问题。
+- 落地：`Page_Components` 内新增顶部 `Grid`（左侧动作组 + 右侧筛选 ComboBox 右对齐）：`Button_AddRunner`、`Button_DownloadComponent`（Accent）、`Button_ManageSources`、`Button_More`（Flyout 合并：设为新方案默认 / 导入安装包 / 导入图形层 / 暂存区 / 清理未使用）；`Pane_Runners`、`Pane_Graphics` 只保留标题 + 一行说明 + `StackPanel_*`。
+- `InitializeRunnerButtonTips()` 的 `Button_RunnerMore` 引用改成 `Button_More`；删掉错位的 `D114：组件页内分段` 注释。
+- 验证：build 0 错误；真机 1200×704 下工具条一行放下（`dsh-cu-area-1795438496013.jpg`），滚动到图形层确认清单上方无按钮（`dsh-cu-area-1795438524425.jpg`）。
+
