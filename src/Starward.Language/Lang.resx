@@ -4277,4 +4277,16 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   <data name="Lunarward_RuntimeEnv_DownloadGraphicsTitle" xml:space="preserve">
     <value>Download graphics</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_BindingsSaveFailed" xml:space="preserve">
+    <value>{0} binding(s) could not be saved (the bindings file may be corrupted); check profile-bindings.json</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DefaultProfileBadge" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SetDefaultProfile" xml:space="preserve">
+    <value>Set as default environment</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DefaultProfileSet" xml:space="preserve">
+    <value>"{0}" is now the default environment</value>
+  </data>
 </root>

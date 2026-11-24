@@ -21,7 +21,13 @@ public static class RuntimeProfileStore
         WriteIndented = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        // R74：手改成 camelCase 时不再静默变默认值（读不出来的字段会悄悄失效）。
+        PropertyNameCaseInsensitive = true,
     };
+
+
+    /// <summary>当前能读的结构版本（R74）。读到更高版本时保留文件、拒绝加载，避免「改坏了还没提示」。</summary>
+    public const int CurrentSchemaVersion = 4;
 
 
     /// <summary>用户创建的模板前缀存放位置（与实例前缀分开，避免被当成实例清理）。</summary>
@@ -97,6 +103,13 @@ public static class RuntimeProfileStore
             try
             {
                 RuntimeProfile? profile = JsonSerializer.Deserialize<RuntimeProfile>(File.ReadAllText(file), JsonOptions);
+                if (profile is not null && profile.SchemaVersion > CurrentSchemaVersion)
+                {
+                    // R74：来自更新版本的配置——保留原文件，不加载、不改写，提示用户升级。
+                    logger?.LogWarning("Runtime environment {file} has schema {schema} (current {current}), skipped",
+                        file, profile.SchemaVersion, CurrentSchemaVersion);
+                    continue;
+                }
                 if (profile is not null)
                 {
                     bool changed = Normalize(profile, logger);
@@ -122,11 +135,10 @@ public static class RuntimeProfileStore
                     }
                 }
             }
-            catch (Exception ex)
+            catch (JsonException ex)
             {
-                // 静默跳过会让人以为「我建的配置丢了」，但目录里其实躺着半截 JSON。
-                // 改名留证据，再记一条警告（L-62）。
-                logger?.LogWarning(ex, "Load runtime environment failed, moving aside: {file}", file);
+                // R75：只有「内容真的坏了」才改名留证据。磁盘/权限瞬时错误不能把好文件挪走。
+                logger?.LogWarning(ex, "Load runtime environment failed (invalid json), moving aside: {file}", file);
                 try
                 {
                     File.Move(file, $"{file}.corrupt-{DateTime.Now:yyyyMMddHHmmss}", overwrite: true);
@@ -135,14 +147,23 @@ public static class RuntimeProfileStore
                 {
                 }
             }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                logger?.LogWarning(ex, "Load runtime environment failed (io), file kept: {file}", file);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Load runtime environment failed (unexpected), file kept: {file}", file);
+            }
         }
         if (profiles.Count == 0 && firstRun)
         {
             RuntimeProfile profile = CreateDefault();
             Save(profile, logger);
+            RuntimeDefaults.DefaultProfileId = profile.Id;
             profiles.Add(profile);
         }
-        return profiles.OrderBy(x => x.Name, StringComparer.CurrentCulture).ToList();
+        return profiles.OrderBy(x => x.Name, StringComparer.Ordinal).ToList();
     }
 
 
@@ -205,7 +226,10 @@ public static class RuntimeProfileStore
             }
             else
             {
-                logger?.LogWarning("Legacy graphics id {id} not found, cleared; please pick a graphics component again", legacy);
+                // R67：扫不到 ≠ 卸载了。外置盘没挂载、目录临时挪走时清掉这个 id 等于永久丢配置；
+                // 保留 id，等组件回来再迁移（只在日志留一条，不落盘）。
+                logger?.LogInformation("Legacy graphics id {id} not found now, kept for later migration", legacy);
+                return changed;
             }
             profile.LegacyGraphicsId = null;
             changed = true;
@@ -216,6 +240,58 @@ public static class RuntimeProfileStore
     }
 
 
+    /// <summary>R69：方案名规范化 + 去重（副作用：改 <paramref name="profile"/> 的 Name）。</summary>
+    private static string EnsureUniqueName(RuntimeProfile profile, ILogger? logger)
+    {
+        string name = NormalizeName(profile.Name);
+        HashSet<string> taken = new(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (string file in Directory.EnumerateFiles(EnvironmentsFolder, "*.json"))
+            {
+                if (string.Equals(Path.GetFileNameWithoutExtension(file), profile.Id, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                try
+                {
+                    RuntimeProfile? other = JsonSerializer.Deserialize<RuntimeProfile>(File.ReadAllText(file), JsonOptions);
+                    if (!string.IsNullOrWhiteSpace(other?.Name))
+                    {
+                        taken.Add(other!.Name.Trim());
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogDebug(ex, "check duplicate runtime environment names failed");
+        }
+        if (!taken.Contains(name))
+        {
+            return name;
+        }
+        string baseName = name;
+        for (int i = 2; i < 1000; i++)
+        {
+            string candidate = $"{baseName} ({i})";
+            if (!taken.Contains(candidate))
+            {
+                logger?.LogWarning("Runtime environment name {name} already used, renamed to {candidate}", name, candidate);
+                return candidate;
+            }
+        }
+        return $"{baseName} ({Guid.NewGuid().ToString("n")[..4]})";
+    }
+
+
+    /// <summary>R69：名字规范化见 <see cref="RuntimeProfile.NormalizeName"/>（纯函数，测试工程也能链接）。</summary>
+    public static string NormalizeName(string? name) => RuntimeProfile.NormalizeName(name);
+
+
     /// <summary>保存一份配方；返回是否真的落盘（R07：调用方要按结果提示，不能无条件弹「已保存」）。</summary>
     public static bool Save(RuntimeProfile profile, ILogger? logger = null)
     {
@@ -224,6 +300,9 @@ public static class RuntimeProfileStore
             // 存盘前规范化前缀路径：带尾斜杠的 WINEPREFIX 会让 wine 认为「不是同一个前缀」
             // 而直接退出（实测 `wine: launching from steam.exe stub!`）。
             profile.PrefixPath = PrefixManager.ExpandPath(profile.PrefixPath);
+            // R69：名字是用户可见标识，也是历史前缀目录的推导依据——统一 trim / 去控制字符 / 限长，
+            // 并在重复时自动加序号，避免两份方案在列表里同名、EnsureFor 按名匹配随机选中一份。
+            profile.Name = EnsureUniqueName(profile, logger);
             Directory.CreateDirectory(EnvironmentsFolder);
             JsonFile.WriteAtomic(ProfileFile(profile.Id), profile, JsonOptions);
             return true;
@@ -285,10 +364,17 @@ public static class RuntimeProfileStore
                 }
                 profile.PrefixPath = PrefixManager.ExpandPath(profile.PrefixPath);
                 string target = ProfileFile(profile.Id);
-                if (!File.Exists(target))
+                if (File.Exists(target))
                 {
-                    JsonFile.WriteAtomic(target, profile, JsonOptions);
+                    // R66：id 撞车（复制过 env.json / 上次迁移中断）时不能删源——那是另一份方案的唯一副本。
+                    // 把源改名留档，日志明确提示。
+                    string conflict = file + ".migrated-conflict-" + DateTime.Now.ToString("yyyyMMddHHmmss");
+                    File.Move(file, conflict, overwrite: true);
+                    logger?.LogWarning("Legacy runtime environment {file} conflicts with {target}, kept as {conflict}",
+                        file, target, conflict);
+                    continue;
                 }
+                JsonFile.WriteAtomic(target, profile, JsonOptions);
                 File.Delete(file);
                 logger?.LogInformation("Migrated runtime environment: {file} -> {id}", file, profile.Id);
             }

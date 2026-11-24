@@ -687,9 +687,16 @@ public sealed partial class GameSettingPage : PageBase
         }
         if (ComboBox_Profile.SelectedItem is Starward.Features.Runtime.RuntimeProfile profile)
         {
-            Starward.Features.Runtime.ProfileBinding.Set(AppConfig.CurrentGameBiz, profile.Id);
-            RefreshBindingWarning();
-            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已切换为「{profile.Name}」", 3000);
+            if (Starward.Features.Runtime.ProfileBinding.Set(AppConfig.CurrentGameBiz, profile.Id))
+            {
+                RefreshBindingWarning();
+                Helpers.InAppToast.MainWindow?.Success((string?)null, $"已切换为「{profile.Name}」", 3000);
+            }
+            else
+            {
+                Helpers.InAppToast.MainWindow?.Error((string?)null, "保存绑定失败：运行环境绑定文件可能已损坏，请到「运行环境 → 方案」页查看提示", 6000);
+                RefreshProfileSelector();
+            }
         }
     }
 
@@ -818,10 +825,11 @@ public sealed partial class GameSettingPage : PageBase
         NumberBox delayBox = new() { Header = "延迟启动（毫秒）", Value = entry.DelayMs, Minimum = 0, Maximum = 600000, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Inline };
 
         ComboBox profileBox = new() { Header = "运行环境（Profile）" };
-        profileBox.Items.Add("跟随游戏 Profile");
+        profileBox.Items.Add(new ComboBoxItem { Content = "跟随游戏 Profile", Tag = null });
+        // R75：别再用「名字 + 索引二次 LoadAll」——重名不可区分，对话框停留期间列表变化还会错位。
         foreach (Starward.Features.Runtime.RuntimeProfile profile in Starward.Features.Runtime.RuntimeProfileStore.LoadAll())
         {
-            profileBox.Items.Add(profile.Name);
+            profileBox.Items.Add(new ComboBoxItem { Content = profile.Name, Tag = profile.Id });
             if (profile.Id == entry.ProfileId)
             {
                 profileBox.SelectedIndex = profileBox.Items.Count - 1;
@@ -909,9 +917,9 @@ public sealed partial class GameSettingPage : PageBase
         entry.Path = pathBox.Text.Trim();
         entry.Arguments = argsBox.Text ?? "";
         entry.DelayMs = (int)(double.IsNaN(delayBox.Value) ? 0 : delayBox.Value);
-        entry.ProfileId = profileBox.SelectedIndex <= 0
-            ? null
-            : Starward.Features.Runtime.RuntimeProfileStore.LoadAll()[profileBox.SelectedIndex - 1].Id;
+        entry.ProfileId = profileBox.SelectedItem is ComboBoxItem selectedProfile && selectedProfile.Tag is string selectedProfileId
+            ? selectedProfileId
+            : null;
         entry.Companion = companionSwitch.IsOn;
         if (triggerCombo.SelectedItem is ComboBoxItem selectedTrigger && selectedTrigger.Tag is string trigger)
         {

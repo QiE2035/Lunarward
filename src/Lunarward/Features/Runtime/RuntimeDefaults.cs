@@ -55,6 +55,30 @@ public static class RuntimeDefaults
     }
 
 
+    /// <summary>
+    /// R68：显式的默认方案 id。以前「默认」= 按 <see cref="StringComparer.CurrentCulture"/> 排序的第一份，
+    /// 改个名、切个 locale、加一份方案就会漂；未绑定的游戏会静默换前缀。
+    /// </summary>
+    public static string? DefaultProfileId
+    {
+        get => Read()?.DefaultProfileId;
+        set
+        {
+            Payload payload = Read() ?? new Payload();
+            payload.DefaultProfileId = string.IsNullOrWhiteSpace(value) ? null : value;
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+                JsonFile.WriteAtomic(FilePath, payload, JsonOptions);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "save runtime defaults failed");
+            }
+        }
+    }
+
+
     private static Payload? Read()
     {
         try
@@ -72,6 +96,8 @@ public static class RuntimeDefaults
     private sealed class Payload
     {
         public string? DefaultRunnerId { get; set; }
+
+        public string? DefaultProfileId { get; set; }
     }
 
 

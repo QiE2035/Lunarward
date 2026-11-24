@@ -1873,3 +1873,28 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 **验证**：`dotnet build` 0 错误；`dotnet test` **280 通过**（新增 `GraphicsLayoutsTests` 4 条）；`lint-ui-thread.sh` 通过；`cli-smoke` 40/0/1、`cli-extra` 32/0。
 
 **确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」；批次划分见 `28-runtime-env-audit.md` §6.11。
+
+## D118 运行环境审查修复：批 H「方案、绑定与持久化」
+
+**背景**：`28-runtime-env-audit.md` §6.5 的 R65–R76（12 条）集中在方案复制、绑定落盘与配置读取上，症状都是「配置看起来没错，但不生效」或「静默丢配置」。用户 m07141 批准全量修复、按批提交。
+
+**决定**
+
+1. **R65**：新游戏自动建方案改用 `RuntimeProfile.CopyWithNewId()` 逐字段克隆（含 `Hud/HudOptions/GameMode/GameScope/GameScopeArgs`），并加反射测试——以后新增字段忘了复制会直接红，而不是再让 HUD 静默消失。
+2. **R66**：旧目录迁移时目标文件已存在，不再删源，改名 `<file>.migrated-conflict-<ts>` 并 `LogWarning`。
+3. **R67**：`LegacyGraphicsId` 扫不到组件时保留 id（只记日志、不落盘），外置盘未挂载不再永久清空用户选择。
+4. **R68**：默认方案改为显式标记 `RuntimeDefaults.DefaultProfileId`；方案详情页 ⋯ 菜单加「设为默认环境」，默认方案在标题旁显示徽标。未标记时退回排序首项（兼容老配置）。
+5. **R69**：方案名统一走 `RuntimeProfile.NormalizeName`（trim、折叠空白、去路径分隔符与控制字符、限长 64），保存时自动去重（` (2)`、` (3)`…），避免重名方案共用前缀目录。
+6. **R70/R71**：`ProfileBinding.Set` 改为返回 bool、不再抛异常（`async void` 里抛即崩）；绑定文件损坏时 `IsReadable` 返回 false，删除方案流程先停下并说明原因，`ClearFor` 返回 -1 而不是 0。
+7. **R72/R73**：id 比较全链路 `Ordinal`；新方案 id 从 8 位十六进制改为 16 位（旧 8 位文件照常读取）。
+8. **R74/R75/R76**：读取配置开 `PropertyNameCaseInsensitive`；`SchemaVersion` 高于当前值时跳过加载并保留文件；只有 `JsonException` 才把文件改名留证，`IOException/UnauthorizedAccessException` 保留原文件；诊断包 `bindings.json` 改为导出 `{path, lastError, ok, error, bindings, raw}`。
+
+**代价边界**
+
+- 名字上限 64，重名自动加序号；用户仍可在编辑器里改成想要的显示名（保存时同样过规范化）。
+- 16 位 id 只影响新建方案；已有 8 位 id 的方案不改名、不迁移（文件名仍是真值）。
+- 「默认环境」是显式选择，不再随 locale / 改名漂移；旧配置没有标记时行为与以前一致（排序首项）。
+
+**验证**：`dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错误；`dotnet test Starward.slnx` **286 通过**（新增 `CopyWithNewId` 正反两条 + `NormalizeName` 4 例）；`lint-ui-thread.sh` 通过；`cli-smoke` 40/0/1；`cli-extra` 32/0。
+
+**确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」。

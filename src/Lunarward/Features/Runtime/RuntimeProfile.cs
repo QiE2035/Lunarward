@@ -18,7 +18,7 @@ public sealed class RuntimeProfile
     public int SchemaVersion { get; set; } = 4;
 
 
-    public string Id { get; set; } = Guid.NewGuid().ToString("n")[..8];
+    public string Id { get; set; } = Guid.NewGuid().ToString("n")[..16];
 
 
     /// <summary>用户可见名称。</summary>
@@ -113,6 +113,62 @@ public sealed class RuntimeProfile
     /// 目的是让 UI 绑定和已有调用点不必在属性里扫盘（D72：UI 线程不做阻塞 IO）。
     /// </summary>
     public string? RunnerPath { get; set; }
+
+
+
+    /// <summary>R69：方案名规范化——trim、折叠空白、去掉路径分隔符与控制字符、限长 64；空名给「未命名」。</summary>
+    public static string NormalizeName(string? name)
+    {
+        string value = (name ?? "").Trim();
+        Span<char> buffer = stackalloc char[Math.Min(value.Length, 64)];
+        int length = 0;
+        bool lastSpace = false;
+        foreach (char ch in value)
+        {
+            if (char.IsControl(ch))
+            {
+                continue;
+            }
+            char c = ch is '/' or '\\' or ':' or '*' or '?' or '"' or '<' or '>' or '|' ? ' ' : ch;
+            if (c == ' ')
+            {
+                if (lastSpace)
+                {
+                    continue;
+                }
+                lastSpace = true;
+            }
+            else
+            {
+                lastSpace = false;
+            }
+            if (length < buffer.Length)
+            {
+                buffer[length++] = c;
+            }
+        }
+        string result = new string(buffer[..length]).Trim();
+        return result.Length == 0 ? "未命名" : result;
+    }
+
+
+    /// <summary>
+    /// R65：为新游戏复制一份方案时逐字段复制。以前 <c>ProfileBinding.EnsureFor</c> 手写字段清单，
+    /// 漏了 HUD / gamemode / gamescope，用户开着 HUD 去启动新游戏会「静默全关」。
+    /// 前缀字段清空：复制出来的是一份独立环境，前缀目录按新名字重新推导。
+    /// </summary>
+    public RuntimeProfile CopyWithNewId()
+    {
+        RuntimeProfile copy = (RuntimeProfile)MemberwiseClone();
+        copy.Id = Guid.NewGuid().ToString("n")[..16];
+        copy.Name = "";
+        copy.PrefixSlug = null;
+        copy.PrefixPath = null;
+        copy.Notes = null;
+        copy.Env = new Dictionary<string, string>(Env, StringComparer.Ordinal);
+        copy.Wrappers = new List<string>(Wrappers);
+        return copy;
+    }
 
 
     [JsonIgnore]

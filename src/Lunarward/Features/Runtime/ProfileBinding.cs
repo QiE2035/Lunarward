@@ -22,17 +22,34 @@ public static class ProfileBinding
     };
 
 
-    /// <summary>诊断包用：把「游戏 → 方案 id」的绑定关系原样导出。</summary>
+    /// <summary>
+    /// R76：诊断包用。以前损坏时只导出 <c>{}</c>，用户报「绑定丢了」时看不出是坏了还是真的空；
+    /// 现在连同 lastError、原始文本一起导出，能直接判断。
+    /// </summary>
     public static string Describe()
     {
+        var payload = new Dictionary<string, object?>
+        {
+            ["path"] = FilePath,
+            ["lastError"] = LastError,
+        };
+        bool ok = TryLoad(out Dictionary<string, string> map, out string? error);
+        payload["ok"] = ok;
+        payload["error"] = error;
+        payload["bindings"] = map;
         try
         {
-            return JsonSerializer.Serialize(Load(), new JsonSerializerOptions { WriteIndented = true });
+            payload["raw"] = File.Exists(FilePath) ? File.ReadAllText(FilePath) : null;
         }
         catch (Exception ex)
         {
-            return "读取绑定失败：" + ex;
+            payload["raw"] = "读取失败：" + ex.Message;
         }
+        return JsonSerializer.Serialize(payload, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        });
     }
 
 
@@ -116,17 +133,23 @@ public static class ProfileBinding
     }
 
 
+    /// <summary>R71：绑定文件是否可读（不可读时「没人在用」这个结论不成立，删除流程必须先停下）。</summary>
+    public static bool IsReadable(out string? error) => TryLoad(out _, out error);
+
+
     public static string? Get(GameBiz biz) => Load().GetValueOrDefault(biz.Value);
 
 
     /// <summary>
-    /// 写绑定。R09：原文件损坏且没有可用备份时直接抛错，避免「只写进一条」的字典把其余绑定抹掉。
+    /// 写绑定。R09：原文件损坏且没有可用备份时拒绝写，避免「只写进一条」的字典把其余绑定抹掉。
+    /// R70：不再抛异常（UI 的 <c>async void</c> 处理器抛出即崩），改为返回 false + 原因由调用方提示。
     /// </summary>
-    public static void Set(GameBiz biz, string? profileId)
+    public static bool Set(GameBiz biz, string? profileId, ILogger? logger = null)
     {
         if (!TryLoad(out Dictionary<string, string> map, out string? error))
         {
-            throw new InvalidOperationException($"游戏绑定文件已损坏，已保留原文件；请修复或删除 {FilePath}（{error}）");
+            logger?.LogWarning("Write game profile bindings refused (corrupted file): {error}", error);
+            return false;
         }
         if (string.IsNullOrWhiteSpace(profileId))
         {
@@ -136,8 +159,17 @@ public static class ProfileBinding
         {
             map[biz.Value] = profileId;
         }
-        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-        JsonFile.WriteAtomic(FilePath, map, JsonOptions);
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+            JsonFile.WriteAtomic(FilePath, map, JsonOptions);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Write game profile bindings failed");
+            return false;
+        }
     }
 
 
@@ -150,7 +182,7 @@ public static class ProfileBinding
     /// 启动时会静默回落到第一份方案（L-62），所以这里要能被界面看见。</summary>
     public static IReadOnlyList<(GameBiz Biz, string ProfileId)> Dangling(IEnumerable<string> existingIds)
     {
-        var alive = new HashSet<string>(existingIds ?? [], StringComparer.OrdinalIgnoreCase);
+        var alive = new HashSet<string>(existingIds ?? [], StringComparer.Ordinal);
         var result = new List<(GameBiz, string)>();
         foreach (KeyValuePair<string, string> pair in Load())
         {
@@ -179,14 +211,19 @@ public static class ProfileBinding
     }
 
 
-    /// <summary>清掉所有指向这份配方的绑定，返回清掉的条数（删配方时调用，与 §4.2 一致）。</summary>
+    /// <summary>
+    /// 清掉所有指向这份配方的绑定，返回清掉的条数；绑定文件损坏时返回 -1（不能当成「没人用」继续删方案）。
+    /// </summary>
     public static int ClearFor(string? profileId)
     {
         if (string.IsNullOrWhiteSpace(profileId))
         {
             return 0;
         }
-        Dictionary<string, string> map = Load();
+        if (!TryLoad(out Dictionary<string, string> map, out _))
+        {
+            return -1;
+        }
         List<string> keys = map.Where(x => string.Equals(x.Value, profileId, StringComparison.Ordinal))
             .Select(x => x.Key)
             .ToList();
@@ -262,21 +299,10 @@ public static class ProfileBinding
             logger?.LogInformation("默认环境改名为 {name}（原 {old}）并绑定到 {biz}（id {id}）", gameName, oldName, b.Value, fallback.Id);
             return (fallback, true, true);
         }
-        RuntimeProfile created = new()
-        {
-            Name = gameName,
-            RunnerId = fallback.RunnerId,
-            RunnerPath = fallback.RunnerPath,
-            DxvkId = fallback.DxvkId,
-            Vkd3dId = fallback.Vkd3dId,
-            Env = new Dictionary<string, string>(fallback.Env),
-            Args = fallback.Args,
-            Wrappers = new List<string>(fallback.Wrappers),
-            PrefixArch = fallback.PrefixArch,
-            Shell = fallback.Shell,
-            GameOutput = fallback.GameOutput,
-            Notes = $"首次启动自动创建（沿用「{fallback.Name}」的运行器与图形层）",
-        };
+        // R65：逐字段复制（含 HUD / gamemode / gamescope），别手写字段清单——漏字段会让增强开关静默失效。
+        RuntimeProfile created = fallback.CopyWithNewId();
+        created.Name = gameName;
+        created.Notes = $"首次启动自动创建（沿用「{fallback.Name}」的运行器、图形层与增强设置）";
         if (!RuntimeProfileStore.Save(created, logger))
         {
             // R64：写盘失败就别绑定、也别把这份「幽灵方案」交给启动器用。
@@ -311,6 +337,16 @@ public static class ProfileBinding
             {
                 Serilog.Log.Warning("Profile binding for {biz} points to missing profile {id}; falling back to {fallback}. "
                                     + "Re-bind it in the game settings.", b, id, all[0].Name);
+            }
+        }
+        // R68：未绑定游戏用显式的默认方案；没有标记时退回排序首项（兼容老配置）。
+        string? defaultId = RuntimeDefaults.DefaultProfileId;
+        if (!string.IsNullOrWhiteSpace(defaultId))
+        {
+            RuntimeProfile? marked = all.FirstOrDefault(p => string.Equals(p.Id, defaultId, StringComparison.Ordinal));
+            if (marked is not null)
+            {
+                return marked;
             }
         }
         return all[0];

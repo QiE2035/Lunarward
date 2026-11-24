@@ -191,7 +191,7 @@
 > 触发：用户 m06812「再逐文件仔细审查一遍所有『运行环境』相关代码，包括逻辑层，UI 等等，找出所有存在的细节问题，以及可改进的地方，并给出相应的意见」。
 > 范围：`src/Lunarward/Features/Runtime/*.cs`（25 文件 6977 行）、`Features/Setting/RuntimeEnvironmentSetting*.cs`（5 个 partial 6156 行）、`RuntimeEnvironmentSetting.xaml`（572 行），并回查 `GameLauncher/GameLauncherService(.Linux).cs`、`LaunchPreflight.cs`、`GameSettingPage.xaml.cs`、`Helpers/JsonFile.cs` 等调用方。
 > 方法：4 组只读子代理分工通读（页面 / 组件与下载 / 启动与解析 / 方案与绑定）+ 本人 grep 自查 + 抽查关键断言；标 ✔已核对的条目由本人回源码逐行确认。初稿中标「推断」的 7 条已于 2026-11-24 逐条取证并订正（结论与实测见 §6.12）：其中 R55 的「建前缀失败」被实测否定、R77 的「死锁面」被代码否定、R94 的适用范围收窄到「手改文件」。仍未实测的只剩「外部服务端行为」（R61 触发、R62 可达性）。
-> 状态：**批 E–G 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116；批 G：R57–R63，D117）；其余未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
+> 状态：**批 E–H 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116；批 G：R57–R63，D117；批 H：R65–R76，D118）；其余未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
 
 ### 6.1 结论摘要
 
@@ -324,62 +324,62 @@
 - 影响：磁盘满/权限/目录被删时文件没写成，绑定照样写入 → `Resolve` 指向不存在的 id，`Dangling` 出现悬空记录；用户反复看到「已创建运行环境」但启动仍用兜底方案。
 - 建议：`if (!RuntimeProfileStore.Save(...)) { LogWarning; return (fallback, false, …); }`，或 Save 失败抛出让上层提示。
 
-**R65　新游戏方案漏拷增强开关，MangoHud/gamemode/gamescope 静默关闭**
+**R65　（🛠 已修复，D118 批 H）新游戏方案漏拷增强开关，MangoHud/gamemode/gamescope 静默关闭**
 - 位置：`ProfileBinding.cs:259-273`（只复制 `Name/RunnerId/RunnerPath/DxvkId/Vkd3dId/Env/Args/Wrappers/PrefixArch/Shell/GameOutput/Notes`），`RuntimeProfile.cs:72-88` 的 `Hud/HudOptions/GameMode/GameScope/GameScopeArgs` 走默认。
 - 影响：默认方案开好 HUD + gamemode，第一次启动新游戏时复制出的方案全关；预检「增强开关」项还显示 Ok，用户看不出为什么 HUD 没了。
 - 建议：实现 `RuntimeProfile.CopyWithNewId()` 逐字段复制 + 单测；或加「字段清单 + 反射断言」防止下次加字段再漏。
 
-**R66　迁移时目标文件已存在则直接删源，方案静默丢失**
+**R66　（🛠 已修复，D118 批 H）迁移时目标文件已存在则直接删源，方案静默丢失**
 - 位置：`RuntimeProfileStore.cs:263-268`（`if (!File.Exists(target)) WriteAtomic(...); File.Delete(file);`）。
 - 影响：id 撞车（复制过 env.json、上次迁移中断、手工拷回）时旧目录方案被删，新文件是另一份内容，日志仍打 "Migrated"。
 - 建议：目标存在时不删源，改名 `<name>.migrated-conflict-<ts>.json` 并 `LogWarning`。
 
-**R67　`LegacyGraphicsId` 一次扫不到就永久清零**
+**R67　（🛠 已修复，D118 批 H）`LegacyGraphicsId` 一次扫不到就永久清零**
 - 位置：`RuntimeProfileStore.cs:166-188`（`ComponentStore.GetGraphics()` 找不到就 `LegacyGraphicsId = null; changed = true;`），`:119-122` 落盘。
 - 影响：外置盘/移动硬盘未挂载、`~/.local/share/<launcher>` 临时挪走 → 用户已选图形层被**永久**清空（不是回退默认，是丢配置）。
 - 建议：只在有卸载证据（`ComponentHealth` 记录）时清；否则保留 id 只标 unknown，或连续 N 次 LoadAll 都找不到才清。
 
-**R68　「默认方案」没有显式标记，靠 `CurrentCulture` 排序首项**
+**R68　（🛠 已修复，D118 批 H）「默认方案」没有显式标记，靠 `CurrentCulture` 排序首项**
 - 位置：`RuntimeProfileStore.cs:145`（`OrderBy(x => x.Name, StringComparer.CurrentCulture)`）、`ProfileBinding.cs:305`（`Resolve` 兜底 `all[0]`）。
 - 影响：默认方案随 locale、改名、新增方案漂移；CJK/大小写排序结果不稳定（`a` vs `A` 因 culture 而异）。
 - 建议：`RuntimeDefaults` 增 `DefaultProfileId`（或 `RuntimeProfile.IsDefault`），`Resolve` 用它；展示排序显式 `StringComparer.Ordinal`/`InvariantCulture`。
 
-**R69　方案重名无校验 + 前缀由名推导，两份方案共用同一前缀**
+**R69　（🛠 已修复，D118 批 H）方案重名无校验 + 前缀由名推导，两份方案共用同一前缀**
 - 位置：`RuntimeProfileStore.cs:196-212`（`Save` 只 `ExpandPath(PrefixPath)`）、`RuntimeEnvironmentSetting.xaml.cs:1693-1700`（保存只 `Trim()`）。
 - 影响：两个同名方案（或改名撞上）且 `PrefixPath` 都空 → 同一目录；装/删 DXVK 互相影响，`EnsureFor` 的按名匹配（`:238-241`）随机选中一份。
 - 建议：`Save` 对 `Name` trim、空值回落、长度上限（64）、拒绝 `/\:*?"<>|` 与控制字符，重名自动加 ` (2)`；`EffectivePrefixPath` 改用不可变 slug（见 R44）。
 
-**R70　`ProfileBinding.Set` 抛异常，UI 与启动路径都没接**
+**R70　（🛠 已修复，D118 批 H）`ProfileBinding.Set` 抛异常，UI 与启动路径都没接**
 - 位置：`ProfileBinding.cs:125-141`（`throw new InvalidOperationException("游戏绑定文件已损坏…")`）；调用点 `GameSettingPage.xaml.cs:690`、`RuntimeEnvironmentSetting.Profiles.cs:680-684` 无 try。
 - 影响：绑定文件被手改坏后，用户在下拉框选一次方案即未处理异常（`async void` 场景 = 崩）。
 - 建议：`Set` 改返回 `(bool ok, string? error)`，或三处统一 try + toast；启动路径单独 catch 后降级「不绑定、用兜底方案」并 Warning。
 
-**R71　`ClearFor` 在绑定文件损坏时静默返回 0，删除流程据此误判**
+**R71　（🛠 已修复，D118 批 H）`ClearFor` 在绑定文件损坏时静默返回 0，删除流程据此误判**
 - 位置：`ProfileBinding.cs:183-204`（`Load()` 吞错返回空字典 → `keys.Count == 0` 直接返回）；调用点 `RuntimeEnvironmentSetting.xaml.cs:2748`。
 - 影响：对话框说「未被任何游戏使用」，用户确认后方案文件已删（`:2804`），`ClearFor` 又清 0 条 → 绑定里留下悬空 id。
 - 建议：`Load` 增加 `TryLoad` 语义分流；`Usages/ClearFor` 在损坏时返回错误码，UI 明确「无法判断，先修复绑定文件」。
 
-**R72　大小写语义不一致（`OrdinalIgnoreCase` vs `Ordinal`）**
+**R72　（🛠 已修复，D118 批 H）大小写语义不一致（`OrdinalIgnoreCase` vs `Ordinal`）**
 - 位置：`ProfileBinding.cs:153`（`HashSet<string>(..., StringComparer.OrdinalIgnoreCase)`）vs `:291`（`p.Id == id`）。
 - 影响：手改 Id 大小写后，`Dangling` 认为有效、`Resolve` 认为悬空，两处 UI 结论相反。
 - 建议：id 全链路统一 `Ordinal`（机器生成 ASCII），或在 `LoadAll` 里规范化大小写。
 
-**R73　8 位十六进制（32 bit）id，复制文件即撞车**
+**R73　（🛠 已修复，D118 批 H）8 位十六进制（32 bit）id，复制文件即撞车**
 - 位置：`RuntimeProfile.cs:21`（`Guid.NewGuid().ToString("n")[..8]`）、`RuntimeProfileStore.cs:105-117`（以文件名反推 id）。
 - 影响：`env/` 出现两份同 id 文件时 `LoadAll` 两份都读，`Save` 都写 `ProfileFile(Id)` 同一路径静默互相覆盖，`Delete` 只删一个。
 - 建议：id 用 16 位以上或完整 Guid；`LoadAll` 检出重复 id 并改名隔离。
 
-**R74　无 schema 门禁、无大小写兼容读取**
+**R74　（🛠 已修复，D118 批 H）无 schema 门禁、无大小写兼容读取**
 - 位置：`RuntimeProfileStore.cs:99`（`JsonOptions` 无 `PropertyNameCaseInsensitive`）、`RuntimeProfile.cs:18`（`SchemaVersion = 4` 全仓无读取方）。
 - 影响：手改成 camelCase 后所有字段静默变默认值——不是报错，是「配置看起来没错但没生效」；未来改结构也无版本入口。
 - 建议：`PropertyNameCaseInsensitive = true`；升版本时写迁移分支，读到 `SchemaVersion > 当前` 拒绝加载并保留原文件。
 
-**R75　任何读取异常都当成内容损坏改名；下拉用方案名 + 按索引二次 LoadAll**
+**R75　（🛠 已修复，D118 批 H）任何读取异常都当成内容损坏改名；下拉用方案名 + 按索引二次 LoadAll**
 - 位置：`RuntimeProfileStore.cs:129-136`（`catch { File.Move(file, $"{file}.corrupt-…") }`）；`GameSettingPage.xaml.cs:822-828`（`Items.Add(profile.Name)`；`LoadAll()[SelectedIndex - 1].Id`）。
 - 影响：权限/磁盘/网络盘瞬时错误把**好文件**改名，方案在列表里消失；重名方案不可区分，对话框停留期间列表变化 → 索引错位绑到别的方案或越界。
 - 建议：区分 `JsonException`（真损坏改名）与 `IOException/UnauthorizedAccessException`（记日志、保留原名、跳过）；下拉放 `(Id, Name)` 视图模型，保存直接用 Id。
 
-**R76　诊断包里的 bindings.json 在损坏时导出 `{}`，不附错误**
+**R76　（🛠 已修复，D118 批 H）诊断包里的 bindings.json 在损坏时导出 `{}`，不附错误**
 - 位置：`ProfileBinding.cs:26-36`（`JsonSerializer.Serialize(Load())`，`LastError` 不进文件）；`Helpers/DiagnosticBundle.cs:47` 原样写入。
 - 影响：用户报「绑定丢了」，诊断包里只有 `{}`，看不出是损坏还是真空。
 - 建议：导出 `{ "lastError": …, "bindings": {…}, "raw": "…" }`。

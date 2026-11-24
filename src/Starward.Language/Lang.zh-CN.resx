@@ -4277,4 +4277,16 @@
   <data name="Lunarward_RuntimeEnv_DownloadGraphicsTitle" xml:space="preserve">
     <value>下载图形层</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_BindingsSaveFailed" xml:space="preserve">
+    <value>有 {0} 条绑定没写成（绑定文件可能已损坏），请检查 profile-bindings.json</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DefaultProfileBadge" xml:space="preserve">
+    <value>默认</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_SetDefaultProfile" xml:space="preserve">
+    <value>设为默认环境</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DefaultProfileSet" xml:space="preserve">
+    <value>「{0}」已设为默认环境</value>
+  </data>
 </root>

@@ -227,13 +227,27 @@ public sealed partial class RuntimeEnvironmentSetting
         (string dot, string healthText) = DescribeHealth(profile, inspection);
 
         var body = new StackPanel { Spacing = 6 };
-        body.Children.Add(new TextBlock
+        var titleRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        titleRow.Children.Add(new TextBlock
         {
             Text = profile.Name,
             FontSize = 18,
             Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
         });
+        if (string.Equals(RuntimeDefaults.DefaultProfileId, profile.Id, StringComparison.Ordinal))
+        {
+            // R68：默认方案必须可见——未绑定的游戏（新游戏、双击 exe）都会落到它身上。
+            titleRow.Children.Add(new Border
+            {
+                Background = (Brush)Application.Current.Resources["ControlFillColorSecondaryBrush"],
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(6, 1, 6, 1),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock { Text = Lang.Lunarward_RuntimeEnv_DefaultProfileBadge, FontSize = 11 },
+            });
+        }
+        body.Children.Add(titleRow);
 
         var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         statusRow.Children.Add(new Ellipse
@@ -286,6 +300,7 @@ public sealed partial class RuntimeEnvironmentSetting
         ToolTipService.SetToolTip(moreButton, Lang.Lunarward_RuntimeEnv_More);
         AutomationProperties.SetName(moreButton, Lang.Lunarward_RuntimeEnv_More);
         var moreFlyout = new MenuFlyout();
+        moreFlyout.Items.Add(MenuItem(Lang.Lunarward_RuntimeEnv_SetDefaultProfile, profile, Button_SetDefaultProfile_Click));
         moreFlyout.Items.Add(MenuItem(Lang.Lunarward_RuntimeEnv_Clone, profile, Button_Clone_Click));
         moreFlyout.Items.Add(MenuItem(Lang.Lunarward_RuntimeEnv_TextView, profile, Button_TextView_Click));
         // D108：调试 Shell 只给开发构建（AGENTS 硬规则 6：危险入口不进发行版）；
@@ -303,6 +318,18 @@ public sealed partial class RuntimeEnvironmentSetting
 
         body.Children.Add(buttons);
         return Card(body);
+    }
+
+
+    private void Button_SetDefaultProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is not RuntimeProfile profile)
+        {
+            return;
+        }
+        RuntimeDefaults.DefaultProfileId = profile.Id;
+        LoadProfiles();
+        Helpers.InAppToast.MainWindow?.Success(string.Format(Lang.Lunarward_RuntimeEnv_DefaultProfileSet, profile.Name), null, 3000);
     }
 
 
@@ -676,10 +703,19 @@ public sealed partial class RuntimeEnvironmentSetting
         {
             return;
         }
+        int failures = 0;
         foreach ((GameBiz biz, ComboBox combo) in rows)
         {
             int index = combo.SelectedIndex;
-            ProfileBinding.Set(biz, index <= 0 ? null : profiles[index - 1].Id);
+            if (!ProfileBinding.Set(biz, index <= 0 ? null : profiles[index - 1].Id, _logger))
+            {
+                failures++;
+            }
+        }
+        if (failures > 0)
+        {
+            Helpers.InAppToast.MainWindow?.Warning((string?)null,
+                string.Format(Lang.Lunarward_RuntimeEnv_BindingsSaveFailed, failures), 8000);
         }
         _ = RefreshChipsAsync();
         LoadProfiles();

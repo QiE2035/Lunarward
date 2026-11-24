@@ -302,12 +302,22 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         IReadOnlyList<RuntimeProfile> profiles = RuntimeProfileStore.LoadAll(_logger);
         IReadOnlyList<(GameBiz Biz, string ProfileId)> dangling = ProfileBinding.Dangling(profiles.Select(x => x.Id));
+        int failures = 0;
         foreach ((GameBiz biz, _) in dangling)
         {
-            ProfileBinding.Set(biz, profileId);
+            if (!ProfileBinding.Set(biz, profileId, _logger))
+            {
+                failures++;
+            }
         }
         LoadProfiles();
         _ = RefreshChipsAsync();
+        if (failures > 0)
+        {
+            Helpers.InAppToast.MainWindow?.Warning((string?)null,
+                string.Format(Lang.Lunarward_RuntimeEnv_BindingsSaveFailed, failures), 8000);
+            return;
+        }
         Helpers.InAppToast.MainWindow?.Success(string.Format(Lang.Lunarward_RuntimeEnv_ReboundGames, dangling.Count), null, 4000);
     }
 
@@ -316,12 +326,22 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     {
         IReadOnlyList<RuntimeProfile> profiles = RuntimeProfileStore.LoadAll(_logger);
         IReadOnlyList<(GameBiz Biz, string ProfileId)> dangling = ProfileBinding.Dangling(profiles.Select(x => x.Id));
+        int failures = 0;
         foreach ((GameBiz biz, _) in dangling)
         {
-            ProfileBinding.Set(biz, null);
+            if (!ProfileBinding.Set(biz, null, _logger))
+            {
+                failures++;
+            }
         }
         LoadProfiles();
         _ = RefreshChipsAsync();
+        if (failures > 0)
+        {
+            Helpers.InAppToast.MainWindow?.Warning((string?)null,
+                string.Format(Lang.Lunarward_RuntimeEnv_BindingsSaveFailed, failures), 8000);
+            return;
+        }
         Helpers.InAppToast.MainWindow?.Success(string.Format(Lang.Lunarward_RuntimeEnv_ClearedDangling, dangling.Count), null, 4000);
     }
 
@@ -2613,7 +2633,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_SaveFailed);
             return;
         }
-        ProfileBinding.Set(biz, clone.Id);
+        if (!ProfileBinding.Set(biz, clone.Id, _logger))
+        {
+            Helpers.InAppToast.MainWindow?.Warning((string?)null,
+                "方案已创建，但写入绑定失败（绑定文件可能损坏）；请在游戏设置里重新选择", 8000);
+        }
         LoadProfiles();
         await RefreshChipsAsync();
         Helpers.InAppToast.MainWindow?.Success((string?)null,
@@ -2743,6 +2767,14 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         try
         {
+            // R71：绑定文件坏了时 Usages 只能返回空，「没人在用」这个结论不成立；先停，别删方案。
+            if (!Features.Runtime.ProfileBinding.IsReadable(out string? bindingsError))
+            {
+                Helpers.InAppToast.MainWindow?.Warning((string?)null,
+                    $"运行环境绑定文件无法读取（{bindingsError}），暂时不能判断哪些游戏在用这份方案；"
+                    + "请先修复或删除 profile-bindings.json 再删方案", 9000);
+                return;
+            }
             // §4.2：删之前先列清楚哪些游戏在用，并说明绑定会一起清掉。
             // 以前这里直接 File.Delete，留下的悬空绑定只能靠「游戏设置」里的红条兜底（L-62 的反面）。
             IReadOnlyList<GameBiz> usages = Features.Runtime.ProfileBinding.Usages(profile.Id);
@@ -2807,6 +2839,11 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 return;
             }
             int cleared = Features.Runtime.ProfileBinding.ClearFor(profile.Id);
+            if (cleared < 0)
+            {
+                Helpers.InAppToast.MainWindow?.Warning((string?)null,
+                    "方案已删除，但绑定文件损坏，无法清理指向它的绑定；下次启动会回落到默认方案", 8000);
+            }
             if (deletePrefixBox.IsChecked == true && prefixExists)
             {
                 // R22：克隆出来的方案默认共用同一个前缀目录；删之前必须确认没别人在用。

@@ -573,4 +573,13 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_SourcesCheckResult => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesCheckResult", resourceCulture) ?? "Lunarward_RuntimeEnv_SourcesCheckResult";
     public static string Lunarward_RuntimeEnv_CheckAllSourcesFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_CheckAllSourcesFailed", resourceCulture) ?? "Lunarward_RuntimeEnv_CheckAllSourcesFailed";
     public static string Lunarward_RuntimeEnv_SectionCount => ResourceManager.GetString("Lunarward_RuntimeEnv_SectionCount", resourceCulture) ?? "Lunarward_RuntimeEnv_SectionCount";
+
+    public static string Lunarward_RuntimeEnv_BindingsSaveFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsSaveFailed", resourceCulture) ?? "有 {0} 条绑定没写成（绑定文件可能已损坏），请检查 profile-bindings.json";
+
+    public static string Lunarward_RuntimeEnv_DefaultProfileBadge => ResourceManager.GetString("Lunarward_RuntimeEnv_DefaultProfileBadge", resourceCulture) ?? "默认";
+
+    public static string Lunarward_RuntimeEnv_SetDefaultProfile => ResourceManager.GetString("Lunarward_RuntimeEnv_SetDefaultProfile", resourceCulture) ?? "设为默认环境";
+
+    public static string Lunarward_RuntimeEnv_DefaultProfileSet => ResourceManager.GetString("Lunarward_RuntimeEnv_DefaultProfileSet", resourceCulture) ?? "「{0}」已设为默认环境";
+
 }
