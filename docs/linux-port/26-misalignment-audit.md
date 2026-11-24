@@ -2,6 +2,7 @@
 
 > 生成日期：2026-11-21　基线：上游 `df8ae07` ↔ 移植 `b5b75a5`。
 > 方法：9 组子代理逐文件比语义（不报格式/命名/using）；2026-11-22 由 8 组子代理逐条读两侧代码复核，结论见第 1 节。**修前仍应按条目里的前置条件真机确认。**
+> 最后核对：2026-11-24（HEAD 2b86682）。本文件是审计快照，数字以脚注日期为准；已按逐条标记重算：76 条 = ✅ 51 + ◐ 19 + ❌ 6，🛠 已修复 70 条（B21 有两条修复行，故 🛠 出现 71 次）。
 
 | 置信度 | 条数 |
 |---|---|
@@ -474,7 +475,7 @@
 
 - **B61**（low）`Features/GameLauncher/GameBannerAndPost.xaml.cs:259` — 公告改为浏览器打开后红点不再刷新（GameNoticeWindowClosedMessage 链路被删）
   - 现象：点开公告（浏览器）后回到启动器，公告红点仍然亮着，直到重新进入页面/换游戏触发 UpdateGameNoticeAlertAsync 才消失；用户会以为还有未读公告。
-  - 上游：`Features/GameLauncher/GameBannerAndPost.xaml.cs:212` — 上游 OpenGameNoticeWindow 打开 GameNoticeWindow，Loaded 里注册 GameNoticeWindowClosedMessage，窗口关闭后重新 UpdateGameNoticeAlertAsync 把 IsGameNoticesAlert 置回 false。移植删掉了消息注册与 OnGameNoticeWindowClosed，OpenGameNoticeWindowAsync 只 `OpenUrl.Open(url)`，浏览器何时关闭无从得知，也没有其它地方重置 IsGameNoticesAlert。
+  - 上游：`Features/GameLauncher/GameBannerAndPost.xaml.cs:212` — 上游 OpenGameNoticeWindow 打开 GameNoticeWindow（**该窗口与 `GameNoticeWindowClosedMessage` 已在移植侧删除，D63 冗余清理；公告改浏览器打开，D40/D50**），Loaded 里注册 GameNoticeWindowClosedMessage，窗口关闭后重新 UpdateGameNoticeAlertAsync 把 IsGameNoticesAlert 置回 false。移植删掉了消息注册与 OnGameNoticeWindowClosed，OpenGameNoticeWindowAsync 只 `OpenUrl.Open(url)`，浏览器何时关闭无从得知，也没有其它地方重置 IsGameNoticesAlert。
   - ✅ 复核（2026-11-22，读码）：src/Lunarward/Features/GameLauncher/GameBannerAndPost.xaml.cs:98-99 的 Loaded 只注册 MainWindowStateChangedMessage 与 GameAnnouncementSettingChangedMessage；:420 OpenGameNoticeWindowAsync 只取 URL 后 :429 Helpers.OpenUrl.Open(url)；IsGameNoticesAlert 仅在 :149/:255/:259 赋值，无浏览器返回后的回写。上游同名文件 :62 注册 GameNoticeWindowClosedMessage、:98-102 在其回调里 UpdateGameNoticeAlertAsync；移植树 grep 不到 GameNoticeWindowClosedMessage 类型。红点数据源 GameN…
 - 🛠 修复（2026-11-22）：`OpenGameNoticeWindowAsync` 打开浏览器前直接 `IsGameNoticesAlert = false`（没有窗口关闭事件可等）。
 

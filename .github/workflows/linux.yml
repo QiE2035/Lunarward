@@ -41,6 +41,11 @@ jobs:
     - name: Lint (UI 线程 / 空 stub / 命令白名单)
       run: bash scripts/test/lint-ui-thread.sh
 
+    # 文档状态表与代码对不上时不许合入（编号重号、12-shims 的替身清单 / 排除条数、
+    # 18 的同名文件数、README 与 AGENTS 的文档份数）。秒级、不构建。
+    - name: Lint (文档状态一致性)
+      run: bash scripts/test/lint-doc-status.sh --strict
+
     - name: Test (L1 单测)
       run: dotnet test Starward.slnx -c Release --no-build
 

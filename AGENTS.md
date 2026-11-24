@@ -70,12 +70,16 @@ dotnet test Starward.slnx -c Debug
 # 进程内 UI 自检（11 条断言，CI 里跑在 xvfb 上）
 LUNARWARD_SELFTEST=1 ./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward --selftest-ui
 
-# L2 CLI 冒烟（cli-smoke 40 例 + cli-extra 32 例，假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
+# L2 CLI 冒烟（cli-smoke 41 例 = 40 通过 + 1 跳过；cli-extra 32 例；假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-smoke.sh
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-extra.sh
 
 # 静态规则检查（UI 线程不许同步阻塞 / 不许留空 stub / 命令白名单，秒级、不启动应用）
 bash scripts/test/lint-ui-thread.sh
+
+# 文档状态一致性（L-*/T-* 编号唯一、12-shims 的替身清单与排除条数、
+# 18 的同名文件数、README/AGENTS 的文档份数；秒级、不构建）
+bash scripts/test/lint-doc-status.sh
 LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/lint-cli-help.sh
 
 # Arch 打包：三份 PKGBUILD 的 depends 与源码里的原生依赖是否对得上（秒级、不联网）
@@ -148,17 +152,17 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 活跃文档**共 14 份**（2026-11-21 增补 `25`/`26`/`27`，2026-11-23 增补 `28`/`29`）：
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D123 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D124 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-172 坑与复现方法（唯一）
+- `13-lessons.md` — L-01…L-175 坑与复现方法（唯一；编号勘误见文末）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`scripts/list-deviations.sh` 生成；逐点以 `25` 为准）
-- `19-test-plan.md` — 测试计划（唯一，230 条：218 T-* + 12 RG-*）
-- `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 八字段 / 四层检查 / 页面）
-- `24-dependency-audit.md` — 依赖盘点（48 处外部进程判定、可换库项、建议批次）：换依赖前先看这张表
-- `25-deviation-register.md` — **逐点偏离总账**（265 点 / 114 文件、类别 + 必要性 + 可否回流、53 条排除清单、60 条可避免清单（2026-11-22 全量复核））：判断「这个偏离是否必须」先查它
+- `19-test-plan.md` — 测试计划（唯一，237 条：225 T-* + 12 RG-*，按表内唯一 ID 统计）
+- `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 九字段 / 四层检查 / 页面）
+- `24-dependency-audit.md` — 依赖盘点（43 处存活外部进程、可换库项、建议批次）：换依赖前先看这张表
+- `25-deviation-register.md` — **逐点偏离总账**（265 点、类别 + 必要性 + 可否回流、53 条排除清单、60 条可避免清单（2026-11-22 全量复核）；涉及文件数随上游同步漂移，以该文 §1 当场重算为准）：判断「这个偏离是否必须」先查它
 - `26-misalignment-audit.md` — **实现错位 bug 候选**（76 条，2026-11-22 已全部读码复核：成立 51 / 部分成立 19 / 不成立 6；**已修复 70 条**，D95–D103；`B01`…`B76` 编号）：修 bug 前先对号，修完把 ◐/○ 改成 ✅ 并补证据
 - `27-audit-report.md` — **审计可读版（修复前快照）**：按模块讲每条「哪里错、上游怎么写、用户看到什么」，与 26 同编号；想快速理解看这份，当前状态看 `26`
-- `28-runtime-env-audit.md` — **运行环境模块审查**：第一轮 R01–R42 已按批次 A–D 修复（D104–D107）；第二轮 2026-11-24 复审 R43–R130（3 Critical / 52 High / 20 Medium / 13 Low，**批 E–J 已修**（R43–R97，D115–D120），批 K 已修完（R98–R130，D121））：动 `Features/Runtime/` 或运行环境页之前先看它
+- `28-runtime-env-audit.md` — **运行环境模块审查**：第一轮 R01–R42 已按批次 A–D 修复（D104–D107）；第二轮 2026-11-24 复审 R43–R130（3 Critical / 52 High / 20 Medium / 13 Low，**批 E–K 已全部修完**（R43–R130，D115–D121），其中 2 处**有意不修**：R117 字号统一、R126 VDF 库存在性探测）：动 `Features/Runtime/` 或运行环境页之前先看它
 - `29-runtime-env-ui-audit.md` — **运行环境页面 UI 审查**（2026-11-23，21 条：术语/i18n / 布局视觉 / 交互可达性，D108 全部修完）：改运行环境页 XAML 或要动文案/配色之前先看它
 - `docs/user/` — 给用户的 FAQ 与运行环境说明
 - `screenshots/` / `perf-baseline.json` — 截图证据与性能基线数据
@@ -178,7 +182,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 
 - 悬浮窗、手柄映射、RPC 服务、云游戏/战绩/BBS 桥 → **M4 占位，明确暂不做**。
 - 公告窗改为「浏览器打开」（`GameNoticeWindow` 已删除）。
-- 引擎能力差异（记软差异，不改上游 XAML）：无 DWM 丙烯（部分页面壁纸透字）、`ms-appx` 含空格字体不加载、`PipsPager` 模板不响应、`Window.Hide()` 空实现（已用 libxcb 补）、`AppWindow.Id` 恒 `0x1`。
+- 引擎能力差异（记软差异，不改上游 XAML）：无 DWM 丙烯（只铺不透明底色，部分页面壁纸透字）、Uno 拦截 `Segoe Fluent Icons` / `Segoe MDL2 Assets` 族名导致随包字体不加载（L-15；与路径、空格无关——含空格路径、`%20`、无空格别名都试过，图标已改 Uno Symbols + 码位替换，L-88）、`PipsPager` 模板不响应、`Window.Hide()` 空实现（已用 libxcb 补）、`AppWindow.Id` 恒 `0x1`。
 - 真机待验收：原神/绝区零真实启动、真实登录回填、游玩时长记录。
 
 ---
@@ -189,6 +193,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - [ ] `dotnet test Starward.slnx` 全绿
 - [ ] `bash scripts/test/lint-ui-thread.sh` 全绿（动了 UI code-behind / `*.Linux.cs` 事件处理器 / CLI 开关时必跑）
 - [ ] `bash scripts/test/lint-cli-help.sh` 全绿（加了/改了 CLI 开关时必跑：`Helpers/CliSpec.cs` 是帮助唯一来源，D79）
+- [ ] `bash scripts/test/lint-doc-status.sh --strict` 全绿（动了 `docs/linux-port/` 的状态表时必跑：它卡编号唯一与几处数字）
 - [ ] `bash scripts/test/lint-pkgbuild.sh` 全绿（改了原生依赖、`packaging/` 或 `global.json` 时必跑：三份 PKGBUILD 的 depends 要与源码对上，SDK 下限只写 `x.y.100`，D88/D89）
 - [ ] `bash scripts/test/cli-smoke.sh` 与 `cli-extra.sh` 全绿（改了 CLI 时必跑）
 - [ ] 没有残留 `[xx-diag]` 日志 / 临时 `DevSwitches` / `/tmp` 调试代码

@@ -4,6 +4,7 @@
 > 依据：[23 运行环境设计](23-runtime-env-design.md) §7/§13、D80/D82/D84/D85、AGENTS.md 硬规则（禁止硬编码颜色、危险入口不进发行版）
 > 方法：真机逐页走查（`cu_screenshot target=area`，1200×680 窗口）+ 读 XAML/code-behind 对照设计；只读审查，修与不修由用户拍板。
 > 结论：共 21 条，**2026-11-23 用户确认「全部处理」，全部已修（D108）**。
+> 最后核对：2026-11-24（HEAD 2b86682）。本文件是审计快照，数字以脚注日期为准；页面现已收成**三个页签（方案 / 组件 / 前缀）**，原文中的「四个页签」均已按现状更正。
 
 | 分类 | 条数 | 已修 |
 | --- | --- | --- |
@@ -54,7 +55,7 @@
 17. **编辑器没有脏检查**：切页签/返回/切方案会静默丢弃草稿。
     🛠 D108：`_editorSnapshot` + `ConfirmLeaveEditorAsync()`，切页签与返回都会先弹「放弃未保存的修改？」。
 18. **页签无选中状态暴露给读屏**。
-    🛠 D108：`ShowTab` 里对四个页签 `AutomationProperties.SetItemStatus(…, "Selected")`。
+    🛠 D108：`ShowTab` 里对三个页签（`Tab_Profiles` / `Tab_Components` / `Tab_Prefixes`）`AutomationProperties.SetItemStatus(…, "Selected")`。
 19. **「⋯」按钮只有 ToolTip、无自动化名**。
     🛠 D108：`AutomationProperties.SetName(moreButton, Lang…More)`。
 20. **无快捷键**。
@@ -66,7 +67,7 @@
 
 - `dotnet build Starward.slnx -c Debug`：0 错误；`dotnet test`：270 通过。
 - `bash scripts/test/lint-ui-thread.sh`：全部通过。
-- 真机（1200×680）：运行环境页四页签、chip、前缀卡（标题「默认（opt）· .wine」、满宽占用条 + 「占最大前缀 100%」）、编辑器固定底栏与脏检查弹窗均按预期渲染。
+- 真机（1200×680）：运行环境页三个页签（方案 / 组件 / 前缀）、chip、前缀卡（标题「默认（opt）· .wine」、满宽占用条 + 「占最大前缀 100%」）、编辑器固定底栏与脏检查弹窗均按预期渲染。
 
 ## 5 · 文案与本地化
 

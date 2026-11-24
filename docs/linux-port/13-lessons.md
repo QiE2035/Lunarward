@@ -3,7 +3,7 @@
 > 这里只记「踩过一次就不该再踩」的东西。每条都给出证据位置与处理方式。
 > 目的：让后来者（或几个月后的我们）不用重新发现一遍。
 >
-> 条目 **L-01…L-167**（最后更新 2026-11-23，L-166 VLC 抽帧窗口、L-167 wineboot 卡 wine-mono）。
+> 条目 **L-01…L-175**（最后更新 2026-11-24；L-166 VLC 抽帧窗口、L-167 wineboot 卡 wine-mono；编号勘误见文末）。
 
 - 最后更新：2026-11-19（L-163）
 
@@ -40,11 +40,13 @@ dotnet build -v:n 2>&1 | grep -B4 "Invalid identifier"
 
 级联错误里相邻的上下文行会暴露它属于哪个文件。
 
-### L-03 `ControlTemplate is not supported`
+### L-03 `ControlTemplate is not supported`：自身实现错位，不是 Uno 不支持
 
-上游 `ImageEx` 是 **Control**（有 `DefaultStyleKey` 和模板）。当它被实现成 `Image` 的子类时，
-XAML 里的 `ControlTemplate` 无处可挂。重写为 `ImageEx : Control` 并在 `OnApplyTemplate` 里
-拿 `Image`/`PlaceholderImage`、用 `VisualStateManager.GoToState` 切状态就解决了。
+Uno 的 `Control` / `ControlTemplate` 正常可用。这里的报错来自**我们自己的实现错位**：
+上游 `ImageEx` 是 **Control**（有 `DefaultStyleKey` 和模板），移植时把它写成了 `Image` 的子类，
+XAML 里的 `ControlTemplate` 自然无处可挂。改回 `ImageEx : Control` 并在 `OnApplyTemplate` 里
+拿 `Image`/`PlaceholderImage`、用 `VisualStateManager.GoToState` 切状态即解决
+（当前实现：`Controls/ImageExCompat.cs:18`）。
 
 ### L-04 分部类基类必须与 XAML 根元素一致
 
@@ -85,16 +87,22 @@ XAML 里的 `ControlTemplate` 无处可挂。重写为 `ImageEx : Control` 并�
 `pkill -f "login.py"` 匹配到了自己的 shell 命令行（因为命令行里就含这个字符串），把自己杀了。
 用 `pkill -x <进程名>` 或先记 PID 再 `kill`。
 
-### L-09 仓库根的 `global.json` 会拦截所有 dotnet 命令
+### L-09 仓库根 `global.json` 的 SDK 下限：钉太高会拦下所有 dotnet 命令
 
-仓库根 `global.json` 钉死 SDK `10.0.400`（`rollForward: latestMajor` 也不够），本机只有 10.0.302，
-在仓库根执行任何 `dotnet` 命令都报：
+仓库根 `global.json` 由本仓库自己维护（D89 / L-163）：`sdk.version = 10.0.100`、
+`rollForward = latestMinor`，并带 `"msbuild-sdks": { "Uno.Sdk": "6.7.45" }`。
+本机 SDK 10.0.404，在仓库根构建/测试正常。
+
+历史教训：曾把 `version` 钉成 `10.0.400`（`rollForward: latestMajor` 也不够），当时本机只有 10.0.302，
+于是仓库根的任何 `dotnet` 命令都报：
 
 ```
 A compatible .NET SDK was not found. Requested SDK version: 10.0.400
 ```
 
-解法：在子目录（`src/Lunarward/`、`poc/`）放各自的 `global.json` 覆盖。**不要改上游那份**。
+正确做法：**下限只写 `x.y.100`**，别钉具体 feature band；`src/Lunarward/`、`tests/`、`poc/`
+各自的 `global.json` 与根保持同一口径（它们是给「单独在该目录构建」用的，
+不是用来覆盖上游文件的——本项目已不再保留上游那份 Windows 构建配置）。
 
 ### L-10 api.nuget.org 在本机下大包会 ~1 MB 处 EOF
 
@@ -107,13 +115,19 @@ A compatible .NET SDK was not found. Requested SDK version: 10.0.400
 ≤ 0.21.x 有高危漏洞 `GHSA-xrw6-gwf8-vvr9`，且 API 不同（0.95.2 的 `Connection` 只有
 `ConnectAsync`/`Dispose`）。
 
-### L-12 Uno 的 WebView2 在 Linux 需要两个环境变量
+### L-12 WebKitGTK 在部分环境要关 DMABUF 渲染（只对子进程助手注入，不是全局必需）
 
 ```bash
-GDK_BACKEND=x11 WEBKIT_DISABLE_DMABUF_RENDERER=1
+WEBKIT_DISABLE_DMABUF_RENDERER=1
+# Wayland 会话再加：
+GDK_BACKEND=x11
 ```
 
-否则刷 `Failed to create GBM buffer of size WxH` 且窗口黑屏（G0-3b）。
+不设时可能刷 `Failed to create GBM buffer of size WxH` 并黑屏（G0-3b）。注意适用范围：
+这两条只在**拉起子进程登录助手**时注入（`Features/GameRecord/WebLoginService.cs:99-126`，
+Python 兜底路径 `:123` 同样注入）；D76 之后的主路径是本进程内的 `--webkit-login` 宿主
+（`Features/GameRecord/WebKitLoginHost.cs`），那里**没有**设置这两个变量。
+所以别把「必须设置」写成全局结论——进程内路径遇到 GBM/黑屏时，才需要在启动环境里补。
 
 ---
 
@@ -196,19 +210,36 @@ host.Run();
 
 生成代码的 `CS1061` 有两种来源：① `X` 是本页面类 → 本页 code-behind 没编译或成员缺失；② `X` 是别的类型（如 `ReleaseInfo`）→ 是**那个类型**缺成员，或绑定路径原本就指向别的类型。看错误里被引号括起来的类名，比看行号快。
 
-## L-23 · Uno 的 ItemsRepeater 不支持自定义 Layout
+## L-23 · ItemsRepeater + 自写 `WrapLayout` 这套组合在本项目不工作
 
-`VirtualizingLayout` 在 Uno 里不会调用子类的 `MeasureOverride`/`ArrangeOverride`（实测：派生类编译通过，但布局完全不生效；`NonVirtualizingLayout` 更是连可覆写的方法都没有，编译器报 CS0115）。想覆写 `MeasureOverride(Size, VirtualizingLayoutContext)` 会得到「没有找到适合的方法来重写」。
+当时的实测：`VirtualizingLayout` 派生类编译通过，但 `MeasureOverride`/`ArrangeOverride` 不被调用，
+布局完全不生效；`NonVirtualizingLayout` 连可覆写的方法都没有（CS0115）。这只能说明
+**当时那套 ItemsRepeater + `WrapLayout` 组合**不可用，不能推广成「Uno 的 ItemsRepeater
+不支持自定义 Layout」——该结论已收窄。
 
-- **结论**：需要「换行排布」时用 `ItemsControl` + `ItemsPanelTemplate` 里的自写 `WrapPanel`（`: Panel`，覆写 Measure/Arrange 正常生效），不要用 `ItemsRepeater.Layout`。
-- **代价**：`SimulatedUniversePage.xaml` 的标签云从 `ItemsRepeater+WrapLayout` 改成 `ItemsControl+WrapPanel`，视觉等价、无损虚拟化（该处数据量小）。
+- **现行做法**：需要「换行排布」时用 `ItemsControl` + `ItemsPanelTemplate` 里的自写 `WrapPanel`
+  （`: Panel`，覆写 Measure/Arrange 正常生效），不要用 `ItemsRepeater.Layout`。
+  `Controls/ToolkitControls.cs:117-122` 里仍留着一个空的 `WrapLayout : VirtualizingLayout`，
+  只为让可能残留的上游 XAML 能编译；XAML 侧已全部改用内置 `StackLayout`/自写 `WrapPanel`。
+- **代价**：`SimulatedUniversePage.xaml` 的标签云从 `ItemsRepeater+WrapLayout` 改成
+  `ItemsControl+WrapPanel`，视觉等价、无损虚拟化（该处数据量小）。
 
-## L-24 · `IsTextTrimmedChanged` 这类 toolkit 附加事件不要硬撑
+## L-24 · `IsTextTrimmedChanged` 是 Uno 自带的——此条旧结论已撤回
 
-`CommunityToolkit.WinUI` 只有 net8.0-windows。上游在 9 个 XAML 里用 `IsTextTrimmedChanged`（作用仅是把 ToolTip 设成全文）。我试过自造同名 `IsTextTrimmedChangedEventArgs`：能过类型检查，但生成代码的委托是 `TypedEventHandler<TextBlock, IsTextTrimmedChangedEventArgs>`，与自造类型不是同一个类型 → 一片 CS0123/CS1503。
+原结论「Uno toolkit 没有这个附加事件，不要硬撑」**已被证伪**。Uno 6.7.359 的 `Uno.UI.dll`
+含 `add_IsTextTrimmedChanged`（`strings src/Lunarward/bin/Debug/net10.0-desktop/Uno.UI.dll |
+grep add_IsTextTrimmedChanged` 有命中），本仓库现有 **7 处** XAML 正常挂载并生效：
+`Features/Gacha/GachaStatsCard.xaml:59`、`Features/Gacha/ZZZGachaStatsCard.xaml:59`、
+`Features/GameInstall/InstallGameDialog.xaml:56`、`Features/GameRecord/StarRail/ApocalypticShadowPage.xaml:206`、
+`ForgottenHallPage.xaml:203`、`PureFictionPage.xaml:204`、`Features/Setting/ScreenshotSetting.xaml:62`；
+处理器形如 `GachaStatsCard.xaml.cs:105` 的
+`TextBlock_GachaTypeText_IsTextTrimmedChanged(TextBlock sender, IsTextTrimmedChangedEventArgs args)`。
 
-- **做法**：直接删掉这 9 处 XAML 属性（附注释），ToolTip 退化为「不一定有」，M2 要用再自己实现一个附加事件。
-- **原则**：UI 附属品（tooltip/阴影/动画）不值得为它伪造第三方契约；核心契约（`UpdateService`、`GameInstallState`）才必须照抄。
+- **现行做法**：直接用该事件，不要再按旧结论把它删掉。
+- **当时的失败**：自造了同名 `IsTextTrimmedChangedEventArgs`，生成代码里的委托是
+  `TypedEventHandler<TextBlock, IsTextTrimmedChangedEventArgs>`，与自造类型不是同一个 → CS0123/CS1503。
+  这是**类型没引对**，不是事件不存在；复核见 L-132。
+- **原则**：判「平台不支持某能力」前先查程序集/源码；撤回的结论要留档（参见 L-132）。
 
 ## L-25 · 事件处理器的参数类型要按「委托」而不是「直觉」写
 
@@ -257,7 +288,14 @@ host.Run();
 - **现象**：游戏设置页只剩底部「应用」，主体空白，日志无痕。
 - **真因**：`GameSettingService` 直接调 `Microsoft.Win32.Registry.GetValue(...)` → `PlatformNotSupportedException`，被 `InitializeGameSettingAsync` 的 `catch` 记进 Serilog 就结束了。
 - **修法**：全部 `Registry.GetValue/SetValue` → `WineRegistry.GetValue/SetValue`（走 `wine reg query/add`）。
-- **教训**：上游代码里凡是 `Registry.` 前缀的调用，在 Linux 上都是**运行期炸弹**，编译期发现不了；移植时用 `grep -c "Registry\."` 逐个清点（本项目主工程共 98 处）。
+- **教训**：上游代码里凡是 `Microsoft.Win32.Registry` 的调用，在 Linux 上都是**运行期炸弹**，编译期发现不了。
+  实测口径（2026-11-24）：`grep -rn "Registry\." src/Lunarward --include=*.cs | wc -l` 只有 **51 行**，
+  其中还混着本项目自己的 `WineRegistry.` / `GameRegistry.`；真正属于 `Microsoft.Win32.Registry` 的 **15 行**：
+  10 行在 3 个被 `<Compile Remove>` 排除的文件里（`Codec/VP9Helper.cs:98`、
+  `GamepadControl/GamepadController.cs:924/934/960/966`、`UrlProtocol/UrlProtocolService.cs:35-45`），
+  另 5 行虽被编译但 Linux 走不到（`GameSelector.xaml.cs:1028` 位于 `!OperatingSystem.IsWindows()` 分支之后；
+  `CloudGame/CloudGameButton.xaml.cs:57/74/75/90` 是云游戏 M4 占位页）。所以清点时先分清
+  「真 `Registry.`」与「自己的 `WineRegistry.`」，再看它是否在编译/可达路径上——不是「98 处全是炸弹」。
 
 ### L-31 · Uno 未实现 `XamlRoot.ContentIslandEnvironment` 与 `DisplayInformation.CreateForWindowId`，调用即抛
 
@@ -268,7 +306,7 @@ host.Run();
 ## L-32 外部登录助手的两个坑
 
 1. **助手参数协议必须和调用方对齐**：`login.py` 最初只认 `sys.argv[1]` 当 URL，而 `WebLoginService` 传的是 `--url/--output`，结果 WebKit 把字符串 `--url` 当地址加载，界面显示「该 URL 无法显示」——看起来像网络问题，其实是参数没解析。改造后统一用 `argparse`。
-2. **WebKitGTK 在部分环境要关 DMABUF 渲染**：不设 `WEBKIT_DISABLE_DMABUF_RENDERER=1` 会刷 `Failed to create GBM buffer of size 1100x760` 并黑屏；Wayland 会话下再加 `GDK_BACKEND=x11`（L-12 同源问题）。`WebLoginService` 在拉起助手时统一注入这两个环境变量。
+2. **WebKitGTK 在部分环境要关 DMABUF 渲染**：不设 `WEBKIT_DISABLE_DMABUF_RENDERER=1` 会刷 `Failed to create GBM buffer of size 1100x760` 并黑屏；Wayland 会话下再加 `GDK_BACKEND=x11`（L-12 同源问题）。注入范围仅限**子进程登录助手**：`WebLoginService` 拉起自进程 `--webkit-login` 子进程与 Python 兜底助手时会设（`Features/GameRecord/WebLoginService.cs:99-126`）；D76 之后主路径的进程内 `WebKitLoginHost` 没有设这两个变量。
 
 ## L-33 行为（Behavior）兼容层必须真的 Attach，否则整类功能静默失效
 
@@ -284,11 +322,17 @@ host.Run();
 - 修法：把占空间的 `InfoBar` 从布局里去掉，改成列表内的一行说明文字；卡片改单列纵向排布（标题 → 摘要 → 按钮），不再用「星号列 + 右侧按钮」的多列 Grid——Uno 在窄容器里会把星号列压成 0，按钮直接消失。
 - 教训：调试「内容不见」时先怀疑**容器尺寸**而不是内容本身；`Width` 固定值可以快速证伪「星号列塌陷」。
 
-## L-35 `AppWindow.MoveAndResize` 在 Uno 的 X11 后端是空操作
+## L-35 `AppWindow.MoveAndResize` 在 Uno 的 X11 后端是空操作（`Move`/`Resize` 不是）
 
 - 现象：主窗口一直是 1024x640，`CenterInScreen(1200, 676)` 明明执行了；`AppWindow.Size` 也仍然报 1024x640。
-- 原因：Uno（6.7.135，`net10.0-desktop` + X11）里 `MoveAndResize` 不落到 X11 窗口，`Resize` 才真正生效；`AppWindow.Size` 的读回同样不刷新。
-- 修法：`WindowEx.Linux.CenterInScreen` 先 `AppWindow.Resize(new SizeInt32 { Width = w, Height = h })`（注意 `SizeInt32` 没有两参构造），再调 `MoveAndResize` 定位。
+- 原因（Uno 6.7.359 复核）：`X11WindowWrapper` 已经实现了 `Move(PointInt32)`
+  （`src/Uno.UI.Runtime.Skia.X11/UI/Xaml/Window/X11WindowWrapper.cs:137`）与 `Resize(SizeInt32)`（`:152`），
+  两者都真的作用到 X11 窗口；仍是生成桩的是 `AppWindow.MoveAndResize(RectInt32)` 及其重载——
+  `src/Uno.UWP/Generated/3.0.0.0/Microsoft.UI.Windowing/AppWindow.cs:90-100` 只调 `TryRaiseNotImplemented`。
+  所以「Resize 生效、MoveAndResize 不生效」成立，但**不能推出「Move 也不行」**。`AppWindow.Size` 的读回同样滞后一拍。
+- 修法：`WindowEx.Linux.CenterInScreen` 先 `AppWindow.Resize(new SizeInt32 { Width = w, Height = h })`
+  （注意 `SizeInt32` 没有两参构造）拿到正确尺寸，再用 `AppWindow.Move(new PointInt32 { X = x, Y = y })`
+  真正移动；`MoveAndResize` 可以留着当「语义占位」，但要清楚它当前是空实现，别指望它定位。
 - 验证：`xdotool getwindowgeometry` 才是真相，别信 `AppWindow.Size`（它滞后一拍）。
 - **尺寸是物理像素，不是 DIP**：本机 `RasterizationScale = 1.25`，`AppWindow.Resize(1200, 676)` 得到的是 1200x676 物理像素，内容区只有 960x540 DIP，于是所有内容看起来「大了 25%、很挤」。正确做法：`Resize(1200*scale, 676*scale)`，内容区才是 1200x676 DIP（=Starward 的设计尺寸）。
 - 时序陷阱：构造函数里 `Content?.XamlRoot?.RasterizationScale` 还是 null（拿到 1），必须等窗口**首次 Activated** 后再换算，否则又会退回 1.0。
@@ -356,19 +400,20 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 修法：`GameLauncherService.Linux.ApplyWineRuntimeEnvironment(info, winePath)` 从路径反推并补齐（`files/lib/wine` 或旧布局 `files/lib64/wine`；`files/lib/{x86_64,i386}-linux-gnu`；`STEAM_COMPAT_CLIENT_INSTALL_PATH`=steam 根；`PROTONPATH`）。只补环境变量，不引入 Proton 启动器，保住「游戏是 wine 首个进程」。
 自检：`lunarward --runner-check <winePath>` —— 跑 `wine --version` 与 `wine cmd /c echo`，不启动游戏。实测 Proton Experimental：`wine-11.0` + `lunarward-ok`（`ntsync: up and running`）。
 
-## L-45 · Xlib 不能随便在别的线程里用；窗口恢复交给 xdotool
+## L-45 · Xlib 不能随便在别的线程里用；窗口恢复主路径是 libxcb，xdotool 只兜底
 
-**现象**：给全局热键加「唤回主窗口」时，先试 `OverlappedPresenter.Restore()` / `AppWindow.Show()` / `AppWindow.Hide()`——全部是空操作（Uno 6.7.135 X11 后端，窗口 `Map State` 一直是 `IsUnMapped`）；再试在计时器线程里直接调 Xlib（`XQueryTree` + `XFetchName` + `XMapRaised` 或 `XSendEvent(_NET_ACTIVE_WINDOW)`），进程直接 `free(): invalid pointer` / `X Error: 9 Bad Drawable` 而 abort。
+**现象**：给全局热键加「唤回主窗口」时，先试 `OverlappedPresenter.Restore()` / `AppWindow.Show()` / `AppWindow.Hide()`——全部是空操作（Uno 6.7.359 X11 后端，窗口 `Map State` 一直是 `IsUnMapped`）；再试在计时器线程里直接调 Xlib（`XQueryTree` + `XFetchName` + `XMapRaised` 或 `XSendEvent(_NET_ACTIVE_WINDOW)`），进程直接 `free(): invalid pointer` / `X Error: 9 Bad Drawable` 而 abort。
 
 **原因**：Xlib 不是线程安全的。我们自己 `XOpenDisplay` 的连接在计时器线程上跑，但 Xlib 的全局状态（display 列表、错误处理器）与 GTK 共用；`XQueryKeymap` 这种只读、不分配内存的调用侥幸没事，一旦涉及 `XQueryTree`/`XFetchName`（会 malloc/free）就撞堆。装 `XSetErrorHandler` 更糟——它是**进程级全局**的，改掉等于把 GTK 的错误处理也换了。
 
 **做法**：
-1. 窗口恢复改用**子进程** `xdotool search --name ^Starward$` + `xdotool windowactivate --sync <id>`（`X11KeyState.ActivateWindowWithXdotool`），xdotool 自己维护连接，崩溃隔离在子进程；没有 xdotool 时返回 false，调用方退回 `Window.Activate()`。
-2. 热键检测保留 `XQueryKeymap` 轮询（25ms），只读不分配。
-3. 已知限制：`xdotool key alt+s`（约 12ms 的合成按压）抓不到，人类按键通常 >100ms 所以可接受；要更灵敏需改 `XGrabKey` + 事件循环。
-4. `AppWindow.Id`/`WindowHandle` 在 Uno Linux 上分别是 `1`/`0`，拿不到真实 X 窗口 id。
+1. 窗口恢复主路径是**进程内 libxcb**：`X11Window.Show` / `X11Window.Activate` 发 EWMH `_NET_ACTIVE_WINDOW`（`Helpers/X11Window.cs:106`、`:139`，消息发送在 `:592`），不碰 Xlib。
+2. 子进程 `xdotool search --name ^Starward$` + `xdotool windowactivate --sync <id>`（`X11KeyState.ActivateWindowWithXdotool`）只作为 **libxcb 不可用时的兜底**（`Helpers/X11KeyState.cs:240-257` 注释自述），好处是 xdotool 自己维护连接、崩溃隔离在子进程；没有 xdotool 时返回 false，调用方退回 `Window.Activate()`。
+3. 热键检测保留 `XQueryKeymap` 轮询（25ms），只读不分配。
+4. 已知限制：`xdotool key alt+s`（约 12ms 的合成按压）抓不到，人类按键通常 >100ms 所以可接受；要更灵敏需改 `XGrabKey` + 事件循环。
+5. `AppWindow.Id`/`WindowHandle` 在 Uno Linux 上分别是 `1`/`0`，拿不到真实 X 窗口 id。
 
-**教训**：跨线程碰 Xlib 前先问「这段代码会不会 malloc」；能不碰就不碰，用子进程或官方 API；错误处理器这类全局钩子在任何 GUI 框架里都不要动。
+**教训**：跨线程碰 Xlib 前先问「这段代码会不会 malloc」；能不碰就不碰，优先用进程内 libxcb 或官方 API，子进程是最后兜底；错误处理器这类全局钩子在任何 GUI 框架里都不要动。
 
 ## L-46 · 游戏时长统计：Linux 上被 `ProcessName` 挡住
 
@@ -419,11 +464,16 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 
 批量转换本身是纯逻辑，抽成 `Features/Screenshot/ScreenshotConverter.ConvertToJpeg(IEnumerable<string>, quality)`，页面与 CLI 共用；这样「点按钮」和「命令行验证」走同一条代码路径，不会出现只有 UI 能用、CI 验不了的情况。
 
-## L-50 · Uno.Sdk 不生成版本属性，`AppConfig.AppVersion` 会读到 0.0.0.0
+## L-50 · `GenerateAssemblyInfo=false` 之后版本属性要自己补
 
 **现象**：「关于」页显示 `0.1.0-linux` 之前是 `0.0.0.0`；日志 `Welcome to Starward v0.0.0.0`。`Lunarward.csproj` 里明明写了 `<Version>` 与 `<InformationalVersion>`。
 
-**原因**：Uno.Sdk 项目下自动生成的 `obj/Debug/net10.0-desktop/Lunarward.AssemblyInfo.cs` **只有** `TargetPlatform`/`SupportedOSPlatform` 两条特性，没有 `AssemblyVersion`/`AssemblyInformationalVersion`——所以 `GetCustomAttribute<AssemblyInformationalVersionAttribute>()` 返回 null，代码落到兜底 `Assembly.GetName().Version`（也是 0.0.0.0）。
+**原因**：本项目在 `src/Lunarward/Lunarward.csproj:9` 显式设了
+`<GenerateAssemblyInfo>false</GenerateAssemblyInfo>`（第 8/10 行另有 `<Version>` / `<InformationalVersion>`），
+SDK 因此不再生成 `AssemblyVersion` / `AssemblyInformationalVersion` 等特性——自动生成的
+`obj/Debug/net10.0-desktop/Lunarward.AssemblyInfo.cs` **只剩** `TargetPlatform`/`SupportedOSPlatform` 两条，
+所以 `GetCustomAttribute<AssemblyInformationalVersionAttribute>()` 返回 null，代码落到兜底
+`Assembly.GetName().Version`（0.0.0.0）。**不是 Uno.Sdk 不生成**，是我们自己把开关关了。
 
 **做法**：新增 `Properties/AssemblyVersion.cs` 显式声明三条：
 ```csharp
@@ -433,7 +483,9 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 ```
 验证：日志变 `Welcome to Starward v0.1.0-linux`，关于页显示「当前版本：0.1.0-linux」（截图 `docs/linux-port/screenshots/m2-about.png`）。
 
-**教训**：`<Version>` 之类的 MSBuild 属性只在默认的 `GenerateAssemblyInfo` 流程里生效；Uno/特殊 SDK 可能接管这步，出问题先看 `obj/**/AssemblyInfo.cs` 里到底生成了什么。
+**教训**：`<Version>` 之类的 MSBuild 属性只在默认的 `GenerateAssemblyInfo` 流程里生效；
+谁关掉 `GenerateAssemblyInfo`，谁就要自己补程序集特性。出问题先看 `obj/**/AssemblyInfo.cs` 里到底生成了什么，
+别先怪 SDK。
 
 ## L-51 · LibVLCSharp 的 vmem 回调：地址要写进 planes[0]，不是返回值
 
@@ -445,11 +497,11 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 
 **坑 3（生命周期）**：固定缓冲区在播放期间只能做一次；结束要先 `player.Stop()` 再 `GCHandle.Free()`，否则 libvlc 的线程还在写。
 
-**可用组合**：`vlc 3.0.24` + `LibVLCSharp 3.9.4` + `SkiaSharp 3.119.0` + `SkiaSharp.NativeAssets.Linux.NoDependencies`（缺这个包时 `SKColorSpace` 的类型初始化会炸）。
+**可用组合**（`src/Lunarward/obj/project.assets.json` 的实际解析结果）：`vlc 3.0.24` + `LibVLCSharp 3.9.7.1` + `SkiaSharp 3.119.2` + `SkiaSharp.NativeAssets.Linux.NoDependencies`（缺这个包时 `SKColorSpace` 的类型初始化会炸）。
 
 ## L-52 · Uno 已经传递依赖 LibVLCSharp，别再自己引一遍
 
-`Uno.WinUI.Runtime.Skia.X11 6.7.135` 的依赖里就有 `LibVLCSharp (>= 3.9.7.1)`（`MediaPlayerElement` 用）。我一开始在项目里显式加 `LibVLCSharp 3.9.4`，直接 `NU1605` 包降级失败。正确做法：**不引**，直接用传递依赖的版本；原生库 `libvlc` 由系统提供（Arch 装 `vlc`），缺失时 `LibVLC.Core.Initialize()` 抛异常，按 D33 诚实降级为静态壁纸。
+`Uno.WinUI.Runtime.Skia.X11 6.7.359` 的依赖里就有 `LibVLCSharp (>= 3.9.7.1)`（`MediaPlayerElement` 用，实际解析为 `LibVLCSharp 3.9.7.1`）。我一开始在项目里显式加 `LibVLCSharp 3.9.4`，直接 `NU1605` 包降级失败。正确做法：**不引**，直接用传递依赖的版本；原生库 `libvlc` 由系统提供（Arch 装 `vlc`），缺失时 `LibVLC.Core.Initialize()` 抛异常，按 D33 诚实降级为静态壁纸。
 
 另外：`Core.Initialize()` 会被 `Starward.Core` 命名空间遮住，必须写 `LibVLCSharp.Shared.Core.Initialize()`。
 
@@ -594,7 +646,11 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 - **根因一**：`_image.Source = _videoBitmap` 每帧复用**同一个实例**，属性值没变，Uno/Skia 不重新采样。
   - **修法**：先 `_image.Source = null;` 再赋回同一个 `WriteableBitmap`，强制触发一次 source 重设（视觉上无闪烁）。
 - **根因二**：上游用 `CancellationTokenSource(TimeSpan.FromSeconds(1))` 拿「建议背景」；Linux 首包要 TLS 握手，1 秒几乎必然 `OperationCanceledException` → 每台机器都退回静态兜底。
-  - **修法**：默认 6 秒（`LUNARWARD_BG_TIMEOUT_MS` 可覆盖），超时时写一条 Information 日志说明「用了兜底图」，别再静默。
+  - **修法**：默认 **4 秒**（`LUNARWARD_BG_TIMEOUT_MS` 可覆盖），并做 1x/2x 退避重试：
+    `Features/Background/AppBackground.Linux.cs:275` 的 `: 4000`、`:279` 的
+    `int[] attempts = { apiTimeoutMs, apiTimeoutMs * 2 }`；超时时写一条 Information 日志说明「用了兜底图」，别再静默。
+    6 秒只属于主题图/合成路径（`:222`、`:598`、`:605`）与 `Features/Background/VideoThumbnailer.cs:163`
+    的 `frameReady.Wait(TimeSpan.FromSeconds(6))`，不要和「背景 API 超时」混为一谈。
 - **教训**：跨平台移植里「超时」和「PropertyChanged 式刷新」这两类隐含假设最容易原样搬过来，而它们在 Linux 上都不成立。
 
 ### L-72 · 单实例陈旧锁 + 缺 DISPLAY = 「进程在跑但没有窗口」
@@ -611,12 +667,25 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 - **修法**：改成 `ExtendsContentIntoTitleBar = false`，删掉自绘拖动条与两个按钮，窗口管理器的系统标题栏接管拖动/最小化/关闭（`_NET_FRAME_EXTENTS` 里能看到 35px 标题栏）。
 - **教训**：凡是「替代系统 chrome」的 UI，都要先确认后端有没有实现对应的非客户区协议；没有就老实交还 WM，别硬画。
 
-### L-74 · `Launcher.LaunchUriAsync` 在 Linux 静默失败
+### L-74 · `Launcher.LaunchUriAsync` 在 Linux 上有实现，失败只发生在个别 scheme/缺 handler
 
-- **症状**：点左下角轮播图、公告里的链接、「打开文件夹」之类，全都没反应。
-- **根因**：`Windows.System.Launcher.LaunchUriAsync` 在 Uno/Linux 上没有后端（翻遍 Uno dll 没有 `xdg-open`/`gio` 痕迹），调用不抛异常也不做事；上游还把调用包在 `catch { }` 里，失败完全不可见。
-- **修法**：新增 `Helpers/OpenUrl.cs`（`xdg-open` → 失败退 `gio open`，`UseShellExecute=false` + `ArgumentList`，Debug 日志 + 返回 bool），替换 8 类调用点；`AppBackground` 里 3 处 apps.microsoft.com 保留原样（Windows 专属提示，Linux 上本来就没意义）。
-- **教训**：WinRT 里「打开外部程序」的 API 在非 Windows 后端基本都是空实现，必须逐个换成本机命令，并且**别用空 catch 把它盖住**。
+- **症状**：点左下角轮播图、公告里的链接、「打开文件夹」之类，有的没反应。
+- **根因（复核）**：Uno 6.7.359 的 Skia/X11 后端**有** launcher 实现：`src/Uno.UWP/System/Launcher.skia.cs`
+  与 `src/Uno.UWP/System/LinuxLauncherExtension.skia.cs:17-31` 用
+  `ProcessStartInfo { UseShellExecute = true, Verb = "open" }` 交给系统，注册点在
+  `src/Uno.UI.Runtime.Skia.X11/Hosting/X11ApplicationHost.cs:99`；.NET 10 再把 `UseShellExecute`
+  落到 xdg-open/gio（`Process.Unix.cs:379-445`）。所以「恒失败、返回 false」是错误定性。
+  真正会失败的是：没有对应 handler 的 scheme（如 `ms-settings:`）、PATH 里既无 xdg-open 也无 gio、
+  或上游把调用包在 `catch { }` 里把失败吞掉。
+- **修法**：保留 `Helpers/OpenUrl.cs`（`xdg-open` → 失败退 `gio open`，`UseShellExecute=false` +
+  `ArgumentList`，Debug 日志 + 返回 bool）作为可控路径；主程序里仍有 **10 处** `Launcher.LaunchUriAsync`
+  被编译进去，其中 3 处是 `AppBackground.xaml.cs:266/462/631` 的 apps.microsoft.com（Windows 专属提示，
+  Linux 上本来就没意义，保留原样），其余 7 处是 `Features/Setting/FileManageSetting.xaml.cs:100`、
+  `Features/ViewHost/NoPermissionWindow.xaml.cs:106`、`Features/Setting/GeneralSetting.xaml.cs:211`（`ms-settings:`）、
+  `AdvancedSetting.xaml.cs:101`、`Features/Update/UpdateWindow.xaml.cs:177`、`:726`、
+  `Features/ViewHost/WelcomeWindow.xaml.cs:241`——不必因为「恒失败」去逐个改写，但要按 scheme 判定预期。
+- **教训**：判「平台 API 没实现」要查到注册点/源码，不能只看 dll 里有没有 `xdg-open` 字符串——
+  实现可能在别的基础库，或靠 `UseShellExecute` 间接调用。
 
 
 ### L-75 · 用户数据用 `File.WriteAllText` 写 = 断电即丢配置
@@ -682,14 +751,14 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 ### L-83 · 用「可见」推断「属性没生效」是错的；间距要用像素测
 
 - **背景**：真机反馈「左上角三个游戏图标挤在一起」。我当时的推理是「图标条在 y≈0 可见 → 它本该被 `Translation=(0,-100,0)` 移出视野 → 所以 Uno 不应用 `Translation`」。
-- **错在哪**：用户设置 `IsGameBizSelectorPinned=True`，`GameSelector.xaml.cs` 的 `Pin()` 在固定态把 `GameIconsAreaVisible` 置真，setter 里就是 `Translation = Vector3.Zero`（`:263-268`）。也就是说「可见」是固定态的正常结果，无法推出任何关于 `Translation` 支持的结论。结论已撤回，规则见 D46。
+- **错在哪**：用户设置 `IsGameBizSelectorPinned=True`，`GameSelector.xaml.cs:258-271` 的 `Pin()` 在固定态把 `GameIconsAreaVisible` 置真，setter 里就是 `Translation = Vector3.Zero`（赋值见 `:265` 与 `:269`）。也就是说「可见」是固定态的正常结果，无法推出任何关于 `Translation` 支持的结论。结论已撤回，规则见 D46。
 - **正确的证据获取方式**（本次实测，可复用）：`spectacle -b` 截全屏 → 按窗口原点 `(360, 220)`（含 35px 系统标题栏）裁出内容区 → 对图标条做逐列采样，再用自相关找「条目间距」：
   ```python
   # 每列取图标带内的像素签名，找使两列最相似的 lag 即条目节距
   sig[x] = [sum(px(x, y)) for y in range(oy+4, oy+44)]
   for lag in range(30, 80): 计算 sum((sig[x]-sig[x+lag])**2)
   ```
-  结果：最相似 lag = **50 物理像素**（= 40 DIP × 1.25）。而容器样式 `GameSelector.xaml:441` 写的是 `Padding="6,8,6,8"`（`ListViewItemPresenter.ContentMargin="{TemplateBinding Padding}"`），如果生效，节距应是 52 DIP ≈ 65 物理像素。实测节距 = 图标宽度本身 → **`ListViewItem` 的 `Padding/ContentMargin` 在这条 Uno 渲染路径上没生效**，所以三张 40px 图标是紧贴的（放大 8 倍的截图也能直接看到边缘相接、徽标压到隔壁）。
+  结果：最相似 lag = **50 物理像素**（= 40 DIP × 1.25）。而容器样式 `GameSelector.xaml:440` 写的是 `Padding="6,8,6,8"`（`ListViewItemPresenter.ContentMargin="{TemplateBinding Padding}"`），如果生效，节距应是 52 DIP ≈ 65 物理像素。实测节距 = 图标宽度本身 → **`ListViewItem` 的 `Padding/ContentMargin` 在这条 Uno 渲染路径上没生效**，所以三张 40px 图标是紧贴的（放大 8 倍的截图也能直接看到边缘相接、徽标压到隔壁）。
 - **修法（已实施）**：不依赖 `ListViewItemPresenter.ContentMargin`，在条目根元素 `Grid_GameIcon` 上加 `Margin="0,0,8,0"`。改后用同一套像素方法复测：节距 50 → **60 物理像素**，图标之间出现 **9–10 像素纯背景列**（存证 `screenshots/m3-game-icons-spacing.png`）。
 - **教训**：涉及「间距/尺寸/对齐/颜色」的结论，先截图再做像素测量，用数字说话；不要用某个像素现象去反推某个 API 是否被实现，除非有对照实验（例如同一属性在另一处生效/失效的对比）。
 
@@ -697,7 +766,9 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 
 - **症状**：点窗口管理器标题栏的 X 没有任何反应；用 `xdotool windowclose` 验证时窗口直接消失、进程还活着，看起来像「事件进不来」。
 - **实测（三条，都有对照）**：
-  1. `Window.Hide()`、`AppWindow.Hide()` 在 Uno 6.7.135 的 X11 后端上是空操作：调用后 `xwininfo` 仍是 `Map State: IsViewable`。
+  1. `Window.Hide()`、`AppWindow.Hide()` 在 Uno 6.7.359 的 X11 后端上仍是空操作：调用后 `xwininfo` 仍是 `Map State: IsViewable`。
+     源码对照：`X11WindowWrapper` 只覆写 `ShowCore`（`src/Uno.UI.Runtime.Skia.X11/UI/Xaml/Window/X11WindowWrapper.cs:107`），没有 `HideCore`；
+     `AppWindow.Hide` 也还是生成桩（`src/Uno.UWP/Generated/3.0.0.0/Microsoft.UI.Windowing/AppWindow.cs:84` 只调 `TryRaiseNotImplemented`）。
      对照：`OverlappedPresenter.Minimize()` 有效（立刻 `IsUnMapped`）。
   2. 真正的 `WM_DELETE_WINDOW` 客户端消息**能**进托管代码（`AppWindow.Closing` 触发）。`xdotool windowclose` 走的是 `_NET_CLOSE_WINDOW`，
      KDE 下窗口被直接销毁、托管层收不到任何事件——**不能用它验证关闭逻辑**。
@@ -722,14 +793,21 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
   顺手把 `ContextMenu` 回调从空 lambda 改成「唤回主窗口」，宿主实在拿不到 dbusmenu 时也有兜底。
 - **教训**：D-Bus 的「可选接口」不是真可选——宿主用哪个方法取属性，决定了你必须实现哪几个方法；验证要看**宿主的行为**（总线抓包 + 宿主日志），不要只看自己对象返回得对不对。
 
-### L-86 · Uno X11：把已存在的窗口重新 map 不会触发 `Window.Activated`
+### L-86 · Uno X11：已存在窗口重新 map 时的「激活」机制与原文不同，补发消息待复测
 
 - **现象**：隐藏 → `--show`/托盘唤回后窗口回来了，但背景视频不恢复（一直暂停），截图差异 0.00%。
-- **证据**：`[bg-diag]` 日志里只有 `activate=False hide=True`，唤回后没有 `activate=True`；`Window.Activated` 不触发。
-- **原因**：Uno 的 `Activated` 只在窗口获得焦点时发；`xcb_map_window` + `_NET_ACTIVE_WINDOW` 让 kwin 把窗口重新显示，
-  但走的是「map 已存在窗口」路径，托管层不再产生 `Activated`。
-- **修法**：`WindowEx.Show()` 在 `X11Window.Show()` 成功后自己发一条 `MainWindowStateChangedMessage{Activate=true}`（与 `MainWindow.OnWindowActivated` 同语义）。
-- **教训**：自己接管框架缺失的能力（D47）时，也要接管**框架本该因此触发的事件**，否则「窗口回来了、状态没回来」。
+- **旧证据（当时环境）**：`[bg-diag]` 日志里只有 `activate=False hide=True`，唤回后没有 `activate=True`。
+- **机制（Uno 6.7.359 源码复核）**：宿主把 X11 事件映射成托管状态——`FocusIn`/`FocusOut` → `OnNativeActivated(true/false)`，
+  `VisibilityNotify` → `OnNativeVisibilityChanged(state != 2)`（`src/Uno.UI.Runtime.Skia.X11/Hosting/X11XamlRootHost.x11events.cs:202-209`）；
+  `X11WindowWrapper` 再把它们落到 `ActivationState`/`IsVisible`
+  （`src/Uno.UI.Runtime.Skia.X11/UI/Xaml/Window/X11WindowWrapper.cs:28`、`:103`、`:105`）。
+  也就是说「重新 map 已存在窗口」**并非没有激活路径**，而是走 `VisibilityNotify`/焦点事件、语义与 `Window.Activated` 不完全等同。
+  当初「不触发 `Window.Activated`」的观察可能仍然成立，但机制描述不对。
+- **修法（待复测）**：`WindowEx.Show()` 在 `X11Window.Show()` 后仍自己发一条
+  `MainWindowStateChangedMessage{ Activate = true }`（`Frameworks/WindowEx.Linux.cs:41-58`，与 `MainWindow.OnWindowActivated` 同语义）。
+  这条补发消息**可能已经冗余**——按源码，焦点/可见性事件会带来激活；需要在 6.7.359 上重跑「隐藏→唤回」并看 `Window.Activated`
+  是否自然触发，再决定删留。
+- **教训**：自己接管框架缺失的能力（D47）时，也要接管**框架本该因此触发的事件**；但引擎升级后要按新源码复核旧结论，别把补丁当永久事实。
 
 ### L-87 · 米哈游背景的 `Theme` 图是纯透明文字层，静态背景必须合成
 
@@ -741,13 +819,16 @@ Proton 的启动器（`proton` python 脚本）会构造 `WINEDLLPATH`、`LD_LIB
 ### L-88 · 图标「豆腐块」的真凶是 Uno 自带 Symbols 字体缺码位，随包字体在这套后端上不可靠
 
 - **现象**：视频播放/暂停按钮等少数图标显示成方框或串字形，而网络/齿轮等多数图标正常。
-- **取证**：`strace -f -e trace=openat ./Lunarward` → 全程没有 `Assets/Font/*`；`Uno.Fonts.Fluent/Fonts/uno-fluentui-assets.ttf`（family `Symbols`，1394 字形）被加载；
+- **取证**：`strace -f -e trace=openat ./Lunarward` → 全程没有 `Assets/Font/*`；`Uno.Fonts.Fluent/Fonts/uno-fluentui-assets.ttf`（family `Symbols`，**1395** 字形）被加载；
   用 fontTools 比对项目 104 个码位，`E62E E733 F012 F08F F413 F4A5` 不在该字体里。
-- **为什么不能直接用上游字体**：`ms-appx:///Assets/Font/Segoe Fluent Icons.ttf`（文件名带空格）与 `%20` 编码、以及复制成无空格别名 `FluentIcons.ttf`，
-  三种写法都从未触发 openat；而 `PhotosIcons.ttf`（无空格、显式 FontFamily）能正常加载 → 结论只能落在「改用 Uno 自带字体 + 替换码位」。
+- **为什么不能直接用上游字体（当时环境，现已不可复现）**：`ms-appx:///Assets/Font/Segoe Fluent Icons.ttf`（文件名带空格）与 `%20` 编码、以及复制成无空格别名 `FluentIcons.ttf`，
+  三种写法都从未触发 openat；只有 `PhotosIcons.ttf`（无空格、显式 FontFamily）当时能正常加载。后来的复核（L-15）把真因定在
+  **Uno 拦截 `Segoe Fluent Icons` / `Segoe MDL2 Assets` 这两个族名**：族名先被替换成内置字体，文件因此根本没被打开，
+  与路径里有没有空格无关——「含空格路径加载失败」这个归因是错的。
+  **注意**：`src/Lunarward/Assets/Font/` 现已不存在（只剩 `bin/` 输出里的副本），这条 PhotosIcons 对照实验今天无法按原样重做，保留作历史证据。
 - **修法**：`E62E→E769`、`E917→E823`、`E733→F140`、`F012→E896`、`F08F→E768`、`F413→E74E`、`F4A5→E734`。
 - **教训**：①「图标显示错」先别猜主题/字体族，直接 strace 看**实际加载了哪个 ttf**；②fontTools 可以离线渲染任意码位确认形状，比在 UI 里逐个撞快得多；
-  ③Uno 的字体加载对含空格路径静默失败，没有任何日志——这类失败只能靠系统调用层取证。
+  ③字体没加载时的两个检查：strace 看有没有 openat（没有 = 路径压根没被用到），再看 FontFamily 是不是 `Segoe Fluent Icons` / `Segoe MDL2 Assets` 这类被 Uno 接管的族名——能立刻区分「引擎接管」与「路径写错」。
 
 
 ### L-89 · 强调色写在 ThemeDictionary 里，只改 `Application.Resources` 不生效
@@ -815,8 +896,11 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 ## L-94 · MSBuild 只在「调用目录」的 global.json 里找 `msbuild-sdks`（2026-11-05）
 
 从仓库根构建时 `Uno.Sdk` 解析失败（`MSB4236` + `The NuGetSdkResolver did not resolve this SDK because there was no version specified in the project or global.json`），
-而进 `src/Lunarward` 单独构建正常——因为 `msbuild-sdks` 钉版本只写在子目录的 `global.json` 里。
-**结论**：要给某个 SDK 钉版本，就写在「你会在哪里敲 dotnet」的那层 `global.json`；子目录留一份给单独构建也合理。
+而进 `src/Lunarward` 单独构建正常——当时 `msbuild-sdks` 钉版本只写在子目录的 `global.json` 里，根 `global.json` 只有 SDK 版本、没带 `msbuild-sdks`。
+
+**现状（2026-11-24 复核）**：根 `global.json` 现在也带 `"msbuild-sdks": { "Uno.Sdk": "6.7.45" }`，根构建正常；`src/Lunarward/global.json` 仍保留一份供单独构建。
+
+**结论（不变）**：要给某个 SDK 钉版本，就写在「你会在哪里敲 dotnet」的那层 `global.json`；只写子目录、却在根敲 dotnet，就会 MSB4236。
 另外 `.slnx` 不含 `Configurations` 时 `-c Release` 依然生效，不必手写平台矩阵。
 
 ## L-95 · `du` 大的目录不一定是构建产物（2026-11-10）
@@ -827,8 +911,12 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 
 ## L-96 · 壁纸缩略图别整张解码（2026-11-10）
 
-`bg/` 里 16 张背景全是 2560×1440，图库条目只显示 216×122 DIP。`BitmapImage.SetSourceAsync` 会把整张图解成
-位图（2560×1440×4 ≈ 14.7 MB/张），16 张 ≈ 236 MB，而且都在 UI 线程排队 → 打开图库明显顿。
+图库里的静态背景（webp）都是 2560×1440，图库条目只显示 216×122 DIP。`BitmapImage.SetSourceAsync` 会把整张图解成
+位图（2560×1440×4 ≈ 14.7 MB/张），几十张同时在 UI 线程排队 → 打开图库明显顿。
+
+**实测规模（2026-11-24）**：运行时图库 `~/.local/share/lunarward/bg` 共 **34 个文件** = **29 张 webp** + **5 个 webm**，
+`du -sh` ≈ **150 MB**（旧文「16 张 / 约 236 MB」已过时）。视频不走 `BitmapImage`，不会按整帧位图解码，见抽帧（L-166）。
+
 **做法**：解码前先用 SkiaSharp 缩到显示尺寸（`SKFilterQuality.High` = 三次卷积 + mipmap，缩 10 倍也不糊），
 再 `SetSourceAsync`。别用最近邻（锯齿）或纯线性（摩尔纹）。
 
@@ -841,7 +929,9 @@ spritz-wine（sleepy-launcher 的运行器，和部分 Proton 变体同源）把
 
 ### L-98 视频条目的缩略图在 Linux 上是黑的
 
-`Controls/CachedImage.Linux.cs` 里 `IsThumbnail`/`PngThumbnail` 只注册了依赖属性、没有任何实现（是给上游 API 留的形状），所以背景图库里的 `.webm` 条目走的是「直接解码 webm」路径：`SKBitmap.Decode` 抛异常 → 退回 `BitmapImage.SetSourceAsync` 也解不了 → 只剩容器底色 + 右下播放角标。修法（已实现，`Features/Background/VideoThumbnailer.cs`）：复用 libVLC 的 `MediaPlayer.TakeSnapshot` 抽首帧（`:start-time=1`、480×270），落成 `~/.local/share/lunarward/bg-thumbs/<hash>.png` 缓存，`BackgroundFileItem.ThumbnailPath` 填好后 `DisplayPath` 切到 png；信号量限制同时 2 个，`PropertyChanged` 回 UI 线程发。实测 16 张背景里的视频条目从黑块变成首帧画面。
+历史现象：背景图库里的 `.webm` 条目只有容器底色 + 右下播放角标。当时的成因是 `Controls/CachedImage.Linux.cs` 里 `IsThumbnail`/`PngThumbnail` 只注册了依赖属性、没有实现，于是落到「直接解码 webm」路径：`SKBitmap.Decode` 抛异常 → 退回 `BitmapImage.SetSourceAsync` 也解不了。
+
+现状（B21 已实现，本条不再描述缺陷，只留做法）：`CachedImage.Linux.cs:239-263` 的 `ReadFileAsync` 一进来就判 `IsThumbnail`——视频扩展名（`.mp4/.mkv/.webm/.mov/.avi`）走 `VideoThumbnailer.EnsureAsync`，图片走 `DecodeScaledPng`（按 `DecodePixelWidth` 缩解码，不读整张原图）。抽帧**不是** `TakeSnapshot`，而是复用 libVLC 的 vmem 回调：`player.SetVideoFormat("RV32", 480, 270, 480*4)` + `SetVideoCallbacks`（`Features/Background/VideoThumbnailer.cs:140-143`，尺寸常量 `:27-30`），锁一个帧就写 PNG。缓存落在 `AppConfig.CacheDirectory/bg-thumbs`，即 `~/.cache/lunarward/bg-thumbs`（`VideoThumbnailer.cs:44`），与 L-166 一致——不要写成 `~/.local/share`。并发用 `SemaphoreSlim(2)`，同文件任务用 `_inFlight` 去重，失败结果留 10 分钟。
 
 ### L-99 删掉卡片的显式 Width/Height 不会「自适应」，而是被内容撑开
 
@@ -946,7 +1036,7 @@ wine 前缀里存着登录 token、cookie、注册表；新建目录默认 0755�
 
 出现方式很隐蔽——功能本身没问题，只有「重复执行同一操作」时才会暴露（L2 的 T-IN-23 就是幂等用例）。
 
-## L-119 · `Auto` 行不随「异步变可见」重算，表现为两块内容重叠
+## L-173 · `Auto` 行不随「异步变可见」重算，表现为两块内容重叠（原编号 L-119，重号已改）
 
 - **现象**：游戏设置页滚动到底，「运行配置」标题与 HDR 段落画在同一坐标；改窗口尺寸、最小化恢复都不消失（排除重绘残留）。
 - **根因**：行高 `Auto` 先按「子项都 Collapsed」测出，随后 `Visibility`/绑定在异步初始化里变可见，Uno 未重新测量行高。
@@ -974,7 +1064,9 @@ F-21 的两次误判都栽在同一处：没有先确认「当前是哪个游戏
 
 ## L-122 我们自己的代码里不该有「无痕的 catch」
 
-全仓搜 `catch {}` / `catch (Exception) {}` 共 187 处，其中 183 处在上游共享文件里（按零偏差铁律不动），`*.Linux.cs` 只有 4 处：2 处是清理动作的兜底（`Kill` 失败、删临时文件失败，保持无痕合理），另 2 处是真问题——`GameInstallScanner.Linux.cs` 的「重复安装路径去重」整段被吞（会出现「明明装了却认不到、日志里一点线索都没有」），`GameInstallService.Linux.cs` 的 `cts.Cancel()` 用 catch-all（把 `ObjectDisposedException` 之外的异常也吞掉）。两处已改：前者 `LogWarning` 且不影响扫描结果，后者只吞 `ObjectDisposedException`、其余记 Warning。
+全仓搜 `catch {}` / `catch (Exception) {}`（不含 `obj/`、`bin/`）共 **361 处**：`src/Lunarward` **185 处**、`src/Starward`（上游共享文件，按零偏差铁律不动）**176 处**；`src/Lunarward` 里 `*.Linux.cs` 只有 **2 处**（`Features/Screenshot/ScreenCapture.Linux.cs:161`、`:183`，都是清理动作的兜底，保持无痕合理）。旧文「187 处 / 183 在上游 / `*.Linux.cs` 4 处」是过期数字。
+
+另 2 处是真问题，且已修：`GameInstallScanner.Linux.cs:136` 的「重复安装路径去重」原先整段被吞（会出现「明明装了却认不到、日志里一点线索都没有」），现在 `LogWarning` 且不影响扫描结果；`GameInstallService.Linux.cs:76` 与 `:169` 的 `cts.Cancel()` 原先 catch-all，现在只吞 `ObjectDisposedException`、其余记 Warning。
 
 可复用的判断：**自己能容忍失败的动作才允许无痕**（清理、兜底渲染）；**影响结论的动作必须留痕**（扫描、探测、状态判定）。
 
@@ -1103,14 +1195,15 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 现象：`scripts/test/perf.sh` 的 `--update` 写的是 `{"envs": {"<uname -sr>": {...}}}`，而仓库里的 `perf-baseline.json` 还是早期的扁平结构 `{"list-runners-hot":413,...}`。比较分支只查 `envs[host]`，取不到就打印「本次只记录，不判定」并 `exit 0` —— **CI 里那条 Perf smoke 其实从来没红过**，灯是绿的但没在测。
 - 另一层：脚本依赖 `/usr/bin/time -v` 取峰值 RSS，Arch 默认不装 `time` 包 → 每次都 `self.time` 不存在、`awk` 报错、`peak_rss_kb` 恒为空（同样静默）。
 - 修法：①比较分支兼容扁平基线（`if base is None and "cli_median_ms" in data: base = {...}`）；②`/usr/bin/time` 不存在时只测耗时、RSS 记 n/a；③新增 `startup_stall_ms` 并配**绝对上限 1500 ms**（UX 硬指标不该跟某台机器的基线比）；④基线重新生成，不带 null 的空指标。
+- **残余机制（2026-11-24 复核，尚未修）**：`scripts/test/perf.sh:110` 用 `$(uname -sr)` 当 key（当前基线键 `Linux 7.3.3-1-cachyos-bore-lto`，本机已升到 `Linux 7.3.5-2-cachyos-bore-lto`），`:139` 用同一个 key 去查，`:148-149` 取不到就打印「基线里没有 … 的记录，本次只记录，不判定」并 `exit 0`。所以「基线重新生成」只解决一时，**内核一升级，Perf smoke 又会静默空转**。要么把 key 换成「发行版 + 架构」这类稳定维度，要么取不到基线直接红。
 - 通用规则：任何「有基线就比、没基线就过」的脚本，必须在**第一次落地时**确认它真的会红——制造一次回归（临时把阈值调到 1）验证失败路径，否则绿灯没有意义。
 
 
 ## L-136 链接源码的测试工程，覆盖率分母只看「链接进来的文件」
 
-- 现象：新增 `ComponentDownloader.cs`（约 430 行，含 HEAD 探测、分片并发、单流降级、合并校验）后被链接进测试工程，覆盖率从 90.59% 掉到 **74.42%**（1164/1564），CI 的 85% 门槛直接红；而这些行里真正无法离线覆盖的只有「http 请求 + 文件搬运」。
-- 修法：把**纯算术/纯字符串**抽成 `src/Lunarward/Features/Runtime/ComponentDownloadMath.cs`（`ChunkCount`/`PlanChunk`/`PartPath`/`ApplyMirror`），测试工程改为链接 `ComponentDownloadMath.cs` + `ComponentSources.cs`，**不再链接下载器**；网络编排由手工实测（`--component-download dxvk` → 4 连接 / 18,041,512 字节 / digest 一致）+ `cli-extra` 兜。
-- 通用规则：①覆盖率只统计链接集，链接边界就是覆盖边界——把 IO 编排挡在链接集外、把判定逻辑抽出来，比给网络时序写 mock 划算；②一旦把某个文件移出链接集，必须在文档里写明「这部分靠什么验证」，否则等于悄悄降低门槛；③`coverage.sh` 报告要能区分「行覆盖」和「分支覆盖」，本轮是 87.44% / 66.16%（34 个类）。
+- 现象：新增 `ComponentDownloader.cs`（现 **650 行**，含 HEAD 探测、分片并发、单流降级、合并校验）后被链接进测试工程，覆盖率从 90.59% 掉到 **74.42%**（1164/1564），CI 的 85% 门槛直接红；而这些行里真正无法离线覆盖的只有「http 请求 + 文件搬运」。
+- 修法：把**纯算术/纯字符串**抽成 `src/Lunarward/Features/Runtime/ComponentDownloadMath.cs`（`ChunkCount`/`PlanChunk`/`PartPath`/`ApplyMirror`），测试工程改为链接 `ComponentDownloadMath.cs` + `ComponentSources.cs`（以及其余纯逻辑文件），**不再链接 `ComponentDownloader.cs`**；网络编排由手工实测（`--component-download dxvk` → 4 连接 / 18,041,512 字节 / digest 一致）+ `cli-extra` 兜。
+- 通用规则：①覆盖率只统计链接集，链接边界就是覆盖边界——把 IO 编排挡在链接集外、把判定逻辑抽出来，比给网络时序写 mock 划算；②一旦把某个文件移出链接集，必须在文档里写明「这部分靠什么验证」，否则等于悄悄降低门槛；③`coverage.sh` 报告要能区分「行覆盖」和「分支覆盖」，当时一轮是 87.44% / 66.16%（34 个类）。**现行数字（D122 新口径，2026-11-24）**：整体 line-rate **85.30%**，门限 85%（`scripts/test/coverage.sh 85`），只比门限高 0.3 个点；分母 = 链接进测试工程的 src 文件，不含未链接的主程序 UI/服务代码。
 
 
 ## L-137 改代码前先确认「要替换的那段区间里还有什么」
@@ -1142,7 +1235,7 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 ## L-141 代码里 new 出来的多行 TextBox 在 Skia 后端只画第一行
 
 - 现象：「配置文本（只读）」对话框里的 JSON 只显示了一个 `{`，其余行全空；点「复制」拿到的却是完整 JSON → 说明数据正确，是渲染问题。
-- 试过并排除：给 `TextBox` 补 `Height=320` 无效；去掉 `FontFamily("monospace")`（本机不是可用族名）也无效。
+- 试过并排除：给 `TextBox` 补 `Height=320` 无效；去掉 `FontFamily("monospace")` 也无效（`fc-match monospace` 实际解析到 `Maple Mono Normal NF CN`，族名是有效的，所以这条排除与字体无关，别误记成「本机没有 monospace」）。
 - 做法：只读展示改用 `ScrollViewer` + `TextBlock`（`IsTextSelectionEnabled=true`、`TextWrapping=NoWrap`、横竖滚动条 Auto），高度给在 ScrollViewer 上 → 14 行 JSON 完整显示。
 - 通用规则：Uno/Skia 下「代码创建 + `AcceptsReturn` 的多行 `TextBox`」不可靠，展示类场景直接用 `TextBlock`；要可编辑再考虑 XAML 里声明（XAML 声明的多行 TextBox 目前正常）。
 
@@ -1202,13 +1295,13 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 ## L-150 运行环境收尾三坑：可删范围、绑定残留、解析不一致
 
 - **「可删」必须显式定义范围**：`components/wine`、`components/dxvk` 这类分类目录与组件目录是**同一种形状**（都是 `ComponentsFolder` 下一层）。只判断「在管理根之下」会把整个运行器库判成可删。定法：受管根 = `components/<分类>/<目录>` 这一层，且目录名本身不能等于分类名（`wine`/`dxvk`/`vkd3d-proton`/`graphics` 一律 false），上溯最多 4 层。
-- **删环境必须连带清绑定**：`ProfileBinding.Resolve` 未绑定/指向已删环境时**静默回落第一份**（L-62 的兜底），所以「删了环境但绑定还在」在界面上看不出错，直到启动游戏用了另一套参数。删文件后必须 `ClearFor(id)`，并把被清的条数写进 toast/日志。
+- **删环境必须连带清绑定**：`ProfileBinding.Resolve` 在未绑定/指向已删环境时**不是静默**：会用 `Helpers.OneShotHints.TryTake("profile-binding-dangling")` 只提示一次并写 Serilog Warning（`Features/Runtime/ProfileBinding.cs:337`）；未绑定时优先取 `RuntimeDefaults.DefaultProfileId`（R68，`:344`），都没有才退回第一份（L-62 的兜底）。所以「删了环境但绑定还在」只表现为一次 warning + 界面照常，直到启动游戏用了另一套参数。删文件后仍必须 `ClearFor(id)`，并把被清的条数写进 toast/日志。
 - **诊断命令要和真启动走同一条解析路径**：`--launch-plan` 走的是 `ProfileBinding.Resolve`，真启动本轮改成了 `EnsureFor`（会建环境）。两者不一致时，「计划里好好的、真启动多出一份环境」。修法：解析差异只允许在「写」这一侧（`EnsureFor` 需要 `ILogger`、会落盘），并给读侧一个可观测入口 `--profile-ensure` 让脚本盯住三种分支。
 - 附带：xunit 工程用 `<EnableDefaultCompileItems>false</EnableDefaultCompileItems>` + 逐个 `<Compile Include>` 链接源文件（D37），`GameBiz`/`ProfileBinding`/`RuntimeProfileStore` 这条链拉不进单测——这类文件系统行为走 L2 CLI 夹具（`T-CL-45..47`），别硬塞进 xunit。
 
 ## L-151 依赖批次的四个坑：帮助两处手写、VDF 的 Children 形态、PeNet 的 IsPeFile、libuiohook 收不到 XTEST
 
-- **帮助文本和分支表分开写必然漂移**：`--help` 是一段手写字符串，`Program.Linux.cs` 有 46 个 `args[0] is "--x"`，两边靠人记。一批里踩两次：`--profile-ensure` 加完帮助里没有；`--preflight` 描述停在「六项」（实际九项，现在十项）。修法不是「认真点」，而是让「帮助」从声明表生成（`Helpers/CliSpec.cs`，D79），再用 lint 卡「源码开关 ⊆ 表」。**凡是同一份信息要写两遍，第二遍就会过期。**
+- **帮助文本和分支表分开写必然漂移**：`--help` 是一段手写字符串，`Program.Linux.cs` 现有 **48 个** `args[0] is "--x"`，两边靠人记。一批里踩两次：`--profile-ensure` 加完帮助里没有；`--preflight` 描述停在「六项」（实际九项，现在十项）。修法不是「认真点」，而是让「帮助」从声明表生成（`Helpers/CliSpec.cs`，D79），再用 lint 卡「源码开关 ⊆ 表」。**凡是同一份信息要写两遍，第二遍就会过期。**
 - **`KVObject.Children` 是 `IEnumerable<KeyValuePair<string, KVObject>>`**（ValveKeyValue 0.80）：`foreach (var child in root)` 拿到的是 `KVObject`，要 `kvp.Value`；`foreach (var child in root.Children)` 才是键值对。另外旧版 `libraryfolders.vdf` 的节点是 `"1" "/path"`（key 是数字、值是字符串），新版是 `"1" { "path" "/path" }`——两种都要兼容，判断依据是 key 是否全数字，取字符串值靠 `(string)obj` 隐式转换（`op_Implicit(string)` 存在，但压缩过的二进制 VDF 不能这么读）。
 - **`PeFile.IsPeFile` 是带参方法不是属性**（PeNet 6.1.2）：写成 `pe.IsPeFile` 会编译不过或语义错（`IsPeFile(int)` 之类），判断是否 PE 直接 `new PeFile(path)` 抛不抛 `PeNetParsingException` 更省事。machine 走 `pe.ImageNtHeaders?.FileHeader.Machine`（`I386` / `Amd64` / `Arm64`）。
 - **SharpHook 在 KDE Wayland 上收不到 XTEST 事件**（实测，2026-11-15）：`TaskPoolGlobalHook` 打印 enabled，12 秒内 0 个事件；`xdotool key`（XTEST）与 `env -u WAYLAND_DISPLAY` 强制 X11 后端都一样。对照：自写 `XQueryKeymap` 轮询能看到 `xdotool keydown shift` → `keys=1`。所以「X 客户端看得见的事件」不等于「libuiohook/XRecord 拿得到」，**换库前必须用对照实验定位到哪一层断了**，否则会把「这库不行」和「我的用法不行」混在一起。Wayland 正解是 `org.freedesktop.portal.GlobalShortcuts`（本机 KDE 已暴露，`busctl --user introspect` 可证）。
@@ -1297,7 +1390,7 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 
 ---
 
-## L-160 wine 注册表文件是「第二份真相」，格式有三个坑
+## L-174 wine 注册表文件是「第二份真相」，格式有三个坑（原编号 L-160，错序已改）
 
 **背景**：为了让「查注册表」不再 fork wine（D86），改成直接解析 `<prefix>/user.reg`。三个格式细节不看真实文件绝对想不到：
 
@@ -1327,7 +1420,7 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 
 ---
 
-## L-162 打包清单与源码各写一遍，必然漂移；`gitignore` 的 `dir/` 会吃掉同名包目录
+## L-175 打包清单与源码各写一遍，必然漂移；`gitignore` 的 `dir/` 会吃掉同名包目录（原编号 L-162，错序已改）
 
 **背景**：用户 m02959「arch打包是不是还是有问题」。核对三份 PKGBUILD 时挖出三个不同层次的坑：
 
@@ -1437,3 +1530,17 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 - 排查手法：`LibVLC` 上挂 `Log += (_, e) => Console.WriteLine(e.Message)` 并加 `--verbose=2`，搜 `hw decoder module`；只看 CPU 容易被「其实没开」骗过去。
 - 实测（1920×1080 VP9、vmem 输出 RV32、20 秒窗口）：纯解码 0.28 → 0.13 核；含 Skia 叠图与整帧拷贝 0.44 → 0.29 核；真机整体 112% → 74%（同时去掉一次整帧拷贝）。
 - 代价：NVIDIA 的 VAAPI 是 NVDEC 解码后**下载回内存**，省不掉后面的合成与上屏；个别驱动会花屏，所以留了 `LUNARWARD_VIDEO_HWDEC=0` 让用户退回软解。
+
+---
+
+## 编号勘误（2026-11-24）
+
+本轮校准时发现编号有重号与错序，按「保留先出现的编号、后来者改用后续未占用编号」处理，避免外部引用整段失效：
+
+| 原编号 | 现编号 | 位置/内容 | 原因 |
+|---|---|---|---|
+| L-119（第二处） | **L-173** | `Auto` 行不随「异步变可见」重算 | 同一文件已有 `L-119`（符号链接 `FileInfo.Length`，保留） |
+| L-160 | **L-174** | wine 注册表文件是「第二份真相」 | 原文排在 `L-161` 之后，错序 |
+| L-162 | **L-175** | 打包清单与源码各写一遍 | 原文排在 `L-163` 之后，错序 |
+
+**已知外部引用尚未同步**（这些文件本轮未改，需负责人统一处理）：`docs/linux-port/00-decisions.md:292` 仍写 L-119 指「Auto 行」；`docs/linux-port/README.md:20`、`docs/linux-port/12-shims-and-gaps.md:155`、`:266` 仍写 L-160；`docs/linux-port/12-shims-and-gaps.md:264` 仍写 L-162。`docs/linux-port/19-test-plan.md:502` 的 L-119 指符号链接条目（保留的编号），无需改。

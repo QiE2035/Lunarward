@@ -14,9 +14,12 @@
 
 ## 2. 第一次运行很慢，正常吗？
 
-正常。首次启动如果选的是 `dedicated`/`shared` 前缀模式，会跑一次 `wineboot` 初始化前缀，
-实测约 **18 秒 / 630 MB**。用 `template` 模式克隆已有前缀则通常 **0.1–0.3 秒**（btrfs/XFS 上
-走 reflink），这也是推荐做法：先手工把一套前缀调好，再「把现有前缀做成模板」。
+正常。全新方案的前缀路径留空时，首次启动会在 `~/.local/share/lunarward/prefix/<方案名>`
+建一份新前缀并跑一次 `wineboot`，实测约 **18 秒 / 630 MB**。
+
+已经有现成前缀（sleepy-launcher / anime-game-launcher 等建的）：在「编辑方案」里把路径填进去，
+启动器直接用它，**不复制、不初始化**，没有这段等待。想在另一套前缀上试又不影响正式那份，
+用「克隆方案」（复制一份前缀，btrfs/XFS 上走 reflink，实测约 0.15–0.26 秒）。
 
 ## 3. 提示「启动前检查未通过」
 
@@ -27,10 +30,10 @@
 | --- | --- | --- |
 | 游戏可执行文件 | 路径不对 / 游戏没装 | 游戏设置里重新指定安装目录 |
 | Wine 运行器 | 配置里写死的路径不存在 | 重新选择运行器，或清空路径改用自动探测 |
-| 前缀 | `external` 模式指到的目录不存在 | 改路径，或换成 `template`/`dedicated` |
+| 前缀 | 方案里填的路径不存在 | 改路径，或清空路径改用默认目录（首次启动自动创建） |
 | 前缀可写 | 权限不足 | 检查目录属主 |
 | 前缀占用 | 同一前缀已有游戏在跑 | 等它结束；或给这套配置单独前缀 |
-| 图形组件 | 配置指定了 DXVK 但没安装 | 在运行环境页「安装到前缀」，或取消勾选 |
+| 图形组件 | 方案选了 DXVK 但没装进这个前缀 | 在运行环境页把图形层装进该前缀（或「同步到前缀」），或取消选择 |
 
 想在不开界面的情况下复现同样的检查：
 
@@ -68,21 +71,27 @@ lunarward --preflight hk4e_cn ~/games/hk4e_cn/YuanShen.exe
 
 ## 6. 登录窗口打不开 / 打了没反应
 
-登录走独立窗口（系统 WebKitGTK），需要：
+登录走独立窗口（系统 WebKitGTK **6.0**），需要：
 
 ```bash
 # Arch
+sudo pacman -S webkitgtk-6.0
+```
+
+没有 WebKitGTK 6.0 时会退回 python3 助手（WebKitGTK 4.1）：
+
+```bash
 sudo pacman -S webkit2gtk-4.1 python-gobject
 ```
 
-没有这些依赖时，登录页会明确提示助手不可用，不会静默失败。
+两条路径都不可用时，登录页会明确提示缺什么，不会静默失败。
 
 ## 7. 全局热键（Alt+S / Alt+D）没用
 
 - 全局热键依赖 X11。**Wayland 原生会话下拿不到全局键盘状态**，UI 会显示注册失败。
   可以在 `GDK_BACKEND=x11` 下运行（XWayland），或暂时不用热键。
 - 合成按键（例如脚本用 `xdotool key` 12ms 的按压）可能抓不到；真人按键没问题。
-- 最小化后按 Alt+S 唤回依赖 `xdotool`；没装时可能唤不回，托盘菜单「显示主窗口」是同样的路径。
+- 最小化后按 Alt+S 唤回走 X11 窗口查找（`libxcb` 直接读键盘状态与窗口树），**不依赖 `xdotool`**；只有 libxcb 不可用/连接失败时才回落 `xdotool`（没装时可能唤不回）。托盘菜单「显示主窗口」走同一套唤回逻辑。
 
 ## 8. 托盘没有图标
 
@@ -100,7 +109,9 @@ Alt+D 依次尝试 `spectacle -b -n -f`、`grim`、`gnome-screenshot`。三个�
 自动识别只看这些位置（可执行文件名 + 目录名）：
 
 ```
-~/games  ~/Games  ~/Games/miHoYo  Steam/steamapps/common  $LUNARWARD_GAME_ROOTS
+~/games  ~/Games  ~/Games/miHoYo  /opt
+Steam 库的 steamapps/common（~/.local/share/Steam、~/.steam、Flatpak 版）
+$LUNARWARD_GAME_ROOTS
 ```
 
 目录名要和 gameId 一致（`hk4e_cn`、`hkrpg_cn`、`nap_cn` 等），否则会漏检——这是刻意的：

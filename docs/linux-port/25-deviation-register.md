@@ -3,10 +3,11 @@
 > 生成日期：2026-11-21　基线：上游 `src/Starward/` = `df8ae07`；移植 `src/Lunarward/` = `b5b75a5`（D94 修复后）。
 > 方法：9 组逐文件 `diff -u` + 主代理抽样读码核实（见 `26-misalignment-audit.md`）。2026-11-22 对**全部 265 行的必要性判断逐条复核**，57 处改判，见 §1.1。
 > 本文取代 `18-upstream-table.md` 的关键词粗分类；原则见 `18-upstream-deviations.md`，实现状态见 `12-shims-and-gaps.md`。
+> 最后核对：2026-11-24（HEAD 2b86682）。本文件是审计快照，数字以脚注日期为准（逐点计数见 §3，剔除清单见附录 A/B）。
 
 ## 0 · 口径
 
-- **偏离** = 上游存在的文件在移植侧行为/结构不同。三种来源：①同名文件被修改（86 个）；②上游文件被 `Lunarward.csproj` 的 `<Compile Remove>` 排除、由同目录 `*.Linux.cs` 重写（36 个）；③纯新增文件（§4，不计入偏离，但会改变同名文件的调用路径）。
+- **偏离** = 上游存在的文件在移植侧行为/结构不同。三种来源：①同名文件被修改（78 个标题 / 79 个文件，`AdvancedSetting.xaml / .cs` 合并在一条）；②上游文件被 `Lunarward.csproj` 的 `<Compile Remove>` 排除、由同目录 `*.Linux.cs` 重写（36 个）；③纯新增文件（§4，不计入偏离，但会改变同名文件的调用路径）。
 - **必要性**：`must` 不这么写程序就不可用（平台 API 不存在、引擎不支持）；`reasonable` 平台不同但语义等价，或为满足 Linux 用户预期；`avoidable` 与平台无关，可以照上游写却写了别的（可能是顺手重构/记忆偏差，也可能是修上游缺陷但没留痕）。
 - **可否回流**：这条改动是否值得、也可能提交给上游（多数是平台专属，回不去）。
 - 每条都带行号或成员名；`*.Linux.cs` 的对照对象是去掉 `.Linux` 的同名上游文件。
@@ -16,7 +17,7 @@
 | 维度 | 数量 |
 |---|---|
 | 偏离点 | **265** |
-| 涉及文件 | 114（同名修改 86 + `*.Linux.cs` 36，有交叉） |
+| 涉及文件 | 114 个文件条目（§3 的 `####` 标题：同名修改 78 + `*.Linux.cs` 36；`AdvancedSetting.xaml / .cs` 并成一条，故实际 79 + 36 = 115 个文件） |
 | 类别 | linux 专属实现 68、api 平台 API 46、cut 裁剪 46、engine 引擎能力 43、cosmetic 外观文案 32、eng 工程性 21、bugfix 修上游缺陷 9 |
 | 必要性 | reasonable 合理换法 118、must 必需 87、avoidable 可避免 60（2026-11-22 全量复核后） |
 | 可回流上游 | 12 |
@@ -34,6 +35,8 @@
 | background-codec | 25 | 6 |
 | settings-ui | 24 | 8 |
 | services-helpers | 32 | 10 |
+
+> **「114 文件」与 `scripts/list-deviations.sh` 的 88 个同名文件不是一回事**：114 是本文 §3 的条目数（78 个同名标题 + 36 个 `*.Linux.cs`），截至 2026-11-24 重跑脚本得到 88 个同名不同内容的文件——比 §3 的 78 个同名标题多 9 个，是 §3 漏收的 9 个同名文件（`Gacha*` 3 个、`GameRecord/StarRail` 3 个、`SelfQueryPage.xaml.cs`、`UpdateWindow.xaml`、`UrlProtocolService.cs`；其中多数改动早于 2026-11-21 快照，不是新口径）。本表不含纯新增文件、不含已删除文件、也不含被 `<Compile Remove>` 排除的 53 个上游文件（附录 A）。
 
 
 ### 1.1 必要性复核更正（2026-11-22，57 处）
@@ -373,7 +376,7 @@ Linux 没有官方启动器提供的安装器，整条 Sophon 管线（清单、
 - **L23 _audioLanguage、L51–57 构造函数** ｜ cut 裁剪 ｜ avoidable 可避免
   - 上游：[INotifyPropertyChanged]（InstallGameDialog.xaml.cs:25）；Loaded 里 SetDefaultInstallationPath() + GetGamePackageAsync()（L60–62）
   - 移植：普通 C# 类，ctor 只 InitializeComponent + 三个命令；无 Loaded/Unloaded 订阅
-  - 理由：只保留了 x:Bind 需要的那一层成员（docs/linux-port/12-shims-and-gaps.md:89 明确记为「只保留 x:Bind 成员」）；默认路径、包体/空间计算、按钮使能校验全部缺失，造成功能异常，见 bugs
+  - 理由：只保留了 x:Bind 需要的那一层成员（docs/linux-port/12-shims-and-gaps.md:93 明确记为「只保留 x:Bind 成员」）；默认路径、包体/空间计算、按钮使能校验全部缺失，造成功能异常，见 bugs
 - **L23、L43–47** ｜ api 平台 API ｜ avoidable 可避免
   - 上游：[INotifyPropertyChanged] + SetProperty：InstallationPath/ErrorMessage/AvailableSpaceText/UnzipSpaceText/AutomaticallyCreateSubfolderForInstall 全部可通知
   - 移植：普通自动属性（get; set;），类未实现 INotifyPropertyChanged
@@ -385,7 +388,7 @@ Linux 没有官方启动器提供的安装器，整条 Sophon 管线（清单、
 - **L84–109 StartInstallationAsync** ｜ cut 裁剪 ｜ avoidable 可避免
   - 上游：成功后 GameLauncherService.ChangeGameInstallPath（L395）→ 发 GameInstallTaskStartedMessage（L396）→ AppConfig.DefaultGameInstallationPath（L397–400）→ Close()
   - 移植：Directory.CreateDirectory + StartInstallAsync(gameId, path, _audioLanguage)，失败置 ErrorMessage，成功弹 toast 后 Hide()
-  - 理由：安装路径从不落盘、也不广播任务开始（见 bugs B1/B8）；卸载/更新/启动全都依赖这条路径，属最严重的语义缺口
+  - 理由：安装路径从不落盘、也不广播任务开始（见 bugs B01 + B67）；卸载/更新/启动全都依赖这条路径，属最严重的语义缺口
 - **Segmented_SelectLanguage（InstallGameDialog.LinuxAuto.cs 空壳）与 L23 _audioLanguage** ｜ cut 裁剪 ｜ avoidable 可避免
   - 上游：Segmented_SelectLanguage_SelectionChanged（L366–388）按 zh-cn/en-us/ja-jp/ko-kr 映射 AudioLanguage 标志并重算包体
   - 移植：处理函数是自动生成的空方法体；_audioLanguage 恒为 AudioLanguage.Chinese；XAML 里 Segmented_SelectLanguage Visibility="Collapsed"
@@ -404,7 +407,7 @@ Linux 没有官方启动器提供的安装器，整条 Sophon 管线（清单、
 - **L95–104 ResolveInstallPath** ｜ cut 裁剪 ｜ avoidable 可避免
   - 上游：安装路径为空或本地版本取不到时显示「预下载不可用」并 return，绝不自造路径
   - 移植：InstallationPath → AppConfig.GetGameInstallPath → 兜底 <UserDataFolder>/Games/<GameBiz.Value>，并回写 InstallationPath
-  - 理由：兜底把「无安装」当成「可预下载到默认目录」，改变了可预下载的前提条件（见 bugs B5）
+  - 理由：兜底把「无安装」当成「可预下载到默认目录」，改变了可预下载的前提条件（见 bugs B39）
 - **L127、L184–204（CheckCanPreDownload 缺失）** ｜ cut 裁剪 ｜ avoidable 可避免
   - 上游：CheckCanPreDownload（L318–336）在包/chunk/patch build、全限定路径、本地版本、包体>0、解压量>0 全部满足时才 Button_StartPredownload.IsEnabled = true
   - 移植：只有 build 为 null 时把按钮置 false；StartPredownloadAsync 前不再做任何校验
@@ -435,7 +438,7 @@ Linux 没有官方启动器提供的安装器，整条 Sophon 管线（清单、
 - **L257–268 NameMatches** ｜ linux 专属实现 ｜ avoidable 可避免
   - 上游：无等价逻辑（注册表路径自带 gameBiz，无需匹配目录名）
   - 移植：目录名小写后需 name == biz 值，或同时 Contains(游戏名) && Contains(服名)
-  - 理由：为压误报而设的严格匹配，但「Genshin Impact」「Star Rail」这类最常见目录名不含服名，天然命中不了（见 bugs B9）
+  - 理由：为压误报而设的严格匹配，但「Genshin Impact」「Star Rail」这类最常见目录名不含服名，天然命中不了（见 bugs B36）
 - **L101–137 重复占用清理** ｜ eng 工程性 ｜ reasonable 合理换法
   - 上游：无等价逻辑
   - 移植：同一目录被多个 gameBiz 认领时保留一个，清掉其余 AppConfig 记录
@@ -1675,18 +1678,18 @@ Linux 没有官方启动器提供的安装器，整条 Sophon 管线（清单、
 | `Features/GameInstall/GameInstallService.Linux.cs` | L177–215 CountLocalMismatchesAsync | 自研管线的兜底自检：只比文件大小，故意不做 MD5（代价高），仅作诊断线索，不改变状态机 | eng |
 | `Features/GameInstall/GameInstallService.Linux.cs` | L218–254 EnsureInstallPathLooksSane | L-66 的教训：误把游戏装进已有数据目录会覆盖用户文件；Linux 侧路径由用户手选，风险比 Windows 的默认路径高 | linux |
 | `Features/GameInstall/GameInstallService.Linux.cs` | L320–327 #if DEBUG 的下载量上限 | 冒烟/离线测试用（硬规则 6：Release 构建里不存在），避免测试真下几十 GB | linux |
-| `Features/GameInstall/InstallGameDialog.Linux.cs` | L23 _audioLanguage、L51–57 构造函数 | 只保留了 x:Bind 需要的那一层成员（docs/linux-port/12-shims-and-gaps.md:89 明确记为「只保留 x:Bind 成员」）；默认路径、包体/空间计算、按钮使能校验全部缺失，造成功能异常，见 bugs | cut |
+| `Features/GameInstall/InstallGameDialog.Linux.cs` | L23 _audioLanguage、L51–57 构造函数 | 只保留了 x:Bind 需要的那一层成员（docs/linux-port/12-shims-and-gaps.md:93 明确记为「只保留 x:Bind 成员」）；默认路径、包体/空间计算、按钮使能校验全部缺失，造成功能异常，见 bugs | cut |
 | `Features/GameInstall/InstallGameDialog.Linux.cs` | L23、L43–47 | 与 XAML 根元素的 x:DefaultBindMode="OneWay"（InstallGameDialog.xaml:12）直接冲突：OneWay 绑定在无 INPC 时永不刷新，属实现错位而非平台限制 | api |
 | `Features/GameInstall/InstallGameDialog.Linux.cs` | L60–81 ChangePathAsync | 上游选目录后的空间提示与可点性判断在 Linux 版整段消失，用户看不到「够不够装」也得不到即时反馈 | cut |
-| `Features/GameInstall/InstallGameDialog.Linux.cs` | L84–109 StartInstallationAsync | 安装路径从不落盘、也不广播任务开始（见 bugs B1/B8）；卸载/更新/启动全都依赖这条路径，属最严重的语义缺口 | cut |
+| `Features/GameInstall/InstallGameDialog.Linux.cs` | L84–109 StartInstallationAsync | 安装路径从不落盘、也不广播任务开始（见 bugs B01 + B67）；卸载/更新/启动全都依赖这条路径，属最严重的语义缺口 | cut |
 | `Features/GameInstall/InstallGameDialog.Linux.cs` | Segmented_SelectLanguage（InstallGameDialog.LinuxAuto.cs 空壳）与 L23 _audioLanguage | M1 阶段只跑中文语音包，选择区藏起来避免误导；但服务端 L282–291 会按 context.AudioLanguage 映射音频字段，因此该常量直接决定下载哪套语音 | cut |
 | `Features/GameInstall/PreDownloadDialog.Linux.cs` | L107–167 LoadSizeInfoAsync | 移植侧不引 GamePackageService/HoYoPlay，直接用 Sophon 公开接口按「同一接口 branch=predownload、tag 留空」算大小（13-lessons L-59/L-61：整包 136 GB、补丁 8.34 GB）；代价是忽略列表（is_delete 类别）… | api |
-| `Features/GameInstall/PreDownloadDialog.Linux.cs` | L95–104 ResolveInstallPath | 兜底把「无安装」当成「可预下载到默认目录」，改变了可预下载的前提条件（见 bugs B5） | cut |
+| `Features/GameInstall/PreDownloadDialog.Linux.cs` | L95–104 ResolveInstallPath | 兜底把「无安装」当成「可预下载到默认目录」，改变了可预下载的前提条件（见 bugs B39） | cut |
 | `Features/GameInstall/PreDownloadDialog.Linux.cs` | L127、L184–204（CheckCanPreDownload 缺失） | 上游唯一的使能点被整段裁掉，按钮可点性因此不受任何条件约束（叠加 XAML 的 IsEnabled="False"，行为取决于 Uno ButtonBase 是否按 CanExecute 回填） | cut |
 | `Features/GameInstall/PreDownloadDialog.Linux.cs` | L32 _audioLanguage；L86–92 ctor 的 Opened 订阅；L184–204 StartPredownloadAsync | 上游通知 + Loaded 的组合在移植里退化成「toast + 轮询」；语音固定 Chinese 与服务端 MapAudioField 叠加后同样只能下中文语音 | cut |
 | `Features/GameInstall/PreDownloadDialog.Linux.cs` | L170–181 FormatSize | 单位选择不同，数值口径一致；对 136 GB 的显示反而更省位数，不影响判断 | cosmetic |
 | `Features/GameInstall/PreDownloadDialog.Linux.cs` | L21–77（显式 INotifyPropertyChanged + 手写 setter） | 同一工程里源生成器版本的行为在 Uno/Skia 下曾出过刷新问题，手写更可控；对外契约与上游一致（XAML 仍 OneWay 绑定） | api |
-| `Features/GameInstall/GameInstallScanner.Linux.cs` | L257–268 NameMatches | 为压误报而设的严格匹配，但「Genshin Impact」「Star Rail」这类最常见目录名不含服名，天然命中不了（见 bugs B9） | linux |
+| `Features/GameInstall/GameInstallScanner.Linux.cs` | L257–268 NameMatches | 为压误报而设的严格匹配，但「Genshin Impact」「Star Rail」这类最常见目录名不含服名，天然命中不了（见 bugs B36） | linux |
 | `Features/GameSetting/GameSettingPage.xaml.cs` | L90 | 导航耗时打点的残留，未输出也未 Stop，属临时代码（硬规则 7），应删除 | cosmetic |
 | `Features/GameAccount/GameAccountService.cs` | L196-201 | WineRegistry.SetValuesAsync 内部 catch 掉异常只返回 bool，这里又只记警告不回传给调用方，导致切换账号失败时上层仍按成功处理（无任何用户反馈）；应把失败上抛或返回结果 | linux |
 | `AppConfig.Configuration.cs` | :187-190 CheckEnviromentAsync 的 catch 分支 | 无 Win32 MessageBox 可用；但静默 Exit(0) 让用户完全看不出失败原因，改用 stderr 或 InAppToast 更合适（当前属可避免的体验缺口） | cut |

@@ -1,47 +1,61 @@
 # 24 依赖盘点：外部进程与手写实现，哪些该换成库
 
-> 状态：**盘点基线 + 执行记录**（2026-11-14 初版，2026-11-19 补 P5 结论，2026-11-20 文档整理）。按用户口径「鼓励第三方依赖，能用的都可以考虑」做一次全仓清点，逐条给出「换 / 不换 / 待定」和理由。
+> 状态：**盘点基线 + 执行记录**（2026-11-14 初版，2026-11-19 补 P5 结论，2026-11-20 文档整理）。
+> 最后核对：2026-11-24（HEAD `2b86682`）。按用户口径「鼓励第三方依赖，能用的都可以考虑」做一次全仓清点，逐条给出「换 / 不换 / 待定」和理由。
 > 判定原则（三条，缺一条就不换）：
 > 1. **仍在活跃维护**（近一年有发布；本项目不做长期无人维护的依赖）。
 > 2. **行为等价或更好**（换完功能不减、报错不更差）。「更好」通常指：可取消、不占 UI 线程、少一条发行版依赖。
 > 3. **不为了换而换**（体积/许可证/多平台行为要算账；能靠已引入的库解决的优先，不新增）。
 
-## 1 外部进程清单（48 处 `Process.Start`）
+## 1 外部进程清单（存活 43 处）
 
-`grep -rn "Process\.Start(" src/Lunarward --include=*.cs | wc -l` = **48**。
+统计口径（2026-11-24 复测，HEAD `2b86682`）：
+
+| 口径 | 数量 | 怎么算 |
+| --- | ---: | --- |
+| `Process.Start(` 字面量 | **50** | `grep -rn "Process\.Start(" src/Lunarward --include=*.cs \| wc -l` |
+| 其中死代码 | 9 | 文件被 `<Compile Remove>` 排除（`grep -c "<Compile Remove" src/Lunarward/Lunarward.csproj` = 53 条，命中 5 个文件共 9 行） |
+| 参与编译的字面量 | **41** | 50 − 9 |
+| 非字面量、但仍是外部进程 | 2 | `new Process{…}` + `process.Start()`：`Features/PlayTime/PlayTimeSession.Linux.cs:73`（跑 `wineserver -w`）、`Features/Runtime/ComponentHealth.cs:98`（跑 `wine --version`） |
+| **存活合计** | **43** | 41 + 2 |
+
+死代码 9 处：`Features/RPC/RpcService.cs:58`、`Features/Screenshot/ImageBatchConvertWindow.xaml.cs:542/562/593/613`、`Features/Screenshot/ScreenshotHelper.cs:61/80`、`Features/Update/SetupService.cs:133`、`Features/Update/UpdateWindow.xaml.cs:421`。
+
+下表按用途归类，未逐行列全 43 处（41 处参与编译的字面量分布在 26 个文件，加 2 处非字面量共 28 个文件）；跑上面的 grep 可复现全量位置。
 
 ### 1.1 必须保留（外部进程就是功能本身）
 
 | 位置 | 命令 | 用途 | 判定 |
 | --- | --- | --- | --- |
-| `Features/GameLauncher/GameLauncherService.cs:421` | `wine <exe>` | 启动游戏本体 | **必须**（换库=重写 Wine） |
-| `Features/Runtime/PrefixManager.cs:431/465` | `cp -a --reflink=auto` / `wineboot -u` | 克隆前缀 / 建前缀 | **必须**（`wineboot` 属于 Wine；`cp` 的 reflink 语义要的就是内核行为） |
-| `Features/GameAccount/WineRegistry.cs:312` | `wine reg query/import` | 游戏注册表（账号、画质） | **必须** |
+| `Features/GameLauncher/GameLauncherService.cs:479` | `wine <exe>` | 启动游戏本体 | **必须**（换库=重写 Wine） |
+| `Features/Runtime/PrefixManager.cs:404/491` | `cp -a --reflink=auto` / `wineboot -u` | 克隆前缀 / 建前缀 | **必须**（`wineboot` 属于 Wine；`cp` 的 reflink 语义要的就是内核行为） |
+| `Features/GameAccount/WineRegistry.cs:339` | `wine reg query/import` | 游戏注册表（账号、画质） | **必须** |
+| `Program.Linux.cs:365/385` | `wine --version` / `wine cmd /c echo` | `--runner-check` 自检（CLI） | **必须**（被测对象就是 Wine） |
 | `Features/Runtime/ProfileShellService.cs` | `$SHELL` | 调试 Shell | **必须**（用户自己的 shell） |
 | `Features/Runtime/RunOnceService.cs` | 用户指定程序 | 「在该环境下运行程序」 | **必须** |
 | `Features/Companion/CompanionRunner.cs:74` | 用户指定程序 | 后启动程序 | **必须** |
-| `Features/PlayTime/PlayTimeRecordService.cs:334/377` | `wineserver -w` 等 | 游玩时长判定 | **必须** |
-| `Features/GameSetting/GameSettingPage.xaml.cs:771`、`RuntimeEnvironmentSetting.xaml.cs:1705`、`AdvancedSetting.xaml.cs:332`、`ScreenshotPage.Linux.cs:136/210`、`ScreenshotViewerWindow.xaml.cs:133`、`OpenUrl.cs:90`、`FileManageSetting.xaml.cs:77/134`、`Program.Linux.cs:343/363` | `xdg-open` / 自身 exe | 打开目录/文件、重启自身 | **保留**（见 §3.4，portal 有兜底成本） |
+| `Features/PlayTime/PlayTimeRecordService.cs:378/421` | `wineserver -w` 等 | 游玩时长判定 | **必须** |
+| `Features/GameSetting/GameSettingPage.xaml.cs:800`、`RuntimeEnvironmentSetting.xaml.cs:2448`、`AdvancedSetting.xaml.cs:333`、`ScreenshotPage.Linux.cs:230/328`、`ScreenshotViewerWindow.xaml.cs:133`、`OpenUrl.cs:118`、`FileManageSetting.xaml.cs:77/134` | `xdg-open` / 自身 exe | 打开目录/文件、重启自身 | **保留**（见「执行说明」：portal 优先，但保留兜底） |
 
-### 1.2 该换（换成库，去掉一条外部依赖）
+### 1.2 已换（原「该换」3 项，2026-11-14 全部完成）
 
 | 位置 | 现在 | 换成 | 收益 |
 | --- | --- | --- | --- |
-| `Features/Runtime/ComponentImporter.cs`（`ExtractAsync`） | `tar -xf` / `tar --zstd -xf` + `xz -d -T0` | `System.Formats.Tar`（BCL）+ `GZipStream`（BCL）+ `ZstdSharp.Port`（已有）+ `SharpCompress`（新增，读 xz） | **可取消**（不再 `Kill` 进程树）；不占 UI 线程（D72 不必再 `Task.Run` 包一层）；解压进度可上报；报错原文更完整；少依赖 `tar`/`xz` 两条外部命令（服务 D73 的「自洽」） |
-| `Features/Screenshot/ImageBatchConvertWindow.xaml.cs:542/562/593/613`、`ScreenshotHelper.cs:61/80` | `avifenc` / `cjxl` / `avifdec` / `djxl` | `Magick.NET-Q8-AnyCPU`（15.1.0，ImageMagick 维护方 dlemstra 在维护） | 去掉 4 个外部二进制（AVIF/JXL 编解码）；不再要求用户装 libavif/libjxl 工具。**代价**：体积大（几十 MB），需评估是否只在需要时打包 |
-| `Helpers/DesktopNotification.cs:45/70` | `notify-send` / `gdbus call` | `Tmds.DBus`（已有）直连 `org.freedesktop.Notifications` | 复用已有依赖，少两条外部命令；可返回通知 id、可撤回 |
+| `Features/Runtime/ComponentImporter.cs:169-171`（`ExtractAsync`） | ✅ 已不调系统命令：全部委托 `ArchiveExtractor`（BCL `TarReader` + `GZipStream` + `ZstdSharp` + `SharpCompress` 读 xz + `ZipFile`）；文件头 `:6-7` 注明 2026-11-14 起不再 fork `tar`/`xz` | `System.Formats.Tar`（BCL）+ `GZipStream`（BCL）+ `ZstdSharp.Port`（已有）+ `SharpCompress`（1.0.0，读 xz） | **可取消**（不再 `Kill` 进程树）；不占 UI 线程（D72 不必再 `Task.Run` 包一层）；解压进度可上报；报错原文更完整；少依赖 `tar`/`xz` 两条外部命令（服务 D73 的「自洽」） |
+| `Helpers/MagickCodec.cs` | ✅ 已换（D75）：`Magick.NET-Q8-AnyCPU` 15.1.0，`MagickCodec.cs:4` 注明带 libheif/libjxl delegate；Skia 不解 AVIF/JXL，统一走 `Helpers/ImageDecode`。原 `avifenc`/`cjxl`/`avifdec`/`djxl` 那几处（`ImageBatchConvertWindow.xaml.cs:542/562/593/613`、`ScreenshotHelper.cs:61/80`）**本身就在 `<Compile Remove>` 里**，早已不参与编译 | `Magick.NET-Q8-AnyCPU`（ImageMagick 维护方 dlemstra 在维护） | 去掉 4 个外部二进制（AVIF/JXL 编解码）；不再要求用户装 libavif/libjxl 工具。**代价**：体积大（实测见「执行记录」P4 行），publish 只留本机 RID |
+| `Helpers/DesktopNotification.cs` | ✅ 已换（2026-11-14）：`Tmds.DBus` 直连 `org.freedesktop.Notifications` 为主（`:65`）；`notify-send` / `gdbus` 只在 D-Bus 失败时兜底（`:109`/`:133`），且硬规则 10 禁止 UI 线程 fork | `Tmds.DBus`（已有） | 复用已有依赖，少两条外部命令；可返回通知 id、可撤回 |
 
-### 1.3 待定（有收益，但有取舍，需单独决策）
+### 1.3 有取舍的项（现状：多数已做，剩余仍待定）
 
 | 位置 | 现在 | 候选 | 取舍 |
 | --- | --- | --- | --- |
-| `Helpers/FileDialogHelper.Linux.cs:25/137` | `kdialog` / `zenity` | XDG Desktop Portal `FileChooser`（`Tmds.DBus`） | portal 在精简桌面可能没实现，要保留 kdialog/zenity 兜底 → 变成两条路径；现有降级链（D31）已能工作，收益不确定 |
-| `Helpers/ClipboardHelper.Linux.cs:40` | `xclip` / `wl-copy` | Uno `Clipboard` API（已在用）/ portal | 记录：`Windows.ApplicationModel.DataTransfer.Clipboard` 在本项目里已用于「配置文本」对话框，说明 Uno 侧可用；此 helper 是更早期为 X11 兜底写的，可先看 Uno 是否已稳定再删 |
-| `Helpers/OpenUrl.cs:49/90` | `xdg-mime query` / `xdg-open` | Portal `OpenURI` | 同上（sandbox/flatpak 场景 portal 更稳），但需保留兜底 |
-| `Features/Screenshot/ScreenCapture.Linux.cs:97` | `spectacle` / `grim` / `gnome-screenshot` | Portal `ScreenCast`（PipeWire）/ `Screenshot` | 收益最大（Wayland 原生、不绑桌面），改动也最大（会话协商、流、编码）；**应单独立项**，不塞进这一批 |
-| `Features/GameRecord/WebLoginService.cs:103/155` | `python3` + WebKitGTK 脚本 | `GirCore`（WebKitGTK 绑定）进程内打开登录窗 | 已在 D32 里规划（M2 换 GirCore）；换掉后不再要求系统有 `python3` |
-| `Helpers/ProcessQuery.cs:49` | `fuser -v` / `lsof -t +D` | 直接扫 `/proc/*/fd` 与 `/proc/*/maps` | 无库可借，自己扫 `/proc` 反而更可靠（不依赖 `psmisc`/`lsof` 安装）；**倾向自研**（这是「少一条外部依赖」，不是「重复造轮子」） |
-| `Helpers/X11KeyState.cs:216/237` | `xdotool search/activate` | 已有的 `Helpers/X11Window.cs`（libxcb） | **内部去重**，不新增依赖：窗口激活已经有 libxcb 实现，`xdotool` 这一处属于历史遗留 |
+| `Helpers/FileDialogHelper.Linux.cs:29/186` | ✅ portal 优先（`org.freedesktop.portal.FileChooser`，含 filters / multiple / directory / 保存建议名），`kdialog` → `zenity` 兜底 | XDG Desktop Portal `FileChooser`（`Tmds.DBus`） | ✅ 2026-11-14 已完成（P3）：portal 在精简桌面可能没实现，所以保留 kdialog/zenity 兜底（D31 降级链） |
+| `Helpers/ClipboardHelper.Linux.cs:49/82/110` | `wl-copy` / `xclip` 兜底（Wayland 优先）；「配置文本」对话框已用 Uno `Clipboard` API | Uno `Clipboard` API（已在用）/ portal | **仍待定**：Uno 侧可用，但文件列表/PNG 两种粘贴还没验证 Uno 是否稳定，helper 先留作 X11 兜底 |
+| `Helpers/OpenUrl.cs:57/118` | ✅ `org.freedesktop.portal.OpenURI` 优先，`xdg-open` → `gio open` 兜底 | Portal `OpenURI` | ✅ 2026-11-14 已完成（P2）：sandbox/flatpak 场景 portal 更稳，兜底保留 |
+| `Features/Screenshot/ScreenCapture.Linux.cs:148` | `spectacle` / `grim` / `gnome-screenshot` 优先，portal `Screenshot` 兜底（**刻意保留**外部优先） | Portal `ScreenCast`（PipeWire）/ `Screenshot` | **部分已做**：portal 兜底已落地（P4）；PipeWire 路线没做——收益最大（Wayland 原生、不绑桌面），改动也最大（会话协商、流、编码），**应单独立项** |
+| `Features/GameRecord/WebLoginService.cs:105/129` | ✅ 登录窗 = 本程序子进程 + WebKitGTK 6.0（`--webkit-login`，D76）；`python3` 助手只作旧系统兜底（`:129`） | `GirCore`（WebKitGTK 绑定）进程内打开登录窗 | ✅ 2026-11-14 已完成 A 方案（D76）：不再要求系统有 `python3`（仅兜底）。B 方案（同进程）实测能跑，但 GTK3/GTK4 并存、标题栏观感不统一，不采用 |
+| `Helpers/ProcessQuery.cs:119` | ✅ 已改读 `/proc/<pid>/fd` 的符号链接，不再 fork `fuser` / `lsof` | 直接扫 `/proc/*/fd` 与 `/proc/*/maps` | ✅ 2026-11-14 已完成：不依赖 `psmisc`/`lsof` 安装，只读、可取消 |
+| `Helpers/X11KeyState.cs:266/287` | ✅ 首选进程内 libxcb（`X11Window.Activate`），`xdotool` 仅兜底 | 已有的 `Helpers/X11Window.cs`（libxcb） | ✅ 2026-11-14 已完成：**内部去重**，不新增依赖 |
 
 ## 2 手写实现盘点（非进程类）
 
@@ -62,20 +76,20 @@
 | D-Bus 调用（通知、媒体控制） | `Tmds.DBus`（已引） | 保留 |
 | X11 热键轮询、窗口 map/unmap | `libxcb` P/Invoke（自研 `Helpers/X11Window.cs`） | 保留：Wayland 下本就不可用，没有库能做「X11 全局热键」 |
 | 时间格式化、日志、i18n | BCL / `Serilog` / 自研 `Lang` | 保留 |
-| AVIF/JXL 编码（截图转格式） | `Magick.NET`（见 §1.2） | **换** |
+| AVIF/JXL 编码（截图转格式） | `Magick.NET`（见 §1.2） | **已换（D75）**，入口 `Helpers/MagickCodec.cs` |
 
-## 3 新增依赖清单（只在需要时加）
+## 3 新增依赖清单（均已落地；版本以 `src/Lunarward/Lunarward.csproj` 实钉为准）
 
-| 包 | 最新版本（NuGet，2026-11-14 查） | 许可证 | 用途 | 体积影响 |
+| 包 | 版本（csproj 实钉，2026-11-24 核） | 许可证（nuspec） | 用途 | 体积影响 |
 | --- | --- | --- | --- | --- |
 | `System.Formats.Tar` | BCL（.NET 10 自带） | MIT | 进程内解 tar | 0（框架内） |
 | `SharpCompress` | 1.0.0 | MIT | 读 `.tar.xz` | 小（~1 MB） |
-| `Magick.NET-Q8-AnyCPU` | 15.1.0 | ImageMagick License（Apache-2.0 兼容） | AVIF/JXL 编解码 | **大**（数十 MB，需评估） |
-| `GirCore`（`GirCore.Gtk-4.0` 等） | 见 NuGet（`GirCore` 系列） | LGPL-2.1 | WebKitGTK 登录窗 | 中（需运行时 GTK4/WebKitGTK） |
+| `Magick.NET-Q8-AnyCPU` | 15.1.0 | Apache-2.0（底层 ImageMagick 自身是 ImageMagick License） | AVIF/JXL/HEIC 编解码 | **大**（8 个 RID native 约 237 MB，见执行记录） |
+| `GirCore.Gtk-4.0` / `GirCore.WebKit-6.0` | 0.8.1 | **MIT** | WebKitGTK 登录窗（spike；实际落地是 `--webkit-login` 子进程，见 D76） | 中（需运行时 GTK4/WebKitGTK） |
 
-> 「活跃维护」的核对方式：`nuget.azure.cn` 的 flat container 版本列表（`sharpcompress` 共 162 个版本、`magick.net-q8-anycpu` 共 224 个版本，均有近期发布）。GirCore 的版本号未在此次查询里确认，落地前再核。
+> 「活跃维护」的核对方式：`nuget.azure.cn` 的 flat container 版本列表（`sharpcompress` 共 162 个版本、`magick.net-q8-anycpu` 共 224 个版本，均有近期发布）。GirCore 已实钉 0.8.1，两包 nuspec 均为 `<license type="expression">MIT</license>`。
 
-## 4 建议批次
+## 4 建议批次（P1–P4 已全部完成，保留作回溯；现状见「执行记录」）
 
 1. **P1（先做）**：tar/xz → `System.Formats.Tar` + `GZipStream` + `ZstdSharp.Port` + `SharpCompress`。理由：正好和「下载入口 + 进度 + 可取消 + 空间预检」同一批，解压可取消了「取消下载」才是真的取消。
 2. **P2**：桌面通知 → `Tmds.DBus`；剪贴板/打开链接的 portal 化（要看 Uno 现状再定）。
@@ -101,7 +115,7 @@
 | P2 桌面通知 / 打开链接 portal 化 | ✅ 2026-11-14 | `DesktopNotification` 不再 fork `notify-send`，直接 D-Bus `org.freedesktop.Notifications`（失败才退外部命令）；`OpenUrl` 先走 `org.freedesktop.portal.OpenURI`，不可用才 `xdg-open` → `gio open` |
 | P3 文件对话框 portal 化 | ✅ 2026-11-14 | `FileDialogHelper` 先走 `org.freedesktop.portal.FileChooser`（含 filters / multiple / directory / 保存建议名），portal 不可用才 kdialog → zenity |
 | P4 截图 portal 化 | ✅ 2026-11-14 | `ScreenCapture.Linux` 在 spectacle / grim / gnome-screenshot 全失败后走 `org.freedesktop.portal.Screenshot`；**外部工具优先**的理由见下 |
-| P4 AVIF / JXL 编解码（Magick.NET） | ✅ 2026-11-14 | 新增 `Helpers/MagickCodec.cs` + `Helpers/ImageDecode.cs`（Skia 优先、AVIF/JXL/HEIC 走 Magick）；`ComponentDownloader` 之外的四个解码点统一走 `ImageDecode`；`--image-info` 可自检。**体积代价**：`Magick.NET-Q8-AnyCPU` 输出里 4 个 RID native 共 ~146 MB，publish 单个 RID 只留一个（linux-x64 ~40 MB） |
+| P4 AVIF / JXL 编解码（Magick.NET） | ✅ 2026-11-14 | 新增 `Helpers/MagickCodec.cs` + `Helpers/ImageDecode.cs`（Skia 优先、AVIF/JXL/HEIC 走 Magick）；`ComponentDownloader` 之外的四个解码点统一走 `ImageDecode`；`--image-info` 可自检。**体积代价**：`Magick.NET-Q8-AnyCPU` 15.1.0 解包后 **8 个 RID** 的 native 合计约 **237 MB**（linux-x64 37 MB、linux-musl-x64 40 MB、win-x64 24 MB…）；Debug 输出是全拷，本机 `src/Lunarward/bin/Debug/net10.0-desktop/runtimes` 实测 **725 MB / 26 个 RID 目录**；publish 单 RID 只留一个，linux-x64/native 约 **52 MB** = Magick.Native 38,834,992 B + libSkiaSharp 约 11 MB + libHarfBuzzSharp 约 2.4 MB + libe_sqlite3 约 1.4 MB |
 | P4 登录窗 WebKitGTK 6.0 化 | ✅ 2026-11-14（D76） | 先前的「不改」结论**已撤回**：当时只查了本机有没有装，没查仓库——`extra/webkitgtk-6.0 2.54.2-1` 一直有，用户装上后 spike 通过。落地方式是 **A 方案**：登录窗仍是独立进程，但实现换成「本程序 + WebKitGTK 6.0」（`--webkit-login`），去掉 python3 依赖；B 方案（同进程）实测也能跑，但 Uno 自带 GtkSharp 3.24（GTK3）与 GTK4 并存、且 GTK 窗口标题栏跟系统配色走，观感不统一，故不采用 |
 | 顺手：`xdotool` → 进程内 xcb | ✅ 2026-11-14 | 新增 `X11Window.Activate`（EWMH `_NET_ACTIVE_WINDOW`），`X11KeyState.ActivateWindow` 先走它，`xdotool` 仅兜底 |
 | 顺手：`ProcessQuery` 改扫 `/proc` | ✅ 2026-11-14 | 不再 fork `fuser` / `lsof`：读 `/proc/*/fd` 的符号链接按路径前缀匹配（跳过无权限进程，可取消） |

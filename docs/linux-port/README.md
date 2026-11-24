@@ -1,8 +1,8 @@
 # Lunarward 文档总览（Starward 的 Linux 移植）
 
-- **最后更新**：2026-11-23（D109 米游社工具箱页签/下载组件修复；D108 运行环境页面 UI 21 条；D104–D107 运行环境 42 条实现错位；D95–D103 审计 70 条修复）
+- **最后更新**：2026-11-24（文档事实校准：提交数 / 测试计数 / 前缀读取耗时按实测更正；D123 视频硬解；D122 覆盖率口径；D109 米游社工具箱页签/下载组件修复；D108 运行环境页面 UI 21 条；D104–D107 运行环境 42 条实现错位；D95–D103 审计 70 条修复）
 - **当前阶段**：功能移植完成（M1–M3 主体）+ 运行环境与打包收口。**代码侧没有在做的功能批**，剩下的是真机验收。
-- **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 **118** 个提交、落后 **0** 个（上游 `df8ae07` 已于 2026-11-21 并入历史，见 D93）
+- **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 **165** 个提交、落后 **2** 个（2026-11-24 快照；merge base 仍是 `df8ae07`，2026-11-21 已并入历史，见 D93）。未并入的两个上游提交：`747ed10b` `0.19.0` 版本号、`5ce5e31f` `feat(i18n): add Indonesian (id-ID) localization (#1965)`
 - **版本**：`0.1.0`（`src/Lunarward/Lunarward.csproj`）
 - **分发**：AUR（`lunarward` / `lunarward-git`）、AppImage、CI 产物（`lunarward-linux-x64`，self-contained tar.gz，保留 7 天）
 - **用户文档**：[`docs/user/faq.md`](../user/faq.md)、[`docs/user/runtime-environment.md`](../user/runtime-environment.md)
@@ -17,7 +17,7 @@
 | 主界面（启动器页） | ✅ | 背景（静态/视频）、公告/资讯、开始/暂停/更新按钮 | `12` `19` |
 | 游戏选择 | ✅ | 固定图标条 + 全屏选择层（`GameSelector`） | D56 |
 | 游戏设置 | ✅ | 分辨率/图形/HDR/语音 + 运行配置 + 后启动程序 + 诊断 | D61 D63 |
-| 注册表读取 | ✅ | 直接解析 `<prefix>/user.reg` / `system.reg`（`\xHHHH` 解码 + 长 hex 折行拼接），命中就不 fork wine，给不出结论才回落 `wine reg query`；同一键 **95 ms** vs `reg query` 热 1843 ms / 冷 4128–5411 ms | D86 L-160 |
+| 注册表读取 | ✅ | 直接解析 `<prefix>/user.reg` / `system.reg`（`\xHHHH` 解码 + 长 hex 折行拼接），命中就不 fork wine，给不出结论才回落 `wine reg query`；同一键约 **95 ms**，而 fork 一次 `wine reg query`：**热缓存 0.13–0.2 s、冷启动首次 1–5 s**（不同机器/前缀差距大，以本机实测为准；历史另一次测量为热 1843 ms / 冷 4128–5411 ms，见 D86、L-174） | D86 L-174 |
 | 截图 | ✅ | `spectacle`/`grim`/`gnome-screenshot` 优先、portal 兜底；图库、批量转换 | D31 D75 |
 | 抽卡记录 / 战绩 | ✅（未登录为空态） | `GachaLog` / `GameRecord` / `SelfQuery` | D61 |
 | 账号登录 | ✅（本程序内建 WebKitGTK 6.0 登录窗） | `WebKitLoginHost`（`--webkit-login`）+ `WebLoginService`（cookie 0600）；没有 `libwebkitgtk-6.0` 时退回 python3 助手 | D32 D76 |
@@ -59,16 +59,16 @@
 
 | 文档 | 用途 |
 | --- | --- |
-| `00-decisions.md` | **唯一决策源**：D0–D123 的结论、理由、代价、变更记录 |
+| `00-decisions.md` | **唯一决策源**：D0–D124 的结论、理由、代价、变更记录 |
 | `12-shims-and-gaps.md` | **唯一状态登记表**：每处替身/缺口的真实状态 |
-| `13-lessons.md` | **唯一坑记录**：L-01…L-172 的实测结论与复现方法（当前 379 条单元测试） |
+| `13-lessons.md` | **唯一坑记录**：L-01…L-175 的实测结论与复现方法（编号勘误见文末）（单元测试数量以 `dotnet test` 输出为准） |
 | `18-upstream-deviations.md` | 移植偏差原则、登记标记、上游同步流程 |
 | `18-upstream-table.md` | 同名差异文件的自动分类与复核进度（`scripts/list-deviations.sh` 生成）；逐点清单以 `25` 为准 |
-| `19-test-plan.md` | **唯一测试计划**：230 条用例（218 `T-*` + 12 `RG-*`）、L1/L1.5/L2/L3 分层、性能预算、缺陷流程 |
+| `19-test-plan.md` | **唯一测试计划**：237 条用例（225 `T-*` + 12 `RG-*`，按表内唯一 ID 统计）、L1/L1.5/L2/L3 分层、性能预算、缺陷流程 |
 | `23-runtime-env-design.md` | **运行环境设计的唯一依据**：三概念 / 自洽硬目标 / 受管组件 / 八字段 / 验收项 / §13 实施记录 |
 | `24-dependency-audit.md` | 依赖盘点：48 处外部进程逐条判定 + 手写实现可换库项 + 新增依赖清单 + 批次执行记录 |
 | `25-deviation-register.md` | **逐点偏离总账**：265 点 / 114 文件，标类别、必要性（must/reasonable/avoidable）、可否回流；含 53 条排除清单与 60 条可避免清单；2026-11-22 必要性判断已全量复核 |
-| `28-runtime-env-audit.md` | **运行环境模块审查**：第一轮 R01–R42 已按批次 A–D 修复（D104–D107）；第二轮 2026-11-24 复审 R43–R130（3 Critical / 52 High / 20 Medium / 13 Low，**未修**，批次 E–K 待拍板）；动运行环境前先读 |
+| `28-runtime-env-audit.md` | **运行环境模块审查**：第一轮 R01–R42 已按批次 A–D 修复（D104–D107）；第二轮 2026-11-24 复审 R43–R130（3 Critical / 52 High / 20 Medium / 13 Low），批 E–J（R43–R97，D115–D120）与批 K（R98–R130，D121）已全部修完；动运行环境前先读 |
 | `29-runtime-env-ui-audit.md` | **运行环境页面 UI 审查**：21 条（术语/i18n、布局视觉、交互可达性），D108 已全部修复；改运行环境页面前先读 |
 | `26-misalignment-audit.md` | **实现错位 bug 候选**：76 条（high 29 / medium 31 / low 16），2026-11-22 已全部读码复核（成立 51 / 部分成立 19 / 不成立 6），**已修复 70 条**（D95–D103，6 条不成立不修）；修复提交引用 `B..` 编号 |
 | `27-audit-report.md` | **审计可读版（修复前快照）**：按模块讲每条「哪里错、上游怎么写、用户看到什么」，与 `26` 同编号；交接、复盘先读它，状态以 `26` 为准 |

@@ -4,17 +4,17 @@
 >
 > 维护规则：新增模块必须先在本表登记用例；删除用例要写理由；预算表中的阈值改动要有一次实测数据支撑（记在 §9 基线表里）。
 
-- 最后更新：2026-11-20（文档整理：用例总数修正为 230 = 218 `T-*` + 12 `RG-*`；D87 运行器命名 12 例、D88 `lint-pkgbuild.sh` 静态检查、D89 SDK 下限防回归）
+- 最后更新：2026-11-24（用例计数按表内唯一 ID 重算为 **237 条** = 225 `T-*` + 12 `RG-*`，并修掉 `T-UI-30/31/33` 的重号；覆盖率口径按 D122 落实；D87 运行器命名 12 例、D88 `lint-pkgbuild.sh` 静态检查、D89 SDK 下限防回归）
 - 对应代码：`src/Lunarward`（`main`），单头 Linux，不改 `src/Starward/`
-- 现状（2026-11-24 实测）：L1 单测 **379 条**；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **40 条** + `cli-extra.sh` **32 条** + `chunk-smoke.sh` **6 条** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
+- 现状（2026-11-24 实测）：L1 单测数量以 `dotnet test Starward.slnx -c Debug` 的实际输出为准（2026-11-24 为 **379 条**）；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **41 例（40 通过 + 1 跳过）** + `cli-extra.sh` **32 例** + `chunk-smoke.sh` **6 条** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
 
 ### 覆盖率口径（D122，2026-11-24）
 
 `scripts/test/coverage.sh` 的门限是**行覆盖率 85%**（CI 里 `.github/workflows/linux.yml` 调 `coverage.sh 85`）。这个数的口径必须写清楚，否则很容易误读：
 
-- 分母 = **被链接进 `tests/Lunarward.Tests` 的源码文件**（当前 24 个文件、3008 行）。没被链接的主程序代码（窗口、页面、服务层，6000+ 行）**不进分母**——覆盖率只对「能单测的那部分」有意义。
-- 测试工程用「链接源码」编译（D37），所以 `IncludeTestAssembly=true` 必须开；但它会把 **测试文件自身**也算进统计（历史上有 26 个测试文件几乎 100% 覆盖，占分母三分之一）。`tests/coverlet.runsettings` 因此用 `ExcludeByFile` 排除 `tests/**/*.cs`，**口径只留 `src/Lunarward/`**。
-- 结论：`85%` 指的是「链接集里 src 的行覆盖」，不含测试代码。2026-11-24 修正口径前，报告里的 82%–88% 都掺了测试代码，实际 src 只有 81.58%（D122）；修正后实测 85.30%。
+- 分母 = **被链接进 `tests/Lunarward.Tests` 的源码文件**（当前 `tests/Lunarward.Tests/Lunarward.Tests.csproj` 里 23 条 `Compile Include="../../src/…"`；行数以 cobertura 报告为准）。没被链接的主程序代码（窗口、页面、服务层，6000+ 行）**不进分母**——覆盖率只对「能单测的那部分」有意义。
+- 测试工程用「链接源码」编译（D37），所以 `IncludeTestAssembly=true` 必须开；但它会把 **测试文件自身**也算进统计（历史上有 26 个测试文件几乎 100% 覆盖，占分母三分之一）。`tests/coverlet.runsettings` 因此用 `ExcludeByFile` 排除 `**/tests/Lunarward.Tests/*.cs`，**口径只留 `src/Lunarward/`**。
+- 结论：`85%` 指的是「链接集里 src 的行覆盖」，不含测试代码。2026-11-24 修正口径前，报告里的 82%–88% 都掺了测试代码，实际 src 只有 81.58%（D122）；门限 85，最近一次实测 **85.3%（2026-11-24）**。
 - 改这个口径要一并改本节与 D122，不要只改阈值。
 
 ---
@@ -84,7 +84,7 @@
 
 ## 5. 用例清单
 
-格式：`ID · 场景 · 期望 · 层 · 优先级（P0 阻断 / P1 必修 / P2 可延后）`。**共 230 条（218 条功能用例 `T-*` + 12 条回归用例 `RG-*`），其中 P0 约 58 条**。
+格式：`ID · 场景 · 期望 · 层 · 优先级（P0 阻断 / P1 必修 / P2 可延后）`。**共 237 条（225 条功能用例 `T-*` + 12 条回归用例 `RG-*`），其中 P0 66 条**（按表内唯一 ID 统计；§5 各小节标题是清单内条数，附录另有新增用例，合计见 §5 末的分布表）。
 
 ### 5.1 运行环境 RT（24 条）
 
@@ -239,7 +239,7 @@
 | T-AC-09 | 隐私 | cookie/token 不出现在日志与诊断包明文 | L2 | P0 |
 | T-AC-10 | 多账号并存 | 各自独立，不互相覆盖 | L4 | P2 |
 
-### 5.8 CLI（27 条；脚本实体在 `scripts/test/cli-smoke.sh` 37 例 / `cli-extra.sh` 32 例，一例可覆盖多条）
+### 5.8 CLI（26 条；脚本实体在 `scripts/test/cli-smoke.sh`、`cli-extra.sh`，一例可覆盖多条，例数以脚本实际输出为准）
 
 | ID | 场景 | 期望 | 层 | 优先 |
 |---|---|---|---|---|
@@ -249,7 +249,7 @@
 | T-CL-04 | 列表类命令 | `--list-runners/--list-components/--graphics-list` 与 UI 一致 | L2 | P1 |
 | T-CL-05 | `--json` | 所有 `--json` 输出可被 `jq` 解析，中文不转义 | L2 | P1 |
 | T-CL-06 | 一次性运行 | env 一致；退出码透传；超时行为明确 | L2 | P0 |
-| T-CL-07 | 预检/启动计划 | 十项 + 结论；退出码随结论 | L2 | P0 |
+| T-CL-07 | 预检/启动计划 | 十一项 + 结论；退出码随结论 | L2 | P0 |
 | T-CL-08 | 安装类命令 | `--install-plan/--update-plan` 只读不写盘；`--*-run` 受 `--limit-mb` 约束 | L2 | P0 |
 | T-CL-09 | 前缀命令 | `--prefix-ensure/--prefix-template` 行为与 UI 一致 | L2 | P1 |
 | T-CL-10 | 协议命令 | 注册/注销/状态幂等 | L2 | P1 |
@@ -355,7 +355,7 @@
 
 | ID | 场景 | 期望 | 层 |
 |---|---|---|---|
-| T-I18N-01 | 11 语言键齐全 | 与 `Lang.resx` 键数一致（当前 965），无缺失 | L1 |
+| T-I18N-01 | 11 语言键齐全 | 与 `src/Starward.Language/Lang.resx` 的键集一致（2026-11-24 为 1343 键），无缺失 | L1 |
 | T-I18N-02 | 运行时切换语言 | 界面与活动/资讯标题都跟着变（`Lang` + `CoreLang` 两处） | L3 |
 | T-I18N-03 | 长语言文案 | 德语/俄语长词不撑破布局 | L3 |
 | T-I18N-04 | 数字/时间格式 | 按 locale 显示 | L1 |
@@ -364,7 +364,9 @@
 | T-A11Y-03 | 键盘操作 | 主要流程可纯键盘完成 | L3 |
 | T-A11Y-04 | 语义名 | 关键按钮有 `AutomationProperties.Name` | L1.5 |
 
-**分模块（2026-11-20 实测去重）：UI 31 / CL 27 / RT 24 / IN 24 / LP 18 / LA 18 / PL 16 / CF 14 / RC 12 / SEC 10 / AC 10 / CP 8 / SO 6 = 218 条**，另加 12 条回归用例 `RG-*`，合计 230 条（P0 约 58 条）。
+**分模块（2026-11-24 按表内唯一 ID 重算）：RT 24 / LA 18 / IN 24 / CF 14 / PL 16 / UI 31 / AC 10 / CL 26 / RC 12 / SEC 10 / LP 18 / SO 6 / CP 8 / I18N 4 / A11Y 4 = 225 条**，另加 12 条回归用例 `RG-*`，合计 237 条（P0 66 条）。
+
+统计口径：只数表格行的唯一 ID（正文里顺带提到的编号不重复计）；附录新增的 `T-IN-20…25`（6 条）与 `T-UI-30…42`（13 条）已计入上表，所以比 §5 各小节标题的条数多。`T-UI-30/31/33` 原先在附录的两张表里各出现一次，现已合并为一处（见附录）。
 
 ---
 
@@ -389,10 +391,10 @@
 
 - **L1**：`dotnet test`（xunit）。新增纯逻辑必须先加断言（路径、解析、状态机、序列化）。
 - **L1.5**：应用内 `--selftest-ui`，用例清单驱动，`PASS/FAIL` + 退出码；`xvfb-run` 可跑。
-- **L2**：`scripts/test/cli-smoke.sh`（39 命令错误路径）、`scripts/test/sophon-fake.sh`（本地假服务）、`scripts/test/fixtures.sh`（造假前缀/假运行器）。
-- **L3**：`cu_*`（真实输入 + 截图）+ 日志断言 + 像素判据（区域均值/标准差/自相关节距）；每个用例一个脚本 `scripts/test/gui/T-XX-YY.sh`，输出证据路径。
+- **L2**：`scripts/test/cli-smoke.sh`（子命令错误路径）、`scripts/test/fake-sophon.py`（本地假 HTTP 服务，由 `chunk-smoke.sh` 拉起）、`scripts/test/fixtures.sh`（造假前缀/假运行器）。
+- **L3**：`cu_*`（真实输入 + 截图）+ 日志断言 + 像素判据（区域均值/标准差/自相关节距）；每个用例一个脚本（约定 `scripts/test/gui/<用例 ID>.sh`，该目录当前尚未建立），输出证据路径。
 - **LP**：`scripts/test/perf.sh`：起应用 → 跑场景 → 采样 `/proc` → 生成 `perf-<sha>.json` → 与 `scripts/test/perf-baseline.json` 比对，超阈值退出码非 0。
-- **故障注入**：`scripts/test/faults/*.sh`（kill -9 时点、磁盘满用小 tmpfs、权限、断网用 `unshare -n` 或本地代理）。
+- **故障注入**（计划，`scripts/test/faults/` 目录当前尚未建立）：kill -9 时点、磁盘满用小 tmpfs、权限、断网用 `unshare -n` 或本地代理。
 - **证据规范**：失败用例必须留下（a）命令与方法版本（b）日志片段（c）截图（d）`--diagnose` 包路径。
 
 ---
@@ -505,13 +507,11 @@ L2 脚手架（`scripts/test/`）第一次全量跑 33 条用例，暴露 3 个�
 
 ## 附录：L3 真机首轮（2026-11-12，进行中）
 
-按 T-UI-30…42 在真机（KDE Plasma 6 / Wayland + XWayland，eDP-1 1536×864 @1.25）上跑，操作统一走 `cu_*`。
+按 T-UI-30…42 在真机（KDE Plasma 6 / Wayland + XWayland，eDP-1 1536×864 @1.25）上跑，操作统一走 `cu_*`。首轮只跑了三条（步骤与判据见下一节「L3 真机 GUI 用例」，这里不重复列用例行）：
 
-| 编号 | 结果 | 证据 / 说明 |
-| --- | --- | --- |
-| T-UI-30 冷启动 | 通过 | 进程启动到窗口可见 **2066 ms**（≤2.5 s），窗口 1200×676 |
-| T-UI-31 切页 | 通过（含缺陷） | 六个导航项均可切换；切换后内容正确，但游戏设置页布局有问题 → F-13 |
-| T-UI-33 换游戏 | 进行中 | 选择器需先 hover 左上角区域才展开（`IsGameBizSelectorPinned` 语义），未在本轮完成 |
+- **T-UI-30 冷启动**：通过——进程启动到窗口可见 **2066 ms**（≤2.5 s），窗口 1200×676。
+- **T-UI-31 切页**：通过（含缺陷）——六个导航项均可切换，切换后内容正确，但游戏设置页布局有问题 → F-13。
+- **T-UI-33 换游戏**：进行中——选择器需先 hover 左上角区域才展开（`IsGameBizSelectorPinned` 语义），未在本轮完成。
 
 跑出来的问题：
 
@@ -567,7 +567,7 @@ L3 不进 CI：需要真实桌面、真实输入，而且很多判据是「看�
 实现：`src/Lunarward/Features/Dev/UiSelfTest.cs` + `MainWindow.OnSelfTestActivated`；CLI 开关 `--selftest-ui`
 （只设 `LUNARWARD_SELFTEST=1`，真正执行在窗口首次 Activated 之后，跑完 `Environment.Exit`）。
 
-当前 8 条断言（真机 8/8 通过）：
+当前 11 条断言（2026-11-24 按 `UiSelfTest.cs` 的 `checks` 列表核对；首轮真机 8/8 通过的是当时那 8 条）：
 
 | 断言 | 抓什么 |
 | --- | --- |
@@ -576,8 +576,11 @@ L3 不进 CI：需要真实桌面、真实输入，而且很多判据是「看�
 | 启动器页已加载 | `Frame` 吞掉页面构造异常（L-28） |
 | 导航到游戏设置页后内容非空 | 页面 ctor 抛异常被 frame 掩盖 |
 | 导航到设置页后内容非空 | 同上 |
+| 运行环境是一级页（footer 入口可打开） | 一级页被 Uno 吃掉 / 被 `SupportedPages` 白名单换回启动器（D80） |
 | 关键画刷资源存在 | 主题资源被删（`ApplicationPageBackgroundThemeBrush` / `SystemAccentColor`） |
 | 运行时方案能被解析 | 绑定损坏导致回落空方案 |
+| `IsTextTrimmedChanged` 不抛异常 | 7 处「文字被截断时自适应」依赖的事件被改坏（L-132，触发与否取决于后端） |
+| `Pivot` 换源按约定顺序不抛异常 | 切游戏换 `Pivot_Posts.ItemsSource` 的顺序被改（D71 / L-126） |
 | 主窗口标题正确 | 标题被改回 Starward（品牌回归） |
 
 CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1280x800x24" <Release 二进制> --selftest-ui`，
@@ -619,7 +622,7 @@ CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1
 | RG-11 预检结论要反映到退出码 | `--preflight` 判定不可启动仍 `rc=0` | 不可启动时 `rc=1` | L2 | ✅ `cli-extra.sh` |
 | RG-12 安装路径不依赖 config.json | `--install-fetch` 说「没有记录安装路径」，实际存 SQLite | 传 `--install-dir` 后能完成规划 | L2 | ✅ `cli-extra.sh` |
 
-落地位置汇总：`tests/Lunarward.Tests/*`（L1，62 条）、`Features/Dev/UiSelfTest.cs`（L1.5，10 条）、`scripts/test/{cli-smoke,cli-extra,chunk-smoke,lint-ui-thread}.sh`（L2）。
+落地位置汇总：`tests/Lunarward.Tests/*`（L1，62 条）、`Features/Dev/UiSelfTest.cs`（L1.5，11 条）、`scripts/test/{cli-smoke,cli-extra,chunk-smoke,lint-ui-thread}.sh`（L2）。
 
 ### 12.1 关于「lint」这一层
 
