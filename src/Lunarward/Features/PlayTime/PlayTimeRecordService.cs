@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Starward.Features.HoYoPlay;
 
 namespace Starward.Features.PlayTime;
 

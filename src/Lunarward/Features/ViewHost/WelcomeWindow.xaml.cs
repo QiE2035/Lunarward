@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using Windows.Graphics;
 using Windows.Graphics.Imaging;
 using Windows.System;
+using Starward.Features;
 
 
 namespace Starward.Features.ViewHost;

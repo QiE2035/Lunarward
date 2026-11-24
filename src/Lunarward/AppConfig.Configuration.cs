@@ -9,6 +9,8 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using Vanara.PInvoke;
+using Starward.Features.ViewHost;
+using System.Threading.Tasks;
 
 namespace Starward;
 

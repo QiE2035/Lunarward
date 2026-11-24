@@ -1,4 +1,4 @@
-<Project Sdk="Uno.Sdk">
+﻿<Project Sdk="Uno.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0-desktop</TargetFramework>
@@ -26,6 +26,16 @@
 
   <!-- 上游 Starward.Assets 里的图片/字体/模板：直接从 vendor 镜像链接进输出，不再复制一份进仓库 -->
   <ItemGroup>
+    <!-- 上游 0.19.0 新增：依赖 Starward.RPC（gRPC + 命名管道）或 Starward.GameInstall 库（net11.0-windows），
+         移植侧不引用这两个程序集，对应的能力由 Features/GameInstall/GameInstallShims.cs 与 CLI 路径提供。 -->
+    <!-- 上游的 Windows 实现（Vanara User32 子类化 / AppWindow 图标与拖拽区），Linux 下由
+         Features/WindowBase.Linux.cs 提供同名 partial 实现。文件保留作对照，不参与编译。 -->
+    <Compile Remove="Features/WindowBase.cs" />
+    <Compile Remove="Features/GameInstall/GameInstallController.cs" />
+    <Compile Remove="Features/GameInstall/GameInstallProgressDisplay.cs" />
+    <Compile Remove="Features/RPC/NamedPipesConnectionFactory.cs" />
+    <Compile Remove="Features/RPC/RpcRunner.cs" />
+
     <Content Include="../../vendor/upstream/large-resource/Starward.Assets/Assets/**/*" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

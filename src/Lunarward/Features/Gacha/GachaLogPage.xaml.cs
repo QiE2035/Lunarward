@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
@@ -26,6 +26,7 @@ using System.Threading.Tasks;
 using Vanara.PInvoke;
 using Windows.Storage;
 using Windows.System;
+using Starward.Features;
 
 
 namespace Starward.Features.Gacha;

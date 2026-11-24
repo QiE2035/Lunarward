@@ -28,6 +28,12 @@ using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.System;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Starward.Features.HoYoPlay;
+using Starward.Features;
+using Starward.RPC.GameInstall;
+using System.Timers;
 
 
 namespace Starward.Features.GameLauncher;

@@ -1,8 +1,14 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Starward.Features.RPC;
 using Starward.GameInstall;
 using System;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
+using Starward.Features;
+using Starward.Helpers;
+using Starward.RPC.GameInstall;
+using System.IO;
+using Windows.System;
 
 
 namespace Starward.Features.Setting;

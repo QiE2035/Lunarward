@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -40,6 +40,9 @@ using System.Net;
 using System.Net.Http;
 using ZiggyCreatures.Caching.Fusion;
 using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
+using Starward.Core.GameRecord;
+using Starward.Features.HoYoPlay;
+using Starward.Features.RPC;
 
 namespace Starward;
 

@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Messaging;
+using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -7,6 +7,7 @@ using Starward.GameInstall;
 using System;
 using System.Globalization;
 using Windows.System;
+using Starward.Features;
 
 
 namespace Starward.Features.Setting;

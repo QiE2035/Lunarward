@@ -1,6 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Starward.Core.HoYoPlay;
+using Starward.Features.HoYoPlay;
 using Starward.GameInstall;
 using Starward.Helpers;
 using System;
