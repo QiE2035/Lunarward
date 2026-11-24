@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0-windows</TargetFramework>
+		<TargetFramework>net10.0</TargetFramework><!-- LUNARWARD-DEVIATION: 上游该库为 net10.0-windows（.NET 11），移植侧钉在 net10.0，见 D128。 -->
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -11,6 +11,19 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<!-- LUNARWARD-DEVIATION: .NET 11 的隐式 using 含 System.Net.Http.Json，net10 没有。 -->
+		<Using Include="System.Net.Http.Json" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- LUNARWARD-DEVIATION: 上游引用 Starward.HPatch 0.1.0（NuGet 只发布 net11.0 资产，net10.0 无法正常还原）。
+		     该包是纯托管实现、无本地依赖，这里以直接引用的方式使用同一份程序集，见 D128。 -->
+		<Reference Include="Starward.HPatch">
+			<HintPath>..\..\libs\Starward.HPatch.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Dapper" Version="2.1.100" />
 		<PackageReference Include="Google.Protobuf" Version="3.36.2" />
 		<PackageReference Include="Grpc.Core.Api" Version="2.85.0" />
@@ -18,9 +31,9 @@
 		<PackageReference Include="Microsoft.Data.Sqlite" Version="11.0.0" />
 		<PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0" />
 		<PackageReference Include="Polly" Version="8.9.1" />
-		<PackageReference Include="Starward.HPatch" Version="0.1.0" />
 		<PackageReference Include="Starward.SharpSevenZip" Version="2.0.130" />
 		<PackageReference Include="System.Threading.RateLimiting" Version="11.0.0" />
+		<PackageReference Include="ZstdSharp.Port" Version="0.8.8" /><!-- LUNARWARD-DEVIATION: net10 没有内建的 ZstandardStream，见 D128。 -->
 		<PackageReference Include="Vanara.PInvoke.Kernel32" Version="5.0.8" />
 		<PackageReference Include="ZiggyCreatures.FusionCache" Version="2.10.0" />
 	</ItemGroup>
