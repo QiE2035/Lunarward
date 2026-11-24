@@ -173,9 +173,17 @@ public sealed partial class RuntimeEnvironmentSetting
 
     private async void Button_EditorBack_Click(object sender, RoutedEventArgs e)
     {
-        if (await ConfirmLeaveEditorAsync())
+        try
         {
-            CloseEditor();
+            if (await ConfirmLeaveEditorAsync())
+            {
+                CloseEditor();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "leave editor failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
         }
     }
 
@@ -639,16 +647,24 @@ public sealed partial class RuntimeEnvironmentSetting
 
     private async void Button_Chip_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { Tag: int tag })
+        try
         {
-            return;
+            if (sender is not FrameworkElement { Tag: int tag })
+            {
+                return;
+            }
+            if (tag == BindingsChipTag)
+            {
+                await ShowBindingsDialogAsync();
+                return;
+            }
+            ShowTab(tag);
         }
-        if (tag == BindingsChipTag)
+        catch (Exception ex)
         {
-            await ShowBindingsDialogAsync();
-            return;
+            _logger.LogError(ex, "chip click failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
         }
-        ShowTab(tag);
     }
 
 
@@ -821,6 +837,8 @@ public sealed partial class RuntimeEnvironmentSetting
     /// </summary>
     private async void Button_SetDefaultRunner_Click(object sender, RoutedEventArgs e)
     {
+      try
+      {
         IReadOnlyList<Component> runners = await Task.Run(() => ComponentStore.GetRunners(false, _logger));
         if (runners.Count == 0)
         {
@@ -863,6 +881,12 @@ public sealed partial class RuntimeEnvironmentSetting
         }
         RuntimeDefaults.DefaultRunnerId = runners[combo.SelectedIndex].Id;
         Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_SetDefaultRunnerDone, 4000);
+      }
+      catch (Exception ex)
+      {
+          _logger.LogError(ex, "set default runner failed");
+          Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
+      }
     }
 
 
@@ -897,7 +921,9 @@ public sealed partial class RuntimeEnvironmentSetting
         });
         try
         {
-            Component? runner = ComponentStore.GetRunners().FirstOrDefault(x => x.Id == profile.RunnerId);
+            // R79：详情区在 UI 线程上拼预览——只读缓存，冷缓存时用 profile 里的路径兜底。
+            Component? runner = (ComponentStore.CachedRunners ?? Array.Empty<Component>())
+                .FirstOrDefault(x => x.Id == profile.RunnerId);
             string runnerPath = !string.IsNullOrWhiteSpace(runner?.Path) ? runner!.Path : profile.RunnerPath;
             if (string.IsNullOrWhiteSpace(runnerPath))
             {

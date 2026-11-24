@@ -191,7 +191,7 @@
 > 触发：用户 m06812「再逐文件仔细审查一遍所有『运行环境』相关代码，包括逻辑层，UI 等等，找出所有存在的细节问题，以及可改进的地方，并给出相应的意见」。
 > 范围：`src/Lunarward/Features/Runtime/*.cs`（25 文件 6977 行）、`Features/Setting/RuntimeEnvironmentSetting*.cs`（5 个 partial 6156 行）、`RuntimeEnvironmentSetting.xaml`（572 行），并回查 `GameLauncher/GameLauncherService(.Linux).cs`、`LaunchPreflight.cs`、`GameSettingPage.xaml.cs`、`Helpers/JsonFile.cs` 等调用方。
 > 方法：4 组只读子代理分工通读（页面 / 组件与下载 / 启动与解析 / 方案与绑定）+ 本人 grep 自查 + 抽查关键断言；标 ✔已核对的条目由本人回源码逐行确认。初稿中标「推断」的 7 条已于 2026-11-24 逐条取证并订正（结论与实测见 §6.12）：其中 R55 的「建前缀失败」被实测否定、R77 的「死锁面」被代码否定、R94 的适用范围收窄到「手改文件」。仍未实测的只剩「外部服务端行为」（R61 触发、R62 可达性）。
-> 状态：**批 E–H 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116；批 G：R57–R63，D117；批 H：R65–R76，D118）；其余未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
+> 状态：**批 E–I 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116；批 G：R57–R63，D117；批 H：R65–R76，D118；批 I：R77–R85、R93，D119）；其余未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
 
 ### 6.1 结论摘要
 
@@ -386,47 +386,47 @@
 
 ### 6.6 High · UI 线程、资源与并发
 
-**R77　「添加运行器」在 UI 线程 `ReadRunnerVersion(...).GetAwaiter().GetResult()`** ✔已核对
+**R77　（🛠 已修复，D119 批 I）「添加运行器」在 UI 线程 `ReadRunnerVersion(...).GetAwaiter().GetResult()`** ✔已核对
 - 位置：`RuntimeEnvironmentSetting.xaml.cs:944` → `ComponentStore.cs:404`（同步等待 `ReadRunnerVersionAsync`）。
 - 影响：`ReadRunnerVersion` 是同步壳（`ComponentStore.cs:404` 的 `.GetAwaiter().GetResult()`），handler 在 UI 线程 → 阻塞。2026-11-24 实测：正常 wine `--version` 12 ms（`wineserver -k` 后第一次也只 12 ms），不会出现 4 秒冻；上限由 4 s 超时兜（`ComponentStore.cs:434`），挂住的 wine 会冻满 4 s。**死锁面不成立**：`ReadRunnerVersionAsync` 的 `await` 都带 `ConfigureAwait(false)`（`:439/451/454`），延续在线程池执行，`GetResult()` 能返回。L-127 的 4 秒冻来自另一处（`WineRegistry.GetValue`）。
 - 建议：提供 `ReadRunnerVersionAsync`，handler 里 `await Task.Run(...)`。
 
-**R78　打开编辑器同步全盘扫描（新建 / 修改 / Ctrl+N 三条入口）**
+**R78　（🛠 已修复，D119 批 I）打开编辑器同步全盘扫描（新建 / 修改 / Ctrl+N 三条入口）**
 - 位置：`xaml.cs:1118-1119`（`ComponentStore.GetRunners(false, …)` / `GetGraphics(false, …)`）；`:2422-2425` 的 `Button_New_Click` 无 try/catch。
 - 影响：2026-11-24 实测 `--list-components`（13 个组件）：进程启动 0.1 s + 扫描 0.6 s，冷热同量级 → 本机约 0.7 s，不是初稿的 2–8 s；随组件数与 Steam 库数量线性增长。与 642 行的自述「不能在 UI 线程上做」仍然冲突，结论保留、量级订正。
 - 建议：`OpenEditor` 改 `async Task`，先 `await Task.Run(GetRunners/GetGraphics)` 再建控件（或复用 `LoadComponentsAsync` 的缓存）；补 try/catch。
 
-**R79　点方案行 → 同步扫盘 + 全层 `Verify`**
+**R79　（🛠 已修复，D119 批 I）点方案行 → 同步扫盘 + 全层 `Verify`**
 - 位置：`xaml.cs:2497`（`ComponentStore.GetGraphics()`）、`Profiles.cs:864`（`GetRunners()`）、`xaml.cs:855`（每行 `GraphicsInstaller.Verify`）。
 - 影响：每次点行 = 一次 `GetGraphics()` 扫描（本机 ≈0.6 s）+ 每个前缀一次 `Verify` 文件遍历；`Invalidate()` 之后落到冷缓存。
 - 建议：详情区用 `TryGetCachedRunners` 拿显示名（`Profiles.cs:338-352` 已是这个思路），拿不到显示 Id；`Verify` 结果按前缀 mtime 缓存。
 
-**R80　`LoadAll` 在读路径里写盘，且被 UI 线程直接调用**
+**R80　（🛠 已修复，D119 批 I）`LoadAll` 在读路径里写盘，且被 UI 线程直接调用**
 - 位置：`RuntimeProfileStore.cs:119-122`（`if (changed) Save(profile, logger);` 丢弃返回值）；调用点 `xaml.cs:137/303/739/762/1683`、`GameSettingPage.xaml.cs:636/672/822`、`GameLauncherService.cs:429`。
 - 影响：违反「UI 线程不许同步重 IO」（硬规则 10）；设置页每次刷新、游戏设置页每次打开都触发目录遍历 + 可能的写盘，外置库/网络盘秒级卡顿。
 - 建议：拆成纯读 `LoadAll()` 与 `NormalizeAndSave()` 两步，UI 侧 `await Task.Run(...)`；复用 `ComponentStore` 的缓存扫描结果。
 
-**R81　键盘处理器挂到窗口根、全仓 0 处 `RemoveHandler`，整页泄漏**
+**R81　（🛠 已修复，D119 批 I）键盘处理器挂到窗口根、全仓 0 处 `RemoveHandler`，整页泄漏**
 - 位置：`xaml.cs:252-259`（`root.AddHandler(KeyDownEvent, new KeyEventHandler(OnShortcutKeyDown), true)`；页面无 `OnUnloaded` 重写，`PageBase.cs:33-51` 已提供钩子）。
 - 影响：守卫不生效有代码证据——页面自身的 `Visibility` 在 `RuntimeEnvironmentSetting*.cs` 里从未被赋值（只有子面板赋值），Frame 换内容不会改它；处理器挂在 `XamlRoot.Content`（窗口根），页面无 `OnUnloaded` 重写（`PageBase.cs:76-85` 空实现）、无 `RemoveHandler` → 旧实例被窗口根强引用、继续收快捷键。具体表现「一次 Ctrl+N 开多份编辑器」未实测：旧实例控件已脱离可视树，能确定的是内存泄漏 + 旧实例回调仍会执行（重复确认框 / 重复写盘路径）。
 - 建议：`OnUnloaded` 里 `RemoveHandler`（保留委托实例）；守卫改为判断本页仍在可视树（`XamlRoot is not null && IsLoaded`）。
 
-**R82　UI 线程递归删前缀 / 删图形层 / 逐前缀 Verify**
+**R82　（🛠 已修复，D119 批 I）UI 线程递归删前缀 / 删图形层 / 逐前缀 Verify**
 - 位置：`xaml.cs:1813`（`Directory.Delete(path, recursive: true)`）、`:1060`（`GraphicsInstaller.Remove`）、`:1073-1082`（`Verify`）、`:855`（每行 Verify，`LoadPrefixesAsync` 填充循环在 UI 线程）。
 - 影响：同文件 2114 行删组件时已写「删目录可能几百 MB：一律后台跑（L-127）」并用 `Task.Run`，此处却在前台删，同一操作两种实现。
 - 建议：统一 `await Task.Run(...)`；`Verify` 结果缓存。
 
-**R83　`_ = LoadComponentsAsync()` 无取消 / 无代号 / 无 try**
+**R83　（🛠 已修复，D119 批 I）`_ = LoadComponentsAsync()` 无取消 / 无代号 / 无 try**
 - 位置：`xaml.cs:639-732`。
 - 影响：连点筛选或反复切页签 → 并行扫描 + `Children.Clear()`+Add，可能重复行/闪烁；异常被即发即忘吞掉，列表停在上一次内容。
 - 建议：try/catch + 日志 + 错误空态；用 `CancellationTokenSource` 或版本号丢弃过期结果。
 
-**R84　组件三处静态缓存无同步**
+**R84　（🛠 已修复，D119 批 I）组件三处静态缓存无同步**
 - 位置：`ComponentStore.cs:154-167`、`:298-303`、`:683-687`；`Invalidate()` 与进行中的扫描存在竞态。
 - 影响：页面 `Task.Run` + 下载弹窗 + CLI 并发时重复全量扫描并互相覆盖，旧结果可能写回。
 - 建议：`SemaphoreSlim` / `Lazy<T>` 单飞，`Invalidate` 只递增版本号。
 
-**R85　每次操作 `new HttpClient`，`Task.WhenAll` 无并发上限**
+**R85　（🛠 已修复，D119 批 I）每次操作 `new HttpClient`，`Task.WhenAll` 无并发上限**
 - 位置：`xaml.cs:2386`、`Components.cs:793/818/981/1108`、`:2395`。
 - 影响：连点「检查全部源」不断创建/丢弃连接池；源多时瞬时打满网络。
 - 建议：静态共享 `HttpClient`（或 `IHttpClientFactory`）+ `SemaphoreSlim` 限流。
@@ -468,7 +468,7 @@
 - 影响：`Save` 失败 → `return` 时 `_saveThenRun` 仍 true，之后点普通保存会莫名弹出「运行一次」选择框；`RunOnceAsync` 抛异常被同一 try 捕获，用户看到「保存失败」而文件其实已写盘。
 - 建议：入口先取出并清零 `_saveThenRun`；`RunOnceAsync` 移出 try 或按阶段给不同文案。
 
-**R93　7 个 `async void` 处理器无 try/catch**
+**R93　（🛠 已修复，D119 批 I）7 个 `async void` 处理器无 try/catch**
 - 位置：`xaml.cs:336`（`Tab_Click`）、`:580`（`Button_RunOnce_Click`）；`Profiles.cs:174`、`:613`、`:786`；`Components.cs:639`、`:641`；`Enhancements.cs:278`（共 33 个 async void 中的高危项）。
 - 影响：`ConfirmLeaveEditorAsync` / `ShowAsync` 任一抛出即到同步上下文 → 崩。
 - 建议：统一 try/catch + 日志 + toast（或 `async Task` + 小外壳）。

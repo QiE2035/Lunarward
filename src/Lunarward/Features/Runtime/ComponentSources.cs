@@ -501,8 +501,22 @@ public static class ComponentSources
     public static async Task<IReadOnlyList<ComponentSourceProbe>> ProbeAllAsync(HttpClient http, CancellationToken ct = default)
     {
         IReadOnlyList<ComponentSourceEntry> sources = Load();
-        Task<ComponentSourceProbe>[] tasks = sources.Select(x => ProbeAsync(http, x, ct)).ToArray();
-        ComponentSourceProbe[] results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        // R85：最多同时 4 个。以前是 Task.WhenAll 全量并发，源一多就瞬时打满出口，
+        // 反而更容易撞上 GitHub 的 403 限流（共享出口实测）。
+        ComponentSourceProbe[] results = new ComponentSourceProbe[sources.Count];
+        using SemaphoreSlim gate = new(4);
+        await Task.WhenAll(sources.Select(async (source, index) =>
+        {
+            await gate.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                results[index] = await ProbeAsync(http, source, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        })).ConfigureAwait(false);
         return results;
     }
 

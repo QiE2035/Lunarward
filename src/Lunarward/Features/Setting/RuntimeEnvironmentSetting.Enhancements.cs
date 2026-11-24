@@ -277,6 +277,8 @@ public sealed partial class RuntimeEnvironmentSetting
 
     private async void Button_EnhanceSave_Click(object sender, RoutedEventArgs e)
     {
+        try
+        {
         RuntimeProfile? profile = SelectedProfileOrNull();
         if (profile is null)
         {
@@ -295,6 +297,12 @@ public sealed partial class RuntimeEnvironmentSetting
         Helpers.InAppToast.MainWindow?.Success(string.Format(Lang.Lunarward_RuntimeEnv_EnhanceSaved, profile.Name), Enhancements.Describe(profile), 4000);
         LoadProfiles();
         await RefreshChipsAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "save enhancements failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
+        }
     }
 
 }

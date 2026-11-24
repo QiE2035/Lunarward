@@ -131,7 +131,9 @@ public static class RuntimeProfileStore
                     profiles.Add(profile);
                     if (changed)
                     {
-                        Save(profile, logger);
+                        // R80：读路径不写盘。LoadAll 会被 UI 线程直接调用（设置页刷新、游戏设置页打开），
+                        // 在这里 Save 等于把「校验 + 落盘」塞进界面线程；规范化结果在下一次显式 Save 时写回。
+                        logger?.LogDebug("Runtime environment {id} normalized in memory; persisted on next save", profile.Id);
                     }
                 }
             }

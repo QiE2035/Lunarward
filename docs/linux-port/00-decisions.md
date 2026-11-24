@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D116）
+- **状态**：生效中（D0–D119）
 - **最后更新**：2026-11-24
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -1896,5 +1896,32 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - 「默认环境」是显式选择，不再随 locale / 改名漂移；旧配置没有标记时行为与以前一致（排序首项）。
 
 **验证**：`dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错误；`dotnet test Starward.slnx` **286 通过**（新增 `CopyWithNewId` 正反两条 + `NormalizeName` 4 例）；`lint-ui-thread.sh` 通过；`cli-smoke` 40/0/1；`cli-extra` 32/0。
+
+**确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」。
+
+## D119 运行环境审查修复：批 I「UI 线程与资源」
+
+**背景**：`28-runtime-env-audit.md` §6.6 的 R77–R85 与 §6.7 的 R93（共 10 条）集中在「界面上不该做的事」：同步 fork wine、在 UI 线程全盘扫描、读路径写盘、键盘处理器解挂不掉、`async void` 抛到同步上下文、每个请求新建 `HttpClient`。症状是卡顿、偶发崩溃和难以复现的状态错乱。用户 m07141 批准全量修复、按批提交。
+
+**决定**
+
+1. **R77**：`Button_AddRunner_Click` 的 `ReadRunnerVersion` 改到线程池执行——它是同步壳（内部 `GetAwaiter().GetResult()`），wine 挂住时最多冻 4 秒界面。
+2. **R78/R79**：打开编辑器不再在 UI 线程同步扫描：`OpenEditorAsync` 先 `Task.Run` 取运行器/图形层列表，再 `BuildEditor` 建控件；详情区与启动预览只读 `ComponentStore.CachedRunners/CachedGraphics`，冷缓存时退化成 Id/路径，不在建行时触发扫描。
+3. **R80**：`RuntimeProfileStore.LoadAll` 不再回写文件（此前发现「读配置顺手 Save」，而 LoadAll 会被设置页/游戏设置页在 UI 线程直接调用）；规范化只发生在内存里，下一次显式保存才落盘。
+4. **R81**：`RuntimeEnvironmentSetting` 在 `OnUnloaded` 里 `RemoveHandler` 解挂窗口级快捷键处理器，键处理守卫改为 `Visibility && IsLoaded && XamlRoot != null`。
+5. **R82**：清理前缀、从前缀移除图形层改 `await Task.Run(...)`——和 2863 行「删除组件」保持同一套后台删除，不再冻界面。
+6. **R83**：组件页加载加代次号，后发起的加载会让前一次结果作废（不再出现两份列表交替 `Clear/Add` 的闪烁）；`_ = LoadComponentsAsync()` 的异常不再被吞，记日志并 toast。
+7. **R84**：`ComponentStore` 的运行器/图形层缓存加锁与代次号：扫描期间被 `Invalidate()` 的结果会被丢弃，不会把过期列表写回缓存。
+8. **R85**：新增 `Helpers/HttpClients.Probe` 共享客户端（20 秒超时，调用方不 Dispose）；源探测与「检查全部源」最多 4 路并发（以前 `Task.WhenAll` 全量打出去，反而更容易撞 GitHub 403）。下载客户端仍单独创建（需要 `InfiniteTimeSpan` + 60 秒无进度看门狗）。
+9. **R93**：`Tab_Click`、`Button_RunOnce_Click`、`Button_EditorBack_Click`、`Button_Chip_Click`、`Button_SetDefaultRunner_Click`、`Button_Sources_Click`、`Button_ManageSources_Click`、`Button_EnhanceSave_Click` 全部补 try/catch——`async void` 里抛出会直接打到同步上下文，等于进程崩。
+
+**代价边界**
+
+- 编辑器打开时先出现空白再填充（原本是「卡一下后一次出现」）；扫描期间用户可能看到列表还没建好，这是把 0.6 秒的冻结换成可感知的加载。
+- 详情区/启动预览在缓存冷时显示 Id 或路径，而不是真实运行器名；页面首载后（`LoadComponentsAsync` 完成）即恢复。
+- `LoadAll` 不再顺手落盘：如果用户手工改坏了 json 的某个字段，规范化结果要到下一次保存才写回磁盘（内存里始终是规范化后的值）。
+- 源探测并发上限 4 是经验值；源多于 4 时「检查全部」耗时线性增加。
+
+**验证**：`dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错误；`dotnet test Starward.slnx` **286 通过**；`lint-ui-thread.sh` 全部通过；`cli-smoke` 40/0/1；`cli-extra` 32/0。
 
 **确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」。

@@ -153,17 +153,33 @@ public static class ComponentStore
     /// <summary>已扫描过的运行器列表（不触发磁盘扫描）；R21：读配置时只做「对齐」不做冷扫描。</summary>
     public static IReadOnlyList<Component>? CachedRunners => _runners;
 
+    /// <summary>已扫描过的图形层列表（不触发磁盘扫描）；给「UI 线程上只能读缓存」的地方用（R79）。</summary>
+    public static IReadOnlyList<Component>? CachedGraphics => _graphics;
+
 
     private static List<Component>? _runners;
 
     private static List<Component>? _graphics;
 
+    // R84：扫描是重活（PATH / Steam 库 / compatibilitytools.d）。缓存读写都要过这把锁，
+    // 并用代次号丢弃「扫描期间被 Invalidate 过」的过期结果，避免旧扫描覆盖新缓存。
+    private static readonly object CacheGate = new();
+
+    private static int _runnersGeneration;
+
+    private static int _graphicsGeneration;
+
     /// <summary>扫描可用的 wine / proton 运行器（结果有缓存，刷新时传 force）。</summary>
     public static IReadOnlyList<Component> GetRunners(bool force = false, ILogger? logger = null)
     {
-        if (_runners is not null && !force)
+        int generation;
+        lock (CacheGate)
         {
-            return _runners;
+            if (_runners is not null && !force)
+            {
+                return _runners;
+            }
+            generation = _runnersGeneration;
         }
         List<Component> list = new();
         HashSet<string> seen = new(StringComparer.Ordinal);
@@ -277,9 +293,15 @@ public static class ComponentStore
             runner.UsabilityReason = reason;
         }
         DisambiguateRunnerNames(list);
-        _runners = list;
-        logger?.LogInformation("Found {count} runner(s)", list.Count);
-        return list;
+        lock (CacheGate)
+        {
+            if (generation == _runnersGeneration)
+            {
+                _runners = list;
+            }
+            logger?.LogInformation("Found {count} runner(s)", list.Count);
+            return _runners ?? list;
+        }
     }
 
     /// <summary>
@@ -297,9 +319,14 @@ public static class ComponentStore
     /// <summary>扫描可用的 DXVK / VKD3D-Proton（目录里要有 d3d11.dll 或 d3d12.dll）。</summary>
     public static IReadOnlyList<Component> GetGraphics(bool force = false, ILogger? logger = null)
     {
-        if (_graphics is not null && !force)
+        int generation;
+        lock (CacheGate)
         {
-            return _graphics;
+            if (_graphics is not null && !force)
+            {
+                return _graphics;
+            }
+            generation = _graphicsGeneration;
         }
         List<Component> list = new();
         HashSet<string> seen = new(StringComparer.Ordinal);
@@ -372,9 +399,15 @@ public static class ComponentStore
             }
         }
         // Steam 兼容工具目录里可能自带 dxvk（Proton 自带，这里只做提示，不重复安装）
-        _graphics = list;
-        logger?.LogInformation("Found {count} graphics component(s)", list.Count);
-        return list;
+        lock (CacheGate)
+        {
+            if (generation == _graphicsGeneration)
+            {
+                _graphics = list;
+            }
+            logger?.LogInformation("Found {count} graphics component(s)", list.Count);
+            return _graphics ?? list;
+        }
     }
 
     /// <summary>运行器版本缓存：路径 + 可执行文件修改时间 → 版本串（R16：以前每次 GetRunners 都 fork 一遍）。</summary>
@@ -673,8 +706,13 @@ public static class ComponentStore
 
     public static void Invalidate()
     {
-        _runners = null;
-        _graphics = null;
+        lock (CacheGate)
+        {
+            _runnersGeneration++;
+            _graphicsGeneration++;
+            _runners = null;
+            _graphics = null;
+        }
     }
 
 

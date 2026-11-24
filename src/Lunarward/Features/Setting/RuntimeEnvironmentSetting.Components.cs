@@ -636,13 +636,32 @@ public sealed partial class RuntimeEnvironmentSetting
     }
 
 
-    private async void Button_Sources_Click(object sender, RoutedEventArgs e) => await ShowSourcesDialogAsync();
+    private async void Button_Sources_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await ShowSourcesDialogAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "show sources dialog failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
+        }
+    }
 
     private async void Button_ManageSources_Click(object sender, RoutedEventArgs e)
     {
-        await ShowSourcesDialogAsync();
-        // D114 修订 3：源管理里可能增删/启停源，回来把顶部摘要刷新一下。
-        UpdateSourcesSummary();
+        try
+        {
+            await ShowSourcesDialogAsync();
+            // D114 修订 3：源管理里可能增删/启停源，回来把顶部摘要刷新一下。
+            UpdateSourcesSummary();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "manage sources failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
+        }
     }
 
 
@@ -795,7 +814,7 @@ public sealed partial class RuntimeEnvironmentSetting
                         probe.IsEnabled = false;
                         try
                         {
-                            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                            HttpClient http = Starward.Helpers.HttpClients.Probe; // R85：共享探测客户端，勿 Dispose
                             ComponentSourceProbe result = await ComponentSources.ProbeAsync(http, ToEntry(current, drafts.IndexOf(current)));
                             probeState[id] = (result.Text, result.Ok);
                         }
@@ -978,7 +997,7 @@ public sealed partial class RuntimeEnvironmentSetting
                 probeAll.IsEnabled = false;
                 try
                 {
-                    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+                    HttpClient http = Starward.Helpers.HttpClients.Probe; // R85：共享探测客户端，勿 Dispose
                     foreach (SourceDraft draft in drafts.ToList())
                     {
                         try
@@ -1105,10 +1124,7 @@ public sealed partial class RuntimeEnvironmentSetting
         {
             Helpers.InAppToast.MainWindow?.Information((string?)null, Lang.Lunarward_RuntimeEnv_Probing, 6000);
             IReadOnlyList<ComponentSourceProbe> probes;
-            using (var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) })
-            {
-                probes = await ComponentSources.ProbeAllAsync(http);
-            }
+            probes = await ComponentSources.ProbeAllAsync(Starward.Helpers.HttpClients.Probe); // R85
             var panel = new StackPanel { Spacing = 8, MinWidth = 540 };
             foreach (ComponentSourceProbe probe in probes)
             {

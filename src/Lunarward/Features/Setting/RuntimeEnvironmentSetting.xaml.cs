@@ -17,6 +17,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 
@@ -260,9 +261,22 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
+    /// <summary>R81：页面被 Frame 换掉后 XamlRoot.Content 仍强引用处理器——卸载时解挂，避免旧实例继续收快捷键。</summary>
+    protected override void OnUnloaded()
+    {
+        base.OnUnloaded();
+        if (_shortcutsAttached && XamlRoot?.Content is UIElement root)
+        {
+            root.RemoveHandler(KeyDownEvent, new KeyEventHandler(OnShortcutKeyDown));
+        }
+        _shortcutsAttached = false;
+    }
+
+
     private void OnShortcutKeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (Visibility != Visibility.Visible)
+        // R81：页面自身的 Visibility 从来不会被赋值（只有子面板会被切），所以改成判断「还在可视树里」。
+        if (Visibility != Visibility.Visible || !IsLoaded || XamlRoot is null)
         {
             return;
         }
@@ -355,18 +369,27 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private async void Tab_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement element && element.Tag is string tag && int.TryParse(tag, out int index))
+        try
         {
-            if (ShowEditorPaneVisible)
+            if (sender is FrameworkElement element && element.Tag is string tag && int.TryParse(tag, out int index))
             {
-                if (!await ConfirmLeaveEditorAsync())
+                if (ShowEditorPaneVisible)
                 {
-                    return;
+                    if (!await ConfirmLeaveEditorAsync())
+                    {
+                        return;
+                    }
+                    // 放弃修改后必须先把右栏从编辑器切回详情，否则 ShowTab 只切页签可见性，编辑器会留在原地。
+                    CloseEditor();
                 }
-                // 放弃修改后必须先把右栏从编辑器切回详情，否则 ShowTab 只切页签可见性，编辑器会留在原地。
-                CloseEditor();
+                ShowTab(index);
             }
-            ShowTab(index);
+        }
+        catch (Exception ex)
+        {
+            // R93：`async void` 处理器抛出会直接打到同步上下文（进程崩），统一兜住。
+            _logger.LogError(ex, "switch tab failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
         }
     }
 
@@ -599,11 +622,19 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     /// <summary>选一个程序 + 可选参数，在方案环境里跑一次（D64）。</summary>
     private async void Button_RunOnce_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { Tag: RuntimeProfile profile })
+        try
         {
-            return;
+            if (sender is not FrameworkElement { Tag: RuntimeProfile profile })
+            {
+                return;
+            }
+            await RunOnceAsync(profile);
         }
-        await RunOnceAsync(profile);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "run once failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
+        }
     }
 
 
@@ -643,7 +674,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             var process = Starward.Features.Runtime.RunOnceService.Start(profile, file, argsBox.Text, _logger, AppConfig.CurrentGameBiz.Value);
             if (process is null)
             {
-                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_RunOnceFailed);
+                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_Failed);
                 return;
             }
             Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_StartedPid, process.Id), 4000);
@@ -664,11 +695,22 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
+    /// <summary>R83：每次加载的代号；并发触发时旧结果直接丢弃，不再出现「重复行 + 闪烁」。</summary>
+    private int _componentsLoadGeneration;
+
+
     private async Task LoadComponentsAsync()
     {
-        UpdateSourcesSummary();
+        int generation = ++_componentsLoadGeneration;
+        try
+        {
+            UpdateSourcesSummary();
         (IReadOnlyList<Component> runners, IReadOnlyList<Component> allGraphics) = await Task.Run(() =>
             (ComponentStore.GetRunners(false, _logger), ComponentStore.GetGraphics(false, _logger)));
+        if (generation != _componentsLoadGeneration)
+        {
+            return; // R83：已经有更新的一次加载在跑，丢掉这轮结果（否则两份列表交替 Clear/Add 会闪）。
+        }
         // D85：组件页的筛选只作用于图形层（运行器是另一页的事）
         IReadOnlyList<Component> graphics = _componentFilter switch
         {
@@ -748,6 +790,13 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         if (_detailRunnerName is not null && SelectedProfileOrNull() is { } selectedProfile)
         {
             _detailRunnerName.Text = ResolveRunnerDisplay(selectedProfile);
+        }
+        }
+        catch (Exception ex)
+        {
+            // R83：以前是 `_ = LoadComponentsAsync()` 即发即忘，异常被整个吞掉，页面停在旧内容上。
+            _logger.LogError(ex, "load components failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
         }
     }
 
@@ -964,7 +1013,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             {
                 return;
             }
-            string? version = Starward.Features.Runtime.ComponentStore.ReadRunnerVersion(file);
+            // R77：`ReadRunnerVersion` 是同步壳（内部 GetResult），wine 挂住时最坏冻 4 秒，挪到线程池。
+            string? version = await Task.Run(() => Starward.Features.Runtime.ComponentStore.ReadRunnerVersion(file));
             if (string.IsNullOrWhiteSpace(version))
             {
                 Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_WineVersionFailed);
@@ -1077,7 +1127,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         try
         {
-            Starward.Features.Runtime.GraphicsInstaller.Remove(prefixPath, kind: null, _logger);
+            await Task.Run(() => Starward.Features.Runtime.GraphicsInstaller.Remove(prefixPath, kind: null, _logger));
             LoadPrefixes();
             Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_RemovedGraphics, 3000);
         }
@@ -1134,9 +1184,33 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private void OpenEditor(RuntimeProfile? profile)
     {
-        _editingProfile = profile;
-        _editorRunners = ComponentStore.GetRunners(false, _logger).ToList();
-        _editorGraphics = ComponentStore.GetGraphics(false, _logger).ToList();
+        _ = OpenEditorAsync(profile);
+    }
+
+
+    /// <summary>
+    /// R78：新建 / 修改编辑器以前在 UI 线程同步 `GetRunners()` + `GetGraphics()`（遍历 PATH、Steam 库、
+    /// compatibilitytools.d，冷启动约 0.7 秒且随组件数增长）。现在先在线程池扫描，回到 UI 线程再建控件。
+    /// </summary>
+    private async Task OpenEditorAsync(RuntimeProfile? profile)
+    {
+        try
+        {
+            _editingProfile = profile;
+            (_editorRunners, _editorGraphics) = await Task.Run(() =>
+                (ComponentStore.GetRunners(false, _logger).ToList(), ComponentStore.GetGraphics(false, _logger).ToList()));
+            BuildEditor(profile);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "open profile editor failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
+        }
+    }
+
+
+    private void BuildEditor(RuntimeProfile? profile)
+    {
         StackPanel_ProfileEditor.Children.Clear();
 
         var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
@@ -1830,7 +1904,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         }
         try
         {
-            Directory.Delete(path, recursive: true);
+            // R82：前缀动辄几百 MB，和同文件 2863 行的删除组件保持同一套「后台删」实现。
+            await Task.Run(() => Directory.Delete(path, recursive: true));
             LoadPrefixes();
             Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_CleanedPrefix, 3000);
         }
@@ -2403,7 +2478,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         Text_SourcesSummary.Text = Lang.Lunarward_RuntimeEnv_CheckAllSourcesRunning;
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+            HttpClient http = Starward.Helpers.HttpClients.Probe; // R85：共享探测客户端，勿 Dispose
             IReadOnlyList<ComponentSourceEntry> sources = ComponentSources.Load()
                 .Where(x => x.Enabled && !x.Removed).ToList();
             if (sources.Count == 0)
@@ -2412,7 +2487,21 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 Helpers.InAppToast.MainWindow?.Warning((string?)null, Lang.Lunarward_RuntimeEnv_NoEnabledSource, 5000);
                 return;
             }
-            ComponentSourceProbe[] results = await Task.WhenAll(sources.Select(x => ComponentSources.ProbeAsync(http, x)));
+            // R85：限并发（4 路），与 ComponentSources.ProbeAllAsync 同一口径。
+            ComponentSourceProbe[] results = new ComponentSourceProbe[sources.Count];
+            using SemaphoreSlim gate = new(4);
+            await Task.WhenAll(sources.Select(async (source, index) =>
+            {
+                await gate.WaitAsync();
+                try
+                {
+                    results[index] = await ComponentSources.ProbeAsync(http, source);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            }));
             int ok = results.Count(x => x.Ok);
             string summary = string.Format(Lang.Lunarward_RuntimeEnv_SourcesCheckResult, ok, results.Length);
             Text_SourcesSummary.Text = summary;
@@ -2514,7 +2603,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             return (Lang.Lunarward_RuntimeEnv_SyncNoPrefix, false);
         }
         GraphicsInstaller.GraphicsStatus status = GraphicsInstaller.Verify(inspection.Path);
-        IReadOnlyList<Component> available = ComponentStore.GetGraphics();
+        // R79：详情区建行的调用方是 UI 线程——只读缓存，冷缓存时退化成 Id，别在这里触发全盘扫描。
+        IReadOnlyList<Component> available = ComponentStore.CachedGraphics ?? Array.Empty<Component>();
         List<string> problems = [];
         foreach ((ComponentKind kind, string? id) in new (ComponentKind, string?)[] { (ComponentKind.Dxvk, profile.DxvkId), (ComponentKind.Vkd3dProton, profile.Vkd3dId) })
         {
