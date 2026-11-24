@@ -6,13 +6,13 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Starward.Setup.Core;
-using Starward.Frameworks;
+using Starward.Features;
 using System;
 using System.Threading.Tasks;
 
 namespace Starward.Features.Update;
 
-public sealed partial class UpdateWindow : WindowEx
+public sealed partial class UpdateWindow : WindowBase
 {
     public UpdateWindow()
     {

@@ -1,4 +1,4 @@
-// Lunarward：WindowEx 的 Linux 实现。上游 Frameworks/WindowEx.cs 依赖 Vanara/User32 子类化，保留但不编译。
+// Lunarward：WindowBase 的 Linux 实现（上游 0.19.0 把 Frameworks/WindowBase.cs 改名为 Features/WindowBase.cs）。上游 Frameworks/WindowBase.cs 依赖 Vanara/User32 子类化，保留但不编译。
 // 这里用 Uno 的 Window.AppWindow 完成窗口动作；Windows 专有的图标/拖拽区/标题栏配色降级为 no-op。
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
@@ -6,9 +6,9 @@ using Microsoft.UI.Xaml.Media;
 using System;
 using Windows.Graphics;
 
-namespace Starward.Frameworks;
+namespace Starward.Features;
 
-public abstract partial class WindowEx : Window
+public abstract partial class WindowBase : Window
 {
     public IntPtr WindowHandle => IntPtr.Zero;
 
@@ -16,7 +16,7 @@ public abstract partial class WindowEx : Window
 
     public static Microsoft.UI.WindowId MainWindowId { get; protected set; }
 
-    protected WindowEx()
+    protected WindowBase()
     {
         AppWindow.Closing += (_, _) => { };
     }

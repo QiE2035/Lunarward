@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -103,7 +103,7 @@ public sealed partial class MainWindow : WindowBase
         Title = "Lunarward";
         // Lunarward：不接管标题栏。上游在 Windows 上 ExtendsContentIntoTitleBar = true 后靠
         // AppWindow.TitleBar.SetDragRectangles 提供拖拽区，而 Uno 的 X11 后端没有实现该 API
-        // （WindowEx.SetDragRectangles 只能是空实现），结果就是「拖不动 + 自绘按钮点不动」。
+        // （WindowBase.SetDragRectangles 只能是空实现），结果就是「拖不动 + 自绘按钮点不动」。
         // 改成不扩展内容区，由窗口管理器绘制真正的标题栏（拖拽/最小化/关闭全部免费且可靠）。
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = false;
         AppWindow.TitleBar.IconShowOptions = IconShowOptions.ShowIconAndSystemMenu;

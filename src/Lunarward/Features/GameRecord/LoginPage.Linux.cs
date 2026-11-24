@@ -9,7 +9,7 @@
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
 using Starward.Core;
-using Starward.Frameworks;
+using Starward.Features;
 using System;
 using System.Linq;
 using System.Threading.Tasks;

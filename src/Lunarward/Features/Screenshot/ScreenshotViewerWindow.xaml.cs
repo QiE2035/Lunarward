@@ -3,7 +3,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Starward.Frameworks;
+using Starward.Features;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Starward.Features.Screenshot;
 
-public sealed partial class ScreenshotViewerWindow : WindowEx
+public sealed partial class ScreenshotViewerWindow : WindowBase
 {
 
     private List<ScreenshotItem> _items = new();

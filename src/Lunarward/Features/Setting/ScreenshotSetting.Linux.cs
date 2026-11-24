@@ -4,7 +4,7 @@ using Microsoft.UI.Xaml;
 // 这里保留可用的那部分设置项（文件夹、格式、质量、剪贴板），色彩管理项恒为关闭。
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.WinUI;
-using Starward.Frameworks;
+using Starward.Features;
 using System;
 using System.Threading.Tasks;
 

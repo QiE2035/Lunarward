@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Windowing;
@@ -49,7 +49,7 @@ public sealed partial class SystemTrayWindow : WindowBase
         }
 
         // Lunarward：上游用 GetWindowLongPtr/SetWindowLong 去掉标题栏边框、用 DwmSetWindowAttribute
-        // 设圆角。Linux 下这两件事都由 WindowEx 的无边框窗口 + 合成器负责（D30）。
+        // 设圆角。Linux 下这两件事都由 WindowBase 的无边框窗口 + 合成器负责（D30）。
 
         Show();
         Hide();
@@ -127,7 +127,7 @@ public sealed partial class SystemTrayWindow : WindowBase
     }
 
 
-    private void WindowEx_Closed(object sender, WindowEventArgs args)
+    private void WindowBase_Closed(object sender, WindowEventArgs args)
     {
         trayIcon?.Dispose();
     }

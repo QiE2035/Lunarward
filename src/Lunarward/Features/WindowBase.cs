@@ -1,4 +1,4 @@
-using Microsoft.UI;
+﻿using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using System;
@@ -7,9 +7,9 @@ using Vanara.PInvoke;
 using Windows.Graphics;
 using Windows.UI;
 
-namespace Starward.Frameworks;
+namespace Starward.Features;
 
-public abstract partial class WindowEx : Window
+public abstract partial class WindowBase : Window
 {
 
 
@@ -25,7 +25,7 @@ public abstract partial class WindowEx : Window
 
 
 
-    public WindowEx()
+    public WindowBase()
     {
         WindowHandle = (IntPtr)AppWindow.Id.Value;
         HWND bridge = (IntPtr)User32.FindWindowEx(WindowHandle, IntPtr.Zero, "Microsoft.UI.Content.DesktopChildSiteBridge", null);

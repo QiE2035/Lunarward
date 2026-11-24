@@ -34,7 +34,6 @@ using Starward.Features.Update;
 using Starward.GameInstall;
 using Starward.GameInstall.HotUpdate;
 using Starward.Setup.Core;
-using ZiggyCreatures.Caching.Fusion;
 using System;
 using System.IO;
 using System.Net;
@@ -63,37 +62,6 @@ public static partial class AppConfig
                                                   .CreateLogger();
             Log.Information($"Welcome to Lunarward v{AppVersion}\r\nSystem: {Environment.OSVersion}\r\nCommand Line: {Environment.CommandLine}");
 
-            var sc = new ServiceCollection();
-            sc.AddMemoryCache();
-            sc.AddLogging(c => c.AddSerilog(Log.Logger));
-            sc.AddHttpClient().ConfigureHttpClientDefaults(ConfigDefaultHttpClient);
-
-            // 上游 0.19.0 把 HoYoPlayService 搬进了 Starward.GameInstall（net11.0-windows + FusionCache），
-            // 移植侧不能引用，所以这里保留 src/Lunarward/Features/HoYoPlay 里的 Linux 版实现。
-            sc.AddSingleton<HoYoPlayService>();
-            sc.AddSingleton<HoYoPlayClient>();
-            // LUNARWARD-DEVIATION: 上游 0.19.0 的 HoYoPlayClient 改为「一个启动器配置一个实例」，
-            // 移植侧先用默认配置单例，多启动器（B服/第三方）随 D115 之后单独对齐。
-            sc.AddSingleton<HoYoPlayBetaClient>();
-            sc.AddSingleton<GameNoticeClient>();
-            sc.AddSingleton<BackgroundService>();
-            sc.AddSingleton<GameLauncherService>();
-            sc.AddSingleton<GamePackageService>();
-            sc.AddSingleton<Starward.Features.Companion.CompanionRunner>();
-            sc.AddSingleton<PlayTimeRecordService>();
-            sc.AddSingleton<PlayTimeStatsService>();
-            sc.AddSingleton<GameNoticeService>();
-            sc.AddSingleton<SetupService>();
-
-            sc.AddSingleton<GenshinGachaClient>();
-            sc.AddSingleton<StarRailGachaClient>();
-            sc.AddSingleton<ZZZGachaClient>();
-            sc.AddSingleton<GenshinGachaService>();
-            sc.AddSingleton<StarRailGachaService>();
-            sc.AddSingleton<ZZZGachaService>();
-            sc.AddSingleton<UIGFGachaService>();
-            sc.AddSingleton<GenshinBeyondGachaClient>();
-            sc.AddSingleton<GenshinBeyondGachaService>();
 
             var sc = new ServiceCollection();
 
@@ -103,10 +71,6 @@ public static partial class AppConfig
         }
     }
 
-            sc.AddSingleton<RpcService>();
-            // Lunarward: 真实安装流程依赖 Starward.RPC（gRPC + 命名管道，D6 待换 Unix socket）；
-            // 这里注册的是 Features/GameInstall/GameInstallShims.cs 里的最小实现。
-            sc.AddSingleton<Starward.RPC.GameInstall.GameInstallService>();
 
     public static void ConfigServiceCollection(IServiceCollection sc)
     {
@@ -171,11 +135,10 @@ public static partial class AppConfig
         sc.AddHttpClient<ReleaseClient>().ConfigStarwardHttpClient();
         sc.AddTransient<UpdateService>();
 
+        // Lunarward: 上游这些来自 Starward.GameInstall（net11.0-windows + FusionCache），移植侧不引用该库；
+        // 这里注册 Features/GameInstall 下的移植版实现与 GameInstallShims。
         sc.AddSingleton<GameInstallService>();
-        sc.AddSingleton<GameResourceService>();
-        sc.AddSingleton<GameConfigService>();
-        sc.AddSingleton<GenshinDispatchClient>();
-        sc.AddSingleton<GenshinHotUpdateService>();
+        sc.AddSingleton<RpcService>();
 
         sc.AddSingleton<GameAccountService>();
 
@@ -184,7 +147,6 @@ public static partial class AppConfig
         sc.AddHttpClient<LogUploadClient>().ConfigStarwardHttpClient();
     }
 
-            // Lunarward: ScreenCaptureService 依赖 Windows.Graphics.Capture + Win2D，M2 重写后再注册
 
 
 
@@ -214,7 +176,7 @@ public static partial class AppConfig
         {
             client.DefaultRequestHeaders.Clear();
 #if DEBUG
-            client.DefaultRequestHeaders.Add("User-Agent", $"Lunarward/{AppVersion}");
+            client.DefaultRequestHeaders.Add("User-Agent", $"Starward.Debug/{AppVersion}");
 #else
             client.DefaultRequestHeaders.Add("User-Agent", $"Starward/{AppVersion}");
 #endif
@@ -237,7 +199,7 @@ public static partial class AppConfig
         {
             client.DefaultRequestHeaders.Clear();
 #if DEBUG
-            client.DefaultRequestHeaders.Add("User-Agent", $"Lunarward/{AppVersion}");
+            client.DefaultRequestHeaders.Add("User-Agent", $"Starward.Debug/{AppVersion}");
 #else
             client.DefaultRequestHeaders.Add("User-Agent", $"Starward/{AppVersion}");
 #endif

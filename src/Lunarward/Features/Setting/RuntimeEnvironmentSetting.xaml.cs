@@ -1,4 +1,4 @@
-﻿// Lunarward：设置 → 运行环境（Profile 列表）。D28：Profile 是全局的，条目每游戏独立（后启动列表在游戏设置页）。
+// Lunarward：设置 → 运行环境（Profile 列表）。D28：Profile 是全局的，条目每游戏独立（后启动列表在游戏设置页）。
 // 说明：列表用代码构建而非 DataTemplate —— Uno 的 ListView/ItemsControl 在星号行 + ScrollViewer 里
 // 存在测量问题（行高被压成一行、内容被裁），M1 先用确定性代码路径；M2 换回模板并复测（见 12-shims-and-gaps）。
 using Microsoft.Extensions.Logging;
@@ -11,7 +11,7 @@ using Microsoft.UI.Text;
 using Starward.Core;
 using Starward.Features.Runtime;
 using Starward.Language;
-using Starward.Frameworks;
+using Starward.Features;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
