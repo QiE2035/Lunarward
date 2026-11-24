@@ -98,6 +98,9 @@ public sealed class CompanionRunner
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // R107：后启动程序与游戏共用一套 UTF-8 假设，否则中文路径/报错在日志里变问号。
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            StandardErrorEncoding = System.Text.Encoding.UTF8,
         };
         if (isWindowsExe)
         {

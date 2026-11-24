@@ -28,8 +28,7 @@ public partial class Lang
         public static string Lunarward_RuntimeEnv_Versions => ResourceManager.GetString("Lunarward_RuntimeEnv_Versions", resourceCulture) ?? "Lunarward_RuntimeEnv_Versions";
         public static string Lunarward_RuntimeEnv_Pause => ResourceManager.GetString("Lunarward_RuntimeEnv_Pause", resourceCulture) ?? "Lunarward_RuntimeEnv_Pause";
         public static string Lunarward_RuntimeEnv_InstallSelected => ResourceManager.GetString("Lunarward_RuntimeEnv_InstallSelected", resourceCulture) ?? "Lunarward_RuntimeEnv_InstallSelected";
-        public static string Lunarward_RuntimeEnv_AddComponents => ResourceManager.GetString("Lunarward_RuntimeEnv_AddComponents", resourceCulture) ?? "Lunarward_RuntimeEnv_AddComponents";
-        public static string Lunarward_RuntimeEnv_SummaryFormat => ResourceManager.GetString("Lunarward_RuntimeEnv_SummaryFormat", resourceCulture) ?? "Lunarward_RuntimeEnv_SummaryFormat";
+            public static string Lunarward_RuntimeEnv_SummaryFormat => ResourceManager.GetString("Lunarward_RuntimeEnv_SummaryFormat", resourceCulture) ?? "Lunarward_RuntimeEnv_SummaryFormat";
         public static string Lunarward_RuntimeEnv_SummaryNeedMore => ResourceManager.GetString("Lunarward_RuntimeEnv_SummaryNeedMore", resourceCulture) ?? "Lunarward_RuntimeEnv_SummaryNeedMore";
         public static string Lunarward_RuntimeEnv_Retry => ResourceManager.GetString("Lunarward_RuntimeEnv_Retry", resourceCulture) ?? "Lunarward_RuntimeEnv_Retry";
         public static string Lunarward_RuntimeEnv_Reinstall => ResourceManager.GetString("Lunarward_RuntimeEnv_Reinstall", resourceCulture) ?? "Lunarward_RuntimeEnv_Reinstall";
@@ -55,11 +54,8 @@ public partial class Lang
         public static string Lunarward_RuntimeEnv_Components => ResourceManager.GetString("Lunarward_RuntimeEnv_Components", resourceCulture) ?? "Lunarward_RuntimeEnv_Components";
         public static string Lunarward_RuntimeEnv_ImportGraphics => ResourceManager.GetString("Lunarward_RuntimeEnv_ImportGraphics", resourceCulture) ?? "Lunarward_RuntimeEnv_ImportGraphics";
         public static string Lunarward_RuntimeEnv_InstallToPrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_InstallToPrefix", resourceCulture) ?? "Lunarward_RuntimeEnv_InstallToPrefix";
-        public static string Lunarward_RuntimeEnv_Templates => ResourceManager.GetString("Lunarward_RuntimeEnv_Templates", resourceCulture) ?? "Lunarward_RuntimeEnv_Templates";
-        public static string Lunarward_RuntimeEnv_NoTemplates => ResourceManager.GetString("Lunarward_RuntimeEnv_NoTemplates", resourceCulture) ?? "Lunarward_RuntimeEnv_NoTemplates";
-        public static string Lunarward_RuntimeEnv_Installed => ResourceManager.GetString("Lunarward_RuntimeEnv_Installed", resourceCulture) ?? "Lunarward_RuntimeEnv_Installed";
-        public static string Lunarward_RuntimeEnv_NotInstalled => ResourceManager.GetString("Lunarward_RuntimeEnv_NotInstalled", resourceCulture) ?? "Lunarward_RuntimeEnv_NotInstalled";
-        public static string Lunarward_Editor_Title => ResourceManager.GetString("Lunarward_Editor_Title", resourceCulture) ?? "Lunarward_Editor_Title";
+                public static string Lunarward_RuntimeEnv_Installed => ResourceManager.GetString("Lunarward_RuntimeEnv_Installed", resourceCulture) ?? "Lunarward_RuntimeEnv_Installed";
+            public static string Lunarward_Editor_Title => ResourceManager.GetString("Lunarward_Editor_Title", resourceCulture) ?? "Lunarward_Editor_Title";
         public static string Lunarward_Editor_UseDetectedRunner => ResourceManager.GetString("Lunarward_Editor_UseDetectedRunner", resourceCulture) ?? "Lunarward_Editor_UseDetectedRunner";
         public static string Lunarward_Editor_PrefixMode => ResourceManager.GetString("Lunarward_Editor_PrefixMode", resourceCulture) ?? "Lunarward_Editor_PrefixMode";
         public static string Lunarward_Editor_Shell => ResourceManager.GetString("Lunarward_Editor_Shell", resourceCulture) ?? "Lunarward_Editor_Shell";
@@ -121,11 +117,8 @@ public partial class Lang
         public static string Lunarward_Viewer_Close => ResourceManager.GetString("Lunarward_Viewer_Close", resourceCulture) ?? "Lunarward_Viewer_Close";
         public static string Lunarward_Companion_EditNew => ResourceManager.GetString("Lunarward_Companion_EditNew", resourceCulture) ?? "Lunarward_Companion_EditNew";
         public static string Lunarward_Companion_EditExisting => ResourceManager.GetString("Lunarward_Companion_EditExisting", resourceCulture) ?? "Lunarward_Companion_EditExisting";
-        public static string Lunarward_RuntimeEnv_Templates_Title => ResourceManager.GetString("Lunarward_RuntimeEnv_Templates_Title", resourceCulture) ?? "Lunarward_RuntimeEnv_Templates_Title";
-        public static string Lunarward_RuntimeEnv_ComponentsNote => ResourceManager.GetString("Lunarward_RuntimeEnv_ComponentsNote", resourceCulture) ?? "Lunarward_RuntimeEnv_ComponentsNote";
-        public static string Lunarward_RuntimeEnv_TemplatesNote => ResourceManager.GetString("Lunarward_RuntimeEnv_TemplatesNote", resourceCulture) ?? "Lunarward_RuntimeEnv_TemplatesNote";
-        public static string Lunarward_RuntimeEnv_PrefixModeNote => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixModeNote", resourceCulture) ?? "Lunarward_RuntimeEnv_PrefixModeNote";
-        public static string Lunarward_Profile_DefaultName => ResourceManager.GetString("Lunarward_Profile_DefaultName", resourceCulture) ?? "Lunarward_Profile_DefaultName";
+            public static string Lunarward_RuntimeEnv_ComponentsNote => ResourceManager.GetString("Lunarward_RuntimeEnv_ComponentsNote", resourceCulture) ?? "Lunarward_RuntimeEnv_ComponentsNote";
+                public static string Lunarward_Profile_DefaultName => ResourceManager.GetString("Lunarward_Profile_DefaultName", resourceCulture) ?? "Lunarward_Profile_DefaultName";
         public static string Lunarward_Profile_DefaultNameNoWine => ResourceManager.GetString("Lunarward_Profile_DefaultNameNoWine", resourceCulture) ?? "Lunarward_Profile_DefaultNameNoWine";
 
     public static string Lunarward_Error_NoVersionInfo => ResourceManager.GetString("Lunarward_Error_NoVersionInfo", resourceCulture) ?? "取不到版本信息（网络或接口异常）";
@@ -148,20 +141,16 @@ public partial class Lang
         public static string Lunarward_Record_Empty_Description => ResourceManager.GetString("Lunarward_Record_Empty_Description", resourceCulture) ?? "Lunarward_Record_Empty_Description";
         public static string Lunarward_Record_Empty_Login => ResourceManager.GetString("Lunarward_Record_Empty_Login", resourceCulture) ?? "Lunarward_Record_Empty_Login";
 
-        public static string Lunarward_RuntimeEnv_Overview => ResourceManager.GetString("Lunarward_RuntimeEnv_Overview", resourceCulture) ?? "Lunarward_RuntimeEnv_Overview";
-        public static string Lunarward_RuntimeEnv_Runner => ResourceManager.GetString("Lunarward_RuntimeEnv_Runner", resourceCulture) ?? "Lunarward_RuntimeEnv_Runner";
+            public static string Lunarward_RuntimeEnv_Runner => ResourceManager.GetString("Lunarward_RuntimeEnv_Runner", resourceCulture) ?? "Lunarward_RuntimeEnv_Runner";
         public static string Lunarward_RuntimeEnv_Components_2 => ResourceManager.GetString("Lunarward_RuntimeEnv_Components_2", resourceCulture) ?? "Lunarward_RuntimeEnv_Components_2";
         public static string Lunarward_RuntimeEnv_Prefix => ResourceManager.GetString("Lunarward_RuntimeEnv_Prefix", resourceCulture) ?? "Lunarward_RuntimeEnv_Prefix";
         public static string Lunarward_RuntimeEnv_Enhancements => ResourceManager.GetString("Lunarward_RuntimeEnv_Enhancements", resourceCulture) ?? "Lunarward_RuntimeEnv_Enhancements";
         public static string Lunarward_RuntimeEnv_Profiles => ResourceManager.GetString("Lunarward_RuntimeEnv_Profiles", resourceCulture) ?? "Lunarward_RuntimeEnv_Profiles";
-        public static string Lunarward_RuntimeEnv_Profiles_Description => ResourceManager.GetString("Lunarward_RuntimeEnv_Profiles_Description", resourceCulture) ?? "Lunarward_RuntimeEnv_Profiles_Description";
-        public static string Lunarward_RuntimeEnv_Runners_Notice => ResourceManager.GetString("Lunarward_RuntimeEnv_Runners_Notice", resourceCulture) ?? "Lunarward_RuntimeEnv_Runners_Notice";
+            public static string Lunarward_RuntimeEnv_Runners_Notice => ResourceManager.GetString("Lunarward_RuntimeEnv_Runners_Notice", resourceCulture) ?? "Lunarward_RuntimeEnv_Runners_Notice";
         public static string Lunarward_RuntimeEnv_AddPath => ResourceManager.GetString("Lunarward_RuntimeEnv_AddPath", resourceCulture) ?? "Lunarward_RuntimeEnv_AddPath";
-        public static string Lunarward_RuntimeEnv_DownloadComponents => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadComponents", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadComponents";
-        public static string Lunarward_RuntimeEnv_ImportArchive => ResourceManager.GetString("Lunarward_RuntimeEnv_ImportArchive", resourceCulture) ?? "Lunarward_RuntimeEnv_ImportArchive";
+            public static string Lunarward_RuntimeEnv_ImportArchive => ResourceManager.GetString("Lunarward_RuntimeEnv_ImportArchive", resourceCulture) ?? "Lunarward_RuntimeEnv_ImportArchive";
         public static string Lunarward_RuntimeEnv_Sources => ResourceManager.GetString("Lunarward_RuntimeEnv_Sources", resourceCulture) ?? "Lunarward_RuntimeEnv_Sources";
-        public static string Lunarward_RuntimeEnv_MirrorSpeed => ResourceManager.GetString("Lunarward_RuntimeEnv_MirrorSpeed", resourceCulture) ?? "Lunarward_RuntimeEnv_MirrorSpeed";
-        public static string Lunarward_RuntimeEnv_Staging => ResourceManager.GetString("Lunarward_RuntimeEnv_Staging", resourceCulture) ?? "Lunarward_RuntimeEnv_Staging";
+            public static string Lunarward_RuntimeEnv_Staging => ResourceManager.GetString("Lunarward_RuntimeEnv_Staging", resourceCulture) ?? "Lunarward_RuntimeEnv_Staging";
         public static string Lunarward_RuntimeEnv_Prefixes_Notice => ResourceManager.GetString("Lunarward_RuntimeEnv_Prefixes_Notice", resourceCulture) ?? "Lunarward_RuntimeEnv_Prefixes_Notice";
         public static string Lunarward_RuntimeEnv_UsageSummary => ResourceManager.GetString("Lunarward_RuntimeEnv_UsageSummary", resourceCulture) ?? "Lunarward_RuntimeEnv_UsageSummary";
         public static string Lunarward_RuntimeEnv_Enhance_Notice => ResourceManager.GetString("Lunarward_RuntimeEnv_Enhance_Notice", resourceCulture) ?? "Lunarward_RuntimeEnv_Enhance_Notice";
@@ -172,17 +161,14 @@ public partial class Lang
         public static string Lunarward_RuntimeEnv_GameScopeArgs => ResourceManager.GetString("Lunarward_RuntimeEnv_GameScopeArgs", resourceCulture) ?? "Lunarward_RuntimeEnv_GameScopeArgs";
         public static string Lunarward_RuntimeEnv_SaveToProfile => ResourceManager.GetString("Lunarward_RuntimeEnv_SaveToProfile", resourceCulture) ?? "Lunarward_RuntimeEnv_SaveToProfile";
         public static string Lunarward_RuntimeEnv_Revert => ResourceManager.GetString("Lunarward_RuntimeEnv_Revert", resourceCulture) ?? "Lunarward_RuntimeEnv_Revert";
-        public static string Lunarward_RuntimeEnv_Components_Notice => ResourceManager.GetString("Lunarward_RuntimeEnv_Components_Notice", resourceCulture) ?? "Lunarward_RuntimeEnv_Components_Notice";
-        public static string Lunarward_RuntimeEnv_NoUsableRunner => ResourceManager.GetString("Lunarward_RuntimeEnv_NoUsableRunner", resourceCulture) ?? "Lunarward_RuntimeEnv_NoUsableRunner";
+            public static string Lunarward_RuntimeEnv_NoUsableRunner => ResourceManager.GetString("Lunarward_RuntimeEnv_NoUsableRunner", resourceCulture) ?? "Lunarward_RuntimeEnv_NoUsableRunner";
         public static string Lunarward_RuntimeEnv_PrefixNotWine => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixNotWine", resourceCulture) ?? "Lunarward_RuntimeEnv_PrefixNotWine";
         public static string Lunarward_RuntimeEnv_PrefixLocked => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixLocked", resourceCulture) ?? "Lunarward_RuntimeEnv_PrefixLocked";
         public static string Lunarward_RuntimeEnv_PrefixMissing => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixMissing", resourceCulture) ?? "Lunarward_RuntimeEnv_PrefixMissing";
         public static string Lunarward_RuntimeEnv_Usable => ResourceManager.GetString("Lunarward_RuntimeEnv_Usable", resourceCulture) ?? "Lunarward_RuntimeEnv_Usable";
-        public static string Lunarward_RuntimeEnv_StatsFailComponents => ResourceManager.GetString("Lunarward_RuntimeEnv_StatsFailComponents", resourceCulture) ?? "Lunarward_RuntimeEnv_StatsFailComponents";
-        public static string Lunarward_RuntimeEnv_StatsFailPrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_StatsFailPrefix", resourceCulture) ?? "Lunarward_RuntimeEnv_StatsFailPrefix";
+            public static string Lunarward_RuntimeEnv_StatsFailPrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_StatsFailPrefix", resourceCulture) ?? "Lunarward_RuntimeEnv_StatsFailPrefix";
         public static string Lunarward_RuntimeEnv_Graphics => ResourceManager.GetString("Lunarward_RuntimeEnv_Graphics", resourceCulture) ?? "Lunarward_RuntimeEnv_Graphics";
-        public static string Lunarward_RuntimeEnv_CountGraphics => ResourceManager.GetString("Lunarward_RuntimeEnv_CountGraphics", resourceCulture) ?? "Lunarward_RuntimeEnv_CountGraphics";
-        public static string Lunarward_RuntimeEnv_ClearBindings => ResourceManager.GetString("Lunarward_RuntimeEnv_ClearBindings", resourceCulture) ?? "Lunarward_RuntimeEnv_ClearBindings";
+            public static string Lunarward_RuntimeEnv_ClearBindings => ResourceManager.GetString("Lunarward_RuntimeEnv_ClearBindings", resourceCulture) ?? "Lunarward_RuntimeEnv_ClearBindings";
         public static string Lunarward_RuntimeEnv_PrefixUsageDash => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixUsageDash", resourceCulture) ?? "Lunarward_RuntimeEnv_PrefixUsageDash";
         public static string Lunarward_RuntimeEnv_Copy => ResourceManager.GetString("Lunarward_RuntimeEnv_Copy", resourceCulture) ?? "Lunarward_RuntimeEnv_Copy";
         public static string Lunarward_RuntimeEnv_Export => ResourceManager.GetString("Lunarward_RuntimeEnv_Export", resourceCulture) ?? "Lunarward_RuntimeEnv_Export";
@@ -191,9 +177,7 @@ public partial class Lang
         public static string Lunarward_RuntimeEnv_Exported => ResourceManager.GetString("Lunarward_RuntimeEnv_Exported", resourceCulture) ?? "Lunarward_RuntimeEnv_Exported";
         public static string Lunarward_RuntimeEnv_ExportFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_ExportFailed", resourceCulture) ?? "Lunarward_RuntimeEnv_ExportFailed";
         public static string Lunarward_RuntimeEnv_GraphicsInherit => ResourceManager.GetString("Lunarward_RuntimeEnv_GraphicsInherit", resourceCulture) ?? "Lunarward_RuntimeEnv_GraphicsInherit";
-        public static string Lunarward_RuntimeEnv_RunProgram => ResourceManager.GetString("Lunarward_RuntimeEnv_RunProgram", resourceCulture) ?? "Lunarward_RuntimeEnv_RunProgram";
-        public static string Lunarward_RuntimeEnv_PrefixUsageNone => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixUsageNone", resourceCulture) ?? "Lunarward_RuntimeEnv_PrefixUsageNone";
-        public static string Lunarward_RuntimeEnv_LastLaunchNone => ResourceManager.GetString("Lunarward_RuntimeEnv_LastLaunchNone", resourceCulture) ?? "Lunarward_RuntimeEnv_LastLaunchNone";
+                public static string Lunarward_RuntimeEnv_LastLaunchNone => ResourceManager.GetString("Lunarward_RuntimeEnv_LastLaunchNone", resourceCulture) ?? "Lunarward_RuntimeEnv_LastLaunchNone";
         public static string Lunarward_RuntimeEnv_UsedByNone => ResourceManager.GetString("Lunarward_RuntimeEnv_UsedByNone", resourceCulture) ?? "Lunarward_RuntimeEnv_UsedByNone";
         public static string Lunarward_RuntimeEnv_ArgsPlaceholder => ResourceManager.GetString("Lunarward_RuntimeEnv_ArgsPlaceholder", resourceCulture) ?? "Lunarward_RuntimeEnv_ArgsPlaceholder";
         public static string Lunarward_RuntimeEnv_RunOnce => ResourceManager.GetString("Lunarward_RuntimeEnv_RunOnce", resourceCulture) ?? "Lunarward_RuntimeEnv_RunOnce";
@@ -231,13 +215,11 @@ public partial class Lang
         public static string Lunarward_RuntimeEnv_PrefixPlaceholderShort => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixPlaceholderShort", resourceCulture) ?? "Lunarward_RuntimeEnv_PrefixPlaceholderShort";
         public static string Lunarward_RuntimeEnv_PickFolder => ResourceManager.GetString("Lunarward_RuntimeEnv_PickFolder", resourceCulture) ?? "Lunarward_RuntimeEnv_PickFolder";
         public static string Lunarward_RuntimeEnv_ClonePrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_ClonePrefix", resourceCulture) ?? "Lunarward_RuntimeEnv_ClonePrefix";
-        public static string Lunarward_RuntimeEnv_PrefixHint => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixHint", resourceCulture) ?? "Lunarward_RuntimeEnv_PrefixHint";
-        public static string Lunarward_RuntimeEnv_LaunchPreview => ResourceManager.GetString("Lunarward_RuntimeEnv_LaunchPreview", resourceCulture) ?? "Lunarward_RuntimeEnv_LaunchPreview";
+            public static string Lunarward_RuntimeEnv_LaunchPreview => ResourceManager.GetString("Lunarward_RuntimeEnv_LaunchPreview", resourceCulture) ?? "Lunarward_RuntimeEnv_LaunchPreview";
         public static string Lunarward_RuntimeEnv_Advanced => ResourceManager.GetString("Lunarward_RuntimeEnv_Advanced", resourceCulture) ?? "Lunarward_RuntimeEnv_Advanced";
         public static string Lunarward_RuntimeEnv_EnvHint => ResourceManager.GetString("Lunarward_RuntimeEnv_EnvHint", resourceCulture) ?? "Lunarward_RuntimeEnv_EnvHint";
         public static string Lunarward_RuntimeEnv_ArgsHint => ResourceManager.GetString("Lunarward_RuntimeEnv_ArgsHint", resourceCulture) ?? "Lunarward_RuntimeEnv_ArgsHint";
-        public static string Lunarward_RuntimeEnv_WrappersHint => ResourceManager.GetString("Lunarward_RuntimeEnv_WrappersHint", resourceCulture) ?? "Lunarward_RuntimeEnv_WrappersHint";
-        public static string Lunarward_RuntimeEnv_Notes => ResourceManager.GetString("Lunarward_RuntimeEnv_Notes", resourceCulture) ?? "Lunarward_RuntimeEnv_Notes";
+            public static string Lunarward_RuntimeEnv_Notes => ResourceManager.GetString("Lunarward_RuntimeEnv_Notes", resourceCulture) ?? "Lunarward_RuntimeEnv_Notes";
         public static string Lunarward_RuntimeEnv_NotesPlaceholder => ResourceManager.GetString("Lunarward_RuntimeEnv_NotesPlaceholder", resourceCulture) ?? "Lunarward_RuntimeEnv_NotesPlaceholder";
         public static string Lunarward_RuntimeEnv_ShellHint => ResourceManager.GetString("Lunarward_RuntimeEnv_ShellHint", resourceCulture) ?? "Lunarward_RuntimeEnv_ShellHint";
         public static string Lunarward_RuntimeEnv_Save => ResourceManager.GetString("Lunarward_RuntimeEnv_Save", resourceCulture) ?? "Lunarward_RuntimeEnv_Save";
@@ -277,37 +259,26 @@ public partial class Lang
         public static string Lunarward_RuntimeEnv_CopySuffix => ResourceManager.GetString("Lunarward_RuntimeEnv_CopySuffix", resourceCulture) ?? "Lunarward_RuntimeEnv_CopySuffix";
         public static string Lunarward_RuntimeEnv_PrefixUntouched => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixUntouched", resourceCulture) ?? "Lunarward_RuntimeEnv_PrefixUntouched";
         public static string Lunarward_RuntimeEnv_ConfirmDeleteProfile => ResourceManager.GetString("Lunarward_RuntimeEnv_ConfirmDeleteProfile", resourceCulture) ?? "Lunarward_RuntimeEnv_ConfirmDeleteProfile";
-        public static string Lunarward_RuntimeEnv_NoDownloadSource => ResourceManager.GetString("Lunarward_RuntimeEnv_NoDownloadSource", resourceCulture) ?? "Lunarward_RuntimeEnv_NoDownloadSource";
-        public static string Lunarward_RuntimeEnv_DownloadHint => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadHint", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadHint";
-        public static string Lunarward_RuntimeEnv_LoadVersions => ResourceManager.GetString("Lunarward_RuntimeEnv_LoadVersions", resourceCulture) ?? "Lunarward_RuntimeEnv_LoadVersions";
-        public static string Lunarward_RuntimeEnv_StartDownload => ResourceManager.GetString("Lunarward_RuntimeEnv_StartDownload", resourceCulture) ?? "Lunarward_RuntimeEnv_StartDownload";
-        public static string Lunarward_RuntimeEnv_Source => ResourceManager.GetString("Lunarward_RuntimeEnv_Source", resourceCulture) ?? "Lunarward_RuntimeEnv_Source";
-        public static string Lunarward_RuntimeEnv_DownloadComponent => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadComponent", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadComponent";
-        public static string Lunarward_RuntimeEnv_Close2 => ResourceManager.GetString("Lunarward_RuntimeEnv_Close2", resourceCulture) ?? "Lunarward_RuntimeEnv_Close2";
+            public static string Lunarward_RuntimeEnv_DownloadHint => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadHint", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadHint";
+                public static string Lunarward_RuntimeEnv_Source => ResourceManager.GetString("Lunarward_RuntimeEnv_Source", resourceCulture) ?? "Lunarward_RuntimeEnv_Source";
+            public static string Lunarward_RuntimeEnv_Close2 => ResourceManager.GetString("Lunarward_RuntimeEnv_Close2", resourceCulture) ?? "Lunarward_RuntimeEnv_Close2";
         public static string Lunarward_RuntimeEnv_HudOff => ResourceManager.GetString("Lunarward_RuntimeEnv_HudOff", resourceCulture) ?? "Off";
         public static string Lunarward_RuntimeEnv_PrefixOwnersTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixOwnersTitle", resourceCulture) ?? "使用这个前缀的方案";
-        public static string Lunarward_RuntimeEnv_NoAssetsForSource => ResourceManager.GetString("Lunarward_RuntimeEnv_NoAssetsForSource", resourceCulture) ?? "Lunarward_RuntimeEnv_NoAssetsForSource";
-        public static string Lunarward_RuntimeEnv_SelectVersionFirst => ResourceManager.GetString("Lunarward_RuntimeEnv_SelectVersionFirst", resourceCulture) ?? "Lunarward_RuntimeEnv_SelectVersionFirst";
-        public static string Lunarward_RuntimeEnv_SelectionExpired => ResourceManager.GetString("Lunarward_RuntimeEnv_SelectionExpired", resourceCulture) ?? "Lunarward_RuntimeEnv_SelectionExpired";
-        public static string Lunarward_RuntimeEnv_Unknown2 => ResourceManager.GetString("Lunarward_RuntimeEnv_Unknown2", resourceCulture) ?? "Lunarward_RuntimeEnv_Unknown2";
+            public static string Lunarward_RuntimeEnv_SelectVersionFirst => ResourceManager.GetString("Lunarward_RuntimeEnv_SelectVersionFirst", resourceCulture) ?? "Lunarward_RuntimeEnv_SelectVersionFirst";
+            public static string Lunarward_RuntimeEnv_Unknown2 => ResourceManager.GetString("Lunarward_RuntimeEnv_Unknown2", resourceCulture) ?? "Lunarward_RuntimeEnv_Unknown2";
         public static string Lunarward_RuntimeEnv_DownloadedResumed => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadedResumed", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadedResumed";
         public static string Lunarward_RuntimeEnv_Downloaded => ResourceManager.GetString("Lunarward_RuntimeEnv_Downloaded", resourceCulture) ?? "Lunarward_RuntimeEnv_Downloaded";
         public static string Lunarward_RuntimeEnv_PausedKeepParts => ResourceManager.GetString("Lunarward_RuntimeEnv_PausedKeepParts", resourceCulture) ?? "Lunarward_RuntimeEnv_PausedKeepParts";
-        public static string Lunarward_RuntimeEnv_FailedColon => ResourceManager.GetString("Lunarward_RuntimeEnv_FailedColon", resourceCulture) ?? "Lunarward_RuntimeEnv_FailedColon";
-        public static string Lunarward_RuntimeEnv_OpenDownloadWindowFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_OpenDownloadWindowFailed", resourceCulture) ?? "Lunarward_RuntimeEnv_OpenDownloadWindowFailed";
+            public static string Lunarward_RuntimeEnv_OpenDownloadWindowFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_OpenDownloadWindowFailed", resourceCulture) ?? "Lunarward_RuntimeEnv_OpenDownloadWindowFailed";
         public static string Lunarward_RuntimeEnv_RunnerSectionTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_RunnerSectionTitle", resourceCulture) ?? "Lunarward_RuntimeEnv_RunnerSectionTitle";
         public static string Lunarward_RuntimeEnv_GraphicsSectionTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_GraphicsSectionTitle", resourceCulture) ?? "Lunarward_RuntimeEnv_GraphicsSectionTitle";
         public static string Lunarward_RuntimeEnv_Import => ResourceManager.GetString("Lunarward_RuntimeEnv_Import", resourceCulture) ?? "Lunarward_RuntimeEnv_Import";
         public static string Lunarward_RuntimeEnv_Extracting => ResourceManager.GetString("Lunarward_RuntimeEnv_Extracting", resourceCulture) ?? "Lunarward_RuntimeEnv_Extracting";
         public static string Lunarward_RuntimeEnv_ImportArchiveFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_ImportArchiveFailed", resourceCulture) ?? "Lunarward_RuntimeEnv_ImportArchiveFailed";
         public static string Lunarward_RuntimeEnv_MirrorPlaceholder => ResourceManager.GetString("Lunarward_RuntimeEnv_MirrorPlaceholder", resourceCulture) ?? "Lunarward_RuntimeEnv_MirrorPlaceholder";
-        public static string Lunarward_RuntimeEnv_SourcesTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesTitle", resourceCulture) ?? "Lunarward_RuntimeEnv_SourcesTitle";
-        public static string Lunarward_RuntimeEnv_SourcesSaved => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesSaved", resourceCulture) ?? "Lunarward_RuntimeEnv_SourcesSaved";
+            public static string Lunarward_RuntimeEnv_SourcesSaved => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesSaved", resourceCulture) ?? "Lunarward_RuntimeEnv_SourcesSaved";
         public static string Lunarward_RuntimeEnv_SourcesSaveFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesSaveFailed", resourceCulture) ?? "Lunarward_RuntimeEnv_SourcesSaveFailed";
-        public static string Lunarward_RuntimeEnv_Probing => ResourceManager.GetString("Lunarward_RuntimeEnv_Probing", resourceCulture) ?? "Lunarward_RuntimeEnv_Probing";
-        public static string Lunarward_RuntimeEnv_MirrorNotice => ResourceManager.GetString("Lunarward_RuntimeEnv_MirrorNotice", resourceCulture) ?? "Lunarward_RuntimeEnv_MirrorNotice";
-        public static string Lunarward_RuntimeEnv_ProbeTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_ProbeTitle", resourceCulture) ?? "Lunarward_RuntimeEnv_ProbeTitle";
-        public static string Lunarward_RuntimeEnv_ProbeFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_ProbeFailed", resourceCulture) ?? "Lunarward_RuntimeEnv_ProbeFailed";
+                    public static string Lunarward_RuntimeEnv_ProbeFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_ProbeFailed", resourceCulture) ?? "Lunarward_RuntimeEnv_ProbeFailed";
         public static string Lunarward_RuntimeEnv_NoStagingFiles => ResourceManager.GetString("Lunarward_RuntimeEnv_NoStagingFiles", resourceCulture) ?? "Lunarward_RuntimeEnv_NoStagingFiles";
         public static string Lunarward_RuntimeEnv_DeleteStagingFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_DeleteStagingFailed", resourceCulture) ?? "Lunarward_RuntimeEnv_DeleteStagingFailed";
         public static string Lunarward_RuntimeEnv_StagingTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_StagingTitle", resourceCulture) ?? "Lunarward_RuntimeEnv_StagingTitle";
@@ -323,8 +294,7 @@ public partial class Lang
         public static string Lunarward_RuntimeEnv_SyncGraphics => ResourceManager.GetString("Lunarward_RuntimeEnv_SyncGraphics", resourceCulture) ?? "Lunarward_RuntimeEnv_SyncGraphics";
         public static string Lunarward_RuntimeEnv_SyncMismatch => ResourceManager.GetString("Lunarward_RuntimeEnv_SyncMismatch", resourceCulture) ?? "Lunarward_RuntimeEnv_SyncMismatch";
         public static string Lunarward_RuntimeEnv_SyncNoPrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_SyncNoPrefix", resourceCulture) ?? "Lunarward_RuntimeEnv_SyncNoPrefix";
-        public static string Lunarward_RuntimeEnv_CloneForGame => ResourceManager.GetString("Lunarward_RuntimeEnv_CloneForGame", resourceCulture) ?? "Lunarward_RuntimeEnv_CloneForGame";
-        public static string Lunarward_RuntimeEnv_CleanupUnused => ResourceManager.GetString("Lunarward_RuntimeEnv_CleanupUnused", resourceCulture) ?? "Lunarward_RuntimeEnv_CleanupUnused";
+            public static string Lunarward_RuntimeEnv_CleanupUnused => ResourceManager.GetString("Lunarward_RuntimeEnv_CleanupUnused", resourceCulture) ?? "Lunarward_RuntimeEnv_CleanupUnused";
         public static string Lunarward_RuntimeEnv_DeletePrefixToo => ResourceManager.GetString("Lunarward_RuntimeEnv_DeletePrefixToo", resourceCulture) ?? "Lunarward_RuntimeEnv_DeletePrefixToo";
         public static string Lunarward_RuntimeEnv_EnvPresets => ResourceManager.GetString("Lunarward_RuntimeEnv_EnvPresets", resourceCulture) ?? "Lunarward_RuntimeEnv_EnvPresets";
         public static string Lunarward_RuntimeEnv_GameScopePreset => ResourceManager.GetString("Lunarward_RuntimeEnv_GameScopePreset", resourceCulture) ?? "Lunarward_RuntimeEnv_GameScopePreset";
@@ -383,8 +353,6 @@ public partial class Lang
     /// <summary>
     /// 删除这个前缀
     /// </summary>
-    public static string Lunarward_RuntimeEnv_DeleteUnusedPrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_DeleteUnusedPrefix", resourceCulture) ?? "删除这个前缀";
-
     /// <summary>
     /// 配置
     /// </summary>
@@ -429,7 +397,6 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_PrefixOwnersSuffix => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixOwnersSuffix", resourceCulture) ?? "等 {0} 个方案";
     public static string Lunarward_RuntimeEnv_PrefixUsedBy => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixUsedBy", resourceCulture) ?? "{0} 个方案使用";
     public static string Lunarward_RuntimeEnv_PrefixShare => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixShare", resourceCulture) ?? "占最大前缀 {0}%";
-    public static string Lunarward_RuntimeEnv_UnusedPrefixTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_UnusedPrefixTitle", resourceCulture) ?? "未使用的前缀";
     public static string Lunarward_RuntimeEnv_Profile => ResourceManager.GetString("Lunarward_RuntimeEnv_Profile", resourceCulture) ?? "方案";
     public static string Lunarward_RuntimeEnv_Prefixes => ResourceManager.GetString("Lunarward_RuntimeEnv_Prefixes", resourceCulture) ?? "前缀";
     public static string Lunarward_RuntimeEnv_PrefixMustBeAbsolute => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixMustBeAbsolute", resourceCulture) ?? "前缀路径必须是绝对路径。";
@@ -463,7 +430,6 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_CopiedTo => ResourceManager.GetString("Lunarward_RuntimeEnv_CopiedTo", resourceCulture) ?? "已复制到 {0}";
     public static string Lunarward_RuntimeEnv_RunnerUnusable => ResourceManager.GetString("Lunarward_RuntimeEnv_RunnerUnusable", resourceCulture) ?? "这个运行器不可用：{0}";
     public static string Lunarward_RuntimeEnv_DeletePrefixBody => ResourceManager.GetString("Lunarward_RuntimeEnv_DeletePrefixBody", resourceCulture) ?? "会删除目录及其内容，不可恢复：\n{0}\n\n如果是你还想保留的 wine 环境，请点「取消」。";
-    public static string Lunarward_RuntimeEnv_BadgeUsableLayout => ResourceManager.GetString("Lunarward_RuntimeEnv_BadgeUsableLayout", resourceCulture) ?? "可用 · {0}";
     public static string Lunarward_RuntimeEnv_BadgeUsedBy => ResourceManager.GetString("Lunarward_RuntimeEnv_BadgeUsedBy", resourceCulture) ?? "{0} · {1} 个方案在用";
     public static string Lunarward_RuntimeEnv_CopiesCount => ResourceManager.GetString("Lunarward_RuntimeEnv_CopiesCount", resourceCulture) ?? "共 {0} 份";
     public static string Lunarward_RuntimeEnv_DeleteComponentTip => ResourceManager.GetString("Lunarward_RuntimeEnv_DeleteComponentTip", resourceCulture) ?? "删除磁盘上的 {0}（之后要重新下载才能用）";
@@ -481,14 +447,27 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_PrefixIncomplete => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixIncomplete", resourceCulture) ?? "{0}：前缀里的 {1} 文件不全";
     public static string Lunarward_RuntimeEnv_SyncedToPrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_SyncedToPrefix", resourceCulture) ?? "已同步到前缀：{0}";
     public static string Lunarward_RuntimeEnv_SyncFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_SyncFailed", resourceCulture) ?? "同步失败：{0}";
-    public static string Lunarward_RuntimeEnv_CloneBody => ResourceManager.GetString("Lunarward_RuntimeEnv_CloneBody", resourceCulture) ?? "从「{0}」复制一份新方案，并把下面这个游戏绑过去。新方案的前缀是独立的，启动时自动创建。";
-    public static string Lunarward_RuntimeEnv_CloneDone => ResourceManager.GetString("Lunarward_RuntimeEnv_CloneDone", resourceCulture) ?? "已为「{0}」拆出独立方案「{1}」。";
     public static string Lunarward_RuntimeEnv_NothingToClean => ResourceManager.GetString("Lunarward_RuntimeEnv_NothingToClean", resourceCulture) ?? "没有可清理的组件：受管目录里的每个组件都有方案在用。";
     public static string Lunarward_RuntimeEnv_CleanConfirmHeader => ResourceManager.GetString("Lunarward_RuntimeEnv_CleanConfirmHeader", resourceCulture) ?? "下面 {0} 个组件没有任何方案在用，删除后要重新下载才能用：";
     public static string Lunarward_RuntimeEnv_ExternalDirsNotManaged => ResourceManager.GetString("Lunarward_RuntimeEnv_ExternalDirsNotManaged", resourceCulture) ?? "外部目录（opt / Steam / 自己放的）本来就不归本程序管，不会出现在这个列表里。";
     public static string Lunarward_RuntimeEnv_CleanConfirmPrimary => ResourceManager.GetString("Lunarward_RuntimeEnv_CleanConfirmPrimary", resourceCulture) ?? "删除 {0} 个";
     public static string Lunarward_RuntimeEnv_CleanResult => ResourceManager.GetString("Lunarward_RuntimeEnv_CleanResult", resourceCulture) ?? "已清理 {0} 个组件。";
     public static string Lunarward_RuntimeEnv_CleanResultFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_CleanResultFailed", resourceCulture) ?? "已清理 {0} 个，失败：{1}";
+    public static string Lunarward_RuntimeEnv_FormMirror => ResourceManager.GetString("Lunarward_RuntimeEnv_FormMirror", resourceCulture) ?? "镜像前缀";
+
+
+    public static string Lunarward_RuntimeEnv_ListSeparator => ResourceManager.GetString("Lunarward_RuntimeEnv_ListSeparator", resourceCulture) ?? "、";
+
+
+    public static string Lunarward_RuntimeEnv_TabSelected => ResourceManager.GetString("Lunarward_RuntimeEnv_TabSelected", resourceCulture) ?? "已选中";
+
+
+    public static string Lunarward_RuntimeEnv_DefaultsSaveFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_DefaultsSaveFailed", resourceCulture) ?? "保存默认值失败，新建方案仍会用之前的运行器";
+
+
+    public static string Lunarward_RuntimeEnv_ProfileFileMissing => ResourceManager.GetString("Lunarward_RuntimeEnv_ProfileFileMissing", resourceCulture) ?? "配置文件已经不在了（可能已在别的窗口被删除）";
+
+
     public static string Lunarward_RuntimeEnv_DeleteProfileUnused => ResourceManager.GetString("Lunarward_RuntimeEnv_DeleteProfileUnused", resourceCulture) ?? "「{0}」目前没有游戏在用。删除只移除这份配置文件，前缀目录保留。";
     public static string Lunarward_RuntimeEnv_DeleteProfileInUse => ResourceManager.GetString("Lunarward_RuntimeEnv_DeleteProfileInUse", resourceCulture) ?? "「{0}」正被 {1} 个游戏使用。删除后这些绑定会一起清掉，下次启动会重新选/建环境：";
     public static string Lunarward_RuntimeEnv_PrefixSharedSkip => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixSharedSkip", resourceCulture) ?? "还有其它方案在用这个前缀，已跳过删除目录：{0}";
@@ -496,18 +475,14 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_DeletedProfileCleared => ResourceManager.GetString("Lunarward_RuntimeEnv_DeletedProfileCleared", resourceCulture) ?? "{0}（已清掉 {1} 个绑定）";
     public static string Lunarward_RuntimeEnv_ReadingVersions => ResourceManager.GetString("Lunarward_RuntimeEnv_ReadingVersions", resourceCulture) ?? "正在读取 {0} 的版本列表…";
     public static string Lunarward_RuntimeEnv_ArchivesFound => ResourceManager.GetString("Lunarward_RuntimeEnv_ArchivesFound", resourceCulture) ?? "共 {0} 个版本，勾选后点「安装所选」。";
-    public static string Lunarward_RuntimeEnv_SelectedVersions => ResourceManager.GetString("Lunarward_RuntimeEnv_SelectedVersions", resourceCulture) ?? "已选 {0} 个版本";
     public static string Lunarward_RuntimeEnv_ReadFailed => ResourceManager.GetString("Lunarward_RuntimeEnv_ReadFailed", resourceCulture) ?? "读取失败：{0}";
     public static string Lunarward_RuntimeEnv_QueuePrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_QueuePrefix", resourceCulture) ?? "队列 {0}/{1}：";
-    public static string Lunarward_RuntimeEnv_NotEnoughSpace => ResourceManager.GetString("Lunarward_RuntimeEnv_NotEnoughSpace", resourceCulture) ?? "{0}（空间不足：需要约 {1} MB，只剩 {2} MB）";
     public static string Lunarward_RuntimeEnv_Downloading => ResourceManager.GetString("Lunarward_RuntimeEnv_Downloading", resourceCulture) ?? "{0}下载中 {1} MB / {2}（{3} 连接，{4} MB/s）";
     public static string Lunarward_RuntimeEnv_StageDone => ResourceManager.GetString("Lunarward_RuntimeEnv_StageDone", resourceCulture) ?? "{0}完成：{1} {2}";
     public static string Lunarward_RuntimeEnv_InstalledToast => ResourceManager.GetString("Lunarward_RuntimeEnv_InstalledToast", resourceCulture) ?? "已安装 {0} {1}";
     public static string Lunarward_RuntimeEnv_QueueAllOk => ResourceManager.GetString("Lunarward_RuntimeEnv_QueueAllOk", resourceCulture) ?? "队列完成：{0}/{1} 全部成功。";
     public static string Lunarward_RuntimeEnv_QueuePartial => ResourceManager.GetString("Lunarward_RuntimeEnv_QueuePartial", resourceCulture) ?? "队列完成：{0}/{1} 成功；失败：{2}";
-    public static string Lunarward_RuntimeEnv_FailedPrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_FailedPrefix", resourceCulture) ?? "失败：{0}";
     public static string Lunarward_RuntimeEnv_UnsupportedArchive => ResourceManager.GetString("Lunarward_RuntimeEnv_UnsupportedArchive", resourceCulture) ?? "不支持的归档：{0}（支持 {1}）";
-    public static string Lunarward_RuntimeEnv_ImportTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_ImportTitle", resourceCulture) ?? "导入 {0}";
     public static string Lunarward_RuntimeEnv_ImportedToast => ResourceManager.GetString("Lunarward_RuntimeEnv_ImportedToast", resourceCulture) ?? "已导入 {0} {1}";
     public static string Lunarward_RuntimeEnv_SourcesHint => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesHint", resourceCulture) ?? "镜像前缀留空即走直连。保存后写到：{0}\n新增/删除源请直接编辑该文件（这里是逐条改镜像，不做增删）。";
     public static string Lunarward_RuntimeEnv_StagingSummary => ResourceManager.GetString("Lunarward_RuntimeEnv_StagingSummary", resourceCulture) ?? "{0} 个归档、共 {1}（{2}）";
@@ -526,9 +501,6 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_DiscardEditBody => ResourceManager.GetString("Lunarward_RuntimeEnv_DiscardEditBody", resourceCulture) ?? "这个方案的修改还没保存。返回后改动会丢失。";
     public static string Lunarward_RuntimeEnv_DiscardEditConfirm => ResourceManager.GetString("Lunarward_RuntimeEnv_DiscardEditConfirm", resourceCulture) ?? "放弃修改";
     public static string Lunarward_RuntimeEnv_DiscardEditKeep => ResourceManager.GetString("Lunarward_RuntimeEnv_DiscardEditKeep", resourceCulture) ?? "继续编辑";
-    public static string Lunarward_RuntimeEnv_RunnerChange => ResourceManager.GetString("Lunarward_RuntimeEnv_RunnerChange", resourceCulture) ?? "更换";
-    public static string Lunarward_RuntimeEnv_GraphicsEdit => ResourceManager.GetString("Lunarward_RuntimeEnv_GraphicsEdit", resourceCulture) ?? "编辑图形层";
-    public static string Lunarward_RuntimeEnv_FollowPrefixGraphics => ResourceManager.GetString("Lunarward_RuntimeEnv_FollowPrefixGraphics", resourceCulture) ?? "图形层：沿用前缀里已有的";
     public static string Lunarward_RuntimeEnv_LayoutBin => ResourceManager.GetString("Lunarward_RuntimeEnv_LayoutBin", resourceCulture) ?? "bin 目录";
     public static string Lunarward_RuntimeEnv_LayoutSystem => ResourceManager.GetString("Lunarward_RuntimeEnv_LayoutSystem", resourceCulture) ?? "系统目录";
     public static string Lunarward_RuntimeEnv_LayoutWinePrefix => ResourceManager.GetString("Lunarward_RuntimeEnv_LayoutWinePrefix", resourceCulture) ?? "wine 前缀";
@@ -557,7 +529,6 @@ public partial class Lang
     public static string Lunarward_RuntimeEnv_SourcesTokenHint => ResourceManager.GetString("Lunarward_RuntimeEnv_SourcesTokenHint", resourceCulture) ?? "GitHub 匿名访问每小时只有 60 次；设置环境变量 LUNARWARD_GITHUB_TOKEN 可提高到 5000 次/小时。";
     public static string Lunarward_RuntimeEnv_Modify => ResourceManager.GetString("Lunarward_RuntimeEnv_Modify", resourceCulture) ?? "修改";
     public static string Lunarward_RuntimeEnv_BindingsLabel => ResourceManager.GetString("Lunarward_RuntimeEnv_BindingsLabel", resourceCulture) ?? "绑定";
-    public static string Lunarward_RuntimeEnv_NewProfileInline => ResourceManager.GetString("Lunarward_RuntimeEnv_NewProfileInline", resourceCulture) ?? "＋ 新建方案";
     public static string Lunarward_RuntimeEnv_AddPathTip => ResourceManager.GetString("Lunarward_RuntimeEnv_AddPathTip", resourceCulture) ?? "把一个已存在的 wine / Proton 目录加入清单，不复制、不安装。";
     public static string Lunarward_RuntimeEnv_SetDefaultRunnerTip => ResourceManager.GetString("Lunarward_RuntimeEnv_SetDefaultRunnerTip", resourceCulture) ?? "把当前选中的运行器写进默认方案；其它方案不受影响。";
     public static string Lunarward_RuntimeEnv_AddRunner => ResourceManager.GetString("Lunarward_RuntimeEnv_AddRunner", resourceCulture) ?? "Lunarward_RuntimeEnv_AddRunner";

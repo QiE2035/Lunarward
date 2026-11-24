@@ -42,15 +42,7 @@ public static class RuntimeDefaults
         {
             Payload payload = Read() ?? new Payload();
             payload.DefaultRunnerId = string.IsNullOrWhiteSpace(value) ? null : value;
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-                JsonFile.WriteAtomic(FilePath, payload, JsonOptions);
-            }
-            catch (Exception ex)
-            {
-                Serilog.Log.Warning(ex, "save runtime defaults failed");
-            }
+            Save(payload);
         }
     }
 
@@ -66,15 +58,26 @@ public static class RuntimeDefaults
         {
             Payload payload = Read() ?? new Payload();
             payload.DefaultProfileId = string.IsNullOrWhiteSpace(value) ? null : value;
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-                JsonFile.WriteAtomic(FilePath, payload, JsonOptions);
-            }
-            catch (Exception ex)
-            {
-                Serilog.Log.Warning(ex, "save runtime defaults failed");
-            }
+            Save(payload);
+        }
+    }
+
+
+    /// <summary>
+    /// R116：写失败不能只留一条 Warning——用户在设置里改了「新建方案默认用哪个运行器」，
+    /// 下次新建却还是旧的，看不到任何提示。这里写失败要弹 toast（headless 下 MainWindow 为 null，自动跳过）。
+    /// </summary>
+    private static void Save(Payload payload)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+            JsonFile.WriteAtomic(FilePath, payload, JsonOptions);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "save runtime defaults failed");
+            Helpers.InAppToast.MainWindow?.Warning((string?)null, Lang.Lunarward_RuntimeEnv_DefaultsSaveFailed, 6000);
         }
     }
 
@@ -95,6 +98,9 @@ public static class RuntimeDefaults
 
     private sealed class Payload
     {
+        /// <summary>R116：以后改结构时靠它判断要不要迁移（现在只有 1）。</summary>
+        public int SchemaVersion { get; set; } = 1;
+
         public string? DefaultRunnerId { get; set; }
 
         public string? DefaultProfileId { get; set; }

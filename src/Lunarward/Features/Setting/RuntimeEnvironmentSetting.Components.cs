@@ -524,17 +524,29 @@ public sealed partial class RuntimeEnvironmentSetting
         return set;
     }
 
+    /// <summary>
+    /// R113：以前是双向 `Contains`——装了 10.0 时「1.0」也命中。现在先归一化（去 v 前缀、trim），
+    /// 再要求「完全相等」或「在段边界上收尾」（`wine-9.22` 认 `9.22`），不做任意子串匹配。
+    /// </summary>
     private static bool IsInstalled(ComponentReleaseAsset asset, HashSet<string> installed)
     {
-        if (string.IsNullOrWhiteSpace(asset.Version))
+        string version = NormalizeVersion(asset.Version);
+        if (version.Length == 0)
         {
             return false;
         }
-        string version = asset.Version.Trim();
-        foreach (string candidate in installed)
+        foreach (string installedVersion in installed)
         {
-            if (candidate.Contains(version, StringComparison.OrdinalIgnoreCase)
-                || version.Contains(candidate, StringComparison.OrdinalIgnoreCase))
+            string candidate = NormalizeVersion(installedVersion);
+            if (candidate.Length == 0)
+            {
+                continue;
+            }
+            if (string.Equals(candidate, version, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+            if (EndsAtBoundary(candidate, version) || EndsAtBoundary(version, candidate))
             {
                 return true;
             }
@@ -542,16 +554,27 @@ public sealed partial class RuntimeEnvironmentSetting
         return false;
     }
 
-    /// <summary>
-    /// 「导入归档…」：选一个本地归档（.tar / .tar.gz / .tar.zst / .tar.xz / .zip），
-    /// 问一下是运行器还是图形层，然后解压导入（可取消、有进度）。
-    /// </summary>
-    private async void Button_ImportArchive_Click(object sender, RoutedEventArgs e) => await ShowImportArchiveAsync(null);
+
+    private static string NormalizeVersion(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "" : value.Trim().TrimStart('v', 'V');
+
+
+    /// <summary><paramref name="value"/> 是否以 <paramref name="suffix"/> 结尾，且分界处是分隔符（不是数字中间）。</summary>
+    private static bool EndsAtBoundary(string value, string suffix)
+    {
+        if (suffix.Length == 0 || value.Length <= suffix.Length
+            || !value.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        return value[value.Length - suffix.Length - 1] is '-' or '_' or '.' or ' ' or '/' or '+';
+    }
 
     /// <summary>图形层段的「导入本地安装包…」：直接按 graphics 导入，不再问类型。</summary>
-    private async void Button_ImportArchiveGraphics_Click(object sender, RoutedEventArgs e) => await ShowImportArchiveAsync("graphics");
+    private async void Button_ImportArchiveGraphics_Click(object sender, RoutedEventArgs e) => await ShowImportArchiveGraphicsAsync();
 
-    private async Task ShowImportArchiveAsync(string? presetKind)
+    /// <summary>R119：只剩「图形层段」一个入口，不再问类型，参数从 <c>string?</c> 收紧成固定值。</summary>
+    private async Task ShowImportArchiveGraphicsAsync()
     {
         try
         {
@@ -563,38 +586,11 @@ public sealed partial class RuntimeEnvironmentSetting
             if (!ArchiveExtractor.IsSupported(archive))
             {
                 Helpers.InAppToast.MainWindow?.Error((string?)null,
-                    string.Format(Lang.Lunarward_RuntimeEnv_UnsupportedArchive, Path.GetFileName(archive), string.Join("、", ArchiveExtractor.SupportedExtensions)), 6000);
+                    string.Format(Lang.Lunarward_RuntimeEnv_UnsupportedArchive, Path.GetFileName(archive), string.Join(Lang.Lunarward_RuntimeEnv_ListSeparator, ArchiveExtractor.SupportedExtensions)), 6000);
                 return;
             }
 
-            string kind;
-            if (presetKind is not null)
-            {
-                kind = presetKind;
-            }
-            else
-            {
-                var kindBox = new ComboBox
-                {
-                    ItemsSource = new List<string> { Lang.Lunarward_RuntimeEnv_RunnerSectionTitle, Lang.Lunarward_RuntimeEnv_GraphicsSectionTitle },
-                    SelectedIndex = 0,
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                };
-                var dialog = new ContentDialog
-                {
-                    Title = string.Format(Lang.Lunarward_RuntimeEnv_ImportTitle, Path.GetFileName(archive)),
-                    Content = kindBox,
-                    PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Import,
-                    CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
-                    DefaultButton = ContentDialogButton.Primary,
-                    XamlRoot = XamlRoot,
-                };
-                if (await Starward.Helpers.DialogGate.Show(dialog) != ContentDialogResult.Primary)
-                {
-                    return;
-                }
-                kind = kindBox.SelectedIndex == 1 ? "graphics" : "wine";
-            }
+            const string kind = "graphics";
 
             Helpers.InAppToast.MainWindow?.Information((string?)null, Lang.Lunarward_RuntimeEnv_Extracting, 8000);
             var progress = new Progress<ArchiveProgress>(p =>
@@ -635,19 +631,6 @@ public sealed partial class RuntimeEnvironmentSetting
         public bool Enabled { get; set; } = true;
     }
 
-
-    private async void Button_Sources_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            await ShowSourcesDialogAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "show sources dialog failed");
-            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
-        }
-    }
 
     private async void Button_ManageSources_Click(object sender, RoutedEventArgs e)
     {
@@ -947,7 +930,7 @@ public sealed partial class RuntimeEnvironmentSetting
                 form.Children.Add(FormRow(Lang.Lunarward_RuntimeEnv_SourceOwnerLabel, ownerBox));
                 form.Children.Add(FormRow(Lang.Lunarward_RuntimeEnv_SourceRepoLabel, repoBox));
                 form.Children.Add(FormRow(Lang.Lunarward_RuntimeEnv_SourcePatternLabel, patternBox));
-                form.Children.Add(FormRow("Mirror", mirrorBox));
+                form.Children.Add(FormRow(Lang.Lunarward_RuntimeEnv_FormMirror, mirrorBox));
                 form.Children.Add(enabledBox);
                 form.Children.Add(error);
 
@@ -1158,68 +1141,6 @@ public sealed partial class RuntimeEnvironmentSetting
     };
 
 
-    /// <summary>
-    /// 「镜像测速」：每个源发一个 HEAD，报首字节耗时。只给数字，不替用户下结论——
-    /// 「哪个源快」随网络和时间变化，程序排序反而会误导（P3）。
-    /// </summary>
-    private async void Button_SourceSpeed_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            Helpers.InAppToast.MainWindow?.Information((string?)null, Lang.Lunarward_RuntimeEnv_Probing, 6000);
-            IReadOnlyList<ComponentSourceProbe> probes;
-            probes = await ComponentSources.ProbeAllAsync(Starward.Helpers.HttpClients.Probe); // R85
-            var panel = new StackPanel { Spacing = 8, MinWidth = 540 };
-            foreach (ComponentSourceProbe probe in probes)
-            {
-                var row = new Grid { ColumnSpacing = 12 };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var name = new TextBlock
-                {
-                    Text = probe.DisplayName,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                };
-                ToolTipService.SetToolTip(name, probe.Url);
-                row.Children.Add(name);
-                var value = new TextBlock
-                {
-                    Text = probe.Text,
-                    FontSize = 12,
-                    Opacity = probe.Ok ? 1 : 0.7,
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-                if (probe.Ok)
-                {
-                    value.Foreground = (Brush)Application.Current.Resources["SystemFillColorSuccessBrush"];
-                }
-                Grid.SetColumn(value, 1);
-                row.Children.Add(value);
-                panel.Children.Add(row);
-            }
-            panel.Children.Add(new TextBlock
-            {
-                Text = Lang.Lunarward_RuntimeEnv_MirrorNotice,
-                FontSize = 12,
-                Opacity = 0.6,
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 8, 0, 0),
-            });
-            await Starward.Helpers.DialogGate.Show(new ContentDialog
-            {
-                Title = Lang.Lunarward_RuntimeEnv_ProbeTitle,
-                Content = new ScrollViewer { Content = panel, MaxHeight = 480 },
-                CloseButtonText = Lang.Lunarward_RuntimeEnv_Close2,
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = XamlRoot,
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "probe component sources failed");
-            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_ProbeFailed);
-        }
-    }
 
 
     /// <summary>

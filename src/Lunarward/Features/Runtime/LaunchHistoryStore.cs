@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -44,7 +45,8 @@ public sealed class LaunchAttempt
 
     public string Describe()
     {
-        string when = At.LocalDateTime.ToString("MM-dd HH:mm");
+        // R112：自定义格式也要显式 InvariantCulture——th-TH 的佛历会把年份算成 2569。
+        string when = At.LocalDateTime.ToString("MM-dd HH:mm", CultureInfo.InvariantCulture);
         string took = DurationMs is { } ms ? $" · {FormatDuration(ms)}" : "";
         string detail = string.IsNullOrWhiteSpace(Detail) ? "" : $" · {Detail}";
         return $"{when} {Outcome}{took}{detail}";
@@ -53,15 +55,17 @@ public sealed class LaunchAttempt
 
     internal static string FormatDuration(long ms)
     {
+        // R112：de-DE 下 `:0.0` 会给出 `1,5 s`，日志里再解析就错。
         if (ms < 1000)
         {
-            return $"{ms} ms";
+            return ms.ToString(CultureInfo.InvariantCulture) + " ms";
         }
         if (ms < 60_000)
         {
-            return $"{ms / 1000.0:0.0} s";
+            return (ms / 1000.0).ToString("0.0", CultureInfo.InvariantCulture) + " s";
         }
-        return $"{ms / 60_000} 分 {(ms % 60_000) / 1000} 秒";
+        return (ms / 60_000).ToString(CultureInfo.InvariantCulture) + " 分 "
+            + ((ms % 60_000) / 1000).ToString(CultureInfo.InvariantCulture) + " 秒";
     }
 
 }
@@ -98,6 +102,10 @@ public static class LaunchHistoryStore
     }
 
 
+    /// <summary>R112：进程内串行；跨进程用「独占句柄 + 短暂重试」，两个实例同时启动时不会互相截断。</summary>
+    private static readonly object Gate = new();
+
+
     public static void Record(LaunchAttempt attempt, ILogger? logger = null)
     {
         try
@@ -105,8 +113,11 @@ public static class LaunchHistoryStore
             string path = FilePath;
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             string line = JsonSerializer.Serialize(attempt, JsonOptions);
-            File.AppendAllText(path, line + "\n");
-            CompactIfNeeded(path);
+            lock (Gate)
+            {
+                AppendLine(path, line + "\n");
+                CompactIfNeeded(path);
+            }
         }
         catch (Exception ex)
         {
@@ -162,6 +173,26 @@ public static class LaunchHistoryStore
             .OrderByDescending(x => x.At)
             .Take(Math.Max(1, limit))
             .ToList();
+    }
+
+
+    /// <summary>跨进程独占追加：拿不到句柄就等一小会儿重试（最多 ~300 ms），超时也不影响启动。</summary>
+    private static void AppendLine(string path, string line)
+    {
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(line);
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read, 4096, FileOptions.None);
+                stream.Write(bytes, 0, bytes.Length);
+                return;
+            }
+            catch (IOException) when (attempt < 15)
+            {
+                System.Threading.Thread.Sleep(20);
+            }
+        }
     }
 
 

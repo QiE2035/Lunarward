@@ -337,7 +337,7 @@ internal static class GameSettingService
         try
         {
             Features.Runtime.RuntimeProfile profile = Features.Runtime.ProfileBinding.Resolve(biz);
-            return Features.Runtime.PrefixManager.TryGetExistingPrefix(profile, biz.Value);
+            return Features.Runtime.PrefixManager.TryGetExistingPrefix(profile);
         }
         catch (Exception ex)
         {

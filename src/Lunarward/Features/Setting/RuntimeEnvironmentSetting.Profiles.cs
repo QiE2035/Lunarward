@@ -56,6 +56,8 @@ public sealed partial class RuntimeEnvironmentSetting
             VerticalAlignment = VerticalAlignment.Top,
             Fill = BrushOf(dot),
         };
+        // R130：8px 的圆点对读屏是一片空白，把健康状态挂到它身上（旁边那行文字是视觉冗余）。
+        AutomationProperties.SetName(statusDot, text);
         Grid.SetColumn(statusDot, 0);
         grid.Children.Add(statusDot);
 
@@ -284,13 +286,15 @@ public sealed partial class RuntimeEnvironmentSetting
         body.Children.Add(titleRow);
 
         var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        statusRow.Children.Add(new Ellipse
+        var detailDot = new Ellipse
         {
             Width = 8,
             Height = 8,
             VerticalAlignment = VerticalAlignment.Center,
             Fill = BrushOf(dot),
-        });
+        };
+        AutomationProperties.SetName(detailDot, healthText);
+        statusRow.Children.Add(detailDot);
         statusRow.Children.Add(new TextBlock { Text = healthText, FontSize = 13, Opacity = 0.85 });
         body.Children.Add(statusRow);
 
@@ -330,7 +334,9 @@ public sealed partial class RuntimeEnvironmentSetting
         buttons.Children.Add(editButton);
 
         // 低频动作进 ⋯ 菜单：一屏里六个同权重按钮谁都不突出（D85 诊断第 2 条）
-        var moreButton = new Button { Content = "\uE712", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 14 };
+        // R129：以前用 Segoe MDL2 的 \uE712 画「⋯」，Linux 上没有这个字体，Uno 只会画一个方框；
+        // 直接用文本省略号，跟上游的视觉差异可忽略。
+        var moreButton = new Button { Content = "⋯", FontSize = 14 };
         ToolTipService.SetToolTip(moreButton, Lang.Lunarward_RuntimeEnv_More);
         AutomationProperties.SetName(moreButton, Lang.Lunarward_RuntimeEnv_More);
         var moreFlyout = new MenuFlyout();
@@ -368,16 +374,23 @@ public sealed partial class RuntimeEnvironmentSetting
 
 
     /// <summary>D111：深色主题下 MenuFlyoutSeparator 几乎看不见，用一条禁用的点线当分隔。</summary>
-    private static MenuFlyoutItem MenuDivider() => new()
+    private static MenuFlyoutItem MenuDivider()
     {
-        Text = "·  ·  ·",
-        IsEnabled = false,
-        IsTabStop = false,
-        FontSize = 11,
-        Opacity = 0.45,
-        Padding = new Thickness(12, 0, 12, 0),
-        MinHeight = 12,
-    };
+        var divider = new MenuFlyoutItem
+        {
+            Text = "·  ·  ·",
+            IsEnabled = false,
+            IsTabStop = false,
+            FontSize = 11,
+            Opacity = 0.45,
+            Padding = new Thickness(12, 0, 12, 0),
+            MinHeight = 12,
+        };
+        // R130：这条「点线」只是视觉分隔，读屏不该把它当菜单项念一遍「点 点 点」。
+        // Uno 没有 IsInAccessibleTree 这个附加属性，改用空名字 + 不可聚焦（读屏会跳过无名项）。
+        AutomationProperties.SetName(divider, string.Empty);
+        return divider;
+    }
 
 
     private static MenuFlyoutItem MenuItem(string text, object? tag, RoutedEventHandler handler)
@@ -462,7 +475,9 @@ public sealed partial class RuntimeEnvironmentSetting
         var pathText = new TextBlock
         {
             Text = prefixPath,
-            FontFamily = new FontFamily("Consolas"),
+            // R129：Linux 上没有 Consolas（`monospace` 也不是可用族名，见下 480 行附近的说明），
+            // 指定不存在的族名在 Uno/Skia 下会让整段文字不渲染。等宽靠文本本身，不再点名族。
+
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
             IsTextSelectionEnabled = true,
@@ -923,7 +938,6 @@ public sealed partial class RuntimeEnvironmentSetting
         var body = new StackPanel { Spacing = 4 };
         var command = new TextBlock
         {
-            FontFamily = new FontFamily("Consolas, monospace"),
             FontSize = 12,
             TextWrapping = TextWrapping.NoWrap,
             IsTextSelectionEnabled = true,

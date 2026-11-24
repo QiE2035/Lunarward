@@ -142,9 +142,19 @@ public class EnhancementsTests
         Directory.CreateDirectory(dir);
         try
         {
-            File.WriteAllText(Path.Combine(dir, "gamescope"), "#!/bin/sh\n");
-            Assert.Equal(Path.Combine(dir, "gamescope"), Enhancements.FindInPath("gamescope", dir));
+            string executable = Path.Combine(dir, "gamescope");
+            string notExecutable = Path.Combine(dir, "gamemoderun");
+            File.WriteAllText(executable, "#!/bin/sh\n");
+            File.WriteAllText(notExecutable, "#!/bin/sh\n");
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(executable, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+                // R124：没执行位的同名文件（下载残留、坏脚本）不算命中。
+                File.SetUnixFileMode(notExecutable, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            Assert.Equal(executable, Enhancements.FindInPath("gamescope", dir));
             Assert.Null(Enhancements.FindInPath("gamemoderun", dir));
+            Assert.Null(Enhancements.FindInPath(notExecutable, dir));
             Assert.Null(Enhancements.FindInPath("/nonexistent/gamemoderun", dir));
         }
         finally

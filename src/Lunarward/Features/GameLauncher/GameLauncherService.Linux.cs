@@ -277,6 +277,9 @@ internal partial class GameLauncherService
         // D27：输出捕获与可见性级别无关，永远开着重定向；panel 只是把捕获结果显示出来（M3 面板 UI）。
         info.RedirectStandardOutput = true;
         info.RedirectStandardError = true;
+        // R107：不指定就按 locale 猜（LANG=C 时中文/俄文输出全是问号）；wine 与游戏都给 UTF-8 更稳。
+        info.StandardOutputEncoding = System.Text.Encoding.UTF8;
+        info.StandardErrorEncoding = System.Text.Encoding.UTF8;
 
         string? wine = !string.IsNullOrWhiteSpace(profile?.RunnerPath) && File.Exists(profile!.RunnerPath)
             ? profile.RunnerPath
@@ -464,13 +467,8 @@ internal partial class GameLauncherService
             Path.Combine(files, "lib64"),
             Path.Combine(files, "lib"),
         };
-        string[] libs = libCandidates.Where(Directory.Exists).ToArray();
-        if (libs.Length > 0)
-        {
-            string existing = info.Environment.TryGetValue("LD_LIBRARY_PATH", out string? old) ? old! : "";
-            string joined = string.Join(":", libs);
-            info.Environment["LD_LIBRARY_PATH"] = string.IsNullOrEmpty(existing) ? joined : joined + ":" + existing;
-        }
+        // R108：与 RuntimeEnvironment 共用「前置 + 保留旧值」的实现，别再各写一套。
+        Features.Runtime.RuntimeEnvironment.PrependLibraryPath(info.Environment, libCandidates.Where(Directory.Exists));
 
         info.Environment["STEAM_COMPAT_CLIENT_INSTALL_PATH"] = steamRoot;
         info.Environment.TryAdd("STEAM_COMPAT_INSTALL_PATH", toolRoot);

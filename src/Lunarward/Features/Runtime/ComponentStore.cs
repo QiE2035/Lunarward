@@ -100,7 +100,7 @@ internal static class ComponentSource
     /// </summary>
     public static string Guess(string path, bool managed)
     {
-        if (managed || path.StartsWith(ComponentStore.ComponentsFolder, StringComparison.Ordinal))
+        if (managed || ComponentStore.IsUnder(ComponentStore.ComponentsFolder, path))
         {
             return "managed";
         }
@@ -114,7 +114,7 @@ internal static class ComponentSource
         foreach (string launcher in OtherLauncherFolders)
         {
             string prefix = Path.Combine(home, ".local", "share", launcher);
-            if (path.StartsWith(prefix, StringComparison.Ordinal))
+            if (ComponentStore.IsUnder(prefix, path))
             {
                 return "launcher";
             }
@@ -269,7 +269,7 @@ public static class ComponentStore
         {
             foreach ((string wine, string name, bool proton) in DiscoverRunners(root))
             {
-                AddRunner(wine, proton ? ComponentKind.Proton : ComponentKind.Wine, name, wine.StartsWith(ComponentsFolder, StringComparison.Ordinal));
+                AddRunner(wine, proton ? ComponentKind.Proton : ComponentKind.Wine, name, IsUnder(ComponentsFolder, wine));
             }
         }
 
@@ -355,9 +355,9 @@ public static class ComponentStore
                 Id = full,
                 Name = string.IsNullOrWhiteSpace(manifest?.Name) ? Path.GetFileName(full.TrimEnd('/')) : manifest!.Name,
                 Path = full,
-                Managed = full.StartsWith(ComponentsFolder, StringComparison.Ordinal),
+                Managed = IsUnder(ComponentsFolder, full),
                 Version = manifest?.Version ?? "",
-                Source = ComponentSource.Guess(full, full.StartsWith(ComponentsFolder, StringComparison.Ordinal)),
+                Source = ComponentSource.Guess(full, IsUnder(ComponentsFolder, full)),
             });
         }
 
@@ -412,6 +412,21 @@ public static class ComponentStore
 
     /// <summary>运行器版本缓存：路径 + 可执行文件修改时间 → 版本串（R16：以前每次 GetRunners 都 fork 一遍）。</summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (long Ticks, string Version)> RunnerVersionCache = new(StringComparer.Ordinal);
+
+
+    /// <summary>R111：只读缓存，不 fork（启动线程上用）。没有缓存就当空串。</summary>
+    public static string CachedRunnerVersion(string winePath)
+    {
+        try
+        {
+            long ticks = File.Exists(winePath) ? File.GetLastWriteTimeUtc(winePath).Ticks : 0;
+            return RunnerVersionCache.TryGetValue(winePath + "|" + ticks, out (long, string) cached) ? cached.Item2 : "";
+        }
+        catch
+        {
+            return "";
+        }
+    }
 
 
     /// <summary>读 wine 版本（`wine --version`，失败返回空）。</summary>
@@ -493,8 +508,12 @@ public static class ComponentStore
     }
 
 
-    /// <summary>找与 <paramref name="winePath"/> 配套的 wineserver：同目录优先，其次 PATH。</summary>
-    public static string? FindWineserver(string winePath)
+    /// <summary>
+    /// 找与 <paramref name="winePath"/> 配套的 wineserver：同目录优先，其次 PATH
+    /// （R100：<paramref name="allowPathFallback"/> 为 false 时只认同目录——受管组件必须自带，
+    /// 否则「缺 wineserver」永远判不出来，全靠系统 PATH 里那一个顶着）。
+    /// </summary>
+    public static string? FindWineserver(string winePath, bool allowPathFallback = true)
     {
         string? dir = Path.GetDirectoryName(winePath);
         if (dir is not null)
@@ -508,7 +527,7 @@ public static class ComponentStore
                 }
             }
         }
-        return FindInPath("wineserver");
+        return allowPathFallback ? FindInPath("wineserver") : null;
     }
 
 
@@ -538,7 +557,7 @@ public static class ComponentStore
         {
             return (false, "`wine --version` 没有输出（可能缺库或无法执行）");
         }
-        if (FindWineserver(runner.Path) is null)
+        if (FindWineserver(runner.Path, allowPathFallback: !runner.Managed) is null)
         {
             return (false, "找不到配套的 wineserver（游玩时长与前缀锁会不准）");
         }
@@ -578,6 +597,31 @@ public static class ComponentStore
             {
                 item.Name = RunnerNaming.WithOrigin(item.Name, item.Path);
             }
+        }
+    }
+
+
+    /// <summary>
+    /// R98：<paramref name="path"/> 是否真的在 <paramref name="folder"/> 里面——两边都解析符号链接、去掉尾分隔符、
+    /// 再按「目录边界」比较。旧写法直接 `StartsWith`，`components-other/`、`components2/` 这类同前缀目录会被误判成受管组件。
+    /// </summary>
+    public static bool IsUnder(string? folder, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(folder) || string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+        try
+        {
+            string root = Path.TrimEndingDirectorySeparator(TryRealPath(folder));
+            string full = Path.TrimEndingDirectorySeparator(TryRealPath(path));
+            return full.Length > root.Length
+                && full.StartsWith(root, StringComparison.Ordinal)
+                && full[root.Length] == Path.DirectorySeparatorChar;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -1057,6 +1101,7 @@ public static class ManualRunners
         {
             list.Add(full);
             Helpers.JsonFile.WriteAtomic(FilePath, list);
+            ComponentStore.Invalidate();
         }
     }
 
@@ -1068,6 +1113,7 @@ public static class ManualRunners
         if (list.RemoveAll(x => string.Equals(Path.GetFullPath(x), full, StringComparison.Ordinal)) > 0)
         {
             Helpers.JsonFile.WriteAtomic(FilePath, list);
+            ComponentStore.Invalidate();
         }
     }
 

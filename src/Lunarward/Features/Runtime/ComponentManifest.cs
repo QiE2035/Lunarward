@@ -7,6 +7,8 @@ using Starward.Helpers;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -264,10 +266,34 @@ public static class ComponentNaming
         {
             name = name.Replace(c, '-');
         }
-        name = Regex.Replace(name, @"[^A-Za-z0-9_.\-\u4e00-\u9fff]+", "-");
-        name = Regex.Replace(name, @"-{2,}", "-");
+        // R102：保留**所有** Unicode 字母与数字（俄语、越南语、希腊语的组件名以前会被整段折成 '-'），
+        // 只把控制符、标点、空白折成 '-'，再收拾连续短横线。
+        var builder = new StringBuilder(name.Length);
+        foreach (char c in name)
+        {
+            if (char.IsLetterOrDigit(c) || c is '.' or '-' or '_')
+            {
+                builder.Append(c);
+            }
+            else
+            {
+                builder.Append('-');
+            }
+        }
+        name = Regex.Replace(builder.ToString(), "-{2,}", "-");
         name = name.Trim('-', '.', ' ');
-        return string.IsNullOrWhiteSpace(name) ? "default" : name;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "default";
+        }
+        // R102：以前没有长度上限，某些 tar 的超长前缀名直接把目录名顶到 255 字节上限。
+        // 超过 80 个字符就截断，并补 8 位哈希，避免「前 80 字符相同的两个组件」撞同一个目录。
+        if (name.Length > 80)
+        {
+            string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(name)))[..8].ToLowerInvariant();
+            name = name[..71].TrimEnd('-', '.', ' ') + "-" + hash;
+        }
+        return name;
     }
 }
 

@@ -175,7 +175,8 @@ public static class ProfileBinding
 
     /// <summary>哪些游戏正绑定着这份配方（§4.2）：删配方前必须列出来，不能静默留下悬空绑定。</summary>
     /// <summary>已绑定的游戏数量（概览页统计用，不暴露字典本体）。</summary>
-    public static int BindingCount() => Load().Count;
+    /// <summary>R114：空值（被清掉但没删键）不算绑定，否则概览里的「已绑定 N 个游戏」虚高。</summary>
+    public static int BindingCount() => Load().Count(x => !string.IsNullOrWhiteSpace(x.Value));
 
 
     /// <summary>绑定指向的方案已经不存在（换机、迁移、手删 json 之后都会这样）。

@@ -361,8 +361,12 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
-    /// <summary>当前页签序号（0 概览 / 1 运行器 / 2 组件 / 3 前缀 / 4 增强）。</summary>
+    /// <summary>当前页签序号：0 方案 / 1 组件 / 2 前缀（R120：注释以前还写着「概览/运行器/增强」五个页签）。</summary>
     private int _currentTab = -1;
+
+    /// <summary>R128：本次运行里已经自检过的运行器。<c>Usable</c> 只在扫描时刷新，保存一次就重跑一遍
+    /// <c>wine --version</c> 又会 fork 两次；同一运行器结果不会变，记住就行。</summary>
+    private readonly HashSet<string> _autoCheckedRunners = new(StringComparer.Ordinal);
 
     /// <summary>D108：编辑器打开时的字段快照，用于判断是否有未保存改动。</summary>
     private string _editorSnapshot = string.Empty;
@@ -401,7 +405,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     /// </summary>
     private void ShowTab(int index)
     {
-        // D85：页签只剩四个，「增强」并进方案详情（它是方案级开关，不该要求先在下拉里挑方案）。
+        // D85 / R120：页签只有三个（方案 / 组件 / 前缀），「增强」并进方案详情（它是方案级开关，
+        // 不该要求先在下拉里挑方案）。这里以前写着「只剩四个」。
         UIElement[] pages = [Page_Profiles, Page_Components, ScrollViewer_Prefixes];
         Button[] tabs = [Tab_Profiles, Tab_Components, Tab_Prefixes];
         index = Math.Clamp(index, 0, pages.Length - 1);
@@ -411,7 +416,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             pages[i].Visibility = i == index ? Visibility.Visible : Visibility.Collapsed;
             tabs[i].Style = (Style)Resources[i == index ? "TabButtonSelectedStyle" : "TabButtonStyle"];
             // D108：读屏要能听出当前选中哪个页签（自绘 Button 没有 SelectionItem 语义）。
-            AutomationProperties.SetItemStatus(tabs[i], i == index ? "Selected" : "");
+            AutomationProperties.SetItemStatus(tabs[i], i == index ? Lang.Lunarward_RuntimeEnv_TabSelected : "");
         }
         // 切到组件页时布局还没跑完，等这一帧结束再按新视口宽度钉列表（否则拿到上一个页签的宽度）
         if (index == 1)
@@ -1202,7 +1207,6 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     private TextBox? _editorWrapperInput;
     private readonly List<string> _editorWrapperList = new();
     private TextBox? _editorArgs;
-    private TextBox? _editorWrappers;
     private TextBox? _editorNotes;
     private TextBox? _editorShell;
     private TextBlock? _editorPrefixInfo;
@@ -1859,9 +1863,10 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 }
             }
             // P3：第一次选用这个运行器时顺手自检一次（后台跑，不挡保存；结果只提示一句）
-            if (runner.Usable is null)
+            if (_autoCheckedRunners.Add(runner.Id))
             {
-                AutoCheckRunnerAsync(runner);
+                // R128：「已保存」和自检结果两条 InfoBar 会叠在一起，自检结果等前一条消失再弹。
+                AutoCheckRunnerAsync(runner, afterSaveToast: true);
             }
         }
         catch (Exception ex)
@@ -1869,50 +1874,6 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             _logger.LogError(ex, "save profile failed");
             Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_SaveFailed);
         }
-    }
-
-
-    private static List<string> ParseWrappers(string? text)
-    {
-        var list = new List<string>();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return list;
-        }
-        foreach (string line in text.Split('\n'))
-        {
-            string trimmed = line.Trim();
-            if (trimmed.Length > 0)
-            {
-                list.Add(trimmed);
-            }
-        }
-        return list;
-    }
-
-
-    private static Dictionary<string, string> ParseEnv(string? text)
-    {
-        Dictionary<string, string> result = new(StringComparer.Ordinal);
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return result;
-        }
-        foreach (string line in text.Split('\n'))
-        {
-            string trimmed = line.Trim();
-            if (trimmed.Length == 0 || trimmed.StartsWith('#'))
-            {
-                continue;
-            }
-            int index = trimmed.IndexOf('=');
-            if (index <= 0)
-            {
-                continue;
-            }
-            result[trimmed[..index].Trim()] = trimmed[(index + 1)..].Trim();
-        }
-        return result;
     }
 
 
@@ -2275,13 +2236,18 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
 
     /// <summary>首次选用组件时的自动自检（P3）：后台跑一次，结果只提示一句，不改任何设置。</summary>
-    private async void AutoCheckRunnerAsync(Component runner)
+    private async void AutoCheckRunnerAsync(Component runner, bool afterSaveToast = false)
     {
         try
         {
             ComponentHealthResult result = await Starward.Features.Runtime.ComponentHealth
                 .CheckAsync(runner, _logger)
                 .ConfigureAwait(true);
+            if (afterSaveToast)
+            {
+                // R128：保存提示默认 3 秒；等它收起来再说自检结果，用户不会同时看到两条。
+                await Task.Delay(3500).ConfigureAwait(true);
+            }
             Helpers.InAppToast.MainWindow?.Information(
                 string.Format(Lang.Lunarward_RuntimeEnv_SelfCheckTitle, runner.Name, result.Summary), null,
                 result.Ok ? 5000 : 8000);
@@ -2618,6 +2584,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             RunnerPath = source.RunnerPath,
             DxvkId = source.DxvkId,
             Vkd3dId = source.Vkd3dId,
+            // R128：旧版只有一个 graphicsId 的配方要能原样克隆——不带上这个字段，
+            // 克隆出来的方案会丢掉「这是从 D73 之前迁移来的」信息，读配置时不再走迁移分支。
+            LegacyGraphicsId = source.LegacyGraphicsId,
             PrefixPath = clearPrefix ? "" : source.PrefixPath,
             Env = new Dictionary<string, string>(source.Env),
             Args = source.Args,
@@ -2714,68 +2683,6 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             _logger.LogError(ex, "Sync graphics to prefix failed");
             Helpers.InAppToast.MainWindow?.Error((string?)null, string.Format(Lang.Lunarward_RuntimeEnv_SyncFailed, ex.Message));
         }
-    }
-
-
-    /// <summary>C：把某个游戏从这个共用方案里拆出去（新方案 + 自己的前缀）。</summary>
-    private async void Button_CloneForGame_Click(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.Tag is not RuntimeProfile profile)
-        {
-            return;
-        }
-        IReadOnlyList<GameBiz> usages = ProfileBinding.Usages(profile.Id);
-        if (usages.Count == 0)
-        {
-            return;
-        }
-        var combo = new ComboBox
-        {
-            MinWidth = 280,
-            ItemsSource = usages.Select(x => x.ToGameName()).ToList(),
-            SelectedIndex = 0,
-        };
-        var dialog = new ContentDialog
-        {
-            Title = Lang.Lunarward_RuntimeEnv_CloneForGame,
-            Content = new StackPanel
-            {
-                Spacing = 8,
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = string.Format(Lang.Lunarward_RuntimeEnv_CloneBody, profile.Name),
-                        TextWrapping = TextWrapping.Wrap,
-                    },
-                    combo,
-                },
-            },
-            PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Clone,
-            CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
-            DefaultButton = ContentDialogButton.Primary,
-            XamlRoot = XamlRoot,
-        };
-        if (await Starward.Helpers.DialogGate.Show(dialog) != ContentDialogResult.Primary)
-        {
-            return;
-        }
-        GameBiz biz = usages[Math.Max(0, combo.SelectedIndex)];
-        RuntimeProfile clone = CopyProfile(profile, $"{profile.Name} · {biz.ToGameName()}", clearPrefix: true);
-        if (!RuntimeProfileStore.Save(clone, _logger))
-        {
-            Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_SaveFailed);
-            return;
-        }
-        if (!ProfileBinding.Set(biz, clone.Id, _logger))
-        {
-            Helpers.InAppToast.MainWindow?.Warning((string?)null,
-                "方案已创建，但写入绑定失败（绑定文件可能损坏）；请在游戏设置里重新选择", 8000);
-        }
-        LoadProfiles();
-        await RefreshChipsAsync();
-        Helpers.InAppToast.MainWindow?.Success((string?)null,
-            string.Format(Lang.Lunarward_RuntimeEnv_CloneDone, biz.ToGameName(), clone.Name), 4000);
     }
 
 
@@ -2969,7 +2876,8 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             // R09/R10：删除也走 Store（Id 校验 + 统一的错误处理），失败要明确提示。
             if (!RuntimeProfileStore.Delete(profile, _logger))
             {
-                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_SaveFailed);
+                // R115：只可能是「文件已经不在」，说清楚，别报成保存失败。
+                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_ProfileFileMissing);
                 return;
             }
             int cleared = Features.Runtime.ProfileBinding.ClearFor(profile.Id);

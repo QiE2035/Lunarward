@@ -120,7 +120,8 @@ public class ComponentSourcesTests : IDisposable
     [InlineData("wine.tar.gz", true)]
     [InlineData("wine.tar.zst", true)]
     [InlineData("wine.TGZ", true)]
-    [InlineData("wine.zip", false)]
+    [InlineData("wine.zip", true)]
+    [InlineData("wine.tar", true)]
     [InlineData("wine.exe", false)]
     public void IsArchive_RecognizesSupportedFormats(string name, bool expected)
     {
@@ -130,8 +131,8 @@ public class ComponentSourcesTests : IDisposable
 
     [Theory]
     [InlineData("wine.tar.zst", true)]
-    [InlineData("wine.tar.gz", true)]
-    [InlineData("wine.tgz", true)]
+    [InlineData("wine.tar.gz", false)]
+    [InlineData("wine.tgz", false)]
     [InlineData("wine.tar.xz", false)]
     public void PrefersZstd_MarksFormatsTarCanReadDirectly(string name, bool expected)
     {

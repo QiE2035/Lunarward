@@ -1420,3 +1420,11 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 - 正确做法：抽一个进程级入口 `Helpers/DialogGate.Show(dialog)`——`Interlocked` 抢锁，抢不到直接按「用户取消」返回，`try/finally` 复位；每次都 `new ContentDialog { … }`；确实要嵌套时先 `Hide()` 外层，动作完成后再重建/重开（本仓库 `RunNestedAsync` 就是这个形状）。
 - 排查手法：日志里搜 `Only a single ContentDialog can be open`；`grep -rn "\.ShowAsync()" src/Lunarward` 数裸调用点，比逐个点界面快。
 - 代价：锁是进程级的，真正需要两个对话框并存（非模态）的设计会被这门锁挡住，届时要把「被拒」和「用户取消」区分开（`ContentDialogResult.None` 目前两者同义）。
+
+## L-171 Linux 上不存在的字体族会让整段文字不渲染
+
+- 现象：运行环境页的前缀路径、启动预览、「⋯」按钮在 Linux 上是**空白**（不是豆腐块，是完全没有像素），Windows 上正常。
+- 原因：`FontFamily = "Consolas"` / `"Consolas, monospace"` / `"Segoe MDL2 Assets"` 在 Linux 上没有对应族名。Skia 找不到族时不会回退到默认字体，而是拿不到字形——整段 TextBlock 渲染为空；`Segoe MDL2 的 `\uE712` 同理画不出省略号。
+- 正确做法：跨平台代码里**不写 Windows 专属族名**。等宽只是视觉诉求时用主题自带的等宽资源（或干脆不指定），图标优先 `FontIcon`/文本字符，不要靠 `Segoe MDL2` 的私有码位。
+- 排查手法：Grep `FontFamily` 找 `Consolas`/`Segoe MDL2`/`Segoe UI`；`fc-match Consolas` 在 Linux 上返回的是替代族，不代表原文能渲染。
+- 代价：等宽对齐（比如启动预览的命令行）在非等宽主题样式下会略微不对齐，可读性优先于像素对齐，值得。

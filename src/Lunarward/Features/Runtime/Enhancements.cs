@@ -228,11 +228,72 @@ public static class Enhancements
         {
             bins.Add("gamemoderun");
         }
-        if (NormalizeHud(profile.Hud) == HudMangoHud && !profile.GameScope)
-        {
-            bins.Add("mangohud");
-        }
+        // R101：MangoHud 不是「PATH 里的命令」，它靠 `MANGOHUD=1` 让 Vulkan 加载隐式层，
+        // 判定要看层清单在不在（见 HasMangoHudLayer），不再往这里塞 "mangohud"。
         return bins;
+    }
+
+
+    /// <summary>R101：MangoHud 的 Vulkan 隐式层清单是否装的（装了才有 `MANGOHUD=1` 的效果）。</summary>
+    public static bool HasMangoHudLayer(string? path = null)
+    {
+        foreach (string dir in VulkanLayerDirs(path))
+        {
+            try
+            {
+                if (!Directory.Exists(dir))
+                {
+                    continue;
+                }
+                foreach (string file in Directory.EnumerateFiles(dir, "MangoHud*.json"))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+            }
+        }
+        return false;
+    }
+
+
+    private static IEnumerable<string> VulkanLayerDirs(string? extraPath)
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        yield return "/usr/share/vulkan/implicit_layer.d";
+        yield return "/etc/vulkan/implicit_layer.d";
+        yield return Path.Combine(home, ".local/share/vulkan/implicit_layer.d");
+        string? env = extraPath ?? Environment.GetEnvironmentVariable("VK_ADD_IMPLICIT_LAYER_PATH");
+        if (!string.IsNullOrWhiteSpace(env))
+        {
+            foreach (string dir in env.Split(':', StringSplitOptions.RemoveEmptyEntries))
+            {
+                yield return dir;
+            }
+        }
+    }
+
+
+    /// <summary>R101：增强项缺什么，给预检与界面共用一份口径（返回可直接展示的名字）。</summary>
+    public static IReadOnlyList<string> MissingRequirements(RuntimeProfile? profile, string? path = null)
+    {
+        var missing = new List<string>();
+        foreach (string binary in RequiredBinaries(profile))
+        {
+            if (FindInPath(binary, path) is null)
+            {
+                missing.Add(binary);
+            }
+        }
+        if (profile is not null
+            && NormalizeHud(profile.Hud) == HudMangoHud
+            && !profile.GameScope
+            && !HasMangoHudLayer(path))
+        {
+            missing.Add("MangoHud（Vulkan 层）");
+        }
+        return missing;
     }
 
 
@@ -245,18 +306,46 @@ public static class Enhancements
         }
         if (binary.Contains('/'))
         {
-            return File.Exists(binary) ? binary : null;
+            return IsExecutableFile(binary) ? binary : null;
         }
         string searchPath = path ?? Environment.GetEnvironmentVariable("PATH") ?? "";
         foreach (string dir in searchPath.Split(':', StringSplitOptions.RemoveEmptyEntries))
         {
             string candidate = Path.Combine(dir, binary);
-            if (File.Exists(candidate))
+            if (IsExecutableFile(candidate))
             {
                 return candidate;
             }
         }
         return null;
+    }
+
+
+    /// <summary>
+    /// R124：PATH 里命中一个同名的**普通文件**（多半是没加执行位的下载残留、或者被 vim 写坏的脚本）
+    /// 以前算「找到了」，启动时才在 wine 那边炸。这里要求真的可执行。
+    /// 只查属主/组/其他任意一个 x 位，不看当前用户能不能执行（root、ACL、noexec 挂载留给实际的 Exec 失败）。
+    /// </summary>
+    public static bool IsExecutableFile(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return false;
+        }
+        if (OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+        try
+        {
+            const UnixFileMode anyExecute = UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
+            return (File.GetUnixFileMode(path) & anyExecute) != 0;
+        }
+        catch (Exception)
+        {
+            // 拿不到权限位（网络盘、特殊挂载）时不阻挡，交给实际执行
+            return true;
+        }
     }
 
 
@@ -290,7 +379,7 @@ public static class Enhancements
         {
             return "没有开启任何增强";
         }
-        var missing = RequiredBinaries(profile).Where(x => FindInPath(x, path) is null).ToList();
+        var missing = MissingRequirements(profile, path);
         if (missing.Count > 0)
         {
             parts.Add($"缺少程序：{string.Join("、", missing)}");

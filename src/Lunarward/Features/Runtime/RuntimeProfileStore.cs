@@ -323,10 +323,13 @@ public static class RuntimeProfileStore
         try
         {
             string file = ProfileFile(profile.Id);
-            if (File.Exists(file))
+            if (!File.Exists(file))
             {
-                File.Delete(file);
+                // R115：文件本来就不在——返回 false，让调用方提示「已经不存在」，而不是假装删成功。
+                logger?.LogDebug("Delete runtime environment skipped, file missing: {path}", file);
+                return false;
             }
+            File.Delete(file);
             return true;
         }
         catch (Exception ex)

@@ -478,15 +478,4 @@ public static class GraphicsInstaller
         return result;
     }
 
-
-    /// <summary>按 Profile 的 RunnerPath 推断前缀路径（未配置前缀时用 ~/.wine）。</summary>
-    public static string ResolvePrefixPath(RuntimeProfile profile, string gameKey)
-    {
-        if (!string.IsNullOrWhiteSpace(profile.PrefixPath))
-        {
-            return profile.PrefixPath!;
-        }
-        return GameLauncherService.ResolvePrefix(gameKey);
-    }
-
 }

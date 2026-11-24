@@ -907,7 +907,7 @@ public sealed partial class GameLauncherPage : PageBase
         string gameKey = Path.GetFileNameWithoutExtension(exe ?? "").ToLowerInvariant();
         if (profile is not null && !string.IsNullOrEmpty(gameKey))
         {
-            return PrefixManager.TryGetExistingPrefix(profile, gameKey);
+            return PrefixManager.TryGetExistingPrefix(profile);
         }
         return string.IsNullOrEmpty(gameKey) ? null : GameLauncherService.ResolvePrefix(gameKey);
     }

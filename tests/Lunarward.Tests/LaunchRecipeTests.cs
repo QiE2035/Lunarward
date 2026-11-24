@@ -44,6 +44,46 @@ public class LaunchRecipeTests
 
 
     [Fact]
+    public void MergeEnvironment_DropsInvalidKeysAndCanonicalizesKnownOnes()
+    {
+        var auto = new Dictionary<string, string> { ["WINEPREFIX"] = "/p" };
+        var recipe = new Dictionary<string, string>
+        {
+            ["wineprefix"] = "/q",        // 已知键大小写归一
+            ["BAD KEY"] = "x",            // 非法字符
+            ["1ABC"] = "y",               // 不能以数字开头
+            ["WITH_NUL"] = "a\0b",        // 值带 NUL
+            ["MY_OWN"] = "keep",          // 未知但合法：原样保留
+        };
+
+        var merged = LaunchRecipeBuilder.MergeEnvironment(auto, recipe, out List<EnvOverride> overrides, out List<string> invalid);
+
+        Assert.Equal("/q", merged["WINEPREFIX"]);
+        Assert.DoesNotContain("wineprefix", merged.Keys);
+        Assert.Equal("keep", merged["MY_OWN"]);
+        Assert.Equal(3, invalid.Count);
+        Assert.Contains("BAD KEY", invalid);
+    }
+
+
+    [Fact]
+    public void BuildArgv_SplitsGameAndRecipeArgsSeparately()
+    {
+        // R110：以前先拼成一行再 SplitArgs，引号跨层会吃字符。
+        var auto = new Dictionary<string, string>();
+        LaunchRecipe recipe = LaunchRecipeBuilder.Build(
+            new RuntimeProfile { Args = "-use-d3d12" },
+            "/usr/bin/wine",
+            "/p",
+            "/games/YuanShen.exe",
+            "-login_auth_ticket \"a b\"",
+            auto);
+
+        Assert.Equal(new[] { "/usr/bin/wine", "/games/YuanShen.exe", "-login_auth_ticket", "a b", "-use-d3d12" }, recipe.Argv);
+    }
+
+
+    [Fact]
     public void MergeEnvironment_RecipeOverridesAutoAndRecordsConflict()
     {
         var auto = new Dictionary<string, string> { ["WINEPREFIX"] = "/old", ["WINEDEBUG"] = "-all" };

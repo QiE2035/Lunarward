@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Starward.Features.Runtime;
 
@@ -33,6 +34,10 @@ public sealed class LaunchRecipe
 
 
     /// <summary>可直接贴进终端的一行命令（带引号）。</summary>
+    /// <summary>R109：被丢掉的 env 键（非法字符 / 值带 NUL），界面与预检要提示，不能静默。</summary>
+    public List<string> InvalidEnvironmentKeys { get; init; } = new();
+
+
     public string CommandLine => LaunchRecipeBuilder.JoinCommandLine(Argv);
 
 
@@ -118,6 +123,12 @@ public static class LaunchRecipeBuilder
 
     public static List<string> BuildArgv(IReadOnlyList<string>? wrappers, string runnerPath, string exePath,
         string? extraArgs, Func<string, bool>? wrapperAvailable, List<string>? missingWrappers)
+        => BuildArgv(wrappers, runnerPath, exePath, SplitArgs(extraArgs), wrapperAvailable, missingWrappers);
+
+
+    /// <summary>R110：参数已经拆好再进来——游戏自带参数与配方参数各拆各的，不拼成一行再回炉（引号跨层会吃字符）。</summary>
+    public static List<string> BuildArgv(IReadOnlyList<string>? wrappers, string runnerPath, string exePath,
+        IEnumerable<string> extraArgs, Func<string, bool>? wrapperAvailable, List<string>? missingWrappers)
     {
         var argv = new List<string>();
         if (wrappers is not null)
@@ -149,7 +160,7 @@ public static class LaunchRecipeBuilder
         {
             argv.Add(exePath);
         }
-        argv.AddRange(SplitArgs(extraArgs));
+        argv.AddRange(extraArgs);
         return argv;
     }
 
@@ -162,6 +173,18 @@ public static class LaunchRecipeBuilder
         IReadOnlyDictionary<string, string> auto,
         IReadOnlyDictionary<string, string>? recipe,
         out List<EnvOverride> overrides)
+        => MergeEnvironment(auto, recipe, out overrides, out _);
+
+
+    /// <summary>
+    /// R109：env 键必须能真的进环境（`^[A-Za-z_][A-Za-z0-9_]*$`），值不能带 NUL；
+    /// 已知键大小写归一（以前 `wineprefix` 与 `WINEPREFIX` 被当成两个键，后者静默覆盖前者）。
+    /// </summary>
+    public static Dictionary<string, string> MergeEnvironment(
+        IReadOnlyDictionary<string, string> auto,
+        IReadOnlyDictionary<string, string>? recipe,
+        out List<EnvOverride> overrides,
+        out List<string> invalidKeys)
     {
         var merged = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach ((string key, string value) in auto)
@@ -169,16 +192,23 @@ public static class LaunchRecipeBuilder
             merged[key] = value;
         }
         overrides = new List<EnvOverride>();
+        invalidKeys = new List<string>();
         if (recipe is null)
         {
             return merged;
         }
-        foreach ((string key, string value) in recipe)
+        foreach ((string rawKey, string value) in recipe)
         {
-            if (string.IsNullOrWhiteSpace(key))
+            if (string.IsNullOrWhiteSpace(rawKey))
             {
                 continue;
             }
+            if (!IsValidEnvKey(rawKey) || value.Contains('\0'))
+            {
+                invalidKeys.Add(rawKey);
+                continue;
+            }
+            string key = CanonicalEnvKey(rawKey);
             if (auto.TryGetValue(key, out string? autoValue) && !string.Equals(autoValue, value, StringComparison.Ordinal))
             {
                 overrides.Add(new EnvOverride(key, autoValue, value));
@@ -188,6 +218,39 @@ public static class LaunchRecipeBuilder
         overrides.Sort((a, b) => string.Compare(a.Key, b.Key, StringComparison.OrdinalIgnoreCase));
         return merged;
     }
+
+
+    private static readonly Regex EnvKeyPattern = new("^[A-Za-z_][A-Za-z0-9_]*$", RegexOptions.Compiled);
+
+    /// <summary>R109：键是否像环境变量名（否则 wine / execve 会静默忽略，用户却以为生效了）。</summary>
+    public static bool IsValidEnvKey(string key) => EnvKeyPattern.IsMatch(key);
+
+    private static readonly Dictionary<string, string> CanonicalKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["WINEPREFIX"] = "WINEPREFIX",
+        ["WINEDEBUG"] = "WINEDEBUG",
+        ["WINEDLLPATH"] = "WINEDLLPATH",
+        ["WINEDLLOVERRIDES"] = "WINEDLLOVERRIDES",
+        ["WINEESYNC"] = "WINEESYNC",
+        ["WINEFSYNC"] = "WINEFSYNC",
+        ["PATH"] = "PATH",
+        ["LD_LIBRARY_PATH"] = "LD_LIBRARY_PATH",
+        ["LD_PRELOAD"] = "LD_PRELOAD",
+        ["DXVK_HUD"] = "DXVK_HUD",
+        ["DXVK_STATE_CACHE"] = "DXVK_STATE_CACHE",
+        ["DXVK_CONFIG_FILE"] = "DXVK_CONFIG_FILE",
+        ["MANGOHUD"] = "MANGOHUD",
+        ["MANGOHUD_CONFIG"] = "MANGOHUD_CONFIG",
+        ["PROTONPATH"] = "PROTONPATH",
+        ["STEAM_COMPAT_CLIENT_INSTALL_PATH"] = "STEAM_COMPAT_CLIENT_INSTALL_PATH",
+        ["STEAM_COMPAT_INSTALL_PATH"] = "STEAM_COMPAT_INSTALL_PATH",
+        ["LUNARWARD_PROFILE"] = "LUNARWARD_PROFILE",
+        ["LUNARWARD_PROFILE_ID"] = "LUNARWARD_PROFILE_ID",
+    };
+
+    /// <summary>R109：已知键统一成大写写法；未知键原样保留（别把用户自己的变量名改了）。</summary>
+    public static string CanonicalEnvKey(string key)
+        => CanonicalKeys.TryGetValue(key, out string? canonical) ? canonical : key;
 
 
     public static LaunchRecipe Build(
@@ -209,7 +272,8 @@ public static class LaunchRecipeBuilder
         {
             auto[key] = value;
         }
-        Dictionary<string, string> merged = MergeEnvironment(auto, profile?.Env, out List<EnvOverride> overrides);
+        Dictionary<string, string> merged = MergeEnvironment(auto, profile?.Env, out List<EnvOverride> overrides,
+            out List<string> invalidEnvKeys);
         if (!string.IsNullOrWhiteSpace(prefixPath))
         {
             // 配方自己写 WINEPREFIX 会和「前缀检查用的路径」打架：保留真实前缀，但把这次覆盖记下来。
@@ -224,9 +288,10 @@ public static class LaunchRecipeBuilder
             merged["WINEPREFIX"] = prefixPath;
         }
         var missingWrappers = new List<string>();
+        var extraArgs = SplitArgs(gameArgs);
+        extraArgs.AddRange(SplitArgs(profile?.Args));
         List<string> argv = BuildArgv(Enhancements.Wrappers(profile), runnerPath, exePath,
-            string.Join(' ', new[] { gameArgs, profile?.Args }.Where(x => !string.IsNullOrWhiteSpace(x))),
-            wrapperAvailable, missingWrappers);
+            extraArgs, wrapperAvailable, missingWrappers);
         return new LaunchRecipe
         {
             RunnerPath = runnerPath,
@@ -236,6 +301,7 @@ public static class LaunchRecipeBuilder
             Argv = argv,
             Environment = merged,
             Overrides = overrides,
+            InvalidEnvironmentKeys = invalidEnvKeys,
             MissingWrappers = missingWrappers,
         };
     }

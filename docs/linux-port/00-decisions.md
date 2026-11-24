@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D120）
+- **状态**：生效中（D0–D121）
 - **最后更新**：2026-11-24
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -1954,3 +1954,49 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test Starward.slnx` **286 通过**；`lint-ui-thread.sh` 全部通过；`cli-smoke` 40/0/1；`cli-extra` 32/0。
 
 **确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」。
+
+## D121 运行环境审查修复：批 K「一致性 / 文案 / 无障碍 / 死代码」
+
+**背景**：`28-runtime-env-audit.md` §6.8/§6.9 的 R98–R130（33 条，Medium 20 + Low 13）是第二轮审查的尾巴：符号链接与路径比较、缓存与重试、锁与 `InvariantCulture`、环境变量键与参数拆分的边界、前缀写侧写、可执行位、字体族、无障碍名、死键与死代码。用户 m07141「先提交，然后全部修复，随进度提交」覆盖本批。
+
+**决定**
+
+1. **R98**：`ComponentStore.IsUnder(folder, path)` 统一「受管」判定——两边 `TryRealPath`（解符号链接）+ `GetFullPath` + 去尾分隔符，比较时要求落点是分隔符而不是字符串前缀。替换 5 处裸 `StartsWith`。
+2. **R99**：`ManualRunners.Add/Remove` 写盘后 `ComponentStore.Invalidate()`，手动添加的运行器下一次扫描就出现。
+3. **R100**：`FindWineserver(winePath, allowPathFallback)`；受管组件（`runner.Managed`）只在同目录找 `wineserver`，PATH 兜底只留给系统/手动添加的，避免「缺 wineserver」被本机别的 wine 冒充。
+4. **R101**：MangoHud 不再当必需二进制——实际只靠 `MANGOHUD=1` 加 Vulkan 隐式层，改为 `Enhancements.HasMangoHudLayer()` 扫三处 `implicit_layer.d` 与 `VK_ADD_IMPLICIT_LAYER_PATH`；`MissingRequirements()` 抽出来，预检与设置页共用文案。
+5. **R102**：`ComponentNaming.Sanitize` 保留 Unicode 字母数字（俄文/中文游戏名不再变 `-`），超 80 字符截 71 + `-` + SHA256 前 8 位，避免长名截断后撞名。
+6. **R103**：源只持久化**差异**——`SaveUserEntries` 过滤 `SameAsDefault(entry)`，内置源不因保存而固化成用户副本，墓碑（`Removed`）不会丢。
+7. **R104**：`IsArchive` 复用 `ArchiveExtractor.IsSupported`（`.zip` 也算），`PrefersZstd` 只对 `.tar.zst` 为 true（`.tar.gz` 不是 zstd）。
+8. **R105**：资产缓存 64 项上限 + 过期/最旧淘汰；请求读 `X-RateLimit-Remaining/Reset` 记日志；5xx 退避 600 ms 重试一次，4xx 不重试，网络异常翻成「连不上源：…」。
+9. **R106/R107**：`OutputCapture.Redact` 改成「保留键、替换值」（`Authorization: Bearer xyz` → `Authorization=***`）；日志目录跟随 `XDG_DATA_HOME`（自带 `DataHome()`，不依赖主程序的 internal 助手），子进程管道显式 UTF-8，`Attach` 末尾后台 `WaitForExit` 把管道尾部冲干净。
+10. **R108**：`WINEDEBUG=-all` 用 `TryAdd`，用户配方里写了就不覆盖；`PrependLibraryPath()` 收敛「前置 + 保留旧值」一份实现，启动链与 CLI 共用。
+11. **R109/R110**：env 键按 `^[A-Za-z_][A-Za-z0-9_]*$` 校验，已知键大小写归一（`wineprefix` 与 `WINEPREFIX` 变一个键），非法键记进 `LaunchRecipe.InvalidEnvironmentKeys` 供预检提示；游戏参数与配方参数各自 `SplitArgs` 后再拼 `argv`，引号不再跨层。
+12. **R111**：`LastKnownGood` 读-改-写加进程锁，记 `EffectivePrefixPath`（不再记 null 表示「默认前缀」），`RunnerVersion` 走 `CachedRunnerVersion` 不 fork wine；时间戳 `InvariantCulture`。
+13. **R112**：启动历史追加 + 压缩在同一把锁里，`FileMode.Append` + 短重试吸收并发；展示时间与时长全部显式 `InvariantCulture`（de-DE 的 `1,5 s`、th-TH 的佛历年份都不再出现）。
+14. **R113**：「已安装」判定改 `NormalizeVersion`（去 `v` 前缀）+ `OrdinalIgnoreCase` 精确相等，只允许段边界匹配，装了 `10.0` 不再把 `1.0` 当已装。
+15. **R114/R115/R116**：`BindingCount` 只数非空白值；`RuntimeProfileStore.Delete` 对不存在的文件返回 false（调用方提示 `ProfileFileMissing`，不再假装删成功）；`RuntimeDefaults` 写失败弹 toast，载荷加 `SchemaVersion = 1`。
+16. **R117**：`Mirror` / `、` / `Selected` 三类硬编码文案进资源键（`FormMirror` / `ListSeparator` / `TabSelected`）。**字号统一不做**：76 处都是 code-behind 现造 TextBlock 的字号数字，收敛成 Style 需要逐个赋 Style 且与主题样式叠加冲突，收益仅代码整洁。
+17. **R118/R119**：删 43 个无引用语言键；删 `ParseWrappers`/`ParseEnv`/`_editorWrappers`/`_enhanceProfiles`、四个无订阅按钮（克隆给游戏、导入包总入口、旧来源入口、镜像测速）、`ShowImportArchiveAsync` 的类型选择分支（收窄成 `ShowImportArchiveGraphicsAsync`）。
+18. **R120**：页签数与页签序号的注释改对；`PrefixManager` 文件头不再列已删除的模式；`PeArchitecture` 拆开叠在一起的 summary，`NormalizePrefixArch` 注明「判断已有前缀能否跑 exe 用 `KnownArch`」；删无调用者且与 `EffectivePrefixPath` 冲突的 `GraphicsInstaller.ResolvePrefixPath`。
+19. **R121/R122/R123**：`TryGetExistingPrefix` 去掉没用的 `gameKey`；`WriteMetadata` 早退条件补 `PrefixArch` 比较，改架构会更新侧写；`IsUnderPrefixRoot` 走 `ComponentStore.IsUnder`，`EnsurePrefix` 两条日志分别对应「父目录在」与「父目录也不在」，`ClonePrefix` 对空目录名抛 `ArgumentException`、等待加 10 分钟超时并杀进程树。
+20. **R124**：`Enhancements.IsExecutableFile()` 检查 Unix 可执行位，`FindInPath` 与 `ProfileShellService.FindExecutable` 共用——预检说 Ok 就真能启动。
+21. **R125**：系统 Wine 只认 `/usr/bin`、`/usr/sbin`、`/bin`、`/sbin`（`/usr/local/bin/wine` 不再冒充系统 Wine）；`Origin` 认得 `~/.local/share`、`/opt`、`/run/media/<user>`、`/media/<user>`、`/mnt`，同名 Wine 不再混成一个。
+22. **R126**：Steam 库路径被丢弃时记日志（不再静默），`IsProtonFolder` 的注释改对（GE-Proton 不以 `Proton` 开头，两条前缀都要判）。**VDF 库存在性探测不做**——要扫整个 Steam 目录，属于新功能，另开条目。
+23. **R127**：`system.reg` 读到第一个 `[` 段落就停（上限 2000 行），`#arch=` 不再被前 32 行卡住；新增 `KnownArch()`（win32 / win64 / 未知），`Conflict` 用已知架构判断，ARM64 + win32 前缀会报冲突；探测失败不再一律当 win64。
+24. **R128**：`CopyProfile` 复制 `LegacyGraphicsId`；自检结果按运行器记一次（`_autoCheckedRunners`），每次保存不再重跑 `wine --version`；自检 toast 等「已保存」那条消失后再弹（`afterSaveToast`）。
+25. **R129**：去掉 Linux 上不存在的 `Consolas` / `Consolas, monospace`（整段不渲染）与 `Segoe MDL2 Assets`（⋯ 字型缺失），省略号改文本、预览区用主题等宽样式。
+26. **R130**：三个页签、列表状态点、详情状态点补 `AutomationProperties.Name`；`·  ·  ·` 分隔线名字置空（Uno 没有 `IsInAccessibleTree`），读屏不再念「点 点 点」。
+
+**代价边界**
+
+- `IsUnder` 会解符号链接：用户把前缀软链到别的盘时，「受管/非受管」判定按真实路径算，这是有意的（否则受管组件可被软链绕过）。
+- R103 只存差异后，改过内置源字段的条目仍会整条落盘，`SameAsDefault` 逐字段比较，新增默认字段时需要同步更新这个比较。
+- 资产缓存上限 64 对「一次预下载很多版本」会开始淘汰旧资产，再触发一次下载；限流头只记日志，不做自动等待。
+- `_autoCheckedRunners` 是进程内记忆：重启后每个运行器再自检一次（结果只影响提示，不影响启动）。
+- 自检 toast 延迟 3.5 秒，保存特别快时用户会觉得「自检结果慢半拍」，换来不叠两条 InfoBar。
+- `KnownArch` 只认 win32/win64/wow64，其它值一律「未知」，`Conflict` 对未知不再报冲突（宁可不报也不错报）。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 与 `-c Release` 均 0 错误；`dotnet test Starward.slnx` **305 通过**（新增 `MergeEnvironment_DropsInvalidKeysAndCanonicalizesKnownOnes`、`BuildArgv_SplitsGameAndRecipeArgsSeparately`、`Sanitize_KeepsUnicodeLetters`、`Sanitize_TruncatesLongNamesWithHash`、`TryDetectPrefixArch_ReadsArchBeyondFirst32Lines`、`TryDetectPrefixArch_StopsAtFirstSection`、`OutputCaptureTests` 的 7 条断言）；`lint-ui-thread.sh` 全 PASS；`cli-smoke` 40/0/1；`cli-extra` 32/0。
+
+**确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」；m00600「后续记得随时更新进度」。

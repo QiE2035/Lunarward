@@ -126,7 +126,8 @@ public static class ProfileShellService
             try
             {
                 string candidate = Path.Combine(dir, name);
-                if (File.Exists(candidate))
+                // R124：同名的不可执行文件（下载残留、坏脚本）不该被当成终端。
+                if (Enhancements.IsExecutableFile(candidate))
                 {
                     return candidate;
                 }

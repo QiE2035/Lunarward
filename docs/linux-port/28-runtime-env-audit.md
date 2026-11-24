@@ -3,7 +3,7 @@
 > 日期：2026-11-23　范围：`src/Lunarward/Features/Runtime/`（25 文件）、`Features/Setting/RuntimeEnvironmentSetting.*`（4 个 partial，4040 行）、`Features/GameLauncher/LaunchPreflight.cs`、`GameLauncherService(.Linux).cs` 的启动链。
 > 方法：本人读码 + 4 组只读子代理（页面 / 启动 / 存储 / 组件），结论逐条回到源码核对。
 > 状态：2026-11-23 用户 m02913「全处理了」→ 42 条全部修完（批 A D104 / 批 B D105 / 批 C D106 / 批 D D107），进度见各条 🛠 标记。
-> 第二轮：2026-11-24 用户 m06812 要求「逐文件再仔细审查一遍，包括逻辑层、UI」，新增 R43–R130，见 §6；编号与第一轮连续，互不覆盖。批 E–J 已修（R43–R97，D115–D120），批 K（R98–R130）待做。
+> 第二轮：2026-11-24 用户 m06812 要求「逐文件再仔细审查一遍，包括逻辑层、UI」，新增 R43–R130，见 §6；编号与第一轮连续，互不覆盖。**批 E–K 已全部修完**（R43–R130，D115–D121，2026-11-24）：第二轮 88 条收口。
 > 设计依据：`23-runtime-env-design.md`（605 行）、D73–D85 / D80 / D82 / D95–D103。
 
 ## 0 · 结论摘要
@@ -191,7 +191,7 @@
 > 触发：用户 m06812「再逐文件仔细审查一遍所有『运行环境』相关代码，包括逻辑层，UI 等等，找出所有存在的细节问题，以及可改进的地方，并给出相应的意见」。
 > 范围：`src/Lunarward/Features/Runtime/*.cs`（25 文件 6977 行）、`Features/Setting/RuntimeEnvironmentSetting*.cs`（5 个 partial 6156 行）、`RuntimeEnvironmentSetting.xaml`（572 行），并回查 `GameLauncher/GameLauncherService(.Linux).cs`、`LaunchPreflight.cs`、`GameSettingPage.xaml.cs`、`Helpers/JsonFile.cs` 等调用方。
 > 方法：4 组只读子代理分工通读（页面 / 组件与下载 / 启动与解析 / 方案与绑定）+ 本人 grep 自查 + 抽查关键断言；标 ✔已核对的条目由本人回源码逐行确认。初稿中标「推断」的 7 条已于 2026-11-24 逐条取证并订正（结论与实测见 §6.12）：其中 R55 的「建前缀失败」被实测否定、R77 的「死锁面」被代码否定、R94 的适用范围收窄到「手改文件」。仍未实测的只剩「外部服务端行为」（R61 触发、R62 可达性）。
-> 状态：**批 E–J 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116；批 G：R57–R63，D117；批 H：R65–R76，D118；批 I：R77–R85、R93，D119；批 J：R86–R92、R94–R97，D120）；批 K（R98–R130）未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
+> 状态：**批 E–K 全部已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116；批 G：R57–R63，D117；批 H：R65–R76，D118；批 I：R77–R85、R93，D119；批 J：R86–R92、R94–R97，D120；批 K：R98–R130，D121）。第二轮 88 条收口；两处**有意不修**（R117 的字号统一、R126 的 VDF 库存在性探测），理由写在各自条目里，不是漏项。
 
 ### 6.1 结论摘要
 
@@ -495,44 +495,48 @@
 
 ### 6.8 Medium
 
+> 🛠 **批 K 已修（D121，2026-11-24）**：R98–R117 全部落地，逐条说明见 D121。R117 只修了硬编码文案（`Mirror` / `、` / `Selected` 进资源键），**字号统一没做**——那 76 处是 code-behind 现造 TextBlock 的数字字号，收敛成 Style 要一个个赋 Style，和主题样式叠加容易打架，收益只有代码整洁，留作以后重构的主题。R126 的「VDF 库路径不校验存在性」也没做（见 6.9）。
+
 | 编号 | 问题 | 位置 | 建议 |
 | --- | --- | --- | --- |
-| R98 | 受管判定用 `StartsWith` 前缀且不解析符号链接 | `ComponentStore.cs:103,256,340` | 抽 `IsUnder(folder, path)`：两边 `GetFullPath` + 结尾分隔符比较，统一 RealPath |
-| R99 | `ManualRunners.Add/Remove` 写完不 `Invalidate()` | `ComponentStore.cs:1020-1030`；调用 `xaml.cs:953` | Add/Remove 末尾调 `Invalidate()` |
-| R100 | `FindWineserver` 的 PATH 兜底让「缺 wineserver」判定失效 | `ComponentStore.cs:487,517` | 受管组件只在同目录找，PATH 兜底只用于系统/手动添加 |
-| R101 | 把 `mangohud` 当必需二进制（实际只用 `MANGOHUD=1`） | `Enhancements.cs:231-234` | 改为检查 Vulkan layer manifest 是否存在 |
-| R102 | `Sanitize` 把非 ASCII 非中日韩字符折成 `-`，无长度上限 | `ComponentManifest.cs:188-202` | 保留 Unicode 字母数字、截断 80 字符 + 短哈希防碰撞 |
-| R103 | 源覆盖是整对象替换；UI 保存把内置源固化成用户副本，丢 `Removed` | `ComponentSources.cs:171-186`；`Components.cs:1084-1095` | 默认值打底 + 字段级覆盖，或只持久化差异字段 |
-| R104 | `IsArchive` 不含 `.zip`；`PrefersZstd` 对 `.tar.gz` 也 true | `ComponentSources.cs:499-509` | `IsArchive` 复用 `ArchiveExtractor.IsSupported`；`PrefersZstd` 只对 `.tar.zst` 为 true（改测试） |
-| R105 | 资产缓存只增不减、无限流头处理、5xx 不重试 | `ComponentSources.cs:290-292,421` | 加容量/过期淘汰；读 `X-RateLimit-*`；5xx 与网络错误做一次退避重试 |
-| R106 | `OutputCapture.Redact` 替换的是关键词而非值，`token=abc` → `token=***=abc` | `OutputCapture.cs:36,65`（当前无调用者） | 正则改 `(?i)\b(token\|secret\|cookie\|auth(?:orization)?)\s*[=:]\s*\S+` → `$1=***` |
-| R107 | 输出日志忽略 `XDG_DATA_HOME`；不设 `StandardOutputEncoding`；进程退出不 `WaitForExit` | `OutputCapture.cs:71-93` | 共用路径助手；显式 UTF-8；退出后 flush 尾部 |
-| R108 | `WINEDEBUG=-all` 无条件写；`LD_LIBRARY_PATH` 整段替换（启动链）而 CLI 路径是前置 | `RuntimeEnvironment.cs:44,122`；`GameLauncherService.Linux.cs:425-441` | 仅在未指定时设默认；收敛一份「前置 + 保留旧值」实现 |
-| R109 | env 键 `Ordinal` 且不校验字符集（`WINEPREFIX`/`wineprefix` 视为两个键） | `LaunchRecipe.cs:166-184` | 键按 `^[A-Za-z_][A-Za-z0-9_]*$` 校验，已知键大小写归一，值拒 `\0` |
-| R110 | 游戏参数与配方参数先拼字符串再 `SplitArgs`，引号跨层 | `LaunchRecipe.cs:228` | 各自 `SplitArgs` 后 `Concat`，不回炉 |
-| R111 | `LastKnownGood` 读-改-写无锁；默认前缀方案记 null；启动链同步 fork `wine --version` | `LastKnownGoodStore.cs:107-134,121` | 记 `EffectivePrefixPath`；写加文件锁或合并写；Remember 改后台 |
-| R112 | 启动历史追加 + 压缩无跨进程锁；`Culture` 敏感格式化（de-DE 得 `1,5 s`，th-TH 佛历年份） | `LaunchHistoryStore.cs:108-109,62`；`LastKnownGoodStore.cs:167` | 追加友好格式；`InvariantCulture` 格式化 |
-| R113 | 下载表「已安装」判定用双向模糊匹配：`candidate.Contains(version) \|\| version.Contains(candidate)`，装了 10.0 时 1.0 也命中 | `Components.cs:536-537` | 规范化后精确比较（`OrdinalIgnoreCase`），或只允许「前缀 + 段边界」匹配 |
-| R114 | `BindingCount` 计空字符串值 | `ProfileBinding.cs:146` | `Count(x => !string.IsNullOrWhiteSpace(x.Value))` |
-| R115 | `Delete` 对不存在文件返回 true | `RuntimeProfileStore.cs:216-232` | 返回 false + 日志 |
-| R116 | 默认运行器写失败只 `Log.Warning`，无 `SchemaVersion` | `RuntimeDefaults.cs:38-55` | 写失败 toast；加版本字段 |
-| R117 | 文案/字号硬编码：`FormRow("Mirror", …)`、`"、".Join`、内联 `FontSize` 10 处、`SetItemStatus(..., "Selected")` | `Components.cs:900,566,712,846`；`xaml.cs:370`；`xaml` 10 处 | 补资源键 `BuildMirror/ListSeparator/TabSelected`；字号进样式 |
+| 🛠 R98 | 受管判定用 `StartsWith` 前缀且不解析符号链接 | `ComponentStore.cs:103,256,340` | 抽 `IsUnder(folder, path)`：两边 `GetFullPath` + 结尾分隔符比较，统一 RealPath |
+| 🛠 R99 | `ManualRunners.Add/Remove` 写完不 `Invalidate()` | `ComponentStore.cs:1020-1030`；调用 `xaml.cs:953` | Add/Remove 末尾调 `Invalidate()` |
+| 🛠 R100 | `FindWineserver` 的 PATH 兜底让「缺 wineserver」判定失效 | `ComponentStore.cs:487,517` | 受管组件只在同目录找，PATH 兜底只用于系统/手动添加 |
+| 🛠 R101 | 把 `mangohud` 当必需二进制（实际只用 `MANGOHUD=1`） | `Enhancements.cs:231-234` | 改为检查 Vulkan layer manifest 是否存在 |
+| 🛠 R102 | `Sanitize` 把非 ASCII 非中日韩字符折成 `-`，无长度上限 | `ComponentManifest.cs:188-202` | 保留 Unicode 字母数字、截断 80 字符 + 短哈希防碰撞 |
+| 🛠 R103 | 源覆盖是整对象替换；UI 保存把内置源固化成用户副本，丢 `Removed` | `ComponentSources.cs:171-186`；`Components.cs:1084-1095` | 默认值打底 + 字段级覆盖，或只持久化差异字段 |
+| 🛠 R104 | `IsArchive` 不含 `.zip`；`PrefersZstd` 对 `.tar.gz` 也 true | `ComponentSources.cs:499-509` | `IsArchive` 复用 `ArchiveExtractor.IsSupported`；`PrefersZstd` 只对 `.tar.zst` 为 true（改测试） |
+| 🛠 R105 | 资产缓存只增不减、无限流头处理、5xx 不重试 | `ComponentSources.cs:290-292,421` | 加容量/过期淘汰；读 `X-RateLimit-*`；5xx 与网络错误做一次退避重试 |
+| 🛠 R106 | `OutputCapture.Redact` 替换的是关键词而非值，`token=abc` → `token=***=abc` | `OutputCapture.cs:36,65`（当前无调用者） | 正则改 `(?i)\b(token\|secret\|cookie\|auth(?:orization)?)\s*[=:]\s*\S+` → `$1=***` |
+| 🛠 R107 | 输出日志忽略 `XDG_DATA_HOME`；不设 `StandardOutputEncoding`；进程退出不 `WaitForExit` | `OutputCapture.cs:71-93` | 共用路径助手；显式 UTF-8；退出后 flush 尾部 |
+| 🛠 R108 | `WINEDEBUG=-all` 无条件写；`LD_LIBRARY_PATH` 整段替换（启动链）而 CLI 路径是前置 | `RuntimeEnvironment.cs:44,122`；`GameLauncherService.Linux.cs:425-441` | 仅在未指定时设默认；收敛一份「前置 + 保留旧值」实现 |
+| 🛠 R109 | env 键 `Ordinal` 且不校验字符集（`WINEPREFIX`/`wineprefix` 视为两个键） | `LaunchRecipe.cs:166-184` | 键按 `^[A-Za-z_][A-Za-z0-9_]*$` 校验，已知键大小写归一，值拒 `\0` |
+| 🛠 R110 | 游戏参数与配方参数先拼字符串再 `SplitArgs`，引号跨层 | `LaunchRecipe.cs:228` | 各自 `SplitArgs` 后 `Concat`，不回炉 |
+| 🛠 R111 | `LastKnownGood` 读-改-写无锁；默认前缀方案记 null；启动链同步 fork `wine --version` | `LastKnownGoodStore.cs:107-134,121` | 记 `EffectivePrefixPath`；写加文件锁或合并写；Remember 改后台 |
+| 🛠 R112 | 启动历史追加 + 压缩无跨进程锁；`Culture` 敏感格式化（de-DE 得 `1,5 s`，th-TH 佛历年份） | `LaunchHistoryStore.cs:108-109,62`；`LastKnownGoodStore.cs:167` | 追加友好格式；`InvariantCulture` 格式化 |
+| 🛠 R113 | 下载表「已安装」判定用双向模糊匹配：`candidate.Contains(version) \|\| version.Contains(candidate)`，装了 10.0 时 1.0 也命中 | `Components.cs:536-537` | 规范化后精确比较（`OrdinalIgnoreCase`），或只允许「前缀 + 段边界」匹配 |
+| 🛠 R114 | `BindingCount` 计空字符串值 | `ProfileBinding.cs:146` | `Count(x => !string.IsNullOrWhiteSpace(x.Value))` |
+| 🛠 R115 | `Delete` 对不存在文件返回 true | `RuntimeProfileStore.cs:216-232` | 返回 false + 日志 |
+| 🛠 R116 | 默认运行器写失败只 `Log.Warning`，无 `SchemaVersion` | `RuntimeDefaults.cs:38-55` | 写失败 toast；加版本字段 |
+| 🛠 R117 | 文案/字号硬编码：`FormRow("Mirror", …)`、`"、".Join`、内联 `FontSize` 10 处、`SetItemStatus(..., "Selected")` | `Components.cs:900,566,712,846`；`xaml.cs:370`；`xaml` 10 处 | 补资源键 `BuildMirror/ListSeparator/TabSelected`；字号进样式 |
 
 ### 6.9 Low / 文档漂移
 
-- **R118**　死资源：`Lunarward_RuntimeEnv_*` 在 zh-CN resx 约 50 个键无代码/XAML 引用（`AddPath`、`NewProfileInline`、`AddComponents`、`GraphicsEdit`、`MirrorSpeed`、`PrefixShare` 等）；代码引用的键均有定义。建议清理或标注保留原因。
-- **R119**　死代码：`ParseWrappers`（`xaml.cs:1736`）、`ParseEnv`（`:1755`）、字段 `_editorWrappers`（`:1104`）、`_enhanceProfiles`（`Enhancements.cs:22`）全仓无引用；`Button_CloneForGame_Click`（`:2567`）、`Button_ImportArchive_Click`（`Components.cs:549`）、`Button_Sources_Click`（`:639`）、`Button_SourceSpeed_Click`（`:1102`）无 XAML/代码订阅（连带 `ShowImportArchiveAsync:570-597` 的类型选择分支永不执行）；`xaml.cs:1333-1336` 是空 `if` 注释块。
-- **R120**　注释漂移：`xaml.cs:329`（「0 概览/1 运行器/2 组件/3 前缀/4 增强」）与 `:355`（「页签只剩四个」）都与实际三个页签不符；`PrefixManager.cs:1-12` 文件头仍列已删除模式；`PeArchitecture.cs:75-79` 两个 `<summary>` 挂在同一方法（`NormalizePrefixArch` 无文档）；`ResolvePrefixPath`（`GraphicsInstaller.cs:416-423`）无调用者且语义与 `EffectivePrefixPath` 冲突。
-- **R121**　`PrefixManager.TryGetExistingPrefix(profile, gameKey)` 的 `gameKey` 参数完全没用（`PrefixManager.cs:351-355`），文档与实现不符——也是 R50 的根因之一。
-- **R122**　`PrefixManager.WriteMetadata` 早退（`:471-489`）导致 `PrefixArch` 改了也不更新侧写；诊断包（`DiagnosticBundle.cs:158`）会带出旧值。
-- **R123**　`IsUnderPrefixRoot` 纯字符串前缀比较（`PrefixManager.cs:236-248`）；`ClonePrefix` 在目标无目录名时 `CreateDirectory("")` 抛 `ArgumentException`，且 `WaitForExit` 无超时（`:359-389`）；`:310` 的日志文案与条件不匹配。
-- **R124**　`FindExecutable`（`ProfileShellService.cs:117-140`）与 `FindInPath`（`Enhancements.cs:240-260`）都不检查可执行位 → 预检说 Ok、启动 `Win32Exception`。
-- **R125**　`RunnerNaming`：`/usr/local/bin/wine` 被当系统 Wine（`:21-27`）；`Origin` 只认 `~/.local/share` 与 `/opt`（`:40-62`），`/run/media`、Flatpak、`~/Games` 下重名不可区分。
-- **R126**　`SteamLibrary`：非 `/` 路径静默丢弃（`:83-87`，双系统 NTFS 值无日志）；VDF 库路径不校验存在性（`:101-146`）；`IsProtonFolder` 第二条件冗余（`:164-169`）。
-- **R127**　`PeArchitecture`：只读 `system.reg` 前 32 行找 `#arch=`（`:80-108`），探测失败一律当 win64；ARM64 + win32 前缀不报冲突（`:128-143`）。
-- **R128**　`CopyProfile`（`xaml.cs:2459-2482`）未复制 `LegacyGraphicsId`（若为有意请注明）；保存后 `AutoCheckRunnerAsync` 每次重跑无「已自检」记忆；两条 toast 同时弹（`:1716`/`:2146`）。
-- **R129**　`Profiles.cs:404/840`、`xaml:349` 指定 Linux 不存在的 `Consolas`/`"Consolas, monospace"`，与 `xaml.cs:441` 注释自相矛盾；`Profiles.cs:285` 用 `"\uE712"` + `Segoe MDL2 Assets` 画 ⋯。
-- **R130**　无障碍：页签、`✕` 删除按钮、健康状态点（8px `Ellipse` + ToolTip）都无 `AutomationProperties.Name`；`MenuFlyoutItem { Content = "·  ·  ·", IsEnabled = false }` 当分隔线会被读屏播报。
+> 🛠 **批 K 已修（D121，2026-11-24）**：R118–R130 全部处理。其中 R118 实际删了 43 个键（36 个扫出来的 + 删死代码后连带的 7 个孤儿键）；R119 的四个无订阅按钮全删，镜像测速面板随之移除，`ComponentSources.ProbeAllAsync` 作为公共 API 保留；R126 只补了日志与注释，**没加 VDF 库存在性探测**——探测要在设置页点一下扫整个 Steam 目录，属于新功能而不是修 bug，另开条目再说；R130 的 `·  ·  ·` 分隔线用空 `AutomationProperties.Name` 处理（Uno 没有 `IsInAccessibleTree`）。
+
+- **R118（🛠 D121）**　死资源：`Lunarward_RuntimeEnv_*` 在 zh-CN resx 约 50 个键无代码/XAML 引用（`AddPath`、`NewProfileInline`、`AddComponents`、`GraphicsEdit`、`MirrorSpeed`、`PrefixShare` 等）；代码引用的键均有定义。建议清理或标注保留原因。
+- **R119（🛠 D121）**　死代码：`ParseWrappers`（`xaml.cs:1736`）、`ParseEnv`（`:1755`）、字段 `_editorWrappers`（`:1104`）、`_enhanceProfiles`（`Enhancements.cs:22`）全仓无引用；`Button_CloneForGame_Click`（`:2567`）、`Button_ImportArchive_Click`（`Components.cs:549`）、`Button_Sources_Click`（`:639`）、`Button_SourceSpeed_Click`（`:1102`）无 XAML/代码订阅（连带 `ShowImportArchiveAsync:570-597` 的类型选择分支永不执行）；`xaml.cs:1333-1336` 是空 `if` 注释块。
+- **R120（🛠 D121）**　注释漂移：`xaml.cs:329`（「0 概览/1 运行器/2 组件/3 前缀/4 增强」）与 `:355`（「页签只剩四个」）都与实际三个页签不符；`PrefixManager.cs:1-12` 文件头仍列已删除模式；`PeArchitecture.cs:75-79` 两个 `<summary>` 挂在同一方法（`NormalizePrefixArch` 无文档）；`ResolvePrefixPath`（`GraphicsInstaller.cs:416-423`）无调用者且语义与 `EffectivePrefixPath` 冲突。
+- **R121（🛠 D121）**　`PrefixManager.TryGetExistingPrefix(profile, gameKey)` 的 `gameKey` 参数完全没用（`PrefixManager.cs:351-355`），文档与实现不符——也是 R50 的根因之一。
+- **R122（🛠 D121）**　`PrefixManager.WriteMetadata` 早退（`:471-489`）导致 `PrefixArch` 改了也不更新侧写；诊断包（`DiagnosticBundle.cs:158`）会带出旧值。
+- **R123（🛠 D121）**　`IsUnderPrefixRoot` 纯字符串前缀比较（`PrefixManager.cs:236-248`）；`ClonePrefix` 在目标无目录名时 `CreateDirectory("")` 抛 `ArgumentException`，且 `WaitForExit` 无超时（`:359-389`）；`:310` 的日志文案与条件不匹配。
+- **R124（🛠 D121）**　`FindExecutable`（`ProfileShellService.cs:117-140`）与 `FindInPath`（`Enhancements.cs:240-260`）都不检查可执行位 → 预检说 Ok、启动 `Win32Exception`。
+- **R125（🛠 D121）**　`RunnerNaming`：`/usr/local/bin/wine` 被当系统 Wine（`:21-27`）；`Origin` 只认 `~/.local/share` 与 `/opt`（`:40-62`），`/run/media`、Flatpak、`~/Games` 下重名不可区分。
+- **R126（🛠 D121）**　`SteamLibrary`：非 `/` 路径静默丢弃（`:83-87`，双系统 NTFS 值无日志）；VDF 库路径不校验存在性（`:101-146`）；`IsProtonFolder` 第二条件冗余（`:164-169`）。
+- **R127（🛠 D121）**　`PeArchitecture`：只读 `system.reg` 前 32 行找 `#arch=`（`:80-108`），探测失败一律当 win64；ARM64 + win32 前缀不报冲突（`:128-143`）。
+- **R128（🛠 D121）**　`CopyProfile`（`xaml.cs:2459-2482`）未复制 `LegacyGraphicsId`（若为有意请注明）；保存后 `AutoCheckRunnerAsync` 每次重跑无「已自检」记忆；两条 toast 同时弹（`:1716`/`:2146`）。
+- **R129（🛠 D121）**　`Profiles.cs:404/840`、`xaml:349` 指定 Linux 不存在的 `Consolas`/`"Consolas, monospace"`，与 `xaml.cs:441` 注释自相矛盾；`Profiles.cs:285` 用 `"\uE712"` + `Segoe MDL2 Assets` 画 ⋯。
+- **R130（🛠 D121）**　无障碍：页签、`✕` 删除按钮、健康状态点（8px `Ellipse` + ToolTip）都无 `AutomationProperties.Name`；`MenuFlyoutItem { Content = "·  ·  ·", IsEnabled = false }` 当分隔线会被读屏播报。
 
 ### 6.10 横切建议
 
@@ -552,7 +556,7 @@
 | H | R65–R76 | 方案与绑定 | 丢配置、绑定悬空、默认方案漂移 |
 | I | R77–R85 R93 | UI 线程与资源 | 卡顿/崩溃类投诉，含 4 处同步 fork wine |
 | J | R86–R92 R94–R97 | 交互与状态 | 连点崩溃、chip 跳错、状态自相矛盾 |
-| K | R98–R130 | 一致性 / 文案 / 无障碍 / 死代码 | 低风险，可顺手做 |
+| K | R98–R130 | 一致性 / 文案 / 无障碍 / 死代码 | 低风险，可顺手做（✅ 已完成，D121） |
 
 每批流程不变：改前在本节标 📝，改完标 🛠 + 提交号；`dotnet build Starward.slnx`（Debug）→ `dotnet test` → `lint-ui-thread.sh`（动了 UI 事件处理器时）→ 真机过一遍受影响的页面 → 更新 `13-lessons.md`（新坑）与 `CHANGELOG.md`。
 

@@ -15,6 +15,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace Starward.Features.Runtime;
 
@@ -33,7 +34,9 @@ public static class OutputCapture
     private const int Capacity = 5000;
 
     private static readonly ConcurrentQueue<OutputLine> _lines = new();
-    private static readonly Regex _secret = new(@"(?i)(token|secret|cookie|auth)", RegexOptions.Compiled);
+    // R106：以前替换的是**关键词本身**（`token` → `token=***`），真正的凭证原样留在面板上。
+    // 现在只在「键 = 值」的形态里替换值，且要求键后面紧跟分隔符，避免把正常句子里的单词当密钥。
+    private static readonly Regex _secret = new(@"\b(password|passwd|pwd|token|secret|api[_-]?key|apikey|cookie|authorization|auth)\b\s*[:=]\s*(?:(?:bearer|basic|digest)\s+)?\S+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly object _fileLock = new();
 
     /// <summary>新增一行；Scope 用 "game:hk4e_cn" / "companion:ab12cd34" 这种形式，便于按来源过滤。</summary>
@@ -62,14 +65,22 @@ public static class OutputCapture
     }
 
     /// <summary>给面板用的文本：命中敏感词的行打码。</summary>
-    public static string Redact(string text) => _secret.IsMatch(text) ? _secret.Replace(text, "$1=***") : text;
+    public static string Redact(string text)
+        => string.IsNullOrEmpty(text) ? text : _secret.Replace(text, "$1=***");
+
+    /// <summary>R107：数据目录跟着 XDG_DATA_HOME 走（与 <see cref="Helpers.DataFolder"/> 同一套回落逻辑）。</summary>
+    private static string DataHome()
+        => Environment.GetEnvironmentVariable("XDG_DATA_HOME") is { Length: > 0 } xdg
+            ? xdg
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share");
+
 
     private static void AppendToFile(OutputLine line)
     {
         try
         {
-            string folder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "lunarward", "logs", "output");
+            // R107：以前写死 ~/.local/share，忽略 XDG_DATA_HOME（沙箱/自定义数据目录里日志写到别处，排错时找不到）。
+            string folder = Path.Combine(DataHome(), "lunarward", "logs", "output");
             Directory.CreateDirectory(folder);
             string file = Path.Combine(folder, $"{DateTime.Now:yyyyMMdd}.log");
             lock (_fileLock)
@@ -90,6 +101,18 @@ public static class OutputCapture
         process.ErrorDataReceived += (_, e) => Append(scope, e.Data ?? string.Empty, isError: true);
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
+        // R107：异步逐行读的续体在进程退出后才把管道里剩下的行吐出来，不等一次 WaitForExit
+        // 就会丢掉「崩溃前最后几行」——放线程池里等，不占 UI 线程（L-127）。
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                process.WaitForExit();
+            }
+            catch
+            {
+            }
+        });
     }
 
     public static OutputVisibility ParseVisibility(string? value) => value?.ToLowerInvariant() switch

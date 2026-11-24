@@ -103,33 +103,47 @@ public static class LastKnownGoodStore
     }
 
 
-    /// <summary>记录一次成功启动（启动进程真的起来了再调用）。</summary>
-    public static void Remember(RuntimeProfile profile)
+    /// <summary>R111：读-改-写必须串行，否则连点两次启动会互相覆盖（后写的那次丢掉前一次的组合）。</summary>
+    private static readonly object Gate = new();
+
+
+    /// <summary>
+    /// 记录一次成功启动（启动进程真的起来了再调用）。
+    /// R111：前缀实际用的那一个从启动链传进来（默认前缀方案以前记的是 null）；
+    /// 版本号只读缓存，不在启动线程上 fork `wine --version`（最坏冻 4 秒，L-127）。
+    /// </summary>
+    public static void Remember(RuntimeProfile profile, string? effectivePrefix = null)
     {
         if (string.IsNullOrWhiteSpace(profile.Id))
         {
             return;
         }
-        Dictionary<string, LastGoodEntry> map = Load();
-        map[profile.Id] = new LastGoodEntry
+        var entry = new LastGoodEntry
         {
             ProfileId = profile.Id,
             RunnerId = profile.RunnerId,
             DxvkId = profile.DxvkId,
             Vkd3dId = profile.Vkd3dId,
             RunnerPath = profile.RunnerPath,
-            RunnerVersion = string.IsNullOrWhiteSpace(profile.RunnerPath) ? "" : ComponentStore.ReadRunnerVersion(profile.RunnerPath) ?? "",
-            PrefixPath = PrefixManager.ExpandPath(profile.PrefixPath),
+            RunnerVersion = string.IsNullOrWhiteSpace(profile.RunnerPath) ? "" : ComponentStore.CachedRunnerVersion(profile.RunnerPath),
+            PrefixPath = string.IsNullOrWhiteSpace(effectivePrefix)
+                ? EnvironmentResolver.EffectivePrefixPath(profile)
+                : effectivePrefix!,
             At = DateTimeOffset.Now,
         };
-        try
+        lock (Gate)
         {
-            JsonFile.WriteAtomic(FilePath, JsonSerializer.Serialize(map, JsonOptions));
-        }
-        catch (Exception ex)
-        {
-            // 写不进去也不算启动失败
-            Serilog.Log.Debug(ex, "last-good: save failed");
+            try
+            {
+                Dictionary<string, LastGoodEntry> map = Load();
+                map[profile.Id] = entry;
+                JsonFile.WriteAtomic(FilePath, JsonSerializer.Serialize(map, JsonOptions));
+            }
+            catch (Exception ex)
+            {
+                // 写不进去也不算启动失败
+                Serilog.Log.Debug(ex, "last-good: save failed");
+            }
         }
     }
 
@@ -141,12 +155,15 @@ public static class LastKnownGoodStore
         {
             return;
         }
-        Dictionary<string, LastGoodEntry> map = Load();
-        if (map.Remove(profileId))
+        lock (Gate)
         {
             try
             {
-                JsonFile.WriteAtomic(FilePath, JsonSerializer.Serialize(map, JsonOptions));
+                Dictionary<string, LastGoodEntry> map = Load();
+                if (map.Remove(profileId))
+                {
+                    JsonFile.WriteAtomic(FilePath, JsonSerializer.Serialize(map, JsonOptions));
+                }
             }
             catch (Exception ex)
             {
@@ -165,7 +182,8 @@ public static class LastKnownGoodStore
         }
         string runner = string.IsNullOrWhiteSpace(entry.RunnerPath) ? "(未记录路径)" : entry.RunnerPath!;
         string version = string.IsNullOrWhiteSpace(entry.RunnerVersion) ? "" : $" · {entry.RunnerVersion}";
-        return $"{runner}{version} · {entry.At:yyyy-MM-dd HH:mm}";
+        // R112：显式 InvariantCulture，别让佛历/其他日历改掉年份。
+        return $"{runner}{version} · {entry.At.ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture)}";
     }
 
 }

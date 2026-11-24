@@ -18,7 +18,9 @@ internal static class RunnerNaming
     public static string WineDisplayName(string path, string exe)
     {
         string fallback = exe == "wine" ? "系统 Wine" : "系统 Wine (64)";
-        foreach (string systemRoot in new[] { "/usr/", "/bin/", "/sbin/" })
+        // R125：`/usr/local/bin/wine` 是自己编的，不是发行版的系统包——以前被 `/usr/` 吞成「系统 Wine」，
+        // 于是同一个二进制在详情页叫系统 Wine、在列表里叫 usr。只认真正的发行版目录。
+        foreach (string systemRoot in new[] { "/usr/bin/", "/usr/sbin/", "/bin/", "/sbin/" })
         {
             if (path.StartsWith(systemRoot, StringComparison.Ordinal))
             {
@@ -39,26 +41,59 @@ internal static class RunnerNaming
     /// </summary>
     public static string Origin(string path)
     {
-        const string share = "/.local/share/";
-        int at = path.IndexOf(share, StringComparison.Ordinal);
-        if (at >= 0)
+        // R125：不再只认 `~/.local/share` 与 `/opt`——`/run/media/<user>/…`、`/mnt/…`、`~/Games/…`
+        // 下的同名运行器以前来源为空，列表里两行一模一样，分不清是哪个。
+        string? picked = SegmentAfter(path, "/.local/share/")
+            ?? SegmentAfter(path, "/opt/")
+            ?? SegmentAfterSkip(path, "/run/media/", skip: 1)
+            ?? SegmentAfterSkip(path, "/media/", skip: 1)
+            ?? SegmentAfter(path, "/mnt/");
+        if (picked is null)
         {
-            int start = at + share.Length;
-            int slash = path.IndexOf('/', start);
-            if (slash > start)
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrEmpty(home) && path.StartsWith(home + "/", StringComparison.Ordinal))
             {
-                return path[start..slash];
+                picked = SegmentAfter(path, home + "/");
             }
         }
-        if (path.StartsWith("/opt/", StringComparison.Ordinal))
+        return picked ?? "";
+    }
+
+
+    /// <summary>取标记后面的第一段（`/opt/foo/bin/wine` → `foo`）。</summary>
+    private static string? SegmentAfter(string path, string marker)
+    {
+        int at = path.IndexOf(marker, StringComparison.Ordinal);
+        if (at < 0)
         {
-            int slash = path.IndexOf('/', 5);
-            if (slash > 5)
-            {
-                return path[5..slash];
-            }
+            return null;
         }
-        return "";
+        int start = at + marker.Length;
+        int slash = path.IndexOf('/', start);
+        return slash > start ? path[start..slash] : null;
+    }
+
+
+    /// <summary>取标记后面第 <paramref name="skip"/> + 1 段（挂载点要先跳过用户名）。</summary>
+    private static string? SegmentAfterSkip(string path, string marker, int skip)
+    {
+        int at = path.IndexOf(marker, StringComparison.Ordinal);
+        if (at < 0)
+        {
+            return null;
+        }
+        int cursor = at + marker.Length;
+        for (int i = 0; i < skip; i++)
+        {
+            int next = path.IndexOf('/', cursor);
+            if (next < 0)
+            {
+                return null;
+            }
+            cursor = next + 1;
+        }
+        int end = path.IndexOf('/', cursor);
+        return end > cursor ? path[cursor..end] : null;
     }
 
 

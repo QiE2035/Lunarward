@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using ValveKeyValue;
 
@@ -82,7 +82,13 @@ internal static class SteamLibrary
             }
             if (!path.StartsWith('/'))
             {
-                // 旧格式里还有 TimeNextStatsReport / ContentStatsID 之类的数字字段，只认绝对路径
+                // 旧格式里还有 TimeNextStatsReport / ContentStatsID 之类的数字字段，只认绝对路径。
+                // R126：双系统下 `D:\\SteamLibrary` 这类值也走这里——以前一声不响丢掉，
+                // 用户只能看到「没扫到 Proton」；留一条 Debug，排查时能从日志里看到是哪一行被忽略。
+                if (!path.All(char.IsAsciiDigit))
+                {
+                    Serilog.Log.Debug("Steam library path ignored (not absolute): {path}", path);
+                }
                 continue;
             }
             string normalized = path.Length > 1 ? path.TrimEnd('/') : path;
@@ -106,6 +112,11 @@ internal static class SteamLibrary
         {
             if (string.IsNullOrWhiteSpace(path) || !path.StartsWith('/'))
             {
+                // R126：同 ParseLibraries，认不出的库根留在日志里。
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    Serilog.Log.Debug("Steam library root ignored (not absolute): {path}", path);
+                }
                 return;
             }
             string normalized = path.Length > 1 ? path.TrimEnd('/') : path;
@@ -163,6 +174,8 @@ internal static class SteamLibrary
     /// <summary>`steamapps/common` 里只有 `Proton*` 目录是运行器，其余是游戏本体。</summary>
     public static bool IsProtonFolder(string directory)
     {
+        // R126：`common` 下只有 `Proton *`、`GE-Proton*` 与 `Proton-*` 这几种；`GE-Proton` 不以
+        // `Proton` 开头，所以两条前缀都要判——以前写成「第二条是冗余」的注释是错的，这次把注释改对。
         string name = Path.GetFileName(directory);
         return name.StartsWith("Proton", StringComparison.OrdinalIgnoreCase)
                || name.StartsWith("GE-Proton", StringComparison.OrdinalIgnoreCase);

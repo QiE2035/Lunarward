@@ -18,6 +18,9 @@ public class PeArchitectureTests
     [InlineData(PeArch.X64, null, false)]
     [InlineData(PeArch.X86, "win32", false)]
     [InlineData(PeArch.Arm64, "win64", true)]
+    [InlineData(PeArch.Arm64, "win32", true)]
+    [InlineData(PeArch.Arm64, null, false)]
+    [InlineData(PeArch.X64, "crap", false)]
     [InlineData(PeArch.Unknown, "win32", false)]
     public void Conflict_OnlyFailsOnRealMismatches(PeArch exe, string? prefixArch, bool expected)
     {
@@ -193,6 +196,48 @@ public class PrefixArchDetectionTests
             File.WriteAllText(Path.Combine(dir, "system.reg"),
                 "WINE REGISTRY Version 2\n;; All keys relative to REGISTRY\\\\Machine\n\n#arch=win32\n");
             Assert.Equal("win32", PeArchitecture.TryDetectPrefixArch(dir));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+
+    [Fact]
+    public void TryDetectPrefixArch_ReadsArchBeyondFirst32Lines()
+    {
+        // R127：前缀被 winetricks / 手动改过之后，#arch 前面可能堆了几十行注释。
+        string dir = Path.Combine(Path.GetTempPath(), "lw-arch-" + Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var text = new StringBuilder("WINE REGISTRY Version 2\n");
+            for (int i = 0; i < 60; i++)
+            {
+                text.Append(";; padding line ").Append(i).Append('\n');
+            }
+            text.Append("#arch=win32\n[HKEY_LOCAL_MACHINE\\Software]\n");
+            File.WriteAllText(Path.Combine(dir, "system.reg"), text.ToString());
+            Assert.Equal("win32", PeArchitecture.TryDetectPrefixArch(dir));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+
+    [Fact]
+    public void TryDetectPrefixArch_StopsAtFirstSection()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "lw-arch-" + Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "system.reg"),
+                "[HKEY_LOCAL_MACHINE\\Software]\n#arch=win32\n");
+            Assert.Null(PeArchitecture.TryDetectPrefixArch(dir));
         }
         finally
         {

@@ -22,7 +22,6 @@ public sealed partial class RuntimeEnvironmentSetting
     /// <summary>R91：增强页的「已回填」快照，用来判断有没有未保存的改动。</summary>
     private string _enhanceSnapshot = string.Empty;
 
-    private List<RuntimeProfile> _enhanceProfiles = new();
 
 
     /// <summary>R91：把增强页五个字段拼成一份可比对的快照（不做语义归一，改动即视为脏）。</summary>
@@ -162,6 +161,13 @@ public sealed partial class RuntimeEnvironmentSetting
         {
             string? found = Enhancements.FindInPath(binary);
             status.Add(found is null ? string.Format(Lang.Lunarward_RuntimeEnv_NotFoundInPath, binary) : string.Format(Lang.Lunarward_RuntimeEnv_FoundInPath, binary, found));
+        }
+        // R101：MangoHud 走 Vulkan 隐式层，不查 PATH 里的命令。
+        if (Enhancements.NormalizeHud(draft.Hud) == Enhancements.HudMangoHud && !draft.GameScope)
+        {
+            status.Add(Enhancements.HasMangoHudLayer()
+                ? string.Format(Lang.Lunarward_RuntimeEnv_FoundInPath, "MangoHud", "Vulkan implicit layer")
+                : string.Format(Lang.Lunarward_RuntimeEnv_NotFoundInPath, "MangoHud（Vulkan 层）"));
         }
         if (draft.GameScope || !string.IsNullOrWhiteSpace(draft.GameScopeArgs))
         {

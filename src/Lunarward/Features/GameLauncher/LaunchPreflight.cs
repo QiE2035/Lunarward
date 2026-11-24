@@ -149,7 +149,7 @@ public static class LaunchPreflight
             // 预检只「看」不「建」：以前这里直接 EnsurePrefix，点一次「预检」就会 wineboot/clone 出前缀，
             // external 前缀还会被塞进 .lunarward/（L-62）。没准备好就如实说「启动时会准备」。
             prefix = profile is not null
-                ? PrefixManager.TryGetExistingPrefix(profile, gameKey)
+                ? PrefixManager.TryGetExistingPrefix(profile)
                 : GameLauncherService.ResolvePrefix(gameKey);
             if (prefix is null)
             {
@@ -388,16 +388,14 @@ public static class LaunchPreflight
         //    缺程序不会让启动逻辑失败，但用户会看到「什么都没变」，所以点名警告而不是静默。
         if (profile is not null)
         {
-            List<string> missing = Enhancements.RequiredBinaries(profile)
-                .Where(x => Enhancements.FindInPath(x) is null)
-                .ToList();
+            IReadOnlyList<string> missing = Enhancements.MissingRequirements(profile);
             if (missing.Count > 0)
             {
                 result.Items.Add(new PreflightItem
                 {
                     Name = "增强开关",
                     Status = PreflightStatus.Warning,
-                    Detail = "方案的「增强」里开了这些程序，但 PATH 里没找到：" + string.Join("、", missing),
+                    Detail = "方案的「增强」里开了这些，但系统里没找到：" + string.Join("、", missing),
                     Fix = "装上（pacman -S mangohud gamescope gamemode）或到「运行环境 → 增强」把开关关掉",
                     Action = PreflightAction.OpenRuntimeSettings,
                 });

@@ -178,7 +178,7 @@ public static class DiagnosticBundle
         }
         foreach (string biz in new[] { "hk4e_cn", "hkrpg_cn", "nap_cn", "bh3_global" })
         {
-            string? existing = PrefixManager.TryGetExistingPrefix(profile, biz);
+            string? existing = PrefixManager.TryGetExistingPrefix(profile);
             if (existing is not null)
             {
                 return existing;

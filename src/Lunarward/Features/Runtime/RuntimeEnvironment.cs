@@ -6,12 +6,29 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Starward.Features.Runtime;
 
 
 public static class RuntimeEnvironment
 {
+
+    /// <summary>
+    /// R108：把库目录**前置**到 <c>LD_LIBRARY_PATH</c>，并保留调用方原有的值。
+    /// 以前这里整段替换（`= 新目录`），启动链另一处是前置——同一份配方的库在两条路径上顺序不一样。
+    /// </summary>
+    public static void PrependLibraryPath(IDictionary<string, string> env, IEnumerable<string> directories)
+    {
+        string joined = string.Join(":", directories.Where(x => !string.IsNullOrEmpty(x)));
+        if (joined.Length == 0 || env is null)
+        {
+            return;
+        }
+        string? existing = env.TryGetValue("LD_LIBRARY_PATH", out string? old) ? old : null;
+        env["LD_LIBRARY_PATH"] = string.IsNullOrEmpty(existing) ? joined : joined + ":" + existing;
+    }
+
 
     /// <summary>
     /// 装配进程环境变量的「自动注入层」：运行器/前缀/语言/增强开关/Proton 运行时变量 + 配方 env。
@@ -32,7 +49,7 @@ public static class RuntimeEnvironment
         {
             if (!string.IsNullOrWhiteSpace(gameKey))
             {
-                prefix = PrefixManager.TryGetExistingPrefix(profile, gameKey!);
+                prefix = PrefixManager.TryGetExistingPrefix(profile);
             }
             prefix ??= PrefixManager.ExpandPath(profile.PrefixPath);
         }
@@ -41,7 +58,8 @@ public static class RuntimeEnvironment
             env["WINEPREFIX"] = prefix;
         }
 
-        env["WINEDEBUG"] = "-all";
+        // R108：只在用户/配方没指定时给默认值——以前无条件写，连 `WINEDEBUG=+loaddll` 排错也会被悄悄冲掉。
+        env.TryAdd("WINEDEBUG", "-all");
         if (profile is not null)
         {
             env["LUNARWARD_PROFILE"] = profile.Name;
@@ -116,11 +134,7 @@ public static class RuntimeEnvironment
             Path.Combine(files, "lib64"),
             Path.Combine(files, "lib"),
         };
-        string[] libs = Array.FindAll(libCandidates, Directory.Exists);
-        if (libs.Length > 0)
-        {
-            env["LD_LIBRARY_PATH"] = string.Join(":", libs);
-        }
+        PrependLibraryPath(env, Array.FindAll(libCandidates, Directory.Exists));
 
         env["STEAM_COMPAT_CLIENT_INSTALL_PATH"] = steamRoot;
         env["STEAM_COMPAT_INSTALL_PATH"] = toolRoot;

@@ -117,18 +117,21 @@
                     <Button
                         x:Name="Tab_Profiles"
                         Click="Tab_Click"
+                        AutomationProperties.Name="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Profiles}"
                         Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Profiles}"
                         Style="{StaticResource TabButtonSelectedStyle}"
                         Tag="0" />
                     <Button
                         x:Name="Tab_Components"
                         Click="Tab_Click"
+                        AutomationProperties.Name="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Components_2}"
                         Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Components_2}"
                         Style="{StaticResource TabButtonStyle}"
                         Tag="1" />
                     <Button
                         x:Name="Tab_Prefixes"
                         Click="Tab_Click"
+                        AutomationProperties.Name="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Prefix}"
                         Content="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Prefix}"
                         Style="{StaticResource TabButtonStyle}"
                         Tag="2" />
@@ -343,7 +346,6 @@
                                             Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_LaunchPreview}" />
                                         <TextBlock
                                             x:Name="Text_EnhancePreview"
-                                            FontFamily="Consolas"
                                             FontSize="12"
                                             IsTextSelectionEnabled="True"
                                             TextWrapping="Wrap" />

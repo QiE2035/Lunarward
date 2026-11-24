@@ -2825,17 +2825,8 @@
   <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
     <value>安装到前缀…</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
-    <value>前缀模板</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
-    <value>还没有模板。可以在编辑方案时用「把现有前缀做成模板」创建。</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
     <value>已安装</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
-    <value>尚未安装</value>
   </data>
   <data name="Lunarward_Editor_Title" xml:space="preserve">
     <value>运行配置</value>
@@ -3023,17 +3014,8 @@
   <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
     <value>编辑后启动程序</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
-    <value>前缀模板库</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
     <value>图形层可下载或导入，安装到前缀后生效。</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
-    <value>还没有模板。可以在任意方案里用「把现有前缀做成模板…」把一份调好的前缀存进来。</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
-    <value>template / ephemeral 会克隆前缀（同卷 reflink，实测 650MB &lt; 0.2s）；external 直接使用给定目录，不做任何复制。</value>
   </data>
   <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
     <value>默认（{0}）</value>
@@ -3083,9 +3065,6 @@
   <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
     <value>登录</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Overview" xml:space="preserve">
-    <value>概览</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_Runner" xml:space="preserve">
     <value>运行器</value>
   </data>
@@ -3101,26 +3080,17 @@
   <data name="Lunarward_RuntimeEnv_Profiles" xml:space="preserve">
     <value>方案</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Profiles_Description" xml:space="preserve">
-    <value>每个游戏绑定一个方案；一套方案可以被多个游戏共用。编辑方案时下面的「使用中的游戏」就是它的影响面。</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_Runners_Notice" xml:space="preserve">
     <value>只读清单：只发现已有的 wine / Proton，不安装、不修改；用「添加运行器…」下载或加入已装好的版本。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPath" xml:space="preserve">
     <value>添加路径…</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_DownloadComponents" xml:space="preserve">
-    <value>下载组件…</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_ImportArchive" xml:space="preserve">
     <value>导入归档…</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Sources" xml:space="preserve">
     <value>组件源…</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_MirrorSpeed" xml:space="preserve">
-    <value>镜像测速</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Staging" xml:space="preserve">
     <value>下载暂存</value>
@@ -3155,9 +3125,6 @@
   <data name="Lunarward_RuntimeEnv_Revert" xml:space="preserve">
     <value>还原</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Components_Notice" xml:space="preserve">
-    <value>组件只做「发现 + 选择」，不安装也不修改系统里的 wine / DXVK；换运行器后现有前缀会在下次启动时走一次 wine 更新。「伴随启动」在游戏设置页。</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_NoUsableRunner" xml:space="preserve">
     <value>没有可用的运行器</value>
   </data>
@@ -3173,17 +3140,11 @@
   <data name="Lunarward_RuntimeEnv_Usable" xml:space="preserve">
     <value>可用</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_StatsFailComponents" xml:space="preserve">
-    <value>统计运行器与图形层失败</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_StatsFailPrefix" xml:space="preserve">
     <value>统计前缀占用失败</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Graphics" xml:space="preserve">
     <value>图形层</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_CountGraphics" xml:space="preserve">
-    <value>DXVK + VKD3D 件数</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ClearBindings" xml:space="preserve">
     <value>清除这些绑定</value>
@@ -3211,12 +3172,6 @@
   </data>
   <data name="Lunarward_RuntimeEnv_GraphicsInherit" xml:space="preserve">
     <value>图形层：沿用前缀里已有的</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_RunProgram" xml:space="preserve">
-    <value>运行程序…</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_PrefixUsageNone" xml:space="preserve">
-    <value>前缀占用：—（尚未创建）</value>
   </data>
   <data name="Lunarward_RuntimeEnv_LastLaunchNone" xml:space="preserve">
     <value>上次启动：还没有成功启动记录</value>
@@ -3332,9 +3287,6 @@
   <data name="Lunarward_RuntimeEnv_ClonePrefix" xml:space="preserve">
     <value>从现有前缀复制…</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_PrefixHint" xml:space="preserve">
-    <value>路径不存在时，首次启动会用 wineboot 新建；两个方案填同一个路径就是共用。换运行器后会在下次启动走一次 wineboot -u。</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_LaunchPreview" xml:space="preserve">
     <value>启动预览</value>
   </data>
@@ -3346,9 +3298,6 @@
   </data>
   <data name="Lunarward_RuntimeEnv_ArgsHint" xml:space="preserve">
     <value>启动参数（原样拼在游戏 exe 之后）</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_WrappersHint" xml:space="preserve">
-    <value>命令包装（每行一条，按顺序排在 wine 前面）</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Notes" xml:space="preserve">
     <value>备注</value>
@@ -3470,23 +3419,11 @@
   <data name="Lunarward_RuntimeEnv_ConfirmDeleteProfile" xml:space="preserve">
     <value>删除这个环境？</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_NoDownloadSource" xml:space="preserve">
-    <value>没有可用的下载源（检查 components-sources.json）</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_DownloadHint" xml:space="preserve">
     <value>先选源，再点「加载版本列表」；可多选版本排队下载。</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_LoadVersions" xml:space="preserve">
-    <value>加载版本列表</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_StartDownload" xml:space="preserve">
-    <value>开始下载</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_Source" xml:space="preserve">
     <value>下载源</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_DownloadComponent" xml:space="preserve">
-    <value>下载组件</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Close2" xml:space="preserve">
     <value>关闭</value>
@@ -3497,14 +3434,8 @@
   <data name="Lunarward_RuntimeEnv_PrefixOwnersTitle" xml:space="preserve">
     <value>使用这个前缀的方案</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_NoAssetsForSource" xml:space="preserve">
-    <value>这个源没有可用归档（没有匹配的资产，检查 components-sources.json 的 AssetPattern）。</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_SelectVersionFirst" xml:space="preserve">
     <value>先选一个（或多个）版本。</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_SelectionExpired" xml:space="preserve">
-    <value>选择已失效，重新点「加载版本列表」。</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Unknown2" xml:space="preserve">
     <value>未知</value>
@@ -3517,9 +3448,6 @@
   </data>
   <data name="Lunarward_RuntimeEnv_PausedKeepParts" xml:space="preserve">
     <value>已暂停：已下载的分片保留，下次对同一版本再点下载会接着下。</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_FailedColon" xml:space="preserve">
-    <value>失败：</value>
   </data>
   <data name="Lunarward_RuntimeEnv_OpenDownloadWindowFailed" xml:space="preserve">
     <value>打开下载窗口失败</value>
@@ -3542,23 +3470,11 @@
   <data name="Lunarward_RuntimeEnv_MirrorPlaceholder" xml:space="preserve">
     <value>镜像前缀（可选，例如 https://ghfast.top/）</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_SourcesTitle" xml:space="preserve">
-    <value>组件下载源</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_SourcesSaved" xml:space="preserve">
     <value>已保存下载源，下一次下载生效</value>
   </data>
   <data name="Lunarward_RuntimeEnv_SourcesSaveFailed" xml:space="preserve">
     <value>保存下载源失败</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_Probing" xml:space="preserve">
-    <value>正在测速…</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_MirrorNotice" xml:space="preserve">
-    <value>直连源在国内常常不可达；慢或失败可以在「组件源…」里给对应源填镜像前缀。</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_ProbeTitle" xml:space="preserve">
-    <value>镜像测速（HEAD 首字节）</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ProbeFailed" xml:space="preserve">
     <value>测速失败</value>
@@ -3607,9 +3523,6 @@
   </data>
   <data name="Lunarward_RuntimeEnv_SyncNoPrefix" xml:space="preserve">
     <value>前缀还没建，启动时会按方案装</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_CloneForGame" xml:space="preserve">
-    <value>为某个游戏克隆一份</value>
   </data>
   <data name="Lunarward_RuntimeEnv_CleanupUnused" xml:space="preserve">
     <value>清理未使用</value>
@@ -3680,9 +3593,6 @@
   <data name="Lunarward_RuntimeEnv_Unused" xml:space="preserve">
     <value>未使用</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_DeleteUnusedPrefix" xml:space="preserve">
-    <value>删除这个前缀</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_Configure" xml:space="preserve">
     <value>设置</value>
   </data>
@@ -3718,9 +3628,6 @@
   </data>
   <data name="Lunarward_RuntimeEnv_PrefixShare" xml:space="preserve">
     <value>占最大前缀 {0}%</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_UnusedPrefixTitle" xml:space="preserve">
-    <value>未使用的前缀</value>
   </data>
   <data name="Lunarward_RuntimeEnv_Profile" xml:space="preserve">
     <value>方案</value>
@@ -3824,9 +3731,6 @@
 
 如果是你还想保留的 wine 环境，请点「取消」。</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_BadgeUsableLayout" xml:space="preserve">
-    <value>可用 · {0}</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_BadgeUsedBy" xml:space="preserve">
     <value>{0} · {1} 个方案在用</value>
   </data>
@@ -3880,12 +3784,6 @@
   <data name="Lunarward_RuntimeEnv_SyncFailed" xml:space="preserve">
     <value>同步失败：{0}</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_CloneBody" xml:space="preserve">
-    <value>从「{0}」复制一份新方案，并把下面这个游戏绑过去。新方案的前缀是独立的，启动时自动创建。</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_CloneDone" xml:space="preserve">
-    <value>已为「{0}」拆出独立方案「{1}」。</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_NothingToClean" xml:space="preserve">
     <value>没有可清理的组件：受管目录里的每个组件都有方案在用。</value>
   </data>
@@ -3903,6 +3801,21 @@
   </data>
   <data name="Lunarward_RuntimeEnv_CleanResultFailed" xml:space="preserve">
     <value>已清理 {0} 个，失败：{1}</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ProfileFileMissing" xml:space="preserve">
+    <value>配置文件已经不在了（可能已在别的窗口被删除）</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_FormMirror" xml:space="preserve">
+    <value>镜像前缀</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ListSeparator" xml:space="preserve">
+    <value>、</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TabSelected" xml:space="preserve">
+    <value>已选中</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_DefaultsSaveFailed" xml:space="preserve">
+    <value>保存默认值失败，新建方案仍会用之前的运行器</value>
   </data>
   <data name="Lunarward_RuntimeEnv_DeleteProfileUnused" xml:space="preserve">
     <value>「{0}」目前没有游戏在用。删除只移除这份配置文件，前缀目录保留。</value>
@@ -3931,9 +3844,6 @@
   <data name="Lunarward_RuntimeEnv_QueuePrefix" xml:space="preserve">
     <value>队列 {0}/{1}：</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_NotEnoughSpace" xml:space="preserve">
-    <value>{0}（空间不足：需要约 {1} MB，只剩 {2} MB）</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_Downloading" xml:space="preserve">
     <value>{0}下载中 {1} MB / {2}（{3} 连接，{4} MB/s）</value>
   </data>
@@ -3949,14 +3859,8 @@
   <data name="Lunarward_RuntimeEnv_QueuePartial" xml:space="preserve">
     <value>队列完成：{0}/{1} 成功；失败：{2}</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_FailedPrefix" xml:space="preserve">
-    <value>失败：{0}</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_UnsupportedArchive" xml:space="preserve">
     <value>不支持的归档：{0}（支持 {1}）</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_ImportTitle" xml:space="preserve">
-    <value>导入 {0}</value>
   </data>
   <data name="Lunarward_RuntimeEnv_ImportedToast" xml:space="preserve">
     <value>已导入 {0} {1}</value>
@@ -4013,15 +3917,6 @@
   <data name="Lunarward_RuntimeEnv_DiscardEditKeep" xml:space="preserve">
     <value>继续编辑</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_RunnerChange" xml:space="preserve">
-    <value>修改</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_GraphicsEdit" xml:space="preserve">
-    <value>修改</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_FollowPrefixGraphics" xml:space="preserve">
-    <value>图形层：沿用前缀里已有的</value>
-  </data>
   <data name="Lunarward_RuntimeEnv_LayoutBin" xml:space="preserve">
     <value>bin 目录</value>
   </data>
@@ -4030,9 +3925,6 @@
   </data>
   <data name="Lunarward_RuntimeEnv_LayoutWinePrefix" xml:space="preserve">
     <value>wine 前缀</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_SelectedVersions" xml:space="preserve">
-    <value>已选 {0} 个版本</value>
   </data>
   <data name="Lunarward_RuntimeEnv_NoEnabledSource" xml:space="preserve">
     <value>所有下载源都被停用了，先去「管理下载源」启用一个。</value>
@@ -4048,9 +3940,6 @@
   </data>
   <data name="Lunarward_RuntimeEnv_InstallSelected" xml:space="preserve">
     <value>安装所选</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_AddComponents" xml:space="preserve">
-    <value>添加组件</value>
   </data>
   <data name="Lunarward_RuntimeEnv_SummaryFormat" xml:space="preserve">
     <value>已选 {0} 项 · {1} · 可用 {2}</value>
@@ -4225,9 +4114,6 @@
   </data>
   <data name="Lunarward_RuntimeEnv_BindingsLabel" xml:space="preserve">
     <value>绑定</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_NewProfileInline" xml:space="preserve">
-    <value>＋ 新建方案</value>
   </data>
   <data name="Lunarward_RuntimeEnv_AddPathTip" xml:space="preserve">
     <value>下载运行器，或把已装好的 wine 可执行文件加进清单；系统里已发现的运行器只读。</value>

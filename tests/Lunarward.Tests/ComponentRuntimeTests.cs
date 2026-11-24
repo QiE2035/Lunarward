@@ -210,4 +210,23 @@ public class ComponentRuntimeTests
     {
         Assert.Equal("a-b-c", ComponentNaming.Sanitize("a b/c"));
     }
+
+    [Theory]
+    [InlineData("Ведьмак", "Ведьмак")]
+    [InlineData("塞尔达传说", "塞尔达传说")]
+    [InlineData("a  b", "a-b")]
+    public void Sanitize_KeepsUnicodeLetters(string input, string expected)
+    {
+        Assert.Equal(expected, ComponentNaming.Sanitize(input));
+    }
+
+    [Fact]
+    public void Sanitize_TruncatesLongNamesWithHash()
+    {
+        string result = ComponentNaming.Sanitize(new string('a', 200));
+        Assert.True(result.Length <= 80, $"长度 {result.Length} 超过 80");
+        Assert.Matches("-[0-9a-f]{8}$", result);
+        string other = ComponentNaming.Sanitize(new string('a', 199) + "b");
+        Assert.NotEqual(result, other);
+    }
 }

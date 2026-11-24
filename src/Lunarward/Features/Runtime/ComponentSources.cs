@@ -238,7 +238,30 @@ public static class ComponentSources
 
     public static void SaveUserEntries(IEnumerable<ComponentSourceEntry> entries)
     {
-        JsonFile.WriteAtomic(FilePath, entries.ToList(), JsonOptions);
+        // R103：与内置默认逐字段相同的条目不落盘。以前保存一次就把「当时的默认值」固化成用户副本，
+        // 以后升级默认源（换仓库 / 换镜像 / 改过滤）对老用户永远不生效。
+        List<ComponentSourceEntry> diff = entries.Where(entry => !SameAsDefault(entry)).ToList();
+        JsonFile.WriteAtomic(FilePath, diff, JsonOptions);
+    }
+
+
+    /// <summary>R103：这个条目和同 Id 的内置默认是不是完全一样（用于「只持久化差异」）。</summary>
+    public static bool SameAsDefault(ComponentSourceEntry entry)
+    {
+        ComponentSourceEntry? def = Defaults.FirstOrDefault(x => x.Id == entry.Id);
+        if (def is null)
+        {
+            return false;
+        }
+        return string.Equals(entry.DisplayName, def.DisplayName, StringComparison.Ordinal)
+            && string.Equals(entry.Kind, def.Kind, StringComparison.Ordinal)
+            && string.Equals(entry.Owner, def.Owner, StringComparison.Ordinal)
+            && string.Equals(entry.Repo, def.Repo, StringComparison.Ordinal)
+            && string.Equals(entry.AssetPattern, def.AssetPattern, StringComparison.Ordinal)
+            && string.Equals(entry.MirrorPrefix, def.MirrorPrefix, StringComparison.Ordinal)
+            && entry.Rank == def.Rank
+            && entry.Enabled == def.Enabled
+            && entry.Removed == def.Removed;
     }
 
 
@@ -291,6 +314,75 @@ public static class ComponentSources
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTimeOffset At, string? ETag, IReadOnlyList<ComponentReleaseAsset> Items)> AssetCache = new();
 
+    /// <summary>R105：缓存上限。以前只增不减，切镜像/改模式久了会把过期条目全留在内存里。</summary>
+    private const int AssetCacheLimit = 64;
+
+
+    /// <summary>R105：清掉过期条目；还超上限就按时间淘汰最旧的。调用方拿到的是已收敛的缓存。</summary>
+    private static void TrimAssetCache()
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        foreach (var pair in AssetCache)
+        {
+            if (now - pair.Value.At >= AssetCacheTtl)
+            {
+                AssetCache.TryRemove(pair.Key, out _);
+            }
+        }
+        int overflow = AssetCache.Count - AssetCacheLimit;
+        if (overflow <= 0)
+        {
+            return;
+        }
+        foreach (string key in AssetCache.OrderBy(x => x.Value.At).Take(overflow).Select(x => x.Key))
+        {
+            AssetCache.TryRemove(key, out _);
+        }
+    }
+
+
+    /// <summary>
+    /// R105：列表请求的一次退避重试——只对 5xx 与网络异常重试（4xx 是配置问题，重试只会多打一次限流）。
+    /// </summary>
+    private static async Task<HttpResponseMessage> SendAssetRequestAsync(
+        HttpClient http, Func<HttpRequestMessage> create, ILogger? logger, CancellationToken ct)
+    {
+        HttpResponseMessage response = await SendOnceAsync(http, create, logger, ct).ConfigureAwait(false);
+        if ((int)response.StatusCode < 500)
+        {
+            return response;
+        }
+        response.Dispose();
+        await Task.Delay(600, ct).ConfigureAwait(false);
+        logger?.LogWarning("[components] 源返回 5xx，600 ms 后重试一次");
+        return await SendOnceAsync(http, create, logger, ct).ConfigureAwait(false);
+    }
+
+
+    private static async Task<HttpResponseMessage> SendOnceAsync(
+        HttpClient http, Func<HttpRequestMessage> create, ILogger? logger, CancellationToken ct)
+    {
+        try
+        {
+            using HttpRequestMessage request = create();
+            HttpResponseMessage response = await http.SendAsync(request, ct).ConfigureAwait(false);
+            // R105：把限流余量说清楚，别让用户对着「没有可用归档」猜。
+            if (response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining)
+                && remaining.FirstOrDefault() == "0")
+            {
+                string reset = response.Headers.TryGetValues("X-RateLimit-Reset", out var resetValues)
+                    ? resetValues.FirstOrDefault() ?? ""
+                    : "";
+                logger?.LogWarning("[components] GitHub 限流已用完（reset={Reset}）", reset);
+            }
+            return response;
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new ComponentSourceException($"连不上源：{ex.Message}");
+        }
+    }
+
 
     public static async Task<IReadOnlyList<ComponentReleaseAsset>> ListAssetsAsync(
         HttpClient http, ComponentSourceEntry source, int releases = 8, ILogger? logger = null,
@@ -314,23 +406,26 @@ public static class ComponentSources
         }
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, api);
-            if (!string.IsNullOrEmpty(cachedEtag))
-            {
-                request.Headers.TryAddWithoutValidation("If-None-Match", cachedEtag);
-            }
-            request.Headers.UserAgent.ParseAdd("Lunarward/0.1 (+https://github.com/QiE2035/Lunarward)");
-            request.Headers.Accept.ParseAdd("application/vnd.github+json");
             // 匿名请求每 IP 每小时 60 次，共享出口（代理/NAT）很容易被限流；
             // 有 token 就用上，没有就明说，别让用户对着「没有可用归档」猜。
             string? token = Environment.GetEnvironmentVariable("LUNARWARD_GITHUB_TOKEN")
                 ?? Environment.GetEnvironmentVariable("GITHUB_TOKEN")
                 ?? Environment.GetEnvironmentVariable("GH_TOKEN");
-            if (!string.IsNullOrWhiteSpace(token))
+            using HttpResponseMessage response = await SendAssetRequestAsync(http, () =>
             {
-                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-            }
-            using HttpResponseMessage response = await http.SendAsync(request, ct).ConfigureAwait(false);
+                var request = new HttpRequestMessage(HttpMethod.Get, api);
+                if (!string.IsNullOrEmpty(cachedEtag))
+                {
+                    request.Headers.TryAddWithoutValidation("If-None-Match", cachedEtag);
+                }
+                request.Headers.UserAgent.ParseAdd("Lunarward/0.1 (+https://github.com/QiE2035/Lunarward)");
+                request.Headers.Accept.ParseAdd("application/vnd.github+json");
+                if (!string.IsNullOrWhiteSpace(token))
+                {
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                }
+                return request;
+            }, logger, ct).ConfigureAwait(false);
             if (response.StatusCode == System.Net.HttpStatusCode.NotModified && AssetCache.TryGetValue(cacheKey, out var notModified))
             {
                 AssetCache[cacheKey] = (DateTimeOffset.UtcNow, cachedEtag, notModified.Items);
@@ -429,6 +524,7 @@ public static class ComponentSources
             logger?.LogWarning(ex, "[components] 列源 {Source} 异常", source.Id);
             throw new ComponentSourceException($"列版本失败：{ex.Message}");
         }
+        TrimAssetCache();
         AssetCache[cacheKey] = (DateTimeOffset.UtcNow, cachedEtag, result);
         return result;
     }
@@ -521,17 +617,12 @@ public static class ComponentSources
     }
 
 
-    public static bool IsArchive(string name)
-        => name.EndsWith(".tar.xz", StringComparison.OrdinalIgnoreCase)
-           || name.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase)
-           || name.EndsWith(".tar.zst", StringComparison.OrdinalIgnoreCase)
-           || name.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase);
+    /// <summary>R104：支持哪些归档交给 <see cref="ArchiveExtractor"/> 一份口径（以前这里漏了 .zip）。</summary>
+    public static bool IsArchive(string name) => ArchiveExtractor.IsSupported(name);
 
 
-    public static bool PrefersZstd(string name)
-        => name.EndsWith(".tar.zst", StringComparison.OrdinalIgnoreCase)
-           || name.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase)
-           || name.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase);
+    /// <summary>R104：只有 `.tar.zst` 才需要 zstd 解压；`.tar.gz`/`.tgz` 走 tar 直接解开。</summary>
+    public static bool PrefersZstd(string name) => name.EndsWith(".tar.zst", StringComparison.OrdinalIgnoreCase);
 
 
     /// <summary>从文件名或 tag 里抠版本串；抠不到就退回 tag。</summary>

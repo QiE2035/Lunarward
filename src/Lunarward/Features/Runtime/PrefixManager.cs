@@ -15,7 +15,7 @@ using System.Text.Json;
 namespace Starward.Features.Runtime;
 
 
-/// <summary>前缀里的元数据（&lt;prefix&gt;/.lunarward/prefix.json），用于模板/临时前缀的清理与排错。</summary>
+/// <summary>前缀里的元数据（&lt;prefix&gt;/.lunarward/prefix.json），用于诊断包与「谁用过这个前缀」。</summary>
 public sealed class PrefixMetadata
 {
     public string GameKey { get; set; } = "";
@@ -235,11 +235,12 @@ public static class PrefixManager
 
     private static bool IsUnderPrefixRoot(string path)
     {
+        // R123：以前是纯字符串前缀，`/prefixes` 与 `/prefixes-旧` 会被判成父子；改走目录边界比较。
         try
         {
-            string root = PrefixRoot.TrimEnd('/') + "/";
-            return path.StartsWith(root, StringComparison.Ordinal)
-                || string.Equals(path.TrimEnd('/'), PrefixRoot.TrimEnd('/'), StringComparison.Ordinal);
+            return string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)),
+                                 Path.TrimEndingDirectorySeparator(Path.GetFullPath(PrefixRoot)), StringComparison.Ordinal)
+                || ComponentStore.IsUnder(PrefixRoot, path);
         }
         catch
         {
@@ -315,10 +316,15 @@ public static class PrefixManager
         }
         else if (!Directory.Exists(path))
         {
-            // 上级目录可能是「前缀根目录」或随便一个文件夹：wine 会安静地在里面建空前缀，
-            if (Directory.Exists(Path.GetDirectoryName(path)) && IsUnderPrefixRoot(path) is false)
+            // 上级目录可能是「前缀根目录」或随便一个文件夹：wine 会安静地在里面建空前缀。
+            // R123：这句话以前挂在「父目录存在且不在前缀根下」上，说的却是「配方未指定路径」——两回事。
+            if (Directory.Exists(Path.GetDirectoryName(path)))
             {
-                logger?.LogInformation("Prefix {path} 不存在，将新建（配方未指定路径时落在默认目录）", path);
+                logger?.LogInformation("Prefix {path} 不存在，将新建", path);
+            }
+            else
+            {
+                logger?.LogInformation("Prefix {path} 与其上级目录都不存在，将一并创建", path);
             }
             CreateWithWineboot(profile, path, logger);
             TightenPermissions(path);
@@ -354,10 +360,12 @@ public static class PrefixManager
 
 
     /// <summary>
+    /// 只解析「已经存在」的前缀，不创建、不写元数据。R121：原来还收一个 gameKey 却从没用过（写元数据是
+    /// <see cref="EnsurePrefix"/> 的事），调用方也就不必再传。
     /// 只解析「已经存在」的前缀，不创建、不写元数据。
     /// 设置类操作（例如写 HDR 注册表）用它，避免为了改一个开关就凭空造出一个前缀（L-62）。
     /// </summary>
-    public static string? TryGetExistingPrefix(RuntimeProfile profile, string gameKey)
+    public static string? TryGetExistingPrefix(RuntimeProfile profile)
     {
         string path = EnvironmentResolver.EffectivePrefixPath(profile);
         return Directory.Exists(path) ? path : null;
@@ -376,7 +384,13 @@ public static class PrefixManager
             // cp -a 的语义是「拷进目标目录」，目标已存在时会得到 dst/src，前缀直接不可用。宁可直接报错（L-62）。
             throw new IOException($"目标前缀已存在且非空，拒绝覆盖：{destination}");
         }
-        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        string? parent = Path.GetDirectoryName(destination);
+        if (string.IsNullOrEmpty(parent))
+        {
+            // 以前这里把 null 直接喂给 CreateDirectory，用户拿到的是 ArgumentNullException 的栈。
+            throw new ArgumentException($"目标前缀必须是带上级目录的路径（不能是根目录）：{destination}", nameof(destination));
+        }
+        Directory.CreateDirectory(parent);
         var sw = Stopwatch.StartNew();
         // cp -a --reflink=auto：不支持 reflink 的文件系统会自动退化为普通复制（不会失败）
         var info = new ProcessStartInfo("cp")
@@ -388,8 +402,20 @@ public static class PrefixManager
             info.ArgumentList.Add(arg);
         }
         using Process? process = Process.Start(info);
-        process?.WaitForExit();
-        if (process is null || process.ExitCode != 0)
+        if (process is null || !process.WaitForExit(TimeSpan.FromMinutes(10)))
+        {
+            // R123：`cp -a` 拷几十 GB 的前缀没有上限，但也不能无限等——超时就杀掉，别让启动链挂死。
+            try
+            {
+                process?.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Debug(ex, "Kill timed-out cp failed");
+            }
+            throw new IOException($"克隆前缀超时（10 分钟）：{source} -> {destination}");
+        }
+        if (process.ExitCode != 0)
         {
             throw new IOException($"克隆前缀失败（cp 退出码 {process?.ExitCode}）：{source} -> {destination}");
         }
@@ -527,7 +553,10 @@ public static class PrefixManager
         try
         {
             PrefixMetadata? existing = GetMetadata(prefix);
-            if (existing is not null && existing.GameKey == gameKey && existing.ProfileId == profile.Id)
+            string arch = PeArchitecture.NormalizePrefixArch(profile.PrefixArch);
+            // R122：以前只比 gameKey/profileId，配方从 win64 改成 win32 后侧写永远停在旧架构。
+            if (existing is not null && existing.GameKey == gameKey && existing.ProfileId == profile.Id
+                && string.Equals(existing.PrefixArch ?? "", arch, StringComparison.Ordinal))
             {
                 return;
             }
@@ -538,7 +567,7 @@ public static class PrefixManager
                 GameKey = gameKey,
                 ProfileId = profile.Id,
                 Mode = "environment",
-                PrefixArch = PeArchitecture.NormalizePrefixArch(profile.PrefixArch),
+                PrefixArch = arch,
                 CreatedAt = existing?.CreatedAt ?? DateTime.Now,
             }, new JsonSerializerOptions { WriteIndented = true });
         }
