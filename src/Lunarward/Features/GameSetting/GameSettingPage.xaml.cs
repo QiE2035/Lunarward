@@ -1,5 +1,11 @@
+<<<<<<< /tmp/_ours
 using CommunityToolkit.Mvvm.Input;
 using Starward.Language;
+||||||| /tmp/_base
+using CommunityToolkit.Mvvm.Input;
+=======
+﻿using CommunityToolkit.Mvvm.Input;
+>>>>>>> /tmp/_theirs
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graphics.Display;
@@ -11,7 +17,6 @@ using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameSelector;
-using Starward.Frameworks;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
@@ -188,7 +193,7 @@ public sealed partial class GameSettingPage : PageBase
         {
             if (SetProperty(ref field, value))
             {
-                AppConfig.SetStartArgument(CurrentGameBiz, value);
+                AppConfig.SetStartArgument(CurrentGameId, value);
             }
         }
     }
@@ -353,6 +358,7 @@ public sealed partial class GameSettingPage : PageBase
                     HDRNotSupported = true;
                 }
             }
+<<<<<<< /tmp/_ours
             StartArgument = AppConfig.GetStartArgument(CurrentGameBiz);
             UsePopupWindow = AppConfig.GetUsePopupWindow(CurrentGameBiz);
             var registrySettings = await Task.Run(() => new GameSettingSnapshot(
@@ -369,6 +375,15 @@ public sealed partial class GameSettingPage : PageBase
             // 初始化结束后显式请求一次重新测量。
             DispatcherQueue.TryEnqueue(() => Grid_Content.InvalidateMeasure());
             var resolutionSetting = registrySettings.Resolution;
+||||||| /tmp/_base
+            StartArgument = AppConfig.GetStartArgument(CurrentGameBiz);
+            UsePopupWindow = AppConfig.GetUsePopupWindow(CurrentGameBiz);
+            var resolutionSetting = GameSettingService.GetGameResolutionSetting(CurrentGameBiz);
+=======
+            StartArgument = AppConfig.GetStartArgument(CurrentGameId);
+            //UsePopupWindow = AppConfig.GetUsePopupWindow(CurrentGameId);
+            var resolutionSetting = GameSettingService.GetGameResolutionSetting(CurrentGameBiz);
+>>>>>>> /tmp/_theirs
             if (resolutionSetting != null)
             {
                 EnableFullScreen = resolutionSetting.IsFullScreen;
@@ -548,8 +563,16 @@ public sealed partial class GameSettingPage : PageBase
                     Width = ResolutionWidth,
                     Height = ResolutionHeight,
                 };
+<<<<<<< /tmp/_ours
                 await GameSettingService.SetGameResolutionSettingAsync(CurrentGameBiz, model);
                 AppConfig.SetUsePopupWindow(CurrentGameBiz, UsePopupWindow);
+||||||| /tmp/_base
+                GameSettingService.SetGameResolutionSetting(CurrentGameBiz, model);
+                AppConfig.SetUsePopupWindow(CurrentGameBiz, UsePopupWindow);
+=======
+                GameSettingService.SetGameResolutionSetting(CurrentGameBiz, model);
+                //AppConfig.SetUsePopupWindow(CurrentGameId, UsePopupWindow);
+>>>>>>> /tmp/_theirs
             }
             if (IsLanguageSettingEnable)
             {

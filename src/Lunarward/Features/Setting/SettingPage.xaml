@@ -1,13 +1,21 @@
+<<<<<<< /tmp/_ours
 <?xml version="1.0" encoding="utf-8" ?>
 <sf:PageBase
              NavigationCacheMode="Required" x:Class="Starward.Features.Setting.SettingPage"
+||||||| /tmp/_base
+<?xml version="1.0" encoding="utf-8" ?>
+<sf:PageBase x:Class="Starward.Features.Setting.SettingPage"
+=======
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<sf:PageBase x:Class="Starward.Features.Setting.SettingPage"
+>>>>>>> /tmp/_theirs
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:lang="using:Starward.Language"
              xmlns:local="using:Starward.Features.Setting"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:sf="using:Starward.Frameworks"
+             xmlns:sf="using:Starward.Features"
              x:DefaultBindMode="OneWay"
              mc:Ignorable="d">
 
@@ -89,7 +97,9 @@
                 <!--  运行环境已提升为一级页（D80），入口在 MainView 的 footer、齿轮正上方。
                       这里保留 SettingPage 里的 Tag 映射只为兼容旧的 subpage 参数，不再有可见条目。  -->
                 <!--  高级  -->
-                <NavigationViewItem Content="{x:Bind lang:Lang.SettingPage_Advanced}" Tag="AdvancedSetting">
+                <NavigationViewItem Content="{x:Bind lang:Lang.SettingPage_Advanced}"
+                                    Tag="AdvancedSetting"
+                                    Visibility="Collapsed">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xEA86;" />
                     </NavigationViewItem.Icon>

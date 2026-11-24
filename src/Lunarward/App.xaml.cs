@@ -1,10 +1,26 @@
-using Microsoft.Extensions.Configuration;
+﻿using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+<<<<<<< /tmp/_ours
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.GameLauncher;
+||||||| /tmp/_base
+using Microsoft.Windows.AppLifecycle;
+using Starward.Core;
+using Starward.Core.HoYoPlay;
+using Starward.Features.GameLauncher;
+=======
+using Microsoft.Windows.AppLifecycle;
+using Starward.Features.Database;
+>>>>>>> /tmp/_theirs
 using Starward.Features.GamepadControl;
+<<<<<<< /tmp/_ours
+||||||| /tmp/_base
+using Starward.Features.UrlProtocol;
+=======
+using Starward.Features.Passport;
+>>>>>>> /tmp/_theirs
 using Starward.Features.ViewHost;
 using System;
 using System.Collections.Generic;
@@ -12,8 +28,9 @@ using System.Collections;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Timers;
+using Vanara.PInvoke;
+using Windows.ApplicationModel.Activation;
 
 
 namespace Starward;
@@ -33,6 +50,13 @@ public partial class App : Application
         RequestedTheme = ApplicationTheme.Dark;
         _uiDispatcherQueue = DispatcherQueue.GetForCurrentThread();
         UnhandledException += App_UnhandledException;
+<<<<<<< /tmp/_ours
+||||||| /tmp/_base
+        _gcTimer.Elapsed += (_, _) => GC.Collect();
+=======
+        _gcTimer.Elapsed += (_, _) => GC.Collect();
+        _gcTimer.Start();
+>>>>>>> /tmp/_theirs
     }
 
 
@@ -65,22 +89,60 @@ public partial class App : Application
     {
         string[] args = Environment.GetCommandLineArgs().Skip(1).ToArray();
 
+<<<<<<< /tmp/_ours
         await AppConfig.CheckEnviromentAsync();
 
         if (args.Length > 0 && await HandleStartupAsync(args))
+||||||| /tmp/_base
+        if (args.Length > 0 && args[0].ToLower().StartsWith("starward://test/"))
+=======
+
+        if (AppConfig.UserDataFolder is null)
+>>>>>>> /tmp/_theirs
         {
+<<<<<<< /tmp/_ours
             return;
+||||||| /tmp/_base
+            new TestUrlProtocolWindow().Activate();
+            return;
+=======
+            if (await new WelcomeWindow().WaitAsync())
+            {
+                AppConfig.LoadConfiguration();
+            }
+            else
+            {
+                Environment.Exit(0);
+            }
+>>>>>>> /tmp/_theirs
         }
 
+<<<<<<< /tmp/_ours
         // Lunarward：游戏启动后拉起「伴随启动」的后启动程序（D24/D28）
         Features.Companion.CompanionAutoStart.Register(AppConfig.GetService<Features.Companion.CompanionRunner>(), AppConfig.GetLogger<App>());
 
         // Lunarward：Uno 的 AcrylicBrush 只实现为 FallbackColor（96% 不透明的深色），会把壁纸完全盖住。
         // 这里换成半透明画刷，近似 Windows 上「壁纸透过亚克力」的观感（真模糊见 D31 / M3）。
         if (!OperatingSystem.IsWindows())
+||||||| /tmp/_base
+        await AppConfig.CheckEnviromentAsync();
+
+        if (args.Length > 0 && await HandleStartupAsync(args))
+=======
+        instance = AppInstance.FindOrRegisterForKey("Starward.Main");
+        if (!instance.IsCurrent)
+>>>>>>> /tmp/_theirs
         {
+<<<<<<< /tmp/_ours
             ApplyAcrylicFallback();
+||||||| /tmp/_base
+            return;
+=======
+            await instance.RedirectActivationToAsync(instance.GetActivatedEventArgs());
+            Environment.Exit(0);
+>>>>>>> /tmp/_theirs
         }
+<<<<<<< /tmp/_ours
 
         // Lunarward：Linux 首次运行先识别已有安装（注册表不可用，改为扫目录，D25）
         if (!OperatingSystem.IsWindows())
@@ -102,7 +164,16 @@ public partial class App : Application
                 AppConfig.CurrentGameBiz = debugBiz;
             }
         }
+||||||| /tmp/_base
 
+        instance = AppInstance.GetCurrent();
+        instance.Activated += AppInstance_Activated;
+=======
+        instance = AppInstance.GetCurrent();
+        instance.Activated += AppInstance_Activated;
+>>>>>>> /tmp/_theirs
+
+<<<<<<< /tmp/_ours
         // Lunarward：Linux 单实例 = 文件锁（判定谁在跑）+ Unix socket（把「再次启动」变成「唤起已有窗口」）。
         // 只有第二个实例会走到这里；它把意图发给主实例后立刻退出，不再开窗口（D6）。
         // --new-instance：跳过单实例检查（Rider/调试器里同时跑多个实例时用；也用于排查「没窗口」）。
@@ -182,6 +253,15 @@ public partial class App : Application
                     Serilog.Log.Debug("Second instance launch scheduled: {status}", launchTask.Status);
                 }
             }));
+||||||| /tmp/_base
+        var main = AppInstance.FindOrRegisterForKey("main");
+        if (!main.IsCurrent)
+        {
+            await main.RedirectActivationToAsync(instance.GetActivatedEventArgs());
+            Environment.Exit(0);
+        }
+=======
+>>>>>>> /tmp/_theirs
         if (Environment.GetCommandLineArgs().Contains("--hide"))
         {
             // Lunarward：Linux 的托盘是 StatusNotifierItem，不需要（也不应该）创建上游的 SystemTrayWindow 占位控件。
@@ -263,6 +343,7 @@ public partial class App : Application
     }
 
 
+<<<<<<< /tmp/_ours
     private async Task<bool> HandleStartupAsync(string[] args)
     {
         // lunarward://startgame?biz=hk4e_cn → startgame --biz hk4e_cn
@@ -372,6 +453,51 @@ public partial class App : Application
         }
     }
 
+||||||| /tmp/_base
+    private async Task<bool> HandleStartupAsync(string[] args)
+    {
+        IConfiguration config = new ConfigurationBuilder().AddCommandLine(args).Build();
+        if (args[0].ToLower() is "rpc")
+        {
+            RpcRunner.Run(args);
+            Environment.Exit(0);
+        }
+        if (args[0].ToLower() is "playtime")
+        {
+            int pid = config.GetValue<int>("pid");
+            GameBiz biz = (GameBiz)config.GetValue<string>("biz");
+            if (pid > 0)
+            {
+                var playtime = AppConfig.GetService<Features.PlayTime.PlayTimeRecordService>();
+                await playtime.LogPlayTimeAsync(biz, pid);
+            }
+            Environment.Exit(0);
+        }
+
+        if (args[0].ToLower() is "startgame")
+        {
+            GameBiz biz = (GameBiz)config.GetValue<string>("biz");
+            GameId? gameId = GameId.FromGameBiz(biz);
+            if (gameId is not null)
+            {
+                await AppConfig.GetService<GameLauncherService>().StartGameAsync(gameId);
+            }
+            Environment.Exit(0);
+        }
+
+        if (args[0].ToLower().StartsWith("starward://"))
+        {
+            if (await UrlProtocolService.HandleUrlProtocolAsync(args[0]))
+            {
+                Environment.Exit(0);
+            }
+        }
+
+        return false;
+    }
+
+=======
+>>>>>>> /tmp/_theirs
 
     private MainWindow m_MainWindow;
 
@@ -441,6 +567,7 @@ public partial class App : Application
 
     internal static bool TryAcquireSingleInstanceLock()
     {
+<<<<<<< /tmp/_ours
         try
         {
             var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "state", "lunarward");
@@ -452,6 +579,27 @@ public partial class App : Application
         {
             return false;
         }
+||||||| /tmp/_base
+        _uiDispatcherQueue.TryEnqueue(EnsureMainWindow);
+=======
+        try
+        {
+            _uiDispatcherQueue.TryEnqueue(EnsureMainWindow);
+            if (e.Data is ILaunchActivatedEventArgs { Arguments: string arguments })
+            {
+                string?[] args = Shell32.CommandLineToArgvW(arguments);
+                if (args.Length > 1)
+                {
+                    string? url = args[1];
+                    if (url?.StartsWith("starward-hyp-login://") ?? false)
+                    {
+                        WeakReferenceMessenger.Default.Send(new HypThirdPartyLoginMessage(url));
+                    }
+                }
+            }
+        }
+        catch { }
+>>>>>>> /tmp/_theirs
     }
 
 
@@ -470,11 +618,23 @@ public partial class App : Application
 
 
 
-    public new void Exit()
+    public async void Exit(bool quickExit = false)
     {
-        GamepadController.RestoreGamepadGuideButtonForGameBar();
         m_MainWindow?.Close();
         m_SystemTrayWindow?.Close();
+        GamepadController.RestoreGamepadGuideButtonForGameBar();
+        if (!quickExit)
+        {
+            try
+            {
+                var timer = new Timer(30_000);
+                timer.Elapsed += (_, _) => Environment.Exit(0);
+                timer.Start();
+                AppInstance.GetCurrent().UnregisterKey();
+                DatabaseService.AutoBackupToAppDataLocal();
+            }
+            catch { }
+        }
         Application.Current.Exit();
     }
 

@@ -1,44 +1,59 @@
+﻿using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
+using Starward.Features.GameSelector;
 using Starward.Features.GameSetting;
-using Starward.Features.HoYoPlay;
+using Starward.Features.Passport;
 using Starward.Features.PlayTime;
+using Starward.GameInstall;
+using Starward.GameInstall.HotUpdate;
+using Starward.GameInstall.Model;
 using Starward.Helpers;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Starward.Features.GameLauncher;
 
 internal partial class GameLauncherService
 {
-
-
     private readonly ILogger<GameLauncherService> _logger;
-
 
     private readonly HoYoPlayService _hoYoPlayService;
 
+    private readonly GameConfigService _gameConfigService;
+
+    private readonly PassportService _passportService;
+
     private readonly PlayTimeRecordService _playTimeRecorderService;
 
-    private readonly GameAuthLoginService _gameAuthLoginService;
+    private readonly GenshinHotUpdateService _genshinHotUpdateService;
 
 
-    public GameLauncherService(ILogger<GameLauncherService> logger, HoYoPlayService hoYoPlayService, PlayTimeRecordService playTimeRecorderService, GameAuthLoginService gameAuthLoginService)
+    public GameLauncherService(ILogger<GameLauncherService> logger,
+                               HoYoPlayService hoYoPlayService,
+                               PassportService passportService,
+                               GameConfigService gameConfigService,
+                               PlayTimeRecordService playTimeRecorderService,
+                               GenshinHotUpdateService genshinHotUpdateService)
     {
         _logger = logger;
         _hoYoPlayService = hoYoPlayService;
+        _gameConfigService = gameConfigService;
+        _passportService = passportService;
         _playTimeRecorderService = playTimeRecorderService;
-        _gameAuthLoginService = gameAuthLoginService;
+        _genshinHotUpdateService = genshinHotUpdateService;
     }
 
 
-
+    #region Install Path
 
 
     /// <summary>
@@ -48,38 +63,26 @@ internal partial class GameLauncherService
     /// <returns></returns>
     public static string? GetGameInstallPath(GameId gameId)
     {
-        return GetGameInstallPath(gameId.GameBiz);
-    }
-
-
-    /// <summary>
-    /// 游戏安装目录，为空时未找到
-    /// </summary>
-    /// <param name="gameId"></param>
-    /// <returns></returns>
-    public static string? GetGameInstallPath(GameBiz gameBiz)
-    {
-        var path = AppConfig.GetGameInstallPath(gameBiz);
-        if (string.IsNullOrWhiteSpace(path))
+        GameEntry? entry = GameEntryService.GetFromId(gameId);
+        if (string.IsNullOrWhiteSpace(entry?.InstallPath))
         {
             return null;
         }
-        path = GetFullPathIfRelativePath(path);
+        string path = GetFullPathIfRelativePath(entry.InstallPath);
         if (Directory.Exists(path))
         {
             return Path.GetFullPath(path);
         }
-        else if (AppConfig.GetGameInstallPathRemovable(gameBiz))
+        else if (entry.Removable)
         {
             return path;
         }
         else
         {
-            ChangeGameInstallPath(gameBiz, null);
+            GameEntryService.SetInstallPathNull(gameId);
             return null;
         }
     }
-
 
 
     /// <summary>
@@ -91,28 +94,97 @@ internal partial class GameLauncherService
     public static string? GetGameInstallPath(GameId gameId, out bool storageRemoved)
     {
         storageRemoved = false;
-        var path = AppConfig.GetGameInstallPath(gameId.GameBiz);
-        if (string.IsNullOrWhiteSpace(path))
+        GameEntry? entry = GameEntryService.GetFromId(gameId);
+        if (string.IsNullOrWhiteSpace(entry?.InstallPath))
         {
             return null;
         }
-        path = GetFullPathIfRelativePath(path);
+        string path = GetFullPathIfRelativePath(entry.InstallPath);
         if (Directory.Exists(path))
         {
             return path;
         }
-        else if (AppConfig.GetGameInstallPathRemovable(gameId.GameBiz))
+        else if (entry.Removable)
         {
             storageRemoved = true;
             return path;
         }
         else
         {
-            ChangeGameInstallPath(gameId, null);
+            GameEntryService.SetInstallPathNull(gameId);
             return null;
         }
     }
 
+    /// <summary>
+    /// 修改游戏安装目录
+    /// </summary>
+    /// <param name="gameId"></param>
+    /// <param name="path"></param>
+    /// <returns></returns>
+    public string? ChangeGameInstallPath(GameId gameId, string? path)
+    {
+        LauncherConfig? model = _hoYoPlayService.GetLauncherConfig(gameId);
+        if (model is null)
+        {
+            throw new ArgumentNullException($"Cannot get LauncherConfig from GameId ({gameId}).");
+        }
+        if (Directory.Exists(path))
+        {
+            path = Path.GetFullPath(path);
+            string relativePath = GetRelativePathIfInRemovableStorage(path, out bool removable);
+            GameEntryService.SetInstallPath(gameId, model.Id, relativePath, removable);
+            WeakReferenceMessenger.Default.Send(new PinGameIconMessage(gameId, model, true));
+        }
+        else
+        {
+            path = null;
+            GameEntryService.SetInstallPath(gameId, model.Id, null, false);
+        }
+        return path;
+    }
+
+
+    /// <summary>
+    /// 如果安装在可移动存储设备中，获取相对路径
+    /// </summary>
+    /// <param name="path"></param>
+    /// <param name="removableStorage"></param>
+    /// <returns></returns>
+    public static string GetRelativePathIfInRemovableStorage(string path, out bool removableStorage)
+    {
+        removableStorage = DriveHelper.IsDeviceRemovableOrOnUSB(path);
+        if (removableStorage && Path.GetPathRoot(AppConfig.StarwardExecutePath) == Path.GetPathRoot(path))
+        {
+            path = Path.GetRelativePath(Path.GetDirectoryName(AppConfig.ConfigPath)!, path);
+        }
+        return path;
+    }
+
+
+    /// <summary>
+    /// 如果安装在可移动存储设备中，获取完整路径
+    /// </summary>
+    /// <param name="path"></param>
+    /// <returns></returns>
+    public static string GetFullPathIfRelativePath(string path)
+    {
+        if (Path.IsPathFullyQualified(path))
+        {
+            return Path.GetFullPath(path);
+        }
+        else
+        {
+            return Path.GetFullPath(path, Path.GetDirectoryName(AppConfig.ConfigPath)!);
+        }
+    }
+
+
+    #endregion
+
+
+
+    #region Game Version
 
 
     /// <summary>
@@ -121,49 +193,15 @@ internal partial class GameLauncherService
     /// <param name="gameId"></param>
     /// <param name="installPath"></param>
     /// <returns></returns>
-    public async Task<Version?> GetLocalGameVersionAsync(GameId gameId, string? installPath = null)
+    public async Task<Version?> GetLocalGameVersionAsync(GameId gameId, string? installPath = null, CancellationToken cancellation = default)
     {
-        return await GetLocalGameVersionAsync(gameId.GameBiz, installPath);
-    }
-
-
-
-    /// <summary>
-    /// 本地游戏版本
-    /// </summary>
-    /// <param name="gameBiz"></param>
-    /// <param name="installPath"></param>
-    /// <returns></returns>
-    public async Task<Version?> GetLocalGameVersionAsync(GameBiz gameBiz, string? installPath = null)
-    {
-        installPath ??= GetGameInstallPath(gameBiz);
+        installPath ??= GetGameInstallPath(gameId);
         if (string.IsNullOrWhiteSpace(installPath))
         {
             return null;
         }
-        var config = Path.Join(installPath, "config.ini");
-        if (File.Exists(config))
-        {
-            var str = await File.ReadAllTextAsync(config);
-            var matches = GameVersionRegex().Matches(str);
-            Version? version = null;
-            if (matches.Count > 0)
-            {
-                _ = Version.TryParse(matches[^1].Groups[1].Value, out version);
-            }
-            return version;
-        }
-        else
-        {
-            _logger.LogWarning("config.ini not found: {path}", config);
-            return null;
-        }
+        return (await GameConfigService.GetGameConfigIniAsync(installPath, cancellation))?.GameVersion;
     }
-
-
-    [GeneratedRegex(@"game_version=(.+)")]
-    private static partial Regex GameVersionRegex();
-
 
 
     /// <summary>
@@ -171,34 +209,134 @@ internal partial class GameLauncherService
     /// </summary>
     /// <param name="gameBiz"></param>
     /// <returns></returns>
-    public async Task<(Version? Latest, Version? Predownload)> GetLatestGameVersionAsync(GameId gameId)
+    public async Task<(Version? Latest, Version? Predownload)> GetLatestGameVersionAsync(GameId gameId, CancellationToken cancellation)
     {
-        GameConfig? config = await _hoYoPlayService.GetGameConfigAsync(gameId);
+        LauncherConfig? launcher = _hoYoPlayService.GetLauncherConfig(gameId);
+        GameConfig? config = await _hoYoPlayService.GetGameConfigAsync(gameId, cancellation);
         if (config is null)
         {
             throw new ArgumentOutOfRangeException($"Game config is null ({gameId.Id}, {gameId.GameBiz}).");
         }
-        if (config.DefaultDownloadMode is DownloadMode.DOWNLOAD_MODE_CHUNK or DownloadMode.DOWNLOAD_MODE_LDIFF)
+        if (config.DefaultDownloadMode is DownloadMode.DOWNLOAD_MODE_FILE)
         {
-            GameBranch? gameBranch = await _hoYoPlayService.GetGameBranchAsync(gameId);
+            GamePackage? package = await _hoYoPlayService.GetGamePackageAsync(gameId, cancellation);
+            _ = Version.TryParse(package?.Main.Major?.Version, out Version? latestVersion);
+            _ = Version.TryParse(package?.PreDownload.Major?.Version, out Version? predownloadVersion);
+            return (latestVersion, predownloadVersion);
+        }
+        else
+        {
+            GameBranch? gameBranch = await _hoYoPlayService.GetGameBranchAsync(gameId, cancellation);
             if (gameBranch is null)
             {
                 throw new ArgumentOutOfRangeException($"Game branch is null ({gameId.Id}, {gameId.GameBiz}).");
+            }
+            if (launcher?.IsBeta is true)
+            {
+                await _hoYoPlayService.GetGameSophonChunkBuildAsync(gameId, gameBranch.Main, null, cancellation);
             }
             _ = Version.TryParse(gameBranch.Main.Tag, out Version? latestVersion);
             _ = Version.TryParse(gameBranch.PreDownload?.Tag, out Version? predownloadVersion);
             return (latestVersion, predownloadVersion);
         }
-        else
-        {
-            GamePackage package = await _hoYoPlayService.GetGamePackageAsync(gameId);
-            _ = Version.TryParse(package.Main.Major?.Version, out Version? latestVersion);
-            _ = Version.TryParse(package.PreDownload.Major?.Version, out Version? predownloadVersion);
-            return (latestVersion, predownloadVersion);
-        }
     }
 
 
+    /// <summary>
+    /// 检查预下载是否完成
+    /// </summary>
+    /// <param name="gameId"></param>
+    /// <param name="installPath"></param>
+    /// <returns></returns>
+    public async Task<bool> CheckPreDownloadFinishedAsync(GameId gameId, string? installPath = null, CancellationToken cancellation = default)
+    {
+        installPath ??= GetGameInstallPath(gameId);
+        if (string.IsNullOrWhiteSpace(installPath))
+        {
+            return false;
+        }
+        var config = await GameConfigService.GetGameConfigIniAsync(installPath, cancellation);
+        if (config is null)
+        {
+            return false;
+        }
+        (_, Version? pre) = await GetLatestGameVersionAsync(gameId, cancellation);
+        AudioLanguage language = await _gameConfigService.GetAudioLanguageAsync(gameId, installPath, cancellation);
+        return config.Settings.GetValueOrDefault("predownload") == $"{config.GameVersion},{pre},{language}";
+    }
+
+
+    /// <summary>
+    /// 检查插件更新
+    /// </summary>
+    /// <param name="gameId"></param>
+    /// <param name="installPath"></param>
+    /// <param name="cancellation"></param>
+    /// <returns></returns>
+    public async Task<bool> CheckPluginUpdateAsync(GameId gameId, string? installPath = null, CancellationToken cancellation = default)
+    {
+        installPath ??= GetGameInstallPath(gameId);
+        if (string.IsNullOrWhiteSpace(installPath))
+        {
+            return false;
+        }
+        GamePluginRelease? pluginRelease = await _hoYoPlayService.GetGamePluginAsync(gameId, cancellation);
+        if (pluginRelease is null)
+        {
+            return false;
+        }
+        GameConfigIni? configIni = await GameConfigService.GetGameConfigIniAsync(installPath, cancellation);
+        foreach (var item in pluginRelease.Plugins)
+        {
+            if (item.PluginPackage.Url.Contains("DXSETUP", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            string key = $"plugin_{item.PluginId}_version";
+            if (configIni?.Settings.GetValueOrDefault(key) == item.Version)
+            {
+                continue;
+            }
+            if (string.IsNullOrWhiteSpace(item.PluginPackage.Validation))
+            {
+                return true;
+            }
+            else if (!await GameResourceService.VerifyPluginAsync(installPath, item.PluginPackage, cancellation))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+
+    public async Task<bool> CheckGenshinHotUpdateAsync(GameId gameId, string? installPath = null, CancellationToken cancellation = default)
+    {
+        if (gameId.GameBiz.Game is not GameBiz.hk4e || !AppConfig.GetEnableCutsceneManage(gameId))
+        {
+            return false;
+        }
+        var launcher = _hoYoPlayService.GetLauncherConfig(gameId);
+        if (launcher is null || launcher.IsBeta)
+        {
+            return false;
+        }
+        installPath ??= GetGameInstallPath(gameId);
+        if (string.IsNullOrWhiteSpace(installPath))
+        {
+            return false;
+        }
+        return await _genshinHotUpdateService.CheckUpdateAsync(gameId, installPath, cancellation);
+    }
+
+
+
+    #endregion
+
+
+
+    #region Start Game
 
 
     /// <summary>
@@ -206,17 +344,16 @@ internal partial class GameLauncherService
     /// </summary>
     /// <param name="gameId"></param>
     /// <returns></returns>
-    public async Task<string> GetGameExeNameAsync(GameId gameId)
+    public async Task<string> GetGameExeNameAsync(GameId gameId, CancellationToken cancellation)
     {
         string? name = GetGameExeName(gameId.GameBiz);
         if (string.IsNullOrWhiteSpace(name))
         {
-            var config = await _hoYoPlayService.GetGameConfigAsync(gameId);
+            var config = await _hoYoPlayService.GetGameConfigAsync(gameId, cancellation);
             name = config?.ExeFileName;
         }
         return name ?? throw new ArgumentOutOfRangeException($"Unknown game ({gameId.Id}, {gameId.GameBiz}).");
     }
-
 
 
     /// <summary>
@@ -242,24 +379,22 @@ internal partial class GameLauncherService
     }
 
 
-
     /// <summary>
     /// 游戏进程文件是否存在
     /// </summary>
     /// <param name="biz"></param>
     /// <param name="installPath"></param>
     /// <returns></returns>
-    public async Task<bool> IsGameExeExistsAsync(GameId gameId, string? installPath = null)
+    public async Task<bool> IsGameExeExistsAsync(GameId gameId, string? installPath = null, CancellationToken cancellation = default)
     {
         installPath ??= GetGameInstallPath(gameId);
         if (!string.IsNullOrWhiteSpace(installPath))
         {
-            var exe = Path.Join(installPath, await GetGameExeNameAsync(gameId));
+            var exe = Path.Join(installPath, await GetGameExeNameAsync(gameId, cancellation));
             return File.Exists(exe);
         }
         return false;
     }
-
 
 
     /// <summary>
@@ -267,7 +402,7 @@ internal partial class GameLauncherService
     /// </summary>
     /// <param name="gameId"></param>
     /// <returns></returns>
-    public async Task<Process?> GetGameProcessAsync(GameId gameId)
+    public async Task<Process?> GetGameProcessAsync(GameId gameId, CancellationToken cancellation)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -288,10 +423,9 @@ internal partial class GameLauncherService
             return null;
         }
         int currentSessionId = Process.GetCurrentProcess().SessionId;
-        var name = (await GetGameExeNameAsync(gameId)).Replace(".exe", "");
+        var name = (await GetGameExeNameAsync(gameId, cancellation)).Replace(".exe", "");
         return Process.GetProcessesByName(name).Where(x => x.SessionId == currentSessionId && !IsProcessPending(x)).FirstOrDefault();
     }
-
 
 
     /// <summary>
@@ -309,7 +443,7 @@ internal partial class GameLauncherService
             }
             foreach (ProcessThread thread in process.Threads)
             {
-                if (thread.ThreadState is not ThreadState.Wait)
+                if (thread.ThreadState is not System.Diagnostics.ThreadState.Wait)
                 {
                     return false;
                 }
@@ -325,31 +459,30 @@ internal partial class GameLauncherService
     }
 
 
-
     /// <summary>
     /// 启动游戏
     /// </summary>
     /// <returns></returns>
-    public async Task<Process?> StartGameAsync(GameId gameId, string? installPath = null)
+    public async Task<Process?> StartGameAsync(GameId gameId, string? installPath = null, CancellationToken cancellation = default)
     {
         const int ERROR_CANCELLED = 0x000004C7;
         try
         {
-            if (await GetGameProcessAsync(gameId) is Process existingProcess)
+            if (await GetGameProcessAsync(gameId, cancellation) is Process existingProcess)
             {
                 throw new Exception($"Game is running: {existingProcess.ProcessName}.exe ({existingProcess.Id}).");
             }
-            string? exe = null, arg = null, verb = null;
+            string? exe = null, verb = null;
             if (Directory.Exists(installPath))
             {
-                var e = Path.Join(installPath, await GetGameExeNameAsync(gameId));
+                var e = Path.Join(installPath, await GetGameExeNameAsync(gameId, cancellation));
                 if (File.Exists(e))
                 {
                     exe = e;
                 }
             }
             bool thirdPartyTool = false;
-            if (string.IsNullOrWhiteSpace(exe) && AppConfig.GetEnableThirdPartyTool(gameId.GameBiz))
+            if (string.IsNullOrWhiteSpace(exe) && AppConfig.GetEnableThirdPartyTool(gameId))
             {
                 exe = GetThirdPartyToolPath(gameId);
                 if (File.Exists(exe))
@@ -367,7 +500,7 @@ internal partial class GameLauncherService
             if (string.IsNullOrWhiteSpace(exe))
             {
                 var folder = GetGameInstallPath(gameId);
-                var name = await GetGameExeNameAsync(gameId);
+                var name = await GetGameExeNameAsync(gameId, cancellation);
                 exe = Path.Join(folder, name);
                 verb = "runas";
                 if (!File.Exists(exe))
@@ -376,24 +509,8 @@ internal partial class GameLauncherService
                     throw new FileNotFoundException("Game exe not found", name);
                 }
             }
-            arg = AppConfig.GetStartArgument(gameId.GameBiz)?.Trim();
-            if (AppConfig.EnableLoginAuthTicket is true)
-            {
-                string? ticket = await _gameAuthLoginService.CreateAuthTicketByGameBiz(gameId);
-                if (!string.IsNullOrWhiteSpace(ticket))
-                {
-                    arg += $" login_auth_ticket={ticket}";
-                }
-            }
-            if (AppConfig.GetUsePopupWindow(gameId.GameBiz))
-            {
-                arg += " -popupwindow";
-            }
-            if (AppConfig.GetEnableDX12(gameId.GameBiz))
-            {
-                arg += " -use-d3d12";
-            }
 
+<<<<<<< /tmp/_ours
             // Lunarward：上游在启动前用 winreg 写 HDR 开关，在 Linux 上等于「先跑一次 wine」，
             // 会破坏「游戏必须是 wine 的第一个进程」这条铁律（L-62）。HDR 改由设置页保存时写入目标前缀。
             // Lunarward：上游在启动前用 winreg 写 HDR 开关（Windows 上游戏与设置共用同一份注册表）。
@@ -414,10 +531,28 @@ internal partial class GameLauncherService
             // Linux 没有对应概念，且套一层 shell 会破坏「游戏是 wine 第一个进程」的前提，
             // 因此该开关在 Linux 上忽略（保留判断以免上游字段消失时编译失败）。
             if (!thirdPartyTool && AppConfig.StartGameWithCMD && OperatingSystem.IsWindows())
+||||||| /tmp/_base
+            if (gameId.GameBiz.Game is GameBiz.hk4e)
+            {
+                GameSettingService.SetGenshinEnableHDR(gameId.GameBiz, AppConfig.EnableGenshinHDR);
+            }
+            if (!thirdPartyTool && AppConfig.StartGameWithCMD)
+=======
+            CancellationToken token = CancellationTokenSource.CreateLinkedTokenSource(cancellation, new CancellationTokenSource(3000).Token).Token;
+            var sb = new StringBuilder();
+            sb.Append(AppConfig.GetStartArgument(gameId)?.Trim());
+            await AppendDX12Async(sb, gameId, token);
+            await AppendLoginAuthTicketAsync(sb, gameId, token);
+            SetGenshinEnableHDR(gameId);
+            string arg = sb.ToString();
+
+            if (!thirdPartyTool && AppConfig.StartGameWithCMD)
+>>>>>>> /tmp/_theirs
             {
                 arg = $"""/c start "" /d "{Path.GetDirectoryName(exe)}" "{exe}" {arg}""";
                 exe = "cmd.exe";
             }
+<<<<<<< /tmp/_ours
             _logger.LogInformation("Start game ({biz})\r\npath: {exe}\r\narg: {arg}", gameId, exe, arg);
             // Lunarward：Linux 启动前预检（失败即中止，并把每条原因写进异常信息与启动报告）
             Features.Runtime.RuntimeProfile? launchProfile = null;
@@ -463,6 +598,12 @@ internal partial class GameLauncherService
             bool viaWine = launch.ViaWine;
             _logger.LogInformation("Linux launch: {file} {args}", info.FileName, string.Join(" ", info.ArgumentList));
             if (!OperatingSystem.IsWindows())
+||||||| /tmp/_base
+            _logger.LogInformation("Start game ({biz})\r\npath: {exe}\r\narg: {arg}", gameId, exe, arg);
+            var info = new ProcessStartInfo
+=======
+            var info = new ProcessStartInfo
+>>>>>>> /tmp/_theirs
             {
                 string? reportPath = LaunchReport.Write(gameId.GameBiz, exe, arg, launchProfile, preflight!, info, viaWine);
                 if (reportPath is not null)
@@ -544,82 +685,84 @@ internal partial class GameLauncherService
     }
 
 
-
-
-    /// <summary>
-    /// 修改游戏安装目录
-    /// </summary>
-    /// <param name="gameId"></param>
-    /// <param name="path"></param>
-    /// <returns></returns>
-    public static string? ChangeGameInstallPath(GameId gameId, string? path)
+    private async Task AppendDX12Async(StringBuilder sb, GameId gameId, CancellationToken cancellation)
     {
-        return ChangeGameInstallPath(gameId.GameBiz, path);
+        if (cancellation.IsCancellationRequested)
+        {
+            return;
+        }
+        try
+        {
+            var gameConfig = await _hoYoPlayService.GetGameConfigAsync(gameId, cancellation);
+            if (gameConfig?.EnableDxSwitch is true)
+            {
+                var dxConfig = await _hoYoPlayService.GetDXConfigAsync(gameId, GPUInfoHelper.GetGPUInfos(), cancellation);
+                if (dxConfig?.EnableDXSwitch is true)
+                {
+                    sb.Append(' ');
+                    bool? enable = AppConfig.GetEnableDX12(gameId);
+                    if (dxConfig.AutoMode && enable.HasValue)
+                    {
+                        sb.Append(enable.Value ? dxConfig.CmdArgs : dxConfig.DX11CmdArgs);
+                    }
+                    else if (enable.HasValue)
+                    {
+                        sb.Append(enable.Value ? dxConfig.CmdArgs : dxConfig.DX11CmdArgs);
+                    }
+                    else
+                    {
+                        sb.Append(dxConfig.UseDX12ByDefault ? dxConfig.CmdArgs : dxConfig.DX11CmdArgs);
+                    }
+                }
+            }
+        }
+        catch { }
     }
 
 
-    /// <summary>
-    /// 修改游戏安装目录
-    /// </summary>
-    /// <param name="gameId"></param>
-    /// <param name="path"></param>
-    /// <returns></returns>
-    public static string? ChangeGameInstallPath(GameBiz gameBiz, string? path)
+    private async Task AppendLoginAuthTicketAsync(StringBuilder sb, GameId gameId, CancellationToken cancellation)
     {
-        if (Directory.Exists(path))
+        if (cancellation.IsCancellationRequested)
         {
-            path = Path.GetFullPath(path);
-            string relativePath = GetRelativePathIfInRemovableStorage(path, out bool removable);
-            AppConfig.SetGameInstallPath(gameBiz, relativePath);
-            AppConfig.SetGameInstallPathRemovable(gameBiz, removable);
+            return;
         }
-        else
+        try
         {
-            path = null;
-            AppConfig.SetGameInstallPath(gameBiz, null);
-            AppConfig.SetGameInstallPathRemovable(gameBiz, false);
+            if (AppConfig.AuthLoginGameByPassportAccount)
+            {
+                string? ticket = await _passportService.CreateAuthTicketAsync(gameId, cancellation);
+                if (!string.IsNullOrWhiteSpace(ticket))
+                {
+                    sb.Append($" login_auth_ticket={ticket}");
+                    if (AppConfig.IsAppInRemovableStorage)
+                    {
+                        sb.Append(" login_storage_type=session");
+                    }
+                    else
+                    {
+                        sb.Append(" login_storage_type=local");
+                    }
+                }
+            }
         }
-        return path;
+        catch { }
     }
 
 
-
-    /// <summary>
-    /// 如果安装在可移动存储设备中，获取相对路径
-    /// </summary>
-    /// <param name="path"></param>
-    /// <param name="removableStorage"></param>
-    /// <returns></returns>
-    public static string GetRelativePathIfInRemovableStorage(string path, out bool removableStorage)
+    private void SetGenshinEnableHDR(GameId gameId)
     {
-        removableStorage = DriveHelper.IsDeviceRemovableOrOnUSB(path);
-        if (removableStorage && Path.GetPathRoot(AppConfig.StarwardExecutePath) == Path.GetPathRoot(path))
+        if (gameId.GameBiz.Game is GameBiz.hk4e)
         {
-            path = Path.GetRelativePath(Path.GetDirectoryName(AppConfig.ConfigPath)!, path);
-        }
-        return path;
-    }
-
-
-
-    /// <summary>
-    /// 如果安装在可移动存储设备中，获取完整路径
-    /// </summary>
-    /// <param name="path"></param>
-    /// <returns></returns>
-    public static string GetFullPathIfRelativePath(string path)
-    {
-        if (Path.IsPathFullyQualified(path))
-        {
-            return Path.GetFullPath(path);
-        }
-        else
-        {
-            return Path.GetFullPath(path, Path.GetDirectoryName(AppConfig.ConfigPath)!);
+            GameSettingService.SetGenshinEnableHDR(gameId.GameBiz, AppConfig.EnableGenshinHDR);
         }
     }
 
 
+    #endregion
+
+
+
+    #region Third Party Tool
 
 
     /// <summary>
@@ -629,7 +772,7 @@ internal partial class GameLauncherService
     /// <returns></returns>
     public static string? GetThirdPartyToolPath(GameId gameId)
     {
-        string? path = AppConfig.GetThirdPartyToolPath(gameId.GameBiz);
+        string? path = AppConfig.GetThirdPartyToolPath(gameId);
         if (!string.IsNullOrWhiteSpace(path))
         {
             path = GetFullPathIfRelativePath(path);
@@ -640,7 +783,7 @@ internal partial class GameLauncherService
         }
         else
         {
-            AppConfig.SetThirdPartyToolPath(gameId.GameBiz, null);
+            AppConfig.SetThirdPartyToolPath(gameId, null);
             return null;
         }
     }
@@ -658,17 +801,18 @@ internal partial class GameLauncherService
         {
             path = Path.GetFullPath(path);
             string relativePath = GetRelativePathIfInRemovableStorage(path, out bool removable);
-            AppConfig.SetThirdPartyToolPath(gameId.GameBiz, relativePath);
+            AppConfig.SetThirdPartyToolPath(gameId, relativePath);
         }
         else
         {
             path = null;
-            AppConfig.SetThirdPartyToolPath(gameId.GameBiz, null);
+            AppConfig.SetThirdPartyToolPath(gameId, null);
         }
         return path;
     }
 
 
+    #endregion
 
 
 }

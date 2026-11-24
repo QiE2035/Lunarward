@@ -1,10 +1,10 @@
-using Dapper;
+﻿using Dapper;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.Database;
 using Starward.Features.GameLauncher;
-using Starward.Features.HoYoPlay;
+using Starward.GameInstall;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -43,9 +43,17 @@ internal class PlayTimeRecordService
         try
         {
             biz = biz.IsBilibili() ? $"{biz.Game}_cn" : biz;
+<<<<<<< /tmp/_ours
             // Lunarward：按 pid 去重就够了。以前用的是一把全局命名互斥量，而且从不释放，
             // 结果第二个游戏进去就被挡住、时长恒为 0（L-62）。
             if (!_recordingPids.TryAdd(pid, 0))
+||||||| /tmp/_base
+            var instance = AppInstance.FindOrRegisterForKey($"playtime_{pid}");
+            if (!instance.IsCurrent)
+=======
+            var instance = AppInstance.FindOrRegisterForKey($"Starward.PlayTime.{pid}");
+            if (!instance.IsCurrent)
+>>>>>>> /tmp/_theirs
             {
                 _logger.LogWarning("Game process ({biz}, {gamePid}) is already being recorded", biz, pid);
                 return;

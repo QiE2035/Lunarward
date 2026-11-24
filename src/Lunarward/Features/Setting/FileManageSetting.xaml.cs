@@ -1,9 +1,8 @@
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.AppLifecycle;
 using Starward.Features.Database;
-using Starward.Frameworks;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -75,7 +74,7 @@ public sealed partial class FileManageSetting : PageBase
                 AppConfig.SaveConfiguration();
                 UnregisterInstanceKey();
                 Process.Start(AppConfig.StarwardExecutePath);
-                App.Current.Exit();
+                App.Current.Exit(true);
             }
         }
         catch (Exception ex)
@@ -132,7 +131,7 @@ public sealed partial class FileManageSetting : PageBase
                 AppConfig.DeleteAllSettings();
                 UnregisterInstanceKey();
                 Process.Start(AppConfig.StarwardExecutePath);
-                App.Current.Exit();
+                App.Current.Exit(true);
             }
         }
         catch (Exception ex)
@@ -143,6 +142,7 @@ public sealed partial class FileManageSetting : PageBase
     }
 
 
+<<<<<<< /tmp/_ours
 
     /// <summary>B13：Uno 的 AppInstance 是未实现的投影桩，单独兜住异常再重启。</summary>
     private static void UnregisterInstanceKey()
@@ -168,6 +168,20 @@ public sealed partial class FileManageSetting : PageBase
 
 
 
+||||||| /tmp/_base
+
+    private void TextBlock_IsTextTrimmedChanged(TextBlock sender, IsTextTrimmedChangedEventArgs args)
+    {
+        if (sender.FontSize > 12)
+        {
+            sender.FontSize -= 1;
+        }
+    }
+
+
+
+=======
+>>>>>>> /tmp/_theirs
     #endregion
 
 

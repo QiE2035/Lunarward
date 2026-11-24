@@ -1,4 +1,4 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Scighost.WinUI.ImageEx;
@@ -15,7 +15,7 @@ namespace Starward.Controls;
 public sealed partial class CachedImage : ImageEx
 {
 
-
+    // todo 优化缩略图大小
 
     public bool IsThumbnail
     {
@@ -91,6 +91,7 @@ public sealed partial class CachedImage : ImageEx
         }
         catch (Exception)
         {
+            FileCache.DeleteCacheFile(imageUri.ToString());
             throw;
         }
     }

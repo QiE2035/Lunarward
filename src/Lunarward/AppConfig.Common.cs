@@ -1,3 +1,9 @@
+<<<<<<< /tmp/_ours
+||||||| /tmp/_base
+using Microsoft.Win32;
+=======
+﻿using Microsoft.Win32;
+>>>>>>> /tmp/_theirs
 using System;
 using System.IO;
 using System.Linq;
@@ -5,6 +11,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Timers;
 
 namespace Starward;
 
@@ -28,6 +35,7 @@ public static partial class AppConfig
     }
 
 
+<<<<<<< /tmp/_ours
     internal static string ReadFirstLine(string path)
     {
         try
@@ -68,6 +76,23 @@ public static partial class AppConfig
     }
 
 
+||||||| /tmp/_base
+=======
+    private static Timer? _gcTimer;
+
+
+    public static void StartGCTimer()
+    {
+        if (_gcTimer is null)
+        {
+            _gcTimer = new(TimeSpan.FromSeconds(60));
+            _gcTimer.Elapsed += (_, _) => GC.Collect();
+        }
+        _gcTimer.Start();
+    }
+
+
+>>>>>>> /tmp/_theirs
 
     #region Emoji
 

@@ -1,3 +1,9 @@
+<<<<<<< /tmp/_ours
+||||||| /tmp/_base
+using Microsoft.Win32;
+=======
+﻿using Microsoft.Win32;
+>>>>>>> /tmp/_theirs
 using Starward.Core;
 using Starward.Features.GameAccount;
 using System;
@@ -303,6 +309,7 @@ internal static class GameSettingService
         }
     }
 
+<<<<<<< /tmp/_ours
 
 
     public static void SetGenshinEnableHDR(GameBiz biz, bool enableHDR, string? winePrefix = null)
@@ -315,6 +322,31 @@ internal static class GameSettingService
         if (biz.Game is not GameBiz.hk4e)
         {
             return;
+||||||| /tmp/_base
+            string? value = node?.ToJsonString();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                value = $$"""
+                    {"FPS":{{fps}},"EnableVSync":false,"RenderScale":1.0,"ResolutionQuality":3,"ShadowQuality":3,"LightQuality":3,"CharacterQuality":3,"EnvDetailQuality":3,"ReflectionQuality":3,"SFXQuality":3,"BloomQuality":3,"AAMode":1,"EnableMetalFXSU":false,"EnableHalfResTransparent":false,"EnableSelfShadow":1,"DlssQuality":0}
+                    """;
+            }
+            value += "\0";
+            // 画质预设设置为0（自定义）时，帧率设置方能生效
+            Registry.SetValue(key, GraphicsSettings_GraphicsQuality_h523255858, 0);
+            Registry.SetValue(key, GraphicsSettings_Model_h2986158309, Encoding.UTF8.GetBytes(value));
+=======
+            string? value = node?.ToJsonString();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                value = $$"""
+                    {"FPS":{{fps}}}
+                    """;
+            }
+            value += "\0";
+            // 画质预设设置为0（自定义）时，帧率设置方能生效
+            Registry.SetValue(key, GraphicsSettings_GraphicsQuality_h523255858, 0);
+            Registry.SetValue(key, GraphicsSettings_Model_h2986158309, Encoding.UTF8.GetBytes(value));
+>>>>>>> /tmp/_theirs
         }
         // 必须写进游戏真正使用的前缀，否则写的是 ~/.wine，游戏读不到（L-62）。
         string? prefix = winePrefix ?? ResolveGamePrefix(biz);

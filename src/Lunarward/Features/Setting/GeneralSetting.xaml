@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+﻿<?xml version="1.0" encoding="utf-8" ?>
 <sf:PageBase x:Class="Starward.Features.Setting.GeneralSetting"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -6,7 +6,7 @@
              xmlns:lang="using:Starward.Language"
              xmlns:local="using:Starward.Features.Setting"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:sf="using:Starward.Frameworks"
+             xmlns:sf="using:Starward.Features"
              xmlns:sfv="using:Starward.Features.ViewHost"
              x:DefaultBindMode="OneWay"
              mc:Ignorable="d">
@@ -53,6 +53,7 @@
                              Tag="{x:Bind sfv:MainWindowCloseOption.Exit}" />
             </StackPanel>
 
+<<<<<<< /tmp/_ours
             <ToggleSwitch Margin="0,12,0,0"
                           IsOn="{x:Bind EnableGameAccountSwitcher, Mode=TwoWay}"
                           OffContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}"
@@ -60,6 +61,57 @@
 
 
             <!--  Linux：透明/动画效果是 Windows 系统设置项，Linux 下无对应开关，整段移除（D61）。  -->
+||||||| /tmp/_base
+            <ToggleSwitch Margin="0,12,0,0"
+                          IsOn="{x:Bind EnableGameAccountSwitcher, Mode=TwoWay}"
+                          OffContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}"
+                          OnContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}" />
+
+
+            <MenuFlyoutSeparator Margin="0,20,0,0" />
+
+            <!--  透明/动画效果  -->
+            <TextBlock Margin="0,20,0,0"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="{x:Bind lang:Lang.SettingPage_ForABetterExperiencePleaseEnableTheFollowingFeaturesInSystemSettings}"
+                       TextWrapping="Wrap" />
+            <TextBlock Margin="0,12,0,0" HorizontalAlignment="Left">
+                <Hyperlink Click="Hyperlink_VisualEffects_Click"
+                           NavigateUri="ms-settings:easeofaccess-visualeffects"
+                           UnderlineStyle="None">
+                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_TransparencyEffects}" />
+                </Hyperlink>
+                <Run Text="" />
+                <Run Text="" />
+                <Hyperlink Click="Hyperlink_VisualEffects_Click"
+                           NavigateUri="ms-settings:easeofaccess-visualeffects"
+                           UnderlineStyle="None">
+                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_AnimationEffects}" />
+                </Hyperlink>
+            </TextBlock>
+=======
+            <MenuFlyoutSeparator Margin="0,20,0,0" />
+
+            <!--  透明/动画效果  -->
+            <TextBlock Margin="0,20,0,0"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Text="{x:Bind lang:Lang.SettingPage_ForABetterExperiencePleaseEnableTheFollowingFeaturesInSystemSettings}"
+                       TextWrapping="Wrap" />
+            <TextBlock Margin="0,12,0,0" HorizontalAlignment="Left">
+                <Hyperlink Click="Hyperlink_VisualEffects_Click"
+                           NavigateUri="ms-settings:easeofaccess-visualeffects"
+                           UnderlineStyle="None">
+                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_TransparencyEffects}" />
+                </Hyperlink>
+                <Run Text="" />
+                <Run Text="" />
+                <Hyperlink Click="Hyperlink_VisualEffects_Click"
+                           NavigateUri="ms-settings:easeofaccess-visualeffects"
+                           UnderlineStyle="None">
+                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_AnimationEffects}" />
+                </Hyperlink>
+            </TextBlock>
+>>>>>>> /tmp/_theirs
 
         </StackPanel>
     </ScrollViewer>
