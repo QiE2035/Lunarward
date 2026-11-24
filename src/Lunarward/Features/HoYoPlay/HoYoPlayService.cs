@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Memory;
+﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -23,19 +23,41 @@ public class HoYoPlayService
 
     private readonly ILogger<HoYoPlayService> _logger;
 
-    private readonly HoYoPlayClient _client;
-
     private readonly HttpClient _httpClient;
+
+    // 上游 0.19.0（D128）把 HoYoPlayClient 改成「一个启动器配置一个实例」：launcher_id、
+    // channel、region、语言都挂在实例上，接口方法不再收这些参数。这里按 launcherId + 语言缓存。
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, HoYoPlayClient> _clients = new();
 
     private readonly IMemoryCache _memoryCache;
 
 
-    public HoYoPlayService(ILogger<HoYoPlayService> logger, HoYoPlayClient client, HttpClient httpClient, IMemoryCache memoryCache)
+    public HoYoPlayService(ILogger<HoYoPlayService> logger, HttpClient httpClient, IMemoryCache memoryCache)
     {
         _logger = logger;
-        _client = client;
         _httpClient = httpClient;
         _memoryCache = memoryCache;
+    }
+
+
+    private HoYoPlayClient Client(string launcherId, string language)
+    {
+        return _clients.GetOrAdd($"{launcherId}|{language}", _ => new HoYoPlayClient(_httpClient)
+        {
+            Language = language,
+            LauncherConfig = LauncherConfigOf(launcherId),
+        });
+    }
+
+
+    private static LauncherConfig LauncherConfigOf(string launcherId)
+    {
+        return launcherId switch
+        {
+            LauncherId.ChinaOfficial => new LauncherConfig(launcherId, 1, 1, ServerRegion.miHoYo),
+            LauncherId.GlobalOfficial => new LauncherConfig(launcherId, 1, 0, ServerRegion.HoYoverse),
+            _ => new LauncherConfig(launcherId, 14, 0, ServerRegion.miHoYo),
+        };
     }
 
 
@@ -47,7 +69,7 @@ public class HoYoPlayService
         if (!_memoryCache.TryGetValue($"{nameof(GameInfo)}_{gameId.Id}", out GameInfo? info))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
-            var list = await _client.GetGameInfoAsync(LauncherId.FromGameId(gameId)!, lang, cancellationToken);
+            var list = await Client(LauncherId.FromGameId(gameId)!, lang).GetGameInfoAsync(cancellationToken);
             foreach (var item in list)
             {
                 _memoryCache.Set($"{nameof(GameInfo)}_{item.Id}", item, TimeSpan.FromMinutes(10));
@@ -69,17 +91,17 @@ public class HoYoPlayService
         string lang = CultureInfo.CurrentUICulture.Name;
         if (LanguageUtil.FilterLanguage(lang) is "zh-cn")
         {
-            infos.AddRange(await _client.GetGameInfoAsync(LauncherId.ChinaOfficial, lang, cancellationToken));
-            infos.AddRange(await _client.GetGameInfoAsync(LauncherId.GlobalOfficial, lang, cancellationToken));
+            infos.AddRange(await Client(LauncherId.ChinaOfficial, lang).GetGameInfoAsync(cancellationToken));
+            infos.AddRange(await Client(LauncherId.GlobalOfficial, lang).GetGameInfoAsync(cancellationToken));
         }
         else
         {
-            infos.AddRange(await _client.GetGameInfoAsync(LauncherId.GlobalOfficial, lang, cancellationToken));
-            infos.AddRange(await _client.GetGameInfoAsync(LauncherId.ChinaOfficial, lang, cancellationToken));
+            infos.AddRange(await Client(LauncherId.GlobalOfficial, lang).GetGameInfoAsync(cancellationToken));
+            infos.AddRange(await Client(LauncherId.ChinaOfficial, lang).GetGameInfoAsync(cancellationToken));
         }
         foreach ((GameBiz _, string launcherId) in LauncherId.GetBilibiliLaunchers())
         {
-            infos.AddRange(await _client.GetGameInfoAsync(launcherId, lang, cancellationToken));
+            infos.AddRange(await Client(launcherId, lang).GetGameInfoAsync(cancellationToken));
         }
         foreach (var item in infos)
         {
@@ -147,7 +169,7 @@ public class HoYoPlayService
         if (!_memoryCache.TryGetValue($"{nameof(GameBackgroundInfo)}_{gameId.Id}", out GameBackgroundInfo? background))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
-            var list = await _client.GetGameBackgroundAsync(LauncherId.FromGameId(gameId)!, lang, cancellationToken);
+            var list = await Client(LauncherId.FromGameId(gameId)!, lang).GetGameBackgroundAsync(cancellationToken);
             foreach (var item in list)
             {
                 _memoryCache.Set($"{nameof(GameBackgroundInfo)}_{item.GameId.Id}", item, TimeSpan.FromMinutes(1));
@@ -164,7 +186,7 @@ public class HoYoPlayService
         if (!_memoryCache.TryGetValue($"{nameof(GameContent)}_{gameId.Id}", out GameContent? content))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
-            content = await _client.GetGameContentAsync(LauncherId.FromGameId(gameId)!, lang, gameId, cancellationToken);
+            content = await Client(LauncherId.FromGameId(gameId)!, lang).GetGameContentAsync(gameId, cancellationToken);
             if (content is null)
             {
                 // 上游这里直接解引用，接口偶尔不返回 content 节点时会变成 NullReferenceException，
@@ -183,7 +205,7 @@ public class HoYoPlayService
         if (!_memoryCache.TryGetValue($"{nameof(GamePackage)}_{gameId.Id}", out GamePackage? package))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
-            var list = await _client.GetGamePackageAsync(LauncherId.FromGameId(gameId)!, lang, cancellationToken);
+            var list = await Client(LauncherId.FromGameId(gameId)!, lang).GetGamePackageAsync([gameId], cancellationToken);
             foreach (var item in list)
             {
                 _memoryCache.Set($"{nameof(GamePackage)}_{item.GameId.Id}", item, TimeSpan.FromMinutes(1));
@@ -200,7 +222,7 @@ public class HoYoPlayService
         if (!_memoryCache.TryGetValue($"{nameof(GameConfig)}_{gameId.Id}", out GameConfig? config))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
-            var list = await _client.GetGameConfigAsync(LauncherId.FromGameId(gameId)!, lang, cancellationToken);
+            var list = await Client(LauncherId.FromGameId(gameId)!, lang).GetGameConfigAsync([gameId], cancellationToken);
             foreach (var item in list)
             {
                 _memoryCache.Set($"{nameof(GameConfig)}_{item.GameId.Id}", item, TimeSpan.FromMinutes(1));
@@ -222,8 +244,8 @@ public class HoYoPlayService
         var launcherId = LauncherId.FromGameId(gameId);
         if (launcherId is not null)
         {
-            var fileConfig = await _client.GetGameDeprecatedFileConfigAsync(launcherId, "en-us", gameId, cancellationToken);
-            if (fileConfig != null)
+            var configs = await Client(launcherId, "en-us").GetGameDeprecatedFileConfigAsync([gameId], cancellationToken);
+            if (configs?.FirstOrDefault(x => x.GameId == gameId) is { } fileConfig)
             {
                 return fileConfig.DeprecatedFiles;
             }
@@ -238,7 +260,7 @@ public class HoYoPlayService
         if (!_memoryCache.TryGetValue($"{nameof(GameChannelSDK)}_{gameId.Id}", out GameChannelSDK? sdk))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
-            var list = await _client.GetGameChannelSDKAsync(LauncherId.FromGameId(gameId)!, lang, cancellationToken);
+            var list = await Client(LauncherId.FromGameId(gameId)!, lang).GetGameChannelSDKAsync([gameId], cancellationToken);
             foreach (var item in list)
             {
                 _memoryCache.Set($"{nameof(GameChannelSDK)}_{item.GameId.Id}", item, TimeSpan.FromMinutes(1));
@@ -255,7 +277,7 @@ public class HoYoPlayService
         if (!_memoryCache.TryGetValue($"{nameof(GameBranch)}_{gameId.Id}", out GameBranch? branch))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
-            var list = await _client.GetGameBranchAsync(LauncherId.FromGameId(gameId)!, lang, cancellationToken);
+            var list = await Client(LauncherId.FromGameId(gameId)!, lang).GetGameBranchAsync([gameId], cancellationToken);
             foreach (var item in list)
             {
                 _memoryCache.Set($"{nameof(GameBranch)}_{item.GameId.Id}", item, TimeSpan.FromMinutes(1));
@@ -273,7 +295,7 @@ public class HoYoPlayService
         if (!_memoryCache.TryGetValue($"{nameof(GameSophonChunkBuild)}_{gameBranchPackage.PackageId}", out GameSophonChunkBuild? build))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
-            build = await _client.GetGameSophonChunkBuildAsync(gameBranch, gameBranchPackage, gameBranchPackage.Tag, cancellationToken);
+            build = await Client(LauncherId.FromGameId(gameBranch.GameId)!, lang).GetGameSophonChunkBuildAsync(gameBranchPackage, gameBranchPackage.Tag, cancellationToken);
             _memoryCache.Set($"{nameof(GameSophonChunkBuild)}_{gameBranchPackage.PackageId}", build, TimeSpan.FromMinutes(1));
         }
         return build;
@@ -287,7 +309,7 @@ public class HoYoPlayService
         if (!_memoryCache.TryGetValue($"{nameof(GameSophonPatchBuild)}_{gameBranchPackage.PackageId}", out GameSophonPatchBuild? build))
         {
             string lang = CultureInfo.CurrentUICulture.Name;
-            build = await _client.GetGameSophonPatchBuildAsync(gameBranch, gameBranchPackage, cancellationToken);
+            build = await Client(LauncherId.FromGameId(gameBranch.GameId)!, lang).GetGameSophonPatchBuildAsync(gameBranchPackage, cancellationToken);
             _memoryCache.Set($"{nameof(GameSophonPatchBuild)}_{gameBranchPackage.PackageId}", build, TimeSpan.FromMinutes(1));
         }
         return build;
@@ -303,7 +325,7 @@ public class HoYoPlayService
             string lang = CultureInfo.CurrentUICulture.Name;
             var launcherId = LauncherId.FromGameId(gameIds.First())!;
             var gpuInfos = GetGPUInfos();
-            dxConfigs = await _client.GetDXConfigsAsync(launcherId, lang, gameIds, gpuInfos, cancellationToken);
+            dxConfigs = await Client(launcherId, lang).GetDXConfigsAsync(gpuInfos, gameIds, cancellationToken);
             _memoryCache.Set(key, dxConfigs, TimeSpan.FromMinutes(5));
         }
         return dxConfigs!;

@@ -59,46 +59,46 @@
             : using a System.ComponentModel.TypeConverter
             : and then encoded with base64 encoding.
     -->
-  <xsd:schema xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" id="root">
-    <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
     <xsd:element name="root" msdata:IsDataSet="true">
       <xsd:complexType>
         <xsd:choice maxOccurs="unbounded">
           <xsd:element name="metadata">
             <xsd:complexType>
               <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0"/>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
               </xsd:sequence>
-              <xsd:attribute name="name" use="required" type="xsd:string"/>
-              <xsd:attribute name="type" type="xsd:string"/>
-              <xsd:attribute name="mimetype" type="xsd:string"/>
-              <xsd:attribute ref="xml:space"/>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
             </xsd:complexType>
           </xsd:element>
           <xsd:element name="assembly">
             <xsd:complexType>
-              <xsd:attribute name="alias" type="xsd:string"/>
-              <xsd:attribute name="name" type="xsd:string"/>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
             </xsd:complexType>
           </xsd:element>
           <xsd:element name="data">
             <xsd:complexType>
               <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
-                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2"/>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
               </xsd:sequence>
-              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1"/>
-              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3"/>
-              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4"/>
-              <xsd:attribute ref="xml:space"/>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
             </xsd:complexType>
           </xsd:element>
           <xsd:element name="resheader">
             <xsd:complexType>
               <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
               </xsd:sequence>
-              <xsd:attribute name="name" type="xsd:string" use="required"/>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
             </xsd:complexType>
           </xsd:element>
         </xsd:choice>
@@ -196,7 +196,7 @@
     <value>キャンセル</value>
   </data>
   <data name="SelectDirectoryPage_FirstUse" xml:space="preserve">
-    <value>{Lunarward}を使うのは初めてのようですね。</value>
+    <value>{Starward}を使うのは初めてのようですね。</value>
   </data>
   <data name="SelectGamePage_GoToLauncher" xml:space="preserve">
     <value>ランチャーに移動</value>
@@ -205,7 +205,7 @@
     <value>フォルダーを選択</value>
   </data>
   <data name="SelectGamePage_SomeGame" xml:space="preserve">
-    <value>{Lunarward}は、いくつかの「miHoYo/HoYoverse」のゲームをサポートしています。</value>
+    <value>{Starward}は、いくつかの「miHoYo/HoYoverse」のゲームをサポートしています。</value>
   </data>
   <data name="SelectGamePage_TheLastStep" xml:space="preserve">
     <value>最後のステップ～</value>
@@ -320,7 +320,7 @@
     <value>米游社から同期（実験）</value>
   </data>
   <data name="GachaLogPage_SyncFromMiyousheAll" xml:space="preserve">
-    <value>Sync All from Miyoushe (Experimental)</value>
+    <value>Miyousheからすべて同期（実験的）</value>
   </data>
   <data name="GachaLogPage_InputURL" xml:space="preserve">
     <value>URLを入力</value>
@@ -937,7 +937,7 @@
     <value>免責事項</value>
   </data>
   <data name="HoyolabToolboxPage_DisclaimerContent" xml:space="preserve">
-    <value>このページの機能は、HyperionまたはHoYoLABアカウントにログインをする必要があります。Lunarwardはログイン認証情報(Cookie)を保存し、あなたになりすましてmiHoYoのサーバーにリクエストを送信します。この方法は危険であり、あなたのアカウントが異常な事になったり、またはアカウントがBANされたとしても責任は一切負いません。
+    <value>このページの機能は、HyperionまたはHoYoLABアカウントにログインをする必要があります。Starwardはログイン認証情報(Cookie)を保存し、あなたになりすましてmiHoYoのサーバーにリクエストを送信します。この方法は危険であり、あなたのアカウントが異常な事になったり、またはアカウントがBANされたとしても責任は一切負いません。
 
 リスクを受け入れたうえで使用を続行しますか?</value>
   </data>
@@ -1177,7 +1177,7 @@
     <value>URLプロトコル (試験的)</value>
   </data>
   <data name="SettingPage_URLProtocolDesc" xml:space="preserve">
-    <value>他のソフトウェアは、URLプロトコルを通じてLunarwardの機能の一部を利用することができます。</value>
+    <value>他のソフトウェアは、URLプロトコルを通じてStarwardの機能の一部を利用することができます。</value>
   </data>
   <data name="SettingPage_RegisterURLProtocol" xml:space="preserve">
     <value>URLプロトコルを登録</value>
@@ -1277,7 +1277,7 @@
     <value>ネットワークテスト</value>
   </data>
   <data name="SelectLanguagePage_AreYouAbleToReceiveUpdatesForStarward" xml:space="preserve">
-    <value>Lunarwardのアップデートを受け取りますか?</value>
+    <value>Starwardのアップデートを受け取りますか?</value>
   </data>
   <data name="SelectDirectoryPage_PleaseSelectAFolderToStoreYourPersonalData" xml:space="preserve">
     <value>個人データを保存するフォルダーを選択してください。これは非常に重要です!</value>
@@ -1298,7 +1298,7 @@
     <value>虚構叙事</value>
   </data>
   <data name="AppearanceSettingPage_HelpUsTranslateStarward" xml:space="preserve">
-    <value>Lunarwardの翻訳にご協力ください</value>
+    <value>Starwardの翻訳にご協力ください</value>
   </data>
   <data name="FileSettingPage_Cache" xml:space="preserve">
     <value>キャッシュ</value>
@@ -1787,6 +1787,12 @@
   <data name="StartGameButton_Verify" xml:space="preserve">
     <value>確認</value>
   </data>
+  <data name="StartGameButton_Cleaning" xml:space="preserve">
+    <value>クリーンアップ中</value>
+  </data>
+  <data name="StartGameButton_StepProgress" xml:space="preserve">
+    <value>ステップ {0}/{1}</value>
+  </data>
   <data name="SettingPage_RPCServiceIsNotRunning" xml:space="preserve">
     <value>RPC サービスは実行されていません</value>
   </data>
@@ -1821,10 +1827,10 @@
     <value>非互換性のお知らせ</value>
   </data>
   <data name="PreDownloadDialog_IncompatibilityNoticeContent" xml:space="preserve">
-    <value>Lunarward と HoYoPlay (miHoYo Launcher) の事前インストールファイルは互換性がなく、相互で認識できません。</value>
+    <value>Starward と HoYoPlay (miHoYo Launcher) の事前インストールファイルは互換性がなく、相互で認識できません。</value>
   </data>
   <data name="WelcomeView_DearPlayerWelcomeToStarward" xml:space="preserve">
-    <value>プレイヤーの皆様、Lunarward へようこそ!</value>
+    <value>プレイヤーの皆様、Starward へようこそ!</value>
   </data>
   <data name="WelcomeView_WelcomeToStarwardDescription" xml:space="preserve">
     <value>このランチャーはHoYoverseのゲーム向けに設計されており、ゲームを簡単に管理し、より良い体験を得ることができます。</value>
@@ -1848,16 +1854,16 @@
     <value>インストール済み</value>
   </data>
   <data name="WelcomeView_StarwardStart" xml:space="preserve">
-    <value>Lunarward、起動!</value>
+    <value>Starward、起動!</value>
   </data>
   <data name="GameSelector_ClickToSelectOrSwitchGame" xml:space="preserve">
     <value>クリックしてゲームを選択または切り替え。</value>
   </data>
   <data name="GameLauncherSettingDialog_UninstallGameUserDataFolderWarning" xml:space="preserve">
-    <value>Lunarwardのデータフォルダがゲームフォルダ内に含まれています。ゲームのアンインストール時にデータが削除されることを防ぐため、設定ページからデータフォルダの場所を変更し、再度お試しください。</value>
+    <value>Starwardのデータフォルダがゲームフォルダ内に含まれています。ゲームのアンインストール時にデータが削除されることを防ぐため、設定ページからデータフォルダの場所を変更し、再度お試しください。</value>
   </data>
   <data name="GameLauncherSettingDialog_UninstallGameStarwardProgramFolderWarning" xml:space="preserve">
-    <value>Lunarwardの実行ファイルがゲームフォルダ内に含まれています。ゲームのアンインストール時にデータが削除されることを防ぐため、実行ファイルの場所をゲームフォルダ外に移動し、再度お試しください。</value>
+    <value>Starwardの実行ファイルがゲームフォルダ内に含まれています。ゲームのアンインストール時にデータが削除されることを防ぐため、実行ファイルの場所をゲームフォルダ外に移動し、再度お試しください。</value>
   </data>
   <data name="CloudGameButton_CloudGame" xml:space="preserve">
     <value>クラウドゲーム</value>
@@ -2145,7 +2151,7 @@
     <value>ハイダイナミックレンジ</value>
   </data>
   <data name="WelcomeView_IfStarwardTakesALongTimeToStartItIsRecommendedToDisableSmartAppControlInWindowsSecurity" xml:space="preserve">
-    <value>Lunarwardの起動に時間がかかる場合は、Windowsセキュリティのスマート アプリ コントロールを無効にすることをおすすめします。</value>
+    <value>Starwardの起動に時間がかかる場合は、Windowsセキュリティのスマート アプリ コントロールを無効にすることをおすすめします。</value>
   </data>
   <data name="WelcomeView_OpenWindowsSecurity" xml:space="preserve">
     <value>Windowsセキュリティを開く</value>
@@ -2154,7 +2160,7 @@
     <value>詳細</value>
   </data>
   <data name="WelcomeView_NetworkErrorYouCanContinueUsingStarwardButYouWonTReceiveFutureUpdates" xml:space="preserve">
-    <value>ネットワークエラーが発生しました。Lunarwardは引き続きご利用いただけますが、今後のアップデートを受信することはできません。</value>
+    <value>ネットワークエラーが発生しました。Starwardは引き続きご利用いただけますが、今後のアップデートを受信することはできません。</value>
   </data>
   <data name="MainView_CheckSystemProxy_SystemProxyIsEnabled" xml:space="preserve">
     <value>システムプロキシは有効です。</value>
@@ -2337,7 +2343,7 @@
     <value>フォルダーの変更</value>
   </data>
   <data name="HotkeySetting_SingleKeyShortcutsTips" xml:space="preserve">
-    <value>シングルキーショートカット(F1-F12)を登録する場合は、Lunarwardを管理者権限で実行する必要があります。そうでなければ、ショートカットがゲームで動作しない場合があります。</value>
+    <value>シングルキーショートカット(F1-F12)を登録する場合は、Starwardを管理者権限で実行する必要があります。そうでなければ、ショートカットがゲームで動作しない場合があります。</value>
   </data>
   <data name="SettingPage_KeyboardShortcuts" xml:space="preserve">
     <value>キーボード ショートカット</value>
@@ -2376,10 +2382,10 @@
     <value>Xboxプロトコルコントローラーのみがサポートされています。他のタイプのコントローラーとの互換性は保証されません。</value>
   </data>
   <data name="GamepadControlSetting_SimulateInputDesc" xml:space="preserve">
-    <value>ゲームコントローラーを使用してキーボードとマウスの入力をシミュレートします。この機能はゲームで正常に動作するためにLunarwardを管理者権限で実行する必要があります。</value>
+    <value>ゲームコントローラーを使用してキーボードとマウスの入力をシミュレートします。この機能はゲームで正常に動作するためにStarwardを管理者権限で実行する必要があります。</value>
   </data>
   <data name="GamepadControlSetting_LongPressGuideButtonDesc" xml:space="preserve">
-    <value>ガイドボタンを長押しすると、Lunarwardのメインウィンドウが開きます。</value>
+    <value>ガイドボタンを長押しすると、Starwardのメインウィンドウが開きます。</value>
   </data>
   <data name="GamepadControlSetting_BothThumbsticksDesc" xml:space="preserve">
     <value>両方のサムスティックを同時に押し込むと、コントローラーベースのキーボードとマウスシミュレーションが有効になります。</value>
@@ -2391,7 +2397,7 @@
     <value>• ガイドボタンをマッピングする場合、デフォルトの Xbox Game Bar ショートカットは無効になります。 他のソフトウェア (Steam Big Picture Modeなど) もガイドボタンに反応する可能性があります。競合が発生した場合は、それらの機能を手動で無効にする必要があります。</value>
   </data>
   <data name="GamepadControlSetting_ButtonMappingKeyboardDesc" xml:space="preserve">
-    <value>• キーボードキーにマッピングする場合、キーボードに表示される名前をスペースで区切って入力します。 例えば、ボタンを「Ctrl + Alt + F1」にマッピングするには、「Ctrl Alt F1」と入力します。 numpadキーについては、Pad8、Pad+ のような、キーの前にPadを追加。 この機能はゲームで正しく動作するために、Lunarwardが管理者権限で実行する必要があります。</value>
+    <value>• キーボードキーにマッピングする場合、キーボードに表示される名前をスペースで区切って入力します。 例えば、ボタンを「Ctrl + Alt + F1」にマッピングするには、「Ctrl Alt F1」と入力します。 numpadキーについては、Pad8、Pad+ のような、キーの前にPadを追加。 この機能はゲームで正しく動作するために、Starwardが管理者権限で実行する必要があります。</value>
   </data>
   <data name="GamepadControlSetting_ButtonMappingShareDesc" xml:space="preserve">
     <value>共有ボタンは引き続きXboxゲームバーのスクリーンショットをトリガーしますが、現時点では良い解決策はありません</value>
@@ -2794,59 +2800,215 @@
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>統計はゲームの実行時間に基づいており、実際のプレイ時間とは異なります。あくまで参考としてご覧ください。</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Title" xml:space="preserve">
-    <value>実行環境</value>
+  <data name="LauncherConfigView_ViewDetails" xml:space="preserve">
+    <value>詳細を表示</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
-    <value>プロファイルは「ランナー」「Wine プレフィックス」「グラフィックスコンポーネント」の組み合わせです。ゲームごとに 1 つ割り当てられます。</value>
+  <data name="LauncherConfigView_PreRegister" xml:space="preserve">
+    <value>事前登録</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
-    <value>新規プロファイル</value>
+  <data name="GameReservationView_PreRegister" xml:space="preserve">
+    <value>今すぐ事前登録</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
-    <value>デバッグシェルを開く</value>
+  <data name="LauncherConfigView_InstalledGames" xml:space="preserve">
+    <value>インストール済みゲーム</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
-    <value>設定テキスト</value>
+  <data name="LauncherConfigSettingDialog_LauncherChannelSetting" xml:space="preserve">
+    <value>ランチャーチャンネル設定</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
-    <value>閉じる</value>
+  <data name="LauncherConfigSettingDialog_AddCustomChannel" xml:space="preserve">
+    <value>カスタムチャンネルを追加</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
-    <value>複製</value>
+  <data name="LauncherConfigSettingDialog_AuthLogin" xml:space="preserve">
+    <value>認証ログイン</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Components" xml:space="preserve">
-    <value>検出されたコンポーネント</value>
+  <data name="LauncherConfigSettingDialog_BetaServer" xml:space="preserve">
+    <value>ベータサーバー</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_ImportGraphics" xml:space="preserve">
-    <value>グラフィックスをインポート…</value>
+  <data name="FindGamesDialog_FindInstalledGames" xml:space="preserve">
+    <value>インストール済みゲームを検索</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
-    <value>プレフィックスにインストール…</value>
+  <data name="FindGamesDialog_ScanAllDrives" xml:space="preserve">
+    <value>すべてのドライブをスキャン</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
-    <value>プレフィックステンプレート</value>
+  <data name="FindGamesDialog_NoGameFilesWereFound" xml:space="preserve">
+    <value>ゲームファイルが見つかりませんでした。</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
-    <value>テンプレートはまだありません。プロファイル編集時に「既存のプレフィックスをテンプレート化」から作成できます。</value>
+  <data name="FindGamesDialog_SelectTheGamesToAdd" xml:space="preserve">
+    <value>追加するゲームを選択</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
-    <value>インストール済み</value>
+  <data name="FindGamesDialog_AddGames" xml:space="preserve">
+    <value>ゲームを追加</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
-    <value>未インストール</value>
+  <data name="LauncherConfigSettingDialog_IDNameAndRegionCannotBeEmpty" xml:space="preserve">
+    <value>ID、Name、Region は空にできません。</value>
   </data>
-  <data name="Lunarward_Editor_Title" xml:space="preserve">
-    <value>プロファイル</value>
+  <data name="LauncherConfigSettingDialog_NoGamesFoundForThisLauncher" xml:space="preserve">
+    <value>このランチャーで利用可能なゲームはありません。</value>
   </data>
-  <data name="Lunarward_Editor_UseDetectedRunner" xml:space="preserve">
-    <value>検出されたランナーから選択</value>
+  <data name="MainView_LogInAgain" xml:space="preserve">
+    <value>再ログイン</value>
   </data>
-  <data name="Lunarward_Editor_PrefixMode" xml:space="preserve">
-    <value>プレフィックスモード</value>
+  <data name="MainView_UseTheCurrentAccountToLogIntoTheGame" xml:space="preserve">
+    <value>現在のアカウントでゲームにログインする</value>
   </data>
-  <data name="Lunarward_Editor_Shell" xml:space="preserve">
-    <value>デバッグシェル</value>
+  <data name="MainView_LoginFailed" xml:space="preserve">
+    <value>ログインに失敗しました</value>
+  </data>
+  <data name="InstallGameDialog_LoadingDownloadResources" xml:space="preserve">
+    <value>ダウンロードするリソースを取得中</value>
+  </data>
+  <data name="InstallGameDialog_VoiceoverResources" xml:space="preserve">
+    <value>音声リソース</value>
+  </data>
+  <data name="InstallGameDialog_DownloadResources" xml:space="preserve">
+    <value>リソースダウンロード</value>
+  </data>
+  <data name="InstallGameDialog_SpaceRequired" xml:space="preserve">
+    <value>必要な容量</value>
+  </data>
+  <data name="InstallGameDialog_FailedToAcquireDownloadResources" xml:space="preserve">
+    <value>ダウンロードするリソースの取得に失敗しました</value>
+  </data>
+  <data name="InstallGameDialog_GameResourcesDoNotExist" xml:space="preserve">
+    <value>ゲームリソースが存在しません</value>
+  </data>
+  <data name="InstallGameDialog_LoginExpiredPleaseLogInAgain" xml:space="preserve">
+    <value>ログインが失効しました。もう一度ログインしてください</value>
+  </data>
+  <data name="InstallGameDialog_CurrentAccountDoesnTHaveBetaTestingAccess" xml:space="preserve">
+    <value>現在のアカウントはBetaテストに参加できません</value>
+  </data>
+  <data name="InstallGameDialog_GameVersion" xml:space="preserve">
+    <value>ゲームバージョン</value>
+  </data>
+  <data name="GameLauncherSettingDialog_StartupSetting" xml:space="preserve">
+    <value>起動設定</value>
+  </data>
+  <data name="GameLauncherSettingDialog_RenderMode" xml:space="preserve">
+    <value>レンダリングモード</value>
+  </data>
+  <data name="StartGameButton_UpdatePlugin" xml:space="preserve">
+    <value>プラグインを更新</value>
+  </data>
+  <data name="Common_LogOut" xml:space="preserve">
+    <value>ログアウト</value>
+  </data>
+  <data name="PlayTimeStatsDialog_DayStartsAt" xml:space="preserve">
+    <value>1日の開始時刻</value>
+  </data>
+  <data name="PlayTimeStatsDialog_SetTheOffsetRelativeToTheLocalTimeZoneToAlignTheServerTime" xml:space="preserve">
+    <value>ローカルタイムゾーンからのオフセットを設定して、サーバー時刻に合わせます。</value>
+  </data>
+  <data name="LauncherConfigView_ShareStorageSpaceWithOtherGamesThroughHardLinks" xml:space="preserve">
+    <value>ハードリンクで他のゲームとストレージ容量を共有:</value>
+  </data>
+  <data name="LauncherConfigView_ActualStorageSpaceUsed" xml:space="preserve">
+    <value>実際の使用ストレージ容量:</value>
+  </data>
+  <data name="LauncherConfigView_FindInstalledGamesOrAddChannelServers" xml:space="preserve">
+    <value>インストール済みのゲームを探すか、チャンネルサーバーを追加</value>
+  </data>
+  <data name="FindGamesDialog_QuickSearch" xml:space="preserve">
+    <value>クイック検索</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ResourceManagement" xml:space="preserve">
+    <value>リソース管理</value>
+  </data>
+  <data name="GameLauncherSettingDialog_CutsceneResourceManagement" xml:space="preserve">
+    <value>カットシーンリソース管理</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ManageResource" xml:space="preserve">
+    <value>リソースを管理</value>
+  </data>
+  <data name="GameLauncherSettingDialog_GameOrInstallTaskIsRunning" xml:space="preserve">
+    <value>ゲームまたはインストールタスクが実行中です。</value>
+  </data>
+  <data name="GameLauncherSettingDialog_DeletedResource" xml:space="preserve">
+    <value>削除済みリソース</value>
+  </data>
+  <data name="GameLauncherSettingDialog_CutsceneResourceManageDesc" xml:space="preserve">
+    <value>ストレージ容量を節約するために、一部のカットシーンリソースを削除します。有効にすると、ランチャーがゲームのホットアップデートを処理します。</value>
+  </data>
+  <data name="GameLauncherSettingDialog_CutsceneResourceManifestIsUnavailable" xml:space="preserve">
+    <value>カットシーンリソースのマニフェストを利用できません。</value>
+  </data>
+  <data name="StartGameButton_HotUpdate" xml:space="preserve">
+    <value>ホットアップデート</value>
+  </data>
+  <data name="StartGameButton_ComingSoon" xml:space="preserve">
+    <value>近日公開</value>
+  </data>
+  <data name="GameLauncherPage_HotUpdateCheckFailed" xml:space="preserve">
+    <value>ホットアップデートの確認に失敗しました</value>
+  </data>
+  <data name="GameLauncherSettingDialog_LocalResource" xml:space="preserve">
+    <value>ローカルリソース</value>
+  </data>
+  <data name="HypLoginWindow_UnofficialAPPPleaseBeMindfulOfYourAccountSecurity" xml:space="preserve">
+    <value>非公式アプリです。アカウントの安全にご注意ください。</value>
+  </data>
+  <data name="Lunarward_Clone_Result" xml:space="preserve">
+    <value>「{0}」として複製しました。</value>
+  </data>
+  <data name="Lunarward_Companion_Add" xml:space="preserve">
+    <value>追加</value>
+  </data>
+  <data name="Lunarward_Companion_Delay" xml:space="preserve">
+    <value>遅延（ミリ秒）</value>
+  </data>
+  <data name="Lunarward_Companion_Description" xml:space="preserve">
+    <value>ゲームの起動後・終了後に実行する補助プログラムです。「同時起動」は既定でオフで、有効化時に再確認します。</value>
+  </data>
+  <data name="Lunarward_Companion_DisabledText" xml:space="preserve">
+    <value>無効</value>
+  </data>
+  <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
+    <value>後起動プログラムを編集</value>
+  </data>
+  <data name="Lunarward_Companion_EditNew" xml:space="preserve">
+    <value>新規の後起動プログラム</value>
+  </data>
+  <data name="Lunarward_Companion_Empty" xml:space="preserve">
+    <value>後起動プログラムはまだありません。</value>
+  </data>
+  <data name="Lunarward_Companion_LaunchNow" xml:space="preserve">
+    <value>今すぐ起動</value>
+  </data>
+  <data name="Lunarward_Companion_OffText" xml:space="preserve">
+    <value>同時起動：オフ</value>
+  </data>
+  <data name="Lunarward_Companion_On" xml:space="preserve">
+    <value>同時起動</value>
+  </data>
+  <data name="Lunarward_Companion_OnText" xml:space="preserve">
+    <value>同時起動：オン</value>
+  </data>
+  <data name="Lunarward_Companion_OpenFolder" xml:space="preserve">
+    <value>設定フォルダーを開く</value>
+  </data>
+  <data name="Lunarward_Companion_Section" xml:space="preserve">
+    <value>後起動プログラム</value>
+  </data>
+  <data name="Lunarward_Companion_Trigger" xml:space="preserve">
+    <value>実行タイミング</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterDelay" xml:space="preserve">
+    <value>遅延してから</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterStart" xml:space="preserve">
+    <value>ゲーム起動後</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerOnExit" xml:space="preserve">
+    <value>ゲーム終了後</value>
+  </data>
+  <data name="Lunarward_Components_Empty" xml:space="preserve">
+    <value>利用可能なランナーやグラフィックスが見つかりません。</value>
+  </data>
+  <data name="Lunarward_Delete_Result" xml:space="preserve">
+    <value>「{0}」を削除しました。</value>
+  </data>
+  <data name="Lunarward_Editor_EnsureGraphics" xml:space="preserve">
+    <value>起動前にコンポーネントを確認</value>
   </data>
   <data name="Lunarward_Editor_Env" xml:space="preserve">
     <value>追加の環境変数（1 行に KEY=VALUE）</value>
@@ -2857,194 +3019,20 @@
   <data name="Lunarward_Editor_KeepPrefixGraphics" xml:space="preserve">
     <value>プレフィックスの既存設定を使う</value>
   </data>
-  <data name="Lunarward_Editor_EnsureGraphics" xml:space="preserve">
-    <value>起動前にコンポーネントを確認</value>
+  <data name="Lunarward_Editor_PrefixMode" xml:space="preserve">
+    <value>プレフィックスモード</value>
   </data>
-  <data name="Lunarward_Companion_Section" xml:space="preserve">
-    <value>後起動プログラム</value>
+  <data name="Lunarward_Editor_Shell" xml:space="preserve">
+    <value>デバッグシェル</value>
   </data>
-  <data name="Lunarward_Companion_Description" xml:space="preserve">
-    <value>ゲームの起動後・終了後に実行する補助プログラムです。「同時起動」は既定でオフで、有効化時に再確認します。</value>
+  <data name="Lunarward_Editor_Title" xml:space="preserve">
+    <value>プロファイル</value>
   </data>
-  <data name="Lunarward_Companion_Add" xml:space="preserve">
-    <value>追加</value>
+  <data name="Lunarward_Editor_UseDetectedRunner" xml:space="preserve">
+    <value>検出されたランナーから選択</value>
   </data>
-  <data name="Lunarward_Companion_OpenFolder" xml:space="preserve">
-    <value>設定フォルダーを開く</value>
-  </data>
-  <data name="Lunarward_Companion_Empty" xml:space="preserve">
-    <value>後起動プログラムはまだありません。</value>
-  </data>
-  <data name="Lunarward_Companion_LaunchNow" xml:space="preserve">
-    <value>今すぐ起動</value>
-  </data>
-  <data name="Lunarward_Companion_Trigger" xml:space="preserve">
-    <value>実行タイミング</value>
-  </data>
-  <data name="Lunarward_Companion_TriggerAfterStart" xml:space="preserve">
-    <value>ゲーム起動後</value>
-  </data>
-  <data name="Lunarward_Companion_TriggerAfterDelay" xml:space="preserve">
-    <value>遅延してから</value>
-  </data>
-  <data name="Lunarward_Companion_TriggerOnExit" xml:space="preserve">
-    <value>ゲーム終了後</value>
-  </data>
-  <data name="Lunarward_Companion_Delay" xml:space="preserve">
-    <value>遅延（ミリ秒）</value>
-  </data>
-  <data name="Lunarward_Preflight_Title" xml:space="preserve">
-    <value>起動できません：未通過のチェックがあります</value>
-  </data>
-  <data name="Lunarward_Preflight_OK" xml:space="preserve">
-    <value>了解</value>
-  </data>
-  <data name="Lunarward_Output_Title" xml:space="preserve">
-    <value>実行出力</value>
-  </data>
-  <data name="Lunarward_Output_OpenFolder" xml:space="preserve">
-    <value>ログフォルダーを開く</value>
-  </data>
-  <data name="Lunarward_Screenshot_Selected" xml:space="preserve">
-    <value>選択済み</value>
-  </data>
-  <data name="Lunarward_Screenshot_Total" xml:space="preserve">
-    <value>合計</value>
-  </data>
-  <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
-    <value>フォルダーで表示</value>
-  </data>
-  <data name="Lunarward_Login_Title" xml:space="preserve">
-    <value>別ウィンドウでサインイン</value>
-  </data>
-  <data name="Lunarward_Login_Description" xml:space="preserve">
-    <value>Lunarward はシステムの WebKit で miHoYo / HoYoLAB のサインインページを開き、完了後に Cookie を取り込みます。</value>
-  </data>
-  <data name="Lunarward_Login_Open" xml:space="preserve">
-    <value>サインインウィンドウを開く</value>
-  </data>
-  <data name="Lunarward_Profiles_Empty" xml:space="preserve">
-    <value>プロファイルはまだありません。</value>
-  </data>
-  <data name="Lunarward_Components_Empty" xml:space="preserve">
-    <value>利用可能なランナーやグラフィックスが見つかりません。</value>
-  </data>
-  <data name="Lunarward_Template_Create" xml:space="preserve">
-    <value>既存のプレフィックスをテンプレート化…</value>
-  </data>
-  <data name="Lunarward_Template_Use" xml:space="preserve">
-    <value>これで新規プロファイル</value>
-  </data>
-  <data name="Lunarward_Clone_Result" xml:space="preserve">
-    <value>「{0}」として複製しました。</value>
-  </data>
-  <data name="Lunarward_Delete_Result" xml:space="preserve">
-    <value>「{0}」を削除しました。</value>
-  </data>
-  <data name="Lunarward_Shell_Opened" xml:space="preserve">
-    <value>「{0}」のデバッグシェルを開きました。</value>
-  </data>
-  <data name="Lunarward_Shell_NoTerminal" xml:space="preserve">
-    <value>利用できる端末エミュレーターがありません（konsole/kitty/alacritty/wezterm/gnome-terminal/xterm）。</value>
-  </data>
-  <data name="Lunarward_Filter_AllFiles" xml:space="preserve">
-    <value>すべてのファイル</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Template" xml:space="preserve">
-    <value>テンプレート複製（既定）</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Dedicated" xml:space="preserve">
-    <value>専用</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Shared" xml:space="preserve">
-    <value>共有</value>
-  </data>
-  <data name="Lunarward_PrefixMode_External" xml:space="preserve">
-    <value>外部（そのまま使用）</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Ephemeral" xml:space="preserve">
-    <value>一時的（毎回作り直す）</value>
-  </data>
-  <data name="Lunarward_Graphics_KeepExisting" xml:space="preserve">
-    <value>プレフィックスの既存設定を使う</value>
-  </data>
-  <data name="Lunarward_Toast_Imported" xml:space="preserve">
-    <value>{0}「{1}」をインポートしました。</value>
-  </data>
-  <data name="Lunarward_Field_Name" xml:space="preserve">
-    <value>名前</value>
-  </data>
-  <data name="Lunarward_Field_Path" xml:space="preserve">
-    <value>パス</value>
-  </data>
-  <data name="Lunarward_Field_Arguments" xml:space="preserve">
-    <value>引数</value>
-  </data>
-  <data name="Lunarward_Companion_On" xml:space="preserve">
-    <value>同時起動</value>
-  </data>
-  <data name="Lunarward_Companion_OnText" xml:space="preserve">
-    <value>同時起動：オン</value>
-  </data>
-  <data name="Lunarward_Companion_OffText" xml:space="preserve">
-    <value>同時起動：オフ</value>
-  </data>
-  <data name="Lunarward_Companion_DisabledText" xml:space="preserve">
-    <value>無効</value>
-  </data>
-  <data name="Lunarward_Launch_Failed" xml:space="preserve">
-    <value>起動に失敗：</value>
-  </data>
-  <data name="Lunarward_Output_View" xml:space="preserve">
-    <value>最近の出力を表示…</value>
-  </data>
-  <data name="Lunarward_Output_Empty" xml:space="preserve">
-    <value>出力はまだありません。</value>
-  </data>
-  <data name="Lunarward_Screenshot_Count" xml:space="preserve">
-    <value>合計 {0}</value>
-  </data>
-  <data name="Lunarward_Screenshot_SelectedCount" xml:space="preserve">
-    <value>選択済み {0} / {1}</value>
-  </data>
-  <data name="Lunarward_Viewer_Prev" xml:space="preserve">
-    <value>前へ</value>
-  </data>
-  <data name="Lunarward_Viewer_Next" xml:space="preserve">
-    <value>次へ</value>
-  </data>
-  <data name="Lunarward_Viewer_Close" xml:space="preserve">
-    <value>閉じる</value>
-  </data>
-  <data name="Lunarward_Companion_EditNew" xml:space="preserve">
-    <value>新規の後起動プログラム</value>
-  </data>
-  <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
-    <value>後起動プログラムを編集</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
-    <value>プレフィックステンプレート</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
-    <value>ランナーとグラフィックス（DXVK / VKD3D）はシステムフォルダー、Steam、~/.local/share/lunarward/components から検出します。ランチャーはダウンロードしません。</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
-    <value>テンプレートはまだありません。プロファイルの「既存のプレフィックスをテンプレート化…」から保存できます。</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
-    <value>template / ephemeral はプレフィックスを複製します（同一ボリュームの reflink で 650MB が 0.2 秒未満）。external は指定フォルダーをそのまま使います。</value>
-  </data>
-  <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
-    <value>既定（{0}）</value>
-  </data>
-  <data name="Lunarward_Profile_DefaultNameNoWine" xml:space="preserve">
-    <value>既定（Wine が見つかりません）</value>
-  </data>
-  <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
-    <value>バージョン情報を取得できません（ネットワークまたは API エラー）。</value>
-  </data>
-  <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
-    <value>マニフェストを取得できません：</value>
+  <data name="Lunarward_Error_InstallDirInvalid" xml:space="preserve">
+    <value>インストール先が無効です。</value>
   </data>
   <data name="Lunarward_Error_InstallFailed" xml:space="preserve">
     <value>ダウンロードに失敗しました：</value>
@@ -3052,28 +3040,193 @@
   <data name="Lunarward_Error_LaunchFailed" xml:space="preserve">
     <value>起動に失敗しました：</value>
   </data>
-  <data name="Lunarward_Error_InstallDirInvalid" xml:space="preserve">
-    <value>インストール先が無効です。</value>
+  <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
+    <value>マニフェストを取得できません：</value>
+  </data>
+  <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
+    <value>バージョン情報を取得できません（ネットワークまたは API エラー）。</value>
   </data>
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>このプレフィックスは使用中です：</value>
   </data>
-  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
-    <value>Linux のグローバルホットキーは X11 のキーボード状態をポーリングして実装しています。root 権限は不要で、X11 / XWayland セッションで利用できます。純粋な Wayland セッションでは使用できないため、システムのショートカットにコマンド `lunarward --show` を割り当ててください。</value>
+  <data name="Lunarward_Field_Arguments" xml:space="preserve">
+    <value>引数</value>
   </data>
-  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
-    <value>未対応</value>
+  <data name="Lunarward_Field_Name" xml:space="preserve">
+    <value>名前</value>
+  </data>
+  <data name="Lunarward_Field_Path" xml:space="preserve">
+    <value>パス</value>
+  </data>
+  <data name="Lunarward_Filter_AllFiles" xml:space="preserve">
+    <value>すべてのファイル</value>
   </data>
   <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
     <value>Linux 版ではゲームパッドの割り当てを実装していません。このページはプレースホルダーで、下のスイッチは効果がありません。</value>
   </data>
-  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
-    <value>アカウントまたはキャラクターがありません</value>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>未対応</value>
+  </data>
+  <data name="Lunarward_Graphics_KeepExisting" xml:space="preserve">
+    <value>プレフィックスの既存設定を使う</value>
+  </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Linux のグローバルホットキーは X11 のキーボード状態をポーリングして実装しています。root 権限は不要で、X11 / XWayland セッションで利用できます。純粋な Wayland セッションでは使用できないため、システムのショートカットにコマンド `lunarward --show` を割り当ててください。</value>
+  </data>
+  <data name="Lunarward_Launch_Failed" xml:space="preserve">
+    <value>起動に失敗：</value>
+  </data>
+  <data name="Lunarward_Login_Description" xml:space="preserve">
+    <value>Lunarward はシステムの WebKit で miHoYo / HoYoLAB のサインインページを開き、完了後に Cookie を取り込みます。</value>
+  </data>
+  <data name="Lunarward_Login_Open" xml:space="preserve">
+    <value>サインインウィンドウを開く</value>
+  </data>
+  <data name="Lunarward_Login_Title" xml:space="preserve">
+    <value>別ウィンドウでサインイン</value>
+  </data>
+  <data name="Lunarward_Output_Empty" xml:space="preserve">
+    <value>出力はまだありません。</value>
+  </data>
+  <data name="Lunarward_Output_OpenFolder" xml:space="preserve">
+    <value>ログフォルダーを開く</value>
+  </data>
+  <data name="Lunarward_Output_Title" xml:space="preserve">
+    <value>実行出力</value>
+  </data>
+  <data name="Lunarward_Output_View" xml:space="preserve">
+    <value>最近の出力を表示…</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Dedicated" xml:space="preserve">
+    <value>専用</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Ephemeral" xml:space="preserve">
+    <value>一時的（毎回作り直す）</value>
+  </data>
+  <data name="Lunarward_PrefixMode_External" xml:space="preserve">
+    <value>外部（そのまま使用）</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Shared" xml:space="preserve">
+    <value>共有</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Template" xml:space="preserve">
+    <value>テンプレート複製（既定）</value>
+  </data>
+  <data name="Lunarward_Preflight_OK" xml:space="preserve">
+    <value>了解</value>
+  </data>
+  <data name="Lunarward_Preflight_Title" xml:space="preserve">
+    <value>起動できません：未通過のチェックがあります</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
+    <value>既定（{0}）</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultNameNoWine" xml:space="preserve">
+    <value>既定（Wine が見つかりません）</value>
+  </data>
+  <data name="Lunarward_Profiles_Empty" xml:space="preserve">
+    <value>プロファイルはまだありません。</value>
   </data>
   <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
     <value>HoYoLAB / miHoYo アカウントでログインすると、ここに戦績が表示されます。</value>
   </data>
   <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
     <value>ログイン</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>アカウントまたはキャラクターがありません</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
+    <value>複製</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Components" xml:space="preserve">
+    <value>検出されたコンポーネント</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
+    <value>ランナーとグラフィックス（DXVK / VKD3D）はシステムフォルダー、Steam、~/.local/share/lunarward/components から検出します。ランチャーはダウンロードしません。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
+    <value>プロファイルは「ランナー」「Wine プレフィックス」「グラフィックスコンポーネント」の組み合わせです。ゲームごとに 1 つ割り当てられます。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ImportGraphics" xml:space="preserve">
+    <value>グラフィックスをインポート…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
+    <value>プレフィックスにインストール…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
+    <value>インストール済み</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
+    <value>新規プロファイル</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
+    <value>テンプレートはまだありません。プロファイル編集時に「既存のプレフィックスをテンプレート化」から作成できます。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
+    <value>未インストール</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
+    <value>デバッグシェルを開く</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
+    <value>template / ephemeral はプレフィックスを複製します（同一ボリュームの reflink で 650MB が 0.2 秒未満）。external は指定フォルダーをそのまま使います。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
+    <value>プレフィックステンプレート</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
+    <value>テンプレートはまだありません。プロファイルの「既存のプレフィックスをテンプレート化…」から保存できます。</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
+    <value>プレフィックステンプレート</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>設定テキスト</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Title" xml:space="preserve">
+    <value>実行環境</value>
+  </data>
+  <data name="Lunarward_Screenshot_Count" xml:space="preserve">
+    <value>合計 {0}</value>
+  </data>
+  <data name="Lunarward_Screenshot_Selected" xml:space="preserve">
+    <value>選択済み</value>
+  </data>
+  <data name="Lunarward_Screenshot_SelectedCount" xml:space="preserve">
+    <value>選択済み {0} / {1}</value>
+  </data>
+  <data name="Lunarward_Screenshot_Total" xml:space="preserve">
+    <value>合計</value>
+  </data>
+  <data name="Lunarward_Shell_NoTerminal" xml:space="preserve">
+    <value>利用できる端末エミュレーターがありません（konsole/kitty/alacritty/wezterm/gnome-terminal/xterm）。</value>
+  </data>
+  <data name="Lunarward_Shell_Opened" xml:space="preserve">
+    <value>「{0}」のデバッグシェルを開きました。</value>
+  </data>
+  <data name="Lunarward_Template_Create" xml:space="preserve">
+    <value>既存のプレフィックスをテンプレート化…</value>
+  </data>
+  <data name="Lunarward_Template_Use" xml:space="preserve">
+    <value>これで新規プロファイル</value>
+  </data>
+  <data name="Lunarward_Toast_Imported" xml:space="preserve">
+    <value>{0}「{1}」をインポートしました。</value>
+  </data>
+  <data name="Lunarward_Viewer_Close" xml:space="preserve">
+    <value>閉じる</value>
+  </data>
+  <data name="Lunarward_Viewer_Next" xml:space="preserve">
+    <value>次へ</value>
+  </data>
+  <data name="Lunarward_Viewer_Prev" xml:space="preserve">
+    <value>前へ</value>
+  </data>
+  <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
+    <value>フォルダーで表示</value>
   </data>
 </root>

@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- LUNARWARD-DEVIATION: .NET 11 的隐式 using 含 System.Net.Http.Json，.NET 10 没有；见 D128。 -->
+    <Using Include="System.Net.Http.Json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Update="Localization\CoreLang.Designer.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
