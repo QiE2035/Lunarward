@@ -388,9 +388,20 @@ public static class ComponentSources
                     string? sha = asset.TryGetProperty("digest", out JsonElement digestNode)
                         ? digestNode.GetString()
                         : null;
-                    if (!string.IsNullOrEmpty(sha) && sha.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+                    // R61：只接受 sha256: 前缀；其它算法（sha512: 等）明确置空，
+                    // 不能把原串当 sha256 去比，否则下载 100% 完成后必报「SHA-256 不一致」。
+                    if (!string.IsNullOrEmpty(sha))
                     {
-                        sha = sha["sha256:".Length..];
+                        if (sha.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            sha = sha["sha256:".Length..];
+                        }
+                        else
+                        {
+                            logger?.LogWarning("[components] 源 {Source} 的摘要算法不受支持（{Digest}），按无源端摘要处理",
+                                source.Id, sha);
+                            sha = null;
+                        }
                     }
                     result.Add(new ComponentReleaseAsset
                     {

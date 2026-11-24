@@ -191,7 +191,7 @@
 > 触发：用户 m06812「再逐文件仔细审查一遍所有『运行环境』相关代码，包括逻辑层，UI 等等，找出所有存在的细节问题，以及可改进的地方，并给出相应的意见」。
 > 范围：`src/Lunarward/Features/Runtime/*.cs`（25 文件 6977 行）、`Features/Setting/RuntimeEnvironmentSetting*.cs`（5 个 partial 6156 行）、`RuntimeEnvironmentSetting.xaml`（572 行），并回查 `GameLauncher/GameLauncherService(.Linux).cs`、`LaunchPreflight.cs`、`GameSettingPage.xaml.cs`、`Helpers/JsonFile.cs` 等调用方。
 > 方法：4 组只读子代理分工通读（页面 / 组件与下载 / 启动与解析 / 方案与绑定）+ 本人 grep 自查 + 抽查关键断言；标 ✔已核对的条目由本人回源码逐行确认。初稿中标「推断」的 7 条已于 2026-11-24 逐条取证并订正（结论与实测见 §6.12）：其中 R55 的「建前缀失败」被实测否定、R77 的「死锁面」被代码否定、R94 的适用范围收窄到「手改文件」。仍未实测的只剩「外部服务端行为」（R61 触发、R62 可达性）。
-> 状态：**批 E–F 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116）；其余未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
+> 状态：**批 E–G 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116；批 G：R57–R63，D117）；其余未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
 
 ### 6.1 结论摘要
 
@@ -282,37 +282,37 @@
 
 ### 6.4 High · 下载与导入
 
-**R57　分片请求不校验 206，也不按 `length` 截断读取**
+**R57　分片请求不校验 206，也不按 `length` 截断读取（🛠 已修复，D117 批 G）**
 - 位置：`ComponentDownloader.cs:365-378`。
 - 影响：镜像/代理忽略 `Range` 直接返回 200 + 完整归档时，4 条连接各自把 20+ GB 写一遍才发现「分片长度不符」，白耗带宽与磁盘（瞬时写满分区）后才降级。
 - 建议：要求 `StatusCode == 206` 且 `Content-Range` 起始偏移匹配，否则立即抛（不要浪费一次完整下载）；拷贝循环累计到 `length` 即停，多余字节丢弃并 warning。
 
-**R58　用户取消也会删光全部分片，与「已暂停，分片已保留」相反**
+**R58　用户取消也会删光全部分片，与「已暂停，分片已保留」相反（🛠 已修复，D117 批 G）**
 - 位置：`ComponentDownloader.cs:314-322`（`catch (OperationCanceledException) when (!ct.IsCancellationRequested)` 只处理内部取消；后一支 `catch { CleanupParts(...); throw; }` 接住用户取消）；UI 文案 `RuntimeEnvironmentSetting.Components.cs:418/443` → `PausedKeepParts`。
 - 影响：点「暂停」或关窗取消后已下的 10 GB 分片全删，下次从头开始；`Resumed` 只在单连接路径可能为 true。UI 与实际行为完全相反。
 - 建议：单独一支 `catch (OperationCanceledException) when (ct.IsCancellationRequested)` 保留分片，只对非取消失败 `CleanupParts`；文案与真实语义对齐。
 
-**R59　导入侧「像图形层」判定与发现侧布局判定不一致，导入成功但组件不可见**
+**R59　导入侧「像图形层」判定与发现侧布局判定不一致，导入成功但组件不可见（🛠 已修复，D117 批 G）**
 - 位置：`ComponentImporter.cs:93`（递归 `EnumerateFiles(..., AllDirectories)` 找 d3d11/dxgi/...）vs `ComponentStore.cs:320-331`（只看 `<root>/x64/d3d11.dll` 等固定路径）。
 - 影响：归档顶层不是「唯一目录」时（如 `dxvk-2.3.1/` 旁边还有 README/LICENSE → `root = "."`），dll 实际在 `temp/dxvk-2.3.1/x64/`，导入判定通过、manifest 写成，但 `GetGraphics` 永远看不到；重试又被「组件目录已存在」（`ComponentImporter.cs:60-63`）挡住。
 - 建议：抽公共 `GraphicsLayout.Probe(dir)` 供导入校验与 `GetGraphics` 共用；导入完成前复核，失败回滚并明确报「根下缺 x64/d3d11.dll」。
 
-**R60　解压体积上限：zip 无上限，xz 至少 32 GiB 才拦**
+**R60　解压体积上限：zip 无上限，xz 至少 32 GiB 才拦（🛠 已修复，D117 批 G）**
 - 位置：`ArchiveExtractor.cs:158`（`Math.Max(32L << 30, file.Length * 200)`，只有 xz 用）、`:195`（zip 不传 `sizeLimit`）。
 - 影响：恶意资产或 zip 炸弹可写满 `$XDG_DATA_HOME` 所在分区。
 - 建议：三种格式统一传 limit；再加「条目数上限」「单文件上限」；数值改为 `Math.Min(绝对上限如 8 GiB, archive.Length * 合理倍数)`，对 xz 之外做压缩比检查。
 
-**R61　非 `sha256:` 的 digest 被原样当作 sha256 使用**
+**R61　非 `sha256:` 的 digest 被原样当作 sha256 使用（🛠 已修复，D117 批 G）**
 - 位置：`ComponentSources.cs:389-393`（不匹配 `sha256:` 前缀时 `sha` 保持 `sha512:...` 原串），`ComponentDownloader.cs:149` 拿它和 `sha256=` 比较。
 - 影响：代码路径确定——只有 `sha256:` 前缀会被剥掉，其它算法原串直接进 `Sha256`，再和 `sha256=` 比较必不相等（`ComponentSources.cs:389-393`、`ComponentDownloader.cs:149`）。GitHub 当前只发 sha256 属外部事实（离线无法验证），所以这是前向兼容缺陷：源端一旦换算法，下载 100% 完成后报「SHA-256 不一致」并删文件，永远下不完。
 - 建议：只接受 `sha256:` 才赋 `Sha256`，其它算法置 null 并在 UI 标「无源端摘要」；错误文案区分「算法不支持」。
 
-**R62　`fileName` 未校验即拼路径；同一文件并发下载无互斥**
+**R62　`fileName` 未校验即拼路径；同一文件并发下载无互斥（🛠 已修复，D117 批 G）**
 - 位置：`ComponentDownloader.cs:99`（`Path.Combine(targetDirectory, fileName)`，`fileName` 来自 `asset.Name`）、`:216-345`、`:464-465`（分片名只由 `fileName` 决定）。
 - 影响：代码未设防——`asset.Name` 直接进 `Path.Combine`，下载/解压路径全仓没有 `GetFileName`（`ComponentDownloader.cs:99`），含 `..`/`/` 的名字可写出目标目录之外；能否触发取决于服务端返回的资产名（GitHub 官方禁止 `/` 属外部约束，离线不能验证），按「输入未校验」定性。并发：GUI 队列与 CLI 同时下同一资产会互相覆盖分片、`MergeParts` 拼出坏文件（代码可证，未实测并发现象）。
 - 建议：`Path.GetFileName` + 拒绝空/分隔符/`.` 开头，写入前 `GetFullPath` 复核仍在目标目录内；`workDir/<fileName>.lock` 以 `FileShare.None` 做互斥，或分片名加会话 GUID。
 
-**R63　单连接下载无收尾长度校验；客户端总超时 30 分钟会掐断大包**
+**R63　单连接下载无收尾长度校验；客户端总超时 30 分钟会掐断大包（🛠 已修复，D117 批 G）**
 - 位置：`ComponentDownloader.cs:397-455`（结束后不比对字节数与 `total`）、`RuntimeEnvironmentSetting.Components.cs:354`（`HttpClient { Timeout = 30min }`）。
 - 影响：代理截断的半截文件被当完整文件（无源端摘要时拦不住）；降级单连接后 20+ GB 归档在 <12 MB/s 网络下必被取消。
 - 建议：结束时校验 `长度 == total`，不符删重下；大文件用 `Timeout.InfiniteTimeSpan` + 自实现「60 秒无进度即超时」。

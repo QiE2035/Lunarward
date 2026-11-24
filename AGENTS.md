@@ -61,7 +61,7 @@ Lunarward 是 Uno/Skia 应用，**不发布 AT-SPI 树**：`cu_a11y_find` / `cu_
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 276 条）
+# 单元测试（当前 280 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）
@@ -148,7 +148,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 活跃文档**共 14 份**（2026-11-21 增补 `25`/`26`/`27`，2026-11-23 增补 `28`/`29`）：
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D116 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D117 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
 - `13-lessons.md` — L-01…L-169 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`scripts/list-deviations.sh` 生成；逐点以 `25` 为准）
@@ -158,7 +158,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - `25-deviation-register.md` — **逐点偏离总账**（265 点 / 114 文件、类别 + 必要性 + 可否回流、53 条排除清单、60 条可避免清单（2026-11-22 全量复核））：判断「这个偏离是否必须」先查它
 - `26-misalignment-audit.md` — **实现错位 bug 候选**（76 条，2026-11-22 已全部读码复核：成立 51 / 部分成立 19 / 不成立 6；**已修复 70 条**，D95–D103；`B01`…`B76` 编号）：修 bug 前先对号，修完把 ◐/○ 改成 ✅ 并补证据
 - `27-audit-report.md` — **审计可读版（修复前快照）**：按模块讲每条「哪里错、上游怎么写、用户看到什么」，与 26 同编号；想快速理解看这份，当前状态看 `26`
-- `28-runtime-env-audit.md` — **运行环境模块审查**：第一轮 R01–R42 已按批次 A–D 修复（D104–D107）；第二轮 2026-11-24 复审 R43–R130（3 Critical / 52 High / 20 Medium / 13 Low，**批 E–F 已修**（R43–R56，D115/D116），其余按 §6.11 批次 G–K 推进）：动 `Features/Runtime/` 或运行环境页之前先看它
+- `28-runtime-env-audit.md` — **运行环境模块审查**：第一轮 R01–R42 已按批次 A–D 修复（D104–D107）；第二轮 2026-11-24 复审 R43–R130（3 Critical / 52 High / 20 Medium / 13 Low，**批 E–G 已修**（R43–R63，D115–D117），其余按 §6.11 批次 H–K 推进）：动 `Features/Runtime/` 或运行环境页之前先看它
 - `29-runtime-env-ui-audit.md` — **运行环境页面 UI 审查**（2026-11-23，21 条：术语/i18n / 布局视觉 / 交互可达性，D108 全部修完）：改运行环境页 XAML 或要动文案/配色之前先看它
 - `docs/user/` — 给用户的 FAQ 与运行环境说明
 - `screenshots/` / `perf-baseline.json` — 截图证据与性能基线数据

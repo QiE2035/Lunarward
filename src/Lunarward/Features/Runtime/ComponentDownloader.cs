@@ -68,6 +68,9 @@ public static class ComponentDownloader
     /// <summary>连续多少个片被源端拒绝后降为单连接。</summary>
     private const int RejectThreshold = 2;
 
+    /// <summary>R63：多久没有收到任何字节就判定为停滞（取代 HttpClient 的总超时）。</summary>
+    public static readonly TimeSpan IdleTimeout = TimeSpan.FromSeconds(60);
+
 
     /// <summary>分片计划：第 index 片的起点与长度（纯函数，便于单测）。</summary>
     public static (long Start, long Length) PlanChunk(long total, int index, int chunkSize)
@@ -95,24 +98,37 @@ public static class ComponentDownloader
         IProgress<ComponentDownloadProgress>? progress = null,
         CancellationToken ct = default)
     {
+        // R62：资产名来自服务端，直接拼进 Path.Combine 能写出目标目录；先归一化再校验。
+        fileName = SanitizeFileName(fileName);
         Directory.CreateDirectory(targetDirectory);
         string target = Path.Combine(targetDirectory, fileName);
         string workDir = Path.Combine(targetDirectory, ".download");
         Directory.CreateDirectory(workDir);
+        // R62：同一资产的下载互斥（GUI 队列与 CLI 并发会把分片互相覆盖）。
+        using FileStream? fileLock = AcquireFileLock(workDir, fileName);
         // R12：镜像前缀由调用方传入并在内部统一套用（此前 GUI 传 null、CLI 在外面套，行为不一致）。
         string actual = ApplyMirror(url, mirrorPrefix);
 
-        (long? total, bool ranges) = await ProbeAsync(http, new Uri(actual), ct).ConfigureAwait(false);
-        int useConnections = ranges ? Math.Clamp(connections, 1, 16) : 1;
+        var clock = new ActivityClock();
+        using CancellationTokenSource watchdog = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        CancellationToken token = watchdog.Token;
+        Task watchdogTask = WatchIdleAsync(clock, watchdog, logger);
         bool degraded = false;
         bool resumed = false;
+        bool completed = false;
+        long? total = null;
+        int useConnections = 1;
+        try
+        {
+        (total, bool ranges) = await ProbeAsync(http, new Uri(actual), token).ConfigureAwait(false);
+        useConnections = ranges ? Math.Clamp(connections, 1, 16) : 1;
 
         if (useConnections > 1 && total is > 0)
         {
             try
             {
                 resumed = await DownloadChunkedAsync(http, actual, workDir, fileName, total.Value,
-                    useConnections, chunkSize, logger, progress, ct).ConfigureAwait(false);
+                    useConnections, chunkSize, clock, logger, progress, token).ConfigureAwait(false);
             }
             catch (RangeRejectedException ex)
             {
@@ -125,10 +141,31 @@ public static class ComponentDownloader
 
         if (degraded || useConnections == 1)
         {
-            bool single = await DownloadSingleAsync(http, actual, workDir, fileName, total, logger, progress, ct)
+            bool single = await DownloadSingleAsync(http, actual, workDir, fileName, total, clock, logger, progress, token)
                 .ConfigureAwait(false);
             resumed |= single;
         }
+        completed = true;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // R63：不是用户取消，只可能是空闲看门狗；分片保留，下次续传。
+            throw new TimeoutException(
+                $"下载超过 {IdleTimeout.TotalSeconds:F0} 秒没有收到数据，已中止（已下载的分片保留，下次可续传）");
+        }
+        finally
+        {
+            watchdog.Cancel();
+            try
+            {
+                await watchdogTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // 预期
+            }
+        }
+        _ = completed;
 
         // 合并（分片）或直接用单流文件
         string assembled = Path.Combine(workDir, fileName);
@@ -215,7 +252,7 @@ public static class ComponentDownloader
 
     private static async Task<bool> DownloadChunkedAsync(
         HttpClient http, string url, string workDir, string fileName, long total,
-        int connections, int chunkSize, ILogger? logger,
+        int connections, int chunkSize, ActivityClock clock, ILogger? logger,
         IProgress<ComponentDownloadProgress>? progress, CancellationToken ct)
     {
         int count = ChunkCount(total, chunkSize);
@@ -237,7 +274,7 @@ public static class ComponentDownloader
         using var gate = new SemaphoreSlim(connections, connections);
         int rejects = 0;
         long received = Interlocked.Read(ref completed);
-        var clock = Stopwatch.StartNew();
+        var timer = Stopwatch.StartNew();
         long lastReported = 0;
         var tasks = new Task[count];
         for (int i = 0; i < count; i++)
@@ -298,7 +335,7 @@ public static class ComponentDownloader
                     break;
                 }
                 long now = Interlocked.Read(ref received);
-                double elapsed = clock.Elapsed.TotalSeconds;
+                double elapsed = timer.Elapsed.TotalSeconds;
                 long delta = now - lastReported;
                 lastReported = now;
                 double speed = elapsed > 0 ? now / elapsed : 0;
@@ -311,9 +348,14 @@ public static class ComponentDownloader
         {
             await Task.WhenAll(tasks).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested && !clock.Stalled)
         {
             // 由降级路径触发的取消
+        }
+        catch (OperationCanceledException)
+        {
+            // R58：用户暂停 / 空闲超时取消时保留已下载分片，下次续传。
+            throw;
         }
         catch
         {
@@ -362,6 +404,17 @@ public static class ComponentDownloader
             {
                 throw new RangeRejectedException($"HTTP {(int)response.StatusCode}");
             }
+            // R57：镜像/代理忽略 Range 时会回 200 + 完整归档；必须在写盘前就降级，
+            // 否则 4 条连接各自把整份 20 GB 写一遍才发现长度不符。
+            if (response.StatusCode != HttpStatusCode.PartialContent)
+            {
+                throw new RangeRejectedException($"期望 206，实际 HTTP {(int)response.StatusCode}");
+            }
+            ContentRangeHeaderValue? range = response.Content.Headers.ContentRange;
+            if (range?.From is long from && from != start)
+            {
+                throw new RangeRejectedException($"Content-Range 起点 {from} 与请求 {start} 不符");
+            }
             response.EnsureSuccessStatusCode();
             await using Stream source = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
             await using var target = new FileStream(partPath, FileMode.Create, FileAccess.Write, FileShare.None, 64 * 1024,
@@ -369,11 +422,13 @@ public static class ComponentDownloader
             byte[] buffer = new byte[64 * 1024];
             long written = 0;
             int read;
-            while ((read = await source.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
+            while (written < length && (read = await source.ReadAsync(buffer, token).ConfigureAwait(false)) > 0)
             {
-                await target.WriteAsync(buffer.AsMemory(0, read), token).ConfigureAwait(false);
-                written += read;
-                Interlocked.Add(ref received, read);
+                int take = (int)Math.Min(read, length - written);
+                await target.WriteAsync(buffer.AsMemory(0, take), token).ConfigureAwait(false);
+                written += take;
+                Interlocked.Add(ref received, take);
+                clock.Bump();
             }
             if (written != length)
             {
@@ -395,8 +450,8 @@ public static class ComponentDownloader
 
     /// <summary>返回 true 表示复用了上一轮的半成品。</summary>
     private static async Task<bool> DownloadSingleAsync(
-        HttpClient http, string url, string workDir, string fileName, long? total, ILogger? logger,
-        IProgress<ComponentDownloadProgress>? progress, CancellationToken ct)
+        HttpClient http, string url, string workDir, string fileName, long? total, ActivityClock clock,
+        ILogger? logger, IProgress<ComponentDownloadProgress>? progress, CancellationToken ct)
     {
         string single = Path.Combine(workDir, fileName);
         long have = File.Exists(single) ? new FileInfo(single).Length : 0;
@@ -453,7 +508,13 @@ public static class ComponentDownloader
             {
                 await target.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
                 received += read;
+                clock.Bump();
                 progress?.Report(new ComponentDownloadProgress(received, total, 1, 0));
+            }
+            // R63：代理截断的半截文件不能当完整文件（没有源端摘要时拦不住）。
+            if (total is > 0 && received != total.Value)
+            {
+                throw new IOException($"下载长度不符：期望 {total}，实际 {received}");
             }
             logger?.LogInformation("[components] 单流下载完成 {Bytes} 字节（续传：{Resumed}）", received, resumed);
             return resumed;
@@ -508,6 +569,73 @@ public static class ComponentDownloader
         if (output.Length != total)
         {
             throw new InvalidDataException($"合并后长度 {output.Length} 与 Content-Length {total} 不一致");
+        }
+    }
+
+
+    /// <summary>R62：资产名只允许是「单段文件名」，并复核拼出来的路径仍在目标目录内。</summary>
+    internal static string SanitizeFileName(string fileName)
+    {
+        string name = Path.GetFileName(fileName ?? "");
+        if (string.IsNullOrWhiteSpace(name)
+            || name is "." or ".."
+            || name.StartsWith('.')
+            || name.IndexOfAny(new[] { '/', '\\', '\0' }) >= 0
+            || !string.Equals(name, fileName, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"资产文件名不可用：{fileName}");
+        }
+        return name;
+    }
+
+
+    /// <summary>R62：同目录同文件名只允许一个下载在跑（跨进程）；失败时给出可读错误。</summary>
+    private static FileStream AcquireFileLock(string workDir, string fileName)
+    {
+        string lockPath = Path.Combine(workDir, fileName + ".lock");
+        try
+        {
+            return new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None,
+                1, FileOptions.DeleteOnClose);
+        }
+        catch (IOException ex)
+        {
+            throw new InvalidOperationException($"同一文件已有下载在进行：{fileName}", ex);
+        }
+    }
+
+
+    /// <summary>R63：最后一次收到字节的时间点；看门狗用它判断是否停滞。</summary>
+    internal sealed class ActivityClock
+    {
+        private long _lastTicks = Environment.TickCount64;
+
+        public void Bump() => Interlocked.Exchange(ref _lastTicks, Environment.TickCount64);
+
+        public bool Stalled => Environment.TickCount64 - Interlocked.Read(ref _lastTicks) > IdleTimeoutMs;
+
+        internal const long IdleTimeoutMs = 60_000;
+    }
+
+
+    private static async Task WatchIdleAsync(ActivityClock clock, CancellationTokenSource cts, ILogger? logger)
+    {
+        try
+        {
+            while (!cts.IsCancellationRequested)
+            {
+                await Task.Delay(2000, cts.Token).ConfigureAwait(false);
+                if (clock.Stalled)
+                {
+                    logger?.LogWarning("[components] 下载 {Seconds} 秒无进度，取消本轮（分片保留）", IdleTimeout.TotalSeconds);
+                    cts.Cancel();
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // 正常收尾
         }
     }
 

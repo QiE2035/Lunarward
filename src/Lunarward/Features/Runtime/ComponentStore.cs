@@ -317,17 +317,8 @@ public static class ComponentStore
             {
                 return;
             }
-            string marker = kind is ComponentKind.Dxvk
-                ? Path.Combine(full, "x64", "d3d11.dll")
-                : Path.Combine(full, "x64", "d3d12.dll");
-            if (!File.Exists(marker))
-            {
-                // 兼容"平铺"的目录结构（直接在根上放 d3d11.dll）
-                marker = kind is ComponentKind.Dxvk
-                    ? Path.Combine(full, "d3d11.dll")
-                    : Path.Combine(full, "d3d12.dll");
-            }
-            if (!File.Exists(marker) || !seen.Add(full))
+            // R59：与导入侧共用 GraphicsLayouts（x64/<marker> 或平铺 <marker>）。
+            if (!GraphicsLayouts.IsRoot(full, vkd3d: kind is ComponentKind.Vkd3dProton) || !seen.Add(full))
             {
                 return;
             }

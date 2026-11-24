@@ -30,6 +30,39 @@ public static class ArchiveExtractor
     /// <summary>单次读取的缓冲大小：1 MiB，足够让取消及时生效。</summary>
     private const int BufferSize = 1024 * 1024;
 
+    /// <summary>R60：统一上限——条目数、单文件、总解压体积，所有格式一致。</summary>
+    private const int MaxEntries = 500_000;
+
+    private const long MaxSingleFileBytes = 4L << 30;
+
+    private const long AbsoluteSizeCap = 8L << 30;
+
+    private const long SlackBytes = 512L << 20;
+
+
+    /// <summary>
+    /// R60：按归档体积估算解压上限：至少「归档 + 512 MB」，至多 8 GiB，
+    /// 中间按 25 倍压缩比放宽（xz 对二进制通常 5–10 倍）。未压缩 .tar 不会被误杀。
+    /// </summary>
+    private static long SizeLimitFor(string archivePath)
+    {
+        long length = 0;
+        try
+        {
+            length = new FileInfo(archivePath).Length;
+        }
+        catch
+        {
+            // 拿不到大小就按 2 GiB 兜底
+        }
+        if (length <= 0)
+        {
+            return 2L << 30;
+        }
+        long scaled = length > (long.MaxValue / 25) ? long.MaxValue : length * 25;
+        return Math.Max(length + SlackBytes, Math.Min(AbsoluteSizeCap, scaled));
+    }
+
 
     /// <summary>支持的扩展名（用于界面提示与提前拒绝）。</summary>
     public static IReadOnlyList<string> SupportedExtensions { get; } =
@@ -64,14 +97,15 @@ public static class ArchiveExtractor
         string lower = archivePath.ToLowerInvariant();
         Directory.CreateDirectory(destination);
         var state = new Counter();
+        long sizeLimit = SizeLimitFor(archivePath);
         if (lower.EndsWith(".zip", StringComparison.Ordinal))
         {
-            await ExtractZipAsync(archivePath, destination, state, progress, logger, ct).ConfigureAwait(false);
+            await ExtractZipAsync(archivePath, destination, state, sizeLimit, progress, logger, ct).ConfigureAwait(false);
             return;
         }
         if (lower.EndsWith(".tar.xz", StringComparison.Ordinal))
         {
-            await ExtractTarXzAsync(archivePath, destination, state, progress, logger, ct).ConfigureAwait(false);
+            await ExtractTarXzAsync(archivePath, destination, state, sizeLimit, progress, logger, ct).ConfigureAwait(false);
             return;
         }
         if (!lower.EndsWith(".tar", StringComparison.Ordinal)
@@ -99,19 +133,23 @@ public static class ArchiveExtractor
         }
         await using (body)
         {
-            await ExtractTarStreamAsync(body, destination, state, progress, logger, ct).ConfigureAwait(false);
+            await ExtractTarStreamAsync(body, destination, state, sizeLimit, progress, logger, ct).ConfigureAwait(false);
         }
     }
 
 
     private static async Task ExtractTarStreamAsync(Stream stream, string destination, Counter state,
-        IProgress<ArchiveProgress>? progress, ILogger? logger, CancellationToken ct)
+        long sizeLimit, IProgress<ArchiveProgress>? progress, ILogger? logger, CancellationToken ct)
     {
         using var reader = new TarReader(stream, leaveOpen: true);
         TarEntry? entry;
         while ((entry = reader.GetNextEntry()) is not null)
         {
             ct.ThrowIfCancellationRequested();
+            if (state.Entries > MaxEntries)
+            {
+                throw new InvalidDataException($"条目数超过上限（{MaxEntries}），疑似压缩炸弹");
+            }
             string? name = entry.Name;
             if (string.IsNullOrWhiteSpace(name))
             {
@@ -142,7 +180,7 @@ public static class ArchiveExtractor
             await using FileStream output = new(target, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize);
             if (entry.DataStream is not null)
             {
-                await CopyAsync(entry.DataStream, output, state, progress, ct).ConfigureAwait(false);
+                await CopyAsync(entry.DataStream, output, state, progress, ct, sizeLimit).ConfigureAwait(false);
             }
             TrySetMode(target, entry.Mode);
             state.Entries++;
@@ -152,17 +190,18 @@ public static class ArchiveExtractor
 
 
     private static async Task ExtractTarXzAsync(string archivePath, string destination, Counter state,
-        IProgress<ArchiveProgress>? progress, ILogger? logger, CancellationToken ct)
+        long sizeLimit, IProgress<ArchiveProgress>? progress, ILogger? logger, CancellationToken ct)
     {
         await using FileStream file = File.OpenRead(archivePath);
-        // R32：xz 解压比其它格式更容易被做成「炸弹」。按预估总大小设上限（至少 32 GiB，
-        // 或归档大小的 200 倍），并在拷贝循环里检查取消。
-        long sizeLimit = Math.Max(32L << 30, file.Length * 200);
         // SharpCompress 自己识别外层压缩（xz）并给出 tar 条目；逐条写盘，方便取消与计时。
         using IReader reader = ReaderFactory.Open(file, new ReaderOptions { LeaveStreamOpen = false });
         while (reader.MoveToNextEntry())
         {
             ct.ThrowIfCancellationRequested();
+            if (state.Entries > MaxEntries)
+            {
+                throw new InvalidDataException($"条目数超过上限（{MaxEntries}），疑似压缩炸弹");
+            }
             if (reader.Entry.IsDirectory)
             {
                 Directory.CreateDirectory(ResolveTarget(destination, reader.Entry.Key));
@@ -182,12 +221,16 @@ public static class ArchiveExtractor
 
 
     private static async Task ExtractZipAsync(string archivePath, string destination, Counter state,
-        IProgress<ArchiveProgress>? progress, ILogger? logger, CancellationToken ct)
+        long sizeLimit, IProgress<ArchiveProgress>? progress, ILogger? logger, CancellationToken ct)
     {
         using ZipArchive archive = ZipFile.OpenRead(archivePath);
         foreach (ZipArchiveEntry entry in archive.Entries)
         {
             ct.ThrowIfCancellationRequested();
+            if (state.Entries > MaxEntries)
+            {
+                throw new InvalidDataException($"条目数超过上限（{MaxEntries}），疑似压缩炸弹");
+            }
             if (string.IsNullOrWhiteSpace(entry.Name))
             {
                 // 目录条目
@@ -198,7 +241,7 @@ public static class ArchiveExtractor
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             await using Stream input = entry.Open();
             await using FileStream output = new(target, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize);
-            await CopyAsync(input, output, state, progress, ct).ConfigureAwait(false);
+            await CopyAsync(input, output, state, progress, ct, sizeLimit).ConfigureAwait(false);
             // R43：zip 的 Unix 权限位在外层属性高 16 位（由 zip 工具写入）；没有就不设，最后统一兜底。
             int unixMode = (entry.ExternalAttributes >> 16) & 0xFFF;
             if (unixMode != 0)
@@ -217,10 +260,16 @@ public static class ArchiveExtractor
     {
         byte[] buffer = new byte[BufferSize];
         int read;
+        long written = 0;
         while ((read = await input.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
         {
             await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
             state.Bytes += read;
+            written += read;
+            if (written > MaxSingleFileBytes)
+            {
+                throw new InvalidDataException($"单个文件解压超过上限（{MaxSingleFileBytes / 1024 / 1024} MB），疑似压缩炸弹");
+            }
             if (sizeLimit > 0 && state.Bytes > sizeLimit)
             {
                 throw new InvalidDataException($"解压体积超过上限（{sizeLimit / 1024 / 1024} MB），疑似压缩炸弹");

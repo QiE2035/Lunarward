@@ -90,10 +90,16 @@ public static class ComponentImporter
             }
             else
             {
-                if (!HasGraphicsDlls(extracted))
+                // R59：与 GetGraphics 共用同一套「图形层根」判定，并把根归一。
+                // 归档顶层常混着 README / LICENSE（顶层不是唯一目录），以前只做递归存在性检查，
+                // 结果导入判定通过、manifest 也写了，但 GetGraphics 按固定路径永远看不到。
+                string? graphicsRoot = GraphicsLayouts.FindRoot(extracted);
+                if (graphicsRoot is null)
                 {
-                    throw new InvalidDataException("归档里没有找到 d3d11.dll / dxgi.dll / d3d12.dll，不像图形层");
+                    throw new InvalidDataException("归档里没有找到 x64/d3d11.dll（或 d3d12.dll），不像图形层");
                 }
+                root = RelativeTo(extracted, graphicsRoot);
+                extracted = graphicsRoot;
             }
 
             // R33：先把 manifest 写进临时目录、再整体改名，避免「目录已经在正式位置、manifest 没写成」
@@ -121,6 +127,19 @@ public static class ComponentImporter
             };
             ComponentManifestStore.Write(extracted, manifest);
             Directory.Move(extracted, target);
+            if (kind == "graphics" && GraphicsLayouts.FindRoot(target) is null)
+            {
+                // R59：落盘后复核一次，失败就回滚，不留「目录在、列表里看不到」的半成品。
+                try
+                {
+                    Directory.Delete(target, recursive: true);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "[components] 回滚无效图形层目录失败：{Path}", target);
+                }
+                throw new InvalidDataException($"导入后仍找不到图形层标记：{dirName}");
+            }
             ComponentStore.Invalidate();
             logger?.LogInformation("[components] 导入完成 {Id}（kind={Kind} layout={Layout} root={Root}）",
                 manifest.Id, kind, layout, root);
@@ -166,25 +185,6 @@ public static class ComponentImporter
     }
 
 
-    private static bool HasGraphicsDlls(string directory)
-    {
-        try
-        {
-            foreach (string file in Directory.EnumerateFiles(directory, "*.dll", SearchOption.AllDirectories))
-            {
-                string name = Path.GetFileName(file).ToLowerInvariant();
-                if (name is "d3d11.dll" or "dxgi.dll" or "d3d12.dll" or "d3d10core.dll" or "d3d9.dll")
-                {
-                    return true;
-                }
-            }
-        }
-        catch
-        {
-            return false;
-        }
-        return false;
-    }
 
 
 }

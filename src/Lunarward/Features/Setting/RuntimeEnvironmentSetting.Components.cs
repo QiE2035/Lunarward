@@ -351,7 +351,7 @@ public sealed partial class RuntimeEnvironmentSetting
                 List<string> failed = new();
                 try
                 {
-                    using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+                    using var http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan }; // R63：改由 ComponentDownloader 的 60 秒无进度看门狗控制超时
                     foreach (int index in queue)
                     {
                         if (token.IsCancellationRequested)

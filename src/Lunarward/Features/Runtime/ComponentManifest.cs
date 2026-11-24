@@ -106,6 +106,75 @@ public static class ComponentLayouts
 }
 
 
+/// <summary>
+/// 图形层布局（R59）：导入校验与 <see cref="ComponentStore.GetGraphics"/> 必须用同一套判定，
+/// 否则会出现「导入成功但组件列表永远看不到」。
+/// 归档顶层常带 README/LICENSE 等散文件（顶层不是唯一目录），所以这里向下最多三层找 dll。
+/// </summary>
+public static class GraphicsLayouts
+{
+    /// <summary>DXVK 的主标记；VKD3D-Proton 用 d3d12.dll。</summary>
+    public static string MarkerName(bool vkd3d) => vkd3d ? "d3d12.dll" : "d3d11.dll";
+
+    /// <summary>目录本层是否像图形层根（x64/&lt;marker&gt; 或平铺的 &lt;marker&gt;）。</summary>
+    public static bool IsRoot(string directory, bool vkd3d = false)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return false;
+        }
+        string marker = MarkerName(vkd3d);
+        return File.Exists(Path.Combine(directory, "x64", marker))
+               || File.Exists(Path.Combine(directory, marker));
+    }
+
+    /// <summary>
+    /// 在解压目录里找图形层根：先自己，再向下最多三层；优先 DXVK（d3d11），找不到再按 VKD3D（d3d12）。
+    /// 返回 null 表示不像图形层。
+    /// </summary>
+    public static string? FindRoot(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return null;
+        }
+        foreach (bool vkd3d in new[] { false, true })
+        {
+            var queue = new Queue<string>();
+            queue.Enqueue(directory);
+            for (int depth = 0; depth <= 3 && queue.Count > 0; depth++)
+            {
+                int width = queue.Count;
+                for (int i = 0; i < width; i++)
+                {
+                    string dir = queue.Dequeue();
+                    if (IsRoot(dir, vkd3d))
+                    {
+                        return dir;
+                    }
+                    if (depth == 3)
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        foreach (string child in Directory.GetDirectories(dir))
+                        {
+                            queue.Enqueue(child);
+                        }
+                    }
+                    catch
+                    {
+                        // 读不了的目录直接跳过
+                    }
+                }
+            }
+        }
+        return null;
+    }
+}
+
+
 /// <summary>受管组件的来源信息（manifest.source）。</summary>
 public sealed class ComponentManifestSource
 {
