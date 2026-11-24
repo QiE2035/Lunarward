@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D122）
+- **状态**：生效中（D0–D123）
 - **最后更新**：2026-11-24
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -2024,3 +2024,31 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 **验证**：`bash scripts/test/coverage.sh 85` → `行覆盖 85.30%（2566/3008）  分支覆盖 78.84%  类 52` PASS；`dotnet test Starward.slnx` **379 通过**；`lint-ui-thread.sh` 全 PASS。
 
 **确认方式**：用户 m00928「先等一下，CI失败了，看看怎么回事」；随后在选项里选「排除测试文件 + 再补真实用例到 85%」。
+
+## D123 背景视频：VAAPI 硬解走媒体选项 + 合成零拷贝（2026-11-24）
+
+**背景**：用户报「Lunarward 常驻 1.2 核」。定位到背景视频壁纸：`Features/Background/VideoBackgroundPlayer.cs` 用 libvlc `--vout=vmem` 软件解码 1920×1080 VP9 30fps，每帧再经「Skia 画 `_composed` → `Marshal.Copy` 到 `_pixels` → `WriteableBitmap`」两次整帧拷贝。代码里原有一句结论「加 `--avcodec-hw=vaapi` 没收益」，实测是参数传错层级（见 L-172）。
+
+**决定**：
+
+1. 硬解选项改在 `Media` 上：`media.AddOption(":avcodec-hw=vaapi")`；不探测驱动，靠 VLC 自己回退。
+2. 留开发/回退开关 `LUNARWARD_VIDEO_HWDEC=0`（默认开），个别驱动花屏时用户可自行退回软解，不必等发版。
+3. 合成缓冲 `_pixels` 在 `Start()` 里分配并 `GCHandle` 固定，`Display()` 用 `SKSurface.Create(info, ptr, rowBytes)` 直接画进去；不再需要 `_composed` 中间位图，省掉每帧一次 8.3MB 的 `Marshal.Copy`。
+4. 无主题图（`_overlay is null`）时仍走 `Marshal.Copy`——那条路本来只有一次拷贝，再套 Skia surface 反而更慢。
+
+**代价边界**：
+
+- NVIDIA 的 VAAPI 是 NVDEC 解码后下载回内存，省不掉 Skia 合成与上屏，所以到不了「接近 0 核」；要零拷贝得给 Uno 塞原生视频 sink，不在本次范围。
+- 每帧新建一个 `SKSurface`（raster，包在已有缓冲上）会带来一次小对象分配；实测 20 秒窗口内 GC 无异常增长（RSS 稳定，`.NET BGC` 10–11% 与改动前持平）。
+- `vaapi_drm` 需要 `/dev/dri/renderD128` 可访问；沙箱/Flatpak 环境下会回退软解，行为等同改动前。
+- 显式写 `vaapi` 意味着 Intel/AMD/NVIDIA 都走 VA-API（三家在 Linux 上都是这个抽象）；只用 Vulkan-only 驱动的极端情况会回退软解。
+
+**实测**（真机 RTX 3050 Mobile，1920×1080 VP9 壁纸，窗口 1500×845，20 秒 `/proc` 采样）：
+
+| 版本 | 平均 CPU | 主要线程 |
+| --- | --- | --- |
+| 改动前（软解 + 两次拷贝） | **112%** | `av:vp9:df0` 58%，渲染 21% |
+| 改动后 + `LUNARWARD_VIDEO_HWDEC=0` | **100%** | `av:vp9` 6 线程合计 ~79% |
+| 改动后（默认，VAAPI） | **74%** | `av:vp9:df0` 42%，渲染 22% |
+
+**确认方式**：用户 m01253「试试 VAAPI（或者说硬解码），其它三点都不符合要求」，m01364「可以」。

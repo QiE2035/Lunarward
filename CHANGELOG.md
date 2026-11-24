@@ -1,3 +1,10 @@
+## 2026-11-24 —— 背景视频改用硬件解码（D123）
+
+- 背景视频壁纸以前给 libvlc 传 `--avcodec-hw=vaapi` 不生效（那是输入级配置，只能作为**媒体选项**）——所以旧结论「硬解没收益」是假的。改成 `media.AddOption(":avcodec-hw=vaapi")` 后日志才真正出现 `using hw decoder module "vaapi_drm"`；没有 VAAPI 的机器由 VLC 自己回退软解。
+- 合成路径少拷一次整帧：`_pixels` 固定后由 `SKSurface` 直接绘制，去掉中间 `_composed` 位图与每帧 8.3MB 的 `Marshal.Copy`。
+- 留 `LUNARWARD_VIDEO_HWDEC=0` 开关，遇到花屏/绿屏可退回软解。
+- 实测（1920×1080 VP9 壁纸，20 秒采样）：整体 **112% → 74% CPU**；其中「软解但只拷一次」= 100%，说明硬解贡献 −26pp、零拷贝贡献 −12pp。
+
 ## 2026-11-24 —— CI 覆盖率门限口径修正 + 真实用例补齐（D122）
 
 - 覆盖率报告不再把测试文件自己算进分母：口径只留 `src/Lunarward/`（`tests/coverlet.runsettings` 加 `ExcludeByFile`）。修正前报告里的 82%–88% 掺了「测试代码几乎全覆盖」的水分，真实 src 覆盖只有 81.58%；修正后实测 **85.30%**，门限仍是 85%（不靠调阈值过关）。

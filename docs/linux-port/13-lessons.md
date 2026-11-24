@@ -1428,3 +1428,12 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 - 正确做法：跨平台代码里**不写 Windows 专属族名**。等宽只是视觉诉求时用主题自带的等宽资源（或干脆不指定），图标优先 `FontIcon`/文本字符，不要靠 `Segoe MDL2` 的私有码位。
 - 排查手法：Grep `FontFamily` 找 `Consolas`/`Segoe MDL2`/`Segoe UI`；`fc-match Consolas` 在 Linux 上返回的是替代族，不代表原文能渲染。
 - 代价：等宽对齐（比如启动预览的命令行）在非等宽主题样式下会略微不对齐，可读性优先于像素对齐，值得。
+
+## L-172 libvlc 的 `avcodec-hw` 只能当「媒体选项」传，实例参数会被静默忽略
+
+- 现象：背景视频（1080p VP9 30fps）常驻 1.2 核。早先给 `new LibVLC(...)` 加过 `--avcodec-hw=vaapi`，注释里记的是「CPU 没降（1.05 → 1.05 核）」，于是结论成了「VLC 3 + vmem 拿不到硬件帧」。
+- 真正原因：`avcodec-hw` 是**输入级**配置，作为 libvlc 实例参数传进去不生效，而且没有任何报错。打开 `--verbose=2` 才看得到：`looking for hw decoder module matching "none"` → `no hw decoder modules matched`（值根本没到 avcodec）。
+- 正确做法：在 `Media` 上加选项——`media.AddOption(":avcodec-hw=vaapi")`。日志随即变成 `looking for hw decoder module matching "vaapi"` → `using hw decoder module "vaapi_drm"`。没有 VAAPI 的机器 VLC 自己回退软解，不需要应用侧探测；但 `:avcodec-hw=any` 在本机**不会**选中 vaapi，要显式写 `vaapi`。
+- 排查手法：`LibVLC` 上挂 `Log += (_, e) => Console.WriteLine(e.Message)` 并加 `--verbose=2`，搜 `hw decoder module`；只看 CPU 容易被「其实没开」骗过去。
+- 实测（1920×1080 VP9、vmem 输出 RV32、20 秒窗口）：纯解码 0.28 → 0.13 核；含 Skia 叠图与整帧拷贝 0.44 → 0.29 核；真机整体 112% → 74%（同时去掉一次整帧拷贝）。
+- 代价：NVIDIA 的 VAAPI 是 NVDEC 解码后**下载回内存**，省不掉后面的合成与上屏；个别驱动会花屏，所以留了 `LUNARWARD_VIDEO_HWDEC=0` 让用户退回软解。

@@ -33,9 +33,16 @@ internal sealed class VideoBackgroundPlayer : IDisposable
     private readonly SemaphoreSlim _frameSemaphore = new(1, 1);
     private GCHandle _pin;
 
-    // 每帧复用：30fps 下若每帧 new SKBitmap + byte[] 会产生 ~60MB/s 垃圾（用户明确抱怨过内存）。
-    private SKBitmap? _composed;
+    // 交给界面层的最终 BGRA 缓冲。以前是每帧 new → 大量垃圾，后来复用一个托管数组、
+    // 现在连它一起固定住，让 Skia 直接把合成结果写进来（每帧少一次 8.3MB 的 Marshal.Copy）。
     private byte[]? _pixels;
+    private GCHandle _pixelPin;
+
+    /// <summary>
+    /// 是否请求 VAAPI 硬解（默认开）。个别驱动上硬解会花屏/绿屏，用户可以用
+    /// <c>LUNARWARD_VIDEO_HWDEC=0</c> 退回软解，不用等我们发版。
+    /// </summary>
+    private static readonly bool HardwareDecode = Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_HWDEC") is not "0";
 
     private LibVLC? _libvlc;
     private MediaPlayer? _player;
@@ -104,13 +111,23 @@ internal sealed class VideoBackgroundPlayer : IDisposable
         {
             Stop();
             _pin = GCHandle.Alloc(_frame, GCHandleType.Pinned);
-            // 试过 --avcodec-hw=vaapi：本机 vainfo 有 VAProfileVP9Profile0，但 VLC 3 + vmem 输出
-            // 拿不到硬件帧，实测 CPU 没降（1.05 → 1.05 核），所以不加这个参数，免得误以为在硬解。
+            // 合成缓冲固定住：Skia 直接往上画，省掉以前「画进 _composed 再 Marshal.Copy 整帧」的第二次拷贝。
+            _pixels = new byte[VideoWidth * VideoHeight * 4];
+            _pixelPin = GCHandle.Alloc(_pixels, GCHandleType.Pinned);
             _libvlc = new LibVLC("--no-audio", "--quiet", "--vout=vmem", "--input-repeat=65535");
             _player = new MediaPlayer(_libvlc);
             _player.SetVideoFormat("RV32", VideoWidth, VideoHeight, VideoWidth * 4);
             _player.SetVideoCallbacks(Lock, Unlock, Display);
             using var media = new Media(_libvlc, new Uri(Path.GetFullPath(videoPath)));
+            if (HardwareDecode)
+            {
+                // 必须写成「媒体选项」：--avcodec-hw 当 libvlc 实例参数传进去会被忽略——
+                // 日志里是 `looking for hw decoder module matching "none"` → `no hw decoder modules matched`，
+                // 也就是根本没有硬解，这正是以前「加了 VAAPI 但 CPU 没降」的原因。
+                // 走媒体选项后日志变成 `using hw decoder module "vaapi_drm"`；没有 VAAPI 的机器
+                // VLC 自己回退软解，不需要我们探测。
+                media.AddOption(":avcodec-hw=vaapi");
+            }
             _player.Play(media);
             return true;
         }
@@ -165,6 +182,10 @@ internal sealed class VideoBackgroundPlayer : IDisposable
         {
             _pin.Free();
         }
+        if (_pixelPin.IsAllocated)
+        {
+            _pixelPin.Free();
+        }
     }
 
     private IntPtr Lock(IntPtr opaque, IntPtr planes)
@@ -189,26 +210,36 @@ internal sealed class VideoBackgroundPlayer : IDisposable
             }
             try
             {
-                _pixels ??= new byte[VideoWidth * VideoHeight * 4];
+                byte[]? pixels = _pixels;
+                if (pixels is null || !_pixelPin.IsAllocated)
+                {
+                    return;
+                }
                 if (_overlay is null)
                 {
-                    // 没有主题图时不需要走 Skia：直接把解码缓冲拷成托管数组，省掉 2MP 的 drawImage + 一次整帧拷贝。
-                    Marshal.Copy(_pin.AddrOfPinnedObject(), _pixels, 0, _pixels.Length);
+                    // 没有主题图时不需要走 Skia：直接把解码缓冲拷成托管数组，省掉 2MP 的 drawImage。
+                    Marshal.Copy(_pin.AddrOfPinnedObject(), pixels, 0, pixels.Length);
                 }
                 else
                 {
-                    _composed ??= new SKBitmap(VideoWidth, VideoHeight, SKColorType.Bgra8888, SKAlphaType.Opaque);
                     var info = new SKImageInfo(VideoWidth, VideoHeight, SKColorType.Bgra8888, SKAlphaType.Opaque);
                     using var video = SKImage.FromPixels(info, _pin.AddrOfPinnedObject(), VideoWidth * 4);
-                    using (var canvas = new SKCanvas(_composed))
+                    // 直接画进交给界面层的缓冲：以前是先画进 _composed 再整帧拷过来，白拷一次。
+                    using var surface = SKSurface.Create(info, _pixelPin.AddrOfPinnedObject(), VideoWidth * 4);
+                    if (surface is null)
                     {
+                        Marshal.Copy(_pin.AddrOfPinnedObject(), pixels, 0, pixels.Length);
+                    }
+                    else
+                    {
+                        SKCanvas canvas = surface.Canvas;
                         canvas.DrawImage(video, new SKRect(0, 0, VideoWidth, VideoHeight));
                         // 上游就是把主题图整幅拉伸到视频帧上（标题文字就在这张图里）。
                         canvas.DrawBitmap(_overlay, new SKRect(0, 0, VideoWidth, VideoHeight));
+                        canvas.Flush();
                     }
-                    Marshal.Copy(_composed.GetPixels(), _pixels, 0, _pixels.Length);
                 }
-                FrameReady?.Invoke(_pixels, VideoWidth, VideoHeight);
+                FrameReady?.Invoke(pixels, VideoWidth, VideoHeight);
             }
             finally
             {
@@ -227,8 +258,6 @@ internal sealed class VideoBackgroundPlayer : IDisposable
         Stop();
         _overlay?.Dispose();
         _overlay = null;
-        _composed?.Dispose();
-        _composed = null;
         _pixels = null;
         _frameSemaphore.Dispose();
     }
