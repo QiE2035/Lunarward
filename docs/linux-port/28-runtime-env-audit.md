@@ -186,12 +186,12 @@
 
 ---
 
-## 6 · 第二轮全量审查（2026-11-24，R43–R130，全部未修）
+## 6 · 第二轮全量审查（2026-11-24，R43–R130）
 
 > 触发：用户 m06812「再逐文件仔细审查一遍所有『运行环境』相关代码，包括逻辑层，UI 等等，找出所有存在的细节问题，以及可改进的地方，并给出相应的意见」。
 > 范围：`src/Lunarward/Features/Runtime/*.cs`（25 文件 6977 行）、`Features/Setting/RuntimeEnvironmentSetting*.cs`（5 个 partial 6156 行）、`RuntimeEnvironmentSetting.xaml`（572 行），并回查 `GameLauncher/GameLauncherService(.Linux).cs`、`LaunchPreflight.cs`、`GameSettingPage.xaml.cs`、`Helpers/JsonFile.cs` 等调用方。
 > 方法：4 组只读子代理分工通读（页面 / 组件与下载 / 启动与解析 / 方案与绑定）+ 本人 grep 自查 + 抽查关键断言；标 ✔已核对的条目由本人回源码逐行确认。初稿中标「推断」的 7 条已于 2026-11-24 逐条取证并订正（结论与实测见 §6.12）：其中 R55 的「建前缀失败」被实测否定、R77 的「死锁面」被代码否定、R94 的适用范围收窄到「手改文件」。仍未实测的只剩「外部服务端行为」（R61 触发、R62 可达性）。
-> 状态：**全部未修**。修的时候按 §6.9 批次走，改完在本节对应条目标 🛠 并写提交号。
+> 状态：**批 E 已修**（R43 / R44 / R45 / R64，D115）；其余未修，按 §6.11 批次 E–K 推进，改完在对应条目标 🛠 并写决策号。
 
 ### 6.1 结论摘要
 
@@ -206,19 +206,19 @@
 
 ### 6.2 Critical
 
-**R43　解压 tar.xz / zip 不写 Unix 权限位，下载来的 wine 没有执行权限** ✔已核对
+**R43　（🛠 已修复，D115 批 E）解压 tar.xz / zip 不写 Unix 权限位，下载来的 wine 没有执行权限** ✔已核对
 - 位置：`src/Lunarward/Features/Runtime/ArchiveExtractor.cs:147`（`TrySetMode(target, entry.Mode)` 只在 tar 分支）、`:173-176`（xz 分支）、`:194-200`（zip 分支）。
 - 证据：全仓 `TrySetMode` 仅此一处调用；`ComponentStore.cs:503-506` 用 `File.GetUnixFileMode(...) & anyExec` 判定可执行。
 - 影响：默认源 `wine-staging`（Kron4ek/Wine-Builds）与 `GE-Proton` 都只发 `.tar.xz`，所以「下载 → 安装」后 `bin/wine` 是 0644，组件行立刻显示「没有可执行权限」，绑定后启动失败；`.zip` 导入同理。现有 `ArchiveExtractorTests` 无权限位用例，测不出来。
 - 建议：xz 从 `TarReader`/`IEntry` 取 Mode、zip 用 `ZipArchiveEntry.ExternalAttributes >> 16` 转 `UnixFileMode`，统一走 `TrySetMode`；`ComponentImporter.ImportAsync` 收尾对 `bin/wine`、`bin/wine64`、`files/bin/wine`、`wineserver*`、`*.so*` 兜底补 `u+x`（只补位、不夺权）；补两条 L1 测试（tar.xz / zip 解出后 `bin/wine` 有执行位）。
 
-**R44　首次启动任意游戏会「就地改名」方案，顺带换掉前缀目录** ✔已核对
+**R44　（🛠 已修复，D115 批 E）首次启动任意游戏会「就地改名」方案，顺带换掉前缀目录** ✔已核对
 - 位置：`Features/Runtime/ProfileBinding.cs:249-257`；`Features/Runtime/EnvironmentResolver.cs:99-113`（`EffectivePrefixPath`）。
 - 证据：`all.Count == 1 && Usages(fallback.Id).Count == 0` 时 `fallback.Name = gameName`；`EffectivePrefixPath` 在 `PrefixPath` 为空时 `Path.Combine(root, ComponentNaming.Sanitize(name).ToLowerInvariant())`，即前缀目录由**方案名**推导。
 - 影响：默认方案 `PrefixPath` 本就为空，「第一次启动某游戏」= 改名 = 换前缀目录。此前用调试 Shell / 一次性运行 / `--prefix-ensure` 在该前缀装过的 DXVK、注册表、字体全留在孤儿目录，启动时重建空目录——用户看到「图形层突然没了」，磁盘上还多一份前缀。`Usages()` 只统计绑定，探测不到 Shell / RunOnce 留下的前缀。
 - 建议：方案名与前缀目录解耦——`RuntimeProfile` 增不可变 `PrefixSlug`（首次生成后不再变），`EffectivePrefixPath` 优先用它；或改名时若旧目录存在就 `Directory.Move` 并在 UI 明确提示；改名事件写进 `LaunchHistoryStore`。
 
-**R45　JSON 里显式 `null` 覆盖集合初始化器，运行期 NRE 且 `LoadAll` 抓不到** ✔已核对
+**R45　（🛠 已修复，D115 批 E）JSON 里显式 `null` 覆盖集合初始化器，运行期 NRE 且 `LoadAll` 抓不到** ✔已核对
 - 位置：`Features/Runtime/RuntimeProfile.cs:56`（`Env { get; set; } = new()`）、`:64`（`Wrappers = new()`）；消费方 `RuntimeEnvironment.cs:49`、`Enhancements.cs:103`、`LaunchRecipe.cs:217`（`profile?.Env.TryGetValue` 的 `?.` 只保护 `profile`）。
 - 证据：缺字段安全（初始化器保留），但 `"env": null` / `"wrappers": null` 由 STJ 直接赋 null，反序列化成功 → `LoadAll` 的 try/catch 不触发，故障延后到启动/枚举时爆 NRE，栈里看不出是哪个 JSON。
 - 建议：`RuntimeProfileStore` 反序列化后 `Normalize()` 里 `profile.Env ??= new(); profile.Wrappers ??= new(); profile.Name ??= "";`；读取处统一空字典兜底；补反序列化测试（`{"env":null}` 不抛）。
@@ -319,7 +319,7 @@
 
 ### 6.5 High · 方案、绑定与持久化
 
-**R64　`RuntimeProfileStore.Save` 的返回值被丢弃，绑定写道不存在的方案** ✔已核对
+**R64　（🛠 已修复，D115 批 E）`RuntimeProfileStore.Save` 的返回值被丢弃，绑定写道不存在的方案** ✔已核对
 - 位置：`ProfileBinding.cs:274-275`（`RuntimeProfileStore.Save(created, logger); Set(b, created.Id);`）。
 - 影响：磁盘满/权限/目录被删时文件没写成，绑定照样写入 → `Resolve` 指向不存在的 id，`Dangling` 出现悬空记录；用户反复看到「已创建运行环境」但启动仍用兜底方案。
 - 建议：`if (!RuntimeProfileStore.Save(...)) { LogWarning; return (fallback, false, …); }`，或 Save 失败抛出让上层提示。

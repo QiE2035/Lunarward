@@ -248,10 +248,16 @@ public static class ProfileBinding
         RuntimeProfile fallback = all[0];
         if (all.Count == 1 && Usages(fallback.Id).Count == 0)
         {
-            // 只有一份没人用的配方（多半是 LoadAll 自动建的默认那份）：就地改名并绑定，不制造第二份
+            // 只有一份没人用的配方（多半是 LoadAll 自动建的默认那份）：就地改名并绑定，不制造第二份。
+            // R44：前缀目录由 PrefixSlug 决定，改名不再换目录（旧行为会把 DXVK/注册表留在孤儿目录里）。
             string oldName = fallback.Name;
             fallback.Name = gameName;
-            RuntimeProfileStore.Save(fallback, logger);
+            if (!RuntimeProfileStore.Save(fallback, logger))
+            {
+                // R64：文件没写成时不要落绑定——否则下次 Resolve 指向一个不存在的 id。
+                logger?.LogWarning("默认环境改名后保存失败，跳过绑定：{name}（{id}）", gameName, fallback.Id);
+                return (fallback, false, false);
+            }
             Set(b, fallback.Id);
             logger?.LogInformation("默认环境改名为 {name}（原 {old}）并绑定到 {biz}（id {id}）", gameName, oldName, b.Value, fallback.Id);
             return (fallback, true, true);
@@ -271,7 +277,12 @@ public static class ProfileBinding
             GameOutput = fallback.GameOutput,
             Notes = $"首次启动自动创建（沿用「{fallback.Name}」的运行器与图形层）",
         };
-        RuntimeProfileStore.Save(created, logger);
+        if (!RuntimeProfileStore.Save(created, logger))
+        {
+            // R64：写盘失败就别绑定、也别把这份「幽灵方案」交给启动器用。
+            logger?.LogWarning("首次启动自动创建环境失败，退回默认环境：{biz}", b.Value);
+            return (fallback, false, false);
+        }
         Set(b, created.Id);
         logger?.LogInformation("为 {biz} 新建环境 {name}（{id}）", b.Value, created.Name, created.Id);
         return (created, true, true);

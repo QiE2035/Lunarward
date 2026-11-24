@@ -1,7 +1,7 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D114）
-- **最后更新**：2026-11-21
+- **状态**：生效中（D0–D115）
+- **最后更新**：2026-11-24
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
 - **确认方式**：
@@ -1815,3 +1815,20 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - 与批准方案的一处偏差：**暂存区没有做成「添加」的第三个入口**。查代码后确认 `Button_Staging_Click` 只是列出 `.download/` 里未完成的分片并允许删除（取消 = 暂停，分片留着续传），并不能导入任何东西；把它挂进「添加…」会变成死路。因此「添加」只保留真实的两种来源（下载 / 本地文件），暂存区仍在「更多」里做管理。若以后做「从暂存区续传安装」，再补第三个入口。
 - 文案同步：`AddPathTip` tooltip 改为「下载运行器，或把已装好的 wine 可执行文件加进清单；系统里已发现的运行器只读。」，`Runners_Notice` 一并改；新增 `DownloadRunner`/`DownloadRunnerTitle`/`PickLocalRunner`/`DownloadGraphics`/`DownloadGraphicsTitle` 五个键（五套资源）。
 - 验证：build 0 错误；`dotnet test` 271 通过；`lint-ui-thread.sh` 通过；真机确认「添加运行器…」下拉两项、点「下载运行器…」后弹窗标题为「下载运行器」且源下拉只剩 wine-staging（图形层源未出现）。
+
+## D115 运行环境审查修复：批 E「数据安全」
+
+**背景**：第二轮全量审查（`28-runtime-env-audit.md` §6，R43–R130）用户 m07141「先提交，然后全部修复，随进度提交」授权。批 E 覆盖 R43 / R44 / R45 / R64，共同点是「静默走偏」：装好的组件其实不可执行、改个名字等于换前缀、坏 JSON 延后爆炸、保存失败仍然绑定。
+
+**决定**：
+
+1. **R43 解压后补执行位**：`ArchiveExtractor` 对 zip 读 `ZipArchiveEntry.ExternalAttributes >> 16` 的 Unix 权限位；tar.xz 走 SharpCompress，反射确认其 `IEntry` 没有 `Mode`（BCL `TarReader` 才有），因此解压完成后统一扫一遍目标目录，按 ELF 文件头（`\x7fELF`）给可执行文件补 `u+x`——只加位、不夺权，文本/脚本不动。下载与导入共用同一条解压路径，两条链路一起修好。
+2. **R44 方案名与前缀目录解耦**：`RuntimeProfile` 新增持久化字段 `PrefixSlug`（首次生成后不再变）；`PrefixPath.DefaultPrefixDirectory` 成为唯一的默认目录推导（纯函数、可单测、仍带 R35 的越界保护）；`RuntimeProfileStore.Normalize` 给旧配置回填 slug——回填值就是原来「按名字推导」的结果，所以升级后目录不变；`EffectivePrefixPath` 优先 slug。`ProfileBinding` 的「就地改名」不再动目录。
+3. **R45 null 归一**：`Normalize` 里对 `Env` / `Wrappers` / `Name` 做空值兜底（STJ 会把显式 `null` 原样赋给属性，覆盖初始化器）。
+4. **R64 保存失败不绑定**：`EnsureFor` 的两处 `RuntimeProfileStore.Save` 改为检查返回值；失败时记 Warning、返回默认方案，不再写入指向不存在 id 的绑定。
+
+**代价边界**：老配置第一次 `LoadAll` 会因补 slug 被重写一次（沿用既有的 `Normalize → changed → Save` 机制）；slug 一旦生成，改显示名不再换前缀目录——想换目录要显式填前缀路径。ELF 扫描只在解压结束后做一次（wine 包几千个文件，实测开销在几十毫秒级）。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` **276 通过**（新增 5 条：zip 权限位、zip 无权限位时的 ELF 兜底、slug 改名不换目录、旧配置按名字回退、垃圾名回退 Id）；`lint-ui-thread.sh` 通过。
+
+**确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」+ 28 文档 §6.11 批次 E。

@@ -25,6 +25,13 @@ public sealed class RuntimeProfile
     public string Name { get; set; } = "";
 
 
+    /// <summary>
+    /// R44：前缀目录的稳定名字（首次生成后不再随 <see cref="Name"/> 变）。
+    /// 以前 <c>EffectivePrefixPath</c> 直接拿 Name 推导目录，改个名就等于换前缀、旧前缀（DXVK/注册表/字体）变孤儿。
+    /// </summary>
+    public string? PrefixSlug { get; set; }
+
+
     /// <summary>1) 引用的运行器组件 id（真值）。</summary>
     public string? RunnerId { get; set; }
 

@@ -173,9 +173,11 @@ public static class ArchiveExtractor
             await using FileStream output = new(target, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize);
             await using Stream input = reader.OpenEntryStream();
             await CopyAsync(input, output, state, progress, ct, sizeLimit).ConfigureAwait(false);
+            // R43：SharpCompress 的 tar 条目不带 Mode（只有 BCL TarReader 有），解压后按 ELF 文件头兜底补执行位。
             state.Entries++;
             Report(state, progress);
         }
+        EnsureExecutableBits(destination, logger);
     }
 
 
@@ -197,9 +199,16 @@ public static class ArchiveExtractor
             await using Stream input = entry.Open();
             await using FileStream output = new(target, FileMode.Create, FileAccess.Write, FileShare.None, BufferSize);
             await CopyAsync(input, output, state, progress, ct).ConfigureAwait(false);
+            // R43：zip 的 Unix 权限位在外层属性高 16 位（由 zip 工具写入）；没有就不设，最后统一兜底。
+            int unixMode = (entry.ExternalAttributes >> 16) & 0xFFF;
+            if (unixMode != 0)
+            {
+                TrySetMode(target, (UnixFileMode)unixMode);
+            }
             state.Entries++;
             Report(state, progress);
         }
+        EnsureExecutableBits(destination, logger);
     }
 
 
@@ -293,6 +302,64 @@ public static class ArchiveExtractor
         catch (Exception ex)
         {
             logger?.LogWarning(ex, "[components] 创建符号链接失败：{Target} -> {Link}", target, linkTarget);
+        }
+    }
+
+
+    /// <summary>
+    /// R43：把「解压出来的 ELF 可执行文件」补上 u+x。
+    /// tar.xz（SharpCompress）拿不到条目 Mode，zip 也常不带权限位，而 <c>ComponentStore</c> 用执行位判断组件是否可用；
+    /// 只加位、不夺权，脚本/文本文件不动（wine 的 bin 全是 ELF）。
+    /// </summary>
+    private static void EnsureExecutableBits(string destination, ILogger? logger)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        try
+        {
+            int fixedCount = 0;
+            foreach (string path in Directory.EnumerateFiles(destination, "*", SearchOption.AllDirectories))
+            {
+                FileInfo info = new(path);
+                if (info.LinkTarget is not null || info.Length < 4 || !IsElfFile(path))
+                {
+                    continue;
+                }
+                UnixFileMode mode = File.GetUnixFileMode(path);
+                if (mode.HasFlag(UnixFileMode.UserExecute))
+                {
+                    continue;
+                }
+                File.SetUnixFileMode(path, mode | UnixFileMode.UserExecute);
+                fixedCount++;
+            }
+            if (fixedCount > 0)
+            {
+                logger?.LogInformation("[components] 补齐 {Count} 个 ELF 文件的执行位：{Destination}", fixedCount, destination);
+            }
+        }
+        catch (Exception ex)
+        {
+            // 补位失败不致命：组件行会显示「没有可执行权限」，用户还能手动 chmod。
+            logger?.LogWarning(ex, "[components] 补齐执行位失败：{Destination}", destination);
+        }
+    }
+
+
+    private static bool IsElfFile(string path)
+    {
+        try
+        {
+            Span<byte> header = stackalloc byte[4];
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return stream.Read(header) == 4
+                && header[0] == 0x7F && header[1] == (byte)'E' && header[2] == (byte)'L' && header[3] == (byte)'F';
+        }
+        catch
+        {
+            return false;
         }
     }
 

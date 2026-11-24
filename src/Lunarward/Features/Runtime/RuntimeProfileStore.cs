@@ -153,6 +153,30 @@ public static class RuntimeProfileStore
     private static bool Normalize(RuntimeProfile profile, ILogger? logger)
     {
         bool changed = false;
+        // R45：JSON 里显式 null 会覆盖属性初始化器（反序列化不报错），故障延后到启动/枚举时变成 NRE。
+        if (profile.Env is null)
+        {
+            profile.Env = new Dictionary<string, string>(StringComparer.Ordinal);
+            changed = true;
+        }
+        if (profile.Wrappers is null)
+        {
+            profile.Wrappers = new List<string>();
+            changed = true;
+        }
+        if (profile.Name is null)
+        {
+            profile.Name = "";
+            changed = true;
+        }
+        // R44：老配置没有 PrefixSlug，按「原来那套按名字推导」补一个——升级后目录不变；
+        // 之后改名只改显示名，前缀目录跟 slug 走。
+        if (string.IsNullOrWhiteSpace(profile.PrefixSlug))
+        {
+            string slug = ComponentNaming.Sanitize(profile.Name).Trim().ToLowerInvariant();
+            profile.PrefixSlug = string.IsNullOrWhiteSpace(slug) ? profile.Id : slug;
+            changed = true;
+        }
         if (!string.IsNullOrWhiteSpace(profile.PrefixPath))
         {
             string? normalizedPrefix = PrefixManager.ExpandPath(profile.PrefixPath);
@@ -313,9 +337,13 @@ public static class RuntimeProfileStore
         {
             prefix = null;
         }
+        string name = string.IsNullOrWhiteSpace(runner?.Name) ? "默认" : runner!.Name;
         return new RuntimeProfile
         {
-            Name = string.IsNullOrWhiteSpace(runner?.Name) ? "默认" : runner!.Name,
+            Name = name,
+            PrefixSlug = string.IsNullOrWhiteSpace(ComponentNaming.Sanitize(name).Trim())
+                ? null
+                : ComponentNaming.Sanitize(name).Trim().ToLowerInvariant(),
             RunnerId = runner?.Id,
             RunnerPath = runner?.Path,
             PrefixPath = prefix,

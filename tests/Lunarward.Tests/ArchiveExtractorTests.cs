@@ -64,6 +64,75 @@ public class ArchiveExtractorTests
     }
 
 
+    /// <summary>R43：zip 的 Unix 权限位（外层属性高 16 位）要落到磁盘上。</summary>
+    [Fact]
+    public async Task Extract_Zip_AppliesUnixFileMode()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        string root = NewTempDir();
+        try
+        {
+            string archive = Path.Combine(root, "wine-mode.zip");
+            using (FileStream file = File.Create(archive))
+            using (var zip = new ZipArchive(file, ZipArchiveMode.Create))
+            {
+                ZipArchiveEntry entry = zip.CreateEntry("fake/bin/wine");
+                entry.ExternalAttributes = 0b111_101_101 << 16; // 0755
+                using StreamWriter w = new(entry.Open());
+                w.Write("#!/bin/sh\n");
+            }
+            string dest = Path.Combine(root, "out");
+
+            await ArchiveExtractor.ExtractAsync(archive, dest);
+
+            UnixFileMode mode = File.GetUnixFileMode(Path.Combine(dest, "fake/bin/wine"));
+            Assert.True(mode.HasFlag(UnixFileMode.UserExecute));
+            Assert.True(mode.HasFlag(UnixFileMode.GroupExecute));
+            Assert.True(mode.HasFlag(UnixFileMode.OtherExecute));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+
+    /// <summary>R43：zip 没带权限位时，解压出来的 ELF 也要补 u+x（wine 的 tar.xz 同样走这条兜底）。</summary>
+    [Fact]
+    public async Task Extract_Zip_ElfWithoutMode_GetsUserExecute()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+        string root = NewTempDir();
+        try
+        {
+            string archive = Path.Combine(root, "wine-elf.zip");
+            byte[] elf = [0x7F, (byte)'E', (byte)'L', (byte)'F', 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00];
+            using (FileStream file = File.Create(archive))
+            using (var zip = new ZipArchive(file, ZipArchiveMode.Create))
+            {
+                using Stream stream = zip.CreateEntry("fake/bin/wine").Open();
+                stream.Write(elf);
+            }
+            string dest = Path.Combine(root, "out");
+
+            await ArchiveExtractor.ExtractAsync(archive, dest);
+
+            UnixFileMode mode = File.GetUnixFileMode(Path.Combine(dest, "fake/bin/wine"));
+            Assert.True(mode.HasFlag(UnixFileMode.UserExecute));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+
     [Fact]
     public async Task Extract_Zip_RoundTrip()
     {

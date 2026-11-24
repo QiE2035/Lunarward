@@ -95,7 +95,7 @@ public static class EnvironmentResolver
     }
 
 
-    /// <summary>配方的有效前缀路径：显式路径优先，否则默认到 <c>prefixes/&lt;name&gt;</c>。</summary>
+    /// <summary>配方的有效前缀路径：显式路径优先，否则默认到 <c>prefixes/&lt;PrefixSlug&gt;</c>。</summary>
     public static string EffectivePrefixPath(RuntimeProfile? profile)
     {
         string? configured = PrefixManager.ExpandPath(profile?.PrefixPath);
@@ -103,15 +103,9 @@ public static class EnvironmentResolver
         {
             return configured!;
         }
-        string name = string.IsNullOrWhiteSpace(profile?.Name) ? (profile?.Id ?? "default") : profile!.Name;
-        string root = Path.GetFullPath(PrefixManager.PrefixRoot);
-        string combined = Path.GetFullPath(Path.Combine(root, ComponentNaming.Sanitize(name).ToLowerInvariant()));
-        // R35：名字再奇怪也不能把前缀算到 PrefixRoot 外面。
-        if (!combined.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-        {
-            combined = Path.Combine(root, string.IsNullOrWhiteSpace(profile?.Id) ? "default" : profile!.Id);
-        }
-        return combined;
+        // R44：目录跟 PrefixSlug 走，不再跟可见名走（改名不再换前缀目录）；旧配置在 Normalize 里补 slug。
+        return PrefixPath.DefaultPrefixDirectory(PrefixManager.PrefixRoot, profile?.PrefixSlug,
+            profile?.Name, profile?.Id);
     }
 
 }

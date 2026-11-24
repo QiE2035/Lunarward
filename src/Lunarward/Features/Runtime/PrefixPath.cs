@@ -13,6 +13,36 @@ namespace Starward.Features.Runtime;
 public static class PrefixPath
 {
 
+    /// <summary>
+    /// R44：方案没有显式前缀路径时的受管目录。
+    /// 目录名优先用稳定的 <paramref name="slug"/>（方案改显示名不再换目录），
+    /// 没有 slug 的旧配置退回按名字推导；结果必须落在 <paramref name="root"/> 内（R35）。
+    /// </summary>
+    public static string DefaultPrefixDirectory(string root, string? slug, string? name, string? id)
+    {
+        string segment = slug?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(segment))
+        {
+            string legacyName = string.IsNullOrWhiteSpace(name) ? (id ?? "default") : name!;
+            segment = ComponentNaming.Sanitize(legacyName).ToLowerInvariant();
+            // Sanitize 的兜底值是 "default"：名字全是不合法字符（如 "///"）时用 Id，避免几份方案共用一个目录。
+            if (string.IsNullOrWhiteSpace(segment)
+                || (string.Equals(segment, "default", StringComparison.Ordinal)
+                    && !string.Equals(legacyName.Trim(), "default", StringComparison.OrdinalIgnoreCase)))
+            {
+                segment = string.IsNullOrWhiteSpace(id) ? "default" : id!;
+            }
+        }
+        string fullRoot = Path.GetFullPath(root);
+        string combined = Path.GetFullPath(Path.Combine(fullRoot, segment));
+        if (!combined.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            combined = Path.Combine(fullRoot, string.IsNullOrWhiteSpace(id) ? "default" : id!);
+        }
+        return combined;
+    }
+
+
     /// <summary>展开用户目录与环境变量，并去掉尾部分隔符（保留根目录 "/"）。</summary>
     public static string? Expand(string? path, string? home = null)
     {
