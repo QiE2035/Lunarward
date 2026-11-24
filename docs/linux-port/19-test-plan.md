@@ -17,6 +17,15 @@
 - 结论：`85%` 指的是「链接集里 src 的行覆盖」，不含测试代码。2026-11-24 修正口径前，报告里的 82%–88% 都掺了测试代码，实际 src 只有 81.58%（D122）；门限 85，最近一次实测 **85.3%（2026-11-24）**。
 - 改这个口径要一并改本节与 D122，不要只改阈值。
 
+### 增量门（D125，2026-11-24）
+
+总量门限对「局部稀释」不敏感：批 K 一次加了 147 行零测试代码，总量只从 84.55% 掉到 82.03%，只要有人补两条无关断言就能把它抬回绿色。所以 CI 在总量之外再判一次**本次新增行**：
+
+- `coverage.sh` 读 `LW_COVERAGE_DIFF_BASE`（CI 传 `github.event.before`，PR 传 base sha），用 `git diff --unified=0 <base>...HEAD -- src/` 取新增行号，再跟 cobertura 的逐行命中求交，只算「既是新增行、又是序列点」的部分；阈值走 `LW_DIFF_THRESHOLD`（默认同总量阈值 85%）。
+- 没设 base、base 无效（浅克隆）、新增行都在未链接文件里、或新增行里没有序列点（纯注释）时，打印原因并跳过——**这几种情况不会红**，这是有意的：GitHub 的 `event.before` 在新建分支/强制推送时可能是全 0。
+- 历史实测（阈值 85%）：D120 批 J 无可测新增行（改动都在 `RuntimeEnvironmentSetting.*`，未链接）；**D121 批 K 52.43%（162/309）→ 红**（正是要拦的情况）；D122 100%（3/3）；D123 无可测新增行（`VideoBackgroundPlayer.cs` 未链接）；D124 100%（1/1）。
+- 局限要记住：**不在这 23 个链接文件里的改动永远逃过两道门**——UI code-behind、窗口、播放器这些「只能真机测」的部分，覆盖率不提供任何保证。
+
 ---
 
 ## 1. 质量目标（可判定的那种）
@@ -557,10 +566,13 @@ L3 不进 CI：需要真实桌面、真实输入，而且很多判据是「看�
 | 视频背景 idle CPU | `perf` / `/proc/<pid>/stat` 10 s | ≤ 1.2 核（30fps 时实测 ~0.95） |
 | 空闲 RSS | `/proc/<pid>/status` VmRSS | ≤ 600 MB（实测 ~465 MB） |
 
-> `perf.sh` 的基线按主机名分区（`docs/linux-port/perf-baseline.json` 的 `envs`）：
-> 绝对启动时间跨机器不可比（本机 `--version` 中位 71 ms，GitHub runner 实测 93 ms），
-> 因此只有「同一台机器」才做 +20% 判定；换机器只记录、不判红。CI 上当前只记录
-> `cli_median_ms` / `selftest_ms` / `peak_rss_kb` 三个值（见 job 日志）。
+> `perf.sh` 的基线按「发行内核主次版本 + 架构」分区（`docs/linux-port/perf-baseline.json` 的 `envs`，
+> 例如 `Linux 7.3 x86_64`；旧的完整 `uname -sr` 作为 key 会在内核小版本升级后失配，见 L-135）：
+> 绝对启动时间跨机器不可比（本机 `--version` 中位 80 ms，GitHub runner 实测 93 ms），
+> 因此只有「同一台机器」才做 +20% 判定；换机器只记录、不判红。查基线时先按新 key，
+> 再按旧 key，最后按「同名内核主次版本」兜底，命中会在输出里注明。
+> CI 上当前只记录 `cli_median_ms` / `selftest_ms` / `peak_rss_kb` 三个值（见 job 日志）；
+> 本机没装 `time` 包时 `peak_rss_kb` 为 `null`（RSS 只测耗时、记 n/a，见 L-135 第②条）。
 
 ## 附录：L1.5 `--selftest-ui` 已落地（2026-11-12）
 

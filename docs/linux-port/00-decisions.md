@@ -2080,3 +2080,41 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - 仍待实测、文档里已标「待复测」：L-86（6.7.359 上 `Activated` 是否自然触发，决定 `WindowEx.Linux.cs:41-58` 的补发消息删留）、L-88（PhotosIcons 对照已不可复现）、L-135（`perf.sh` 基线 key 用 `uname -sr`，内核升级即失效）。
 
 **验证**：`bash scripts/test/lint-doc-status.sh --strict` 全绿（8 项 PASS）；`dotnet build -c Debug` 0 错误；`dotnet test` 379 通过；`lint-ui-thread.sh` / `lint-cli-help.sh` 全绿；`cli-smoke` 40 通过 + 1 跳过、`cli-extra` 32 通过。**确认方式**：用户 m01493「再全面找找还有哪些此前的结论是错误的」、m01632「先修正，然后完整核对整理一下所有文档」、m01662「如有必要，文档文件和内容格式等也可以重新规划」。
+
+## D125 · 覆盖率再加一道「增量行」门：总量对局部稀释不敏感
+
+**背景**：D122 把口径修成「只算链接集的 src」之后，门限本身是可信的，但**总量**这个指标对「本次改动有没有测试」不敏感：批 K（D121）一次加了 147 行零测试代码，总量只从 84.55% 掉到 82.03%——掉了 2.5 个点，可只要有人顺手补两条无关断言，这个数就会被抬回去，CI 对「新写的裸代码」完全没有针对性。用户 m01215 之前提议加棘轮，我在 m01871 汇总里把它列为待拍板项，用户 m01879 回复「5a 按你建议来」。
+
+**决定**：
+
+1. `scripts/test/coverage.sh` 增加增量模式：读 `LW_COVERAGE_DIFF_BASE`，用 `git diff --unified=0 <base>...HEAD -- src/` 取新增行，再与 cobertura 的逐行命中求交，只统计「既是新增行、又是序列点」的部分；阈值 `LW_DIFF_THRESHOLD` 默认同总量阈值（85%）。
+2. 只在「能算」的时候判定：没设 base、base 无效（浅克隆/强制推送的全 0）、新增行全在未链接文件里、新增行里没有序列点（纯注释/空行/using）时，打印原因后跳过。**跳过是明确的例外，不是静默通过**——每种情况都有一行输出说明为什么。
+3. CI 侧：`actions/checkout` 改 `fetch-depth: 0`（diff 需要 base 对象），coverage 步骤传 `LW_COVERAGE_DIFF_BASE: ${{ github.event.before || github.event.pull_request.base.sha }}`。
+4. 先把历史数据跑出来再上线，而不是上线后再看会不会误伤：用 worktree 逐提交实测（阈值 85%）——D120 无可测新增行（改动在 `RuntimeEnvironmentSetting.*`，未链接）、**D121 52.43%（162/309）→ 红**、D122 100%（3/3）、D123 无可测新增行（`VideoBackgroundPlayer.cs` 未链接）、D124 100%（1/1）。
+
+**代价边界**：
+
+- 只覆盖「链接进测试工程的 23 个源文件」。UI code-behind / 窗口 / 播放器这些**永远不会被这道门看见**——它们靠 L1.5 自检与真机，不靠覆盖率。这一点写进了 `19-test-plan.md` 的增量门小节，避免以后误以为「绿了就都测过」。
+- 行号求交依赖 cobertura 的 `<line>` 序列点，注释与 `using` 不算行，所以「新增 5 行只统计 3 行」是正常现象，不是漏算。
+- 基线的选择会影响结果：`event.before` 在合并提交/多人并行推送时可能跨很多提交，diff 变大、判定更严；这种情况可以先看输出里的文件清单再决定要不要 rebase。
+
+**验证**：`LW_COVERAGE_DIFF_BASE=2b86682 bash scripts/test/coverage.sh 85` → 总量 85.30% PASS、增量 100%（1/1，`CliSpec.cs`）；worktree 里 D121 提交实测 52.43%（162/309）FAIL；`dotnet test` 379 通过。**确认方式**：用户 m01215 提议、m01879「5a 按你建议来」。
+
+## D126 · 视频壁纸的帧率改成「量出来的」，去掉写死的 30 fps
+
+**背景**：用户 m01879 指出「3 破坏核心原则『视频播放要和视频本身一致』——这点我怀疑你写死了一些数值，比如这个帧率，理应直接从视频中取」。核实：`AppBackground.Linux.cs:29` 确实是 `LUNARWARD_VIDEO_FPS` 没设时写死 `1000 / 30`，等于替视频决定帧率：24 fps 素材被当成「帧来得慢、不用限」，60 fps 素材被砍掉一半。
+
+**决定**：
+
+1. 先试「从视频里取」：`MediaPlayer.Fps` 在 vmem 输出下恒 0；`Media.Parse` 后 `VideoTrack.FrameRateNum/Den` 对 VP9/WebM 也是 0；`ffprobe` 要 fork 外部进程（UI 线程禁止，硬规则 10）。三条路都不通（细节见 L-176）。
+2. 改成**量帧到达节奏**：vmem 回调里记录 `Environment.TickCount64`（环形缓冲 16 帧），样本 ≥8 帧后取「跨度 /(n-1)」为每帧周期，打 8 折算合成间隔；10–240 fps 之外的异常值直接不设限（暂停恢复的第一帧、掉帧不该拉爆间隔）。
+3. `LUNARWARD_VIDEO_FPS` 保留为显式覆盖（调试用），但默认不再有隐含帧率。
+4. 落定后打一行 Information 日志：`video background: measured {period} ms/frame, composite interval {interval} ms`——真机排障时能直接看到「这个视频被当成多少帧」。
+
+**代价边界**：
+
+- 量的是「libvlc 把帧交给我们的节奏」，理论上受解码速度影响；实测 30 fps 的 VP9 壁纸量出 30.0 ms/帧（=33 fps），比标称略快，说明 vmem 送帧粒度在 1 ms 量级、不是严格的 33.3 ms 节拍。
+- 起播前 8 帧不设限（间隔 0 = 每帧都画），因为那时样本还不可信；这几十毫秒里多画几帧，代价可以忽略。
+- 换 `--rate`（变速播放）时量到的就是变速后的节奏，这正是想要的；但如果以后加了「按 UI 负载动态降帧」的开关，需要区分「源节奏」与「目标节奏」，那时要重新定义这个字段。
+
+**验证**：`dotnet build -c Debug` 0 错误；真机起播后日志出现 `measured 30.0 ms/frame, composite interval 24 ms`；同一 1080p VP9 壁纸 CPU 65–68%（D123 时为 74%，差异来自机器负载与窗口状态，不作为收益结论）。**确认方式**：用户 m01879「帧率理应直接从视频中取」。

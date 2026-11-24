@@ -1195,7 +1195,7 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 现象：`scripts/test/perf.sh` 的 `--update` 写的是 `{"envs": {"<uname -sr>": {...}}}`，而仓库里的 `perf-baseline.json` 还是早期的扁平结构 `{"list-runners-hot":413,...}`。比较分支只查 `envs[host]`，取不到就打印「本次只记录，不判定」并 `exit 0` —— **CI 里那条 Perf smoke 其实从来没红过**，灯是绿的但没在测。
 - 另一层：脚本依赖 `/usr/bin/time -v` 取峰值 RSS，Arch 默认不装 `time` 包 → 每次都 `self.time` 不存在、`awk` 报错、`peak_rss_kb` 恒为空（同样静默）。
 - 修法：①比较分支兼容扁平基线（`if base is None and "cli_median_ms" in data: base = {...}`）；②`/usr/bin/time` 不存在时只测耗时、RSS 记 n/a；③新增 `startup_stall_ms` 并配**绝对上限 1500 ms**（UX 硬指标不该跟某台机器的基线比）；④基线重新生成，不带 null 的空指标。
-- **残余机制（2026-11-24 复核，尚未修）**：`scripts/test/perf.sh:110` 用 `$(uname -sr)` 当 key（当前基线键 `Linux 7.3.3-1-cachyos-bore-lto`，本机已升到 `Linux 7.3.5-2-cachyos-bore-lto`），`:139` 用同一个 key 去查，`:148-149` 取不到就打印「基线里没有 … 的记录，本次只记录，不判定」并 `exit 0`。所以「基线重新生成」只解决一时，**内核一升级，Perf smoke 又会静默空转**。要么把 key 换成「发行版 + 架构」这类稳定维度，要么取不到基线直接红。
+- **残余机制（2026-11-24 修，见 D125）**：`scripts/test/perf.sh` 原用 `$(uname -sr)` 当 key（当时基线键 `Linux 7.3.3-1-cachyos-bore-lto`，机器已升到 `Linux 7.3.5-2-cachyos-bore-lto`），取不到就打印「本次只记录，不判定」并 `exit 0`——**内核小版本一升，Perf smoke 就静默空转**。修法：①key 改成 `Linux 7.3 x86_64`（`uname -s` + 内核主次版本 + 架构），比较时先精确匹配、再按旧 key、最后按「同名内核主次版本」兜底，命中会打印用的是哪个 key；②`--update` 写新 key 时顺手清掉同系列旧 key，基线不会一台机器两条记录；③`perf-baseline.json` 已按新 key 重建（`kernel` 字段留原始完整版本）；④**失败路径实测过**：把基线 `cli_median_ms` 改成 0.5 再跑，输出 `cli_median_ms 0.5 → 2 +300% REGRESSION` 且退出码 1。
 - 通用规则：任何「有基线就比、没基线就过」的脚本，必须在**第一次落地时**确认它真的会红——制造一次回归（临时把阈值调到 1）验证失败路径，否则绿灯没有意义。
 
 
@@ -1543,4 +1543,10 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 | L-160 | **L-174** | wine 注册表文件是「第二份真相」 | 原文排在 `L-161` 之后，错序 |
 | L-162 | **L-175** | 打包清单与源码各写一遍 | 原文排在 `L-163` 之后，错序 |
 
-**已知外部引用尚未同步**（这些文件本轮未改，需负责人统一处理）：`docs/linux-port/00-decisions.md:292` 仍写 L-119 指「Auto 行」；`docs/linux-port/README.md:20`、`docs/linux-port/12-shims-and-gaps.md:155`、`:266` 仍写 L-160；`docs/linux-port/12-shims-and-gaps.md:264` 仍写 L-162。`docs/linux-port/19-test-plan.md:502` 的 L-119 指符号链接条目（保留的编号），无需改。
+**外部引用已同步（D124）**：`00-decisions.md:292`、`CHANGELOG.md:823` 的 L-119 → L-173；`README.md`、`12-shims-and-gaps.md:155/:266` 的 L-160 → L-174；`12-shims-and-gaps.md:264` 的 L-162 → L-175。`19-test-plan.md:502` 的 L-119 指符号链接条目（保留的编号），无需改。`scripts/test/lint-doc-status.sh` 现在会把「L-* 重号」直接判红，同类问题不会再靠人眼发现。
+
+## L-176 libvlc 在 Linux 上拿不到「源帧率」，只能量帧到达节奏
+
+- 现象：想按视频自己的帧率限合成（而不是写死 30 fps），三条路都不通：①`MediaPlayer.Fps` 在 vmem 输出下**恒为 0**（3.10.2 实测，起播 5 秒后仍是 0）；②`Media.Parse(ParseLocal)` 后 `media.Tracks` 有视频轨，但 VP9/WebM 的 `VideoTrack.FrameRateNum / FrameRateDen` **都是 0**（容器里写的是时间基，不是帧率）；③`ffprobe` 能拿到 30 fps，但要 fork 外部进程，UI 线程不许（硬规则 10）。
+- 修法：在 vmem 回调里量帧到达时刻（`Environment.TickCount64`，环形缓冲 16 帧），样本 ≥8 帧后取「跨度 / (n-1)」当每帧周期，打 8 折当合成间隔；异常值用 10–240 fps 上下限挡掉。实测一条标称 30 fps 的 VP9 壁纸量出 `30.0 ms/帧`（libvlc 的 vmem 送帧粒度约 1 ms，比标称 33.3 ms 略快），按实测走反而更贴合真实送帧节奏。
+- 通用规则：**拿不到可靠的元数据时，量实际行为，别退回硬编码常量**——常量在 24 fps 与 60 fps 素材上都会错（一个被无谓限制，一个被砍半）。
