@@ -3491,6 +3491,12 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="Lunarward_RuntimeEnv_Close2" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_HudOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixOwnersTitle" xml:space="preserve">
+    <value>Profiles using this prefix</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_NoAssetsForSource" xml:space="preserve">
     <value>This source has no usable archive (no asset matched; check AssetPattern in components-sources.json).</value>
   </data>

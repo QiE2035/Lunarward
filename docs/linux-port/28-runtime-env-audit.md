@@ -3,7 +3,7 @@
 > 日期：2026-11-23　范围：`src/Lunarward/Features/Runtime/`（25 文件）、`Features/Setting/RuntimeEnvironmentSetting.*`（4 个 partial，4040 行）、`Features/GameLauncher/LaunchPreflight.cs`、`GameLauncherService(.Linux).cs` 的启动链。
 > 方法：本人读码 + 4 组只读子代理（页面 / 启动 / 存储 / 组件），结论逐条回到源码核对。
 > 状态：2026-11-23 用户 m02913「全处理了」→ 42 条全部修完（批 A D104 / 批 B D105 / 批 C D106 / 批 D D107），进度见各条 🛠 标记。
-> 第二轮：2026-11-24 用户 m06812 要求「逐文件再仔细审查一遍，包括逻辑层、UI」，新增 R43–R130（**全部未修**，等拍板），见 §6；编号与第一轮连续，互不覆盖。
+> 第二轮：2026-11-24 用户 m06812 要求「逐文件再仔细审查一遍，包括逻辑层、UI」，新增 R43–R130，见 §6；编号与第一轮连续，互不覆盖。批 E–J 已修（R43–R97，D115–D120），批 K（R98–R130）待做。
 > 设计依据：`23-runtime-env-design.md`（605 行）、D73–D85 / D80 / D82 / D95–D103。
 
 ## 0 · 结论摘要
@@ -191,7 +191,7 @@
 > 触发：用户 m06812「再逐文件仔细审查一遍所有『运行环境』相关代码，包括逻辑层，UI 等等，找出所有存在的细节问题，以及可改进的地方，并给出相应的意见」。
 > 范围：`src/Lunarward/Features/Runtime/*.cs`（25 文件 6977 行）、`Features/Setting/RuntimeEnvironmentSetting*.cs`（5 个 partial 6156 行）、`RuntimeEnvironmentSetting.xaml`（572 行），并回查 `GameLauncher/GameLauncherService(.Linux).cs`、`LaunchPreflight.cs`、`GameSettingPage.xaml.cs`、`Helpers/JsonFile.cs` 等调用方。
 > 方法：4 组只读子代理分工通读（页面 / 组件与下载 / 启动与解析 / 方案与绑定）+ 本人 grep 自查 + 抽查关键断言；标 ✔已核对的条目由本人回源码逐行确认。初稿中标「推断」的 7 条已于 2026-11-24 逐条取证并订正（结论与实测见 §6.12）：其中 R55 的「建前缀失败」被实测否定、R77 的「死锁面」被代码否定、R94 的适用范围收窄到「手改文件」。仍未实测的只剩「外部服务端行为」（R61 触发、R62 可达性）。
-> 状态：**批 E–I 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116；批 G：R57–R63，D117；批 H：R65–R76，D118；批 I：R77–R85、R93，D119）；其余未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
+> 状态：**批 E–J 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116；批 G：R57–R63，D117；批 H：R65–R76，D118；批 I：R77–R85、R93，D119；批 J：R86–R92、R94–R97，D120）；批 K（R98–R130）未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
 
 ### 6.1 结论摘要
 
@@ -433,37 +433,37 @@
 
 ### 6.7 High · 交互与状态
 
-**R86　22 处 `ContentDialog.ShowAsync()` 只有 2 处受 `_dialogOpen` 守卫** ✔已核对
+**R86　（🛠 已修复，D120 批 J）22 处 `ContentDialog.ShowAsync()` 只有 2 处受 `_dialogOpen` 守卫** ✔已核对
 - 位置：`Components.cs` 10 处、`xaml.cs` 10 处、`Profiles.cs` 2 处；受保护仅 `xaml.cs:482`、`:2220`；`:32` 注释自己写「连点检查类按钮时第二次 ShowAsync 会直接抛」。
 - 影响：未保护的 20 处含高频按钮（`xaml.cs:1053` 移除图形层、`:1380` 离开编辑器、`:1806` 清理前缀、`:2109` 删除组件、`:2605` 克隆到游戏、`:2670` 清理组件、`:2798` 删除方案、`:619` 运行一次；`Profiles.cs:675/824`；`Components.cs:851/955/1012/1043/1155/1256/1366`），连点即未捕获异常（`async void` = 崩）。
 - 建议：抽 `TryShowDialogAsync(ContentDialog)` 统一加锁（计数 + `finally` 复位），全部替换。
 
-**R87　「管理下载源」对话框未关闭时，编辑 / 删除 / 恢复默认再弹一层**
+**R87　（🛠 已修复，D120 批 J）「管理下载源」对话框未关闭时，编辑 / 删除 / 恢复默认再弹一层**
 - 位置：`Components.cs:837`、`:851`、`:1004-1012`（外层 `:1043` 才 `ShowAsync`）；对照同文件 `468-471` 处理「下载弹窗 → 管理来源」时显式 `dialog.Hide()` 再开第二个。
 - 影响：代码注释已记录该结论——`xaml.cs:31-33`「ContentDialog 同一时间只允许一个；连点检查类按钮时第二次 ShowAsync 会直接抛。」（R23 真机观察）。管理下载源对话框未关时再点「编辑 / 删除」即叠第二个弹窗：抛 `Only a single ContentDialog can be open`，或新弹窗压在下面收不到输入（Uno 行为未逐一实测，但作者在别处已用 `_dialogOpen` 规避）。
 - 建议：调用前 `dialog.Hide()`、关闭后重开（照 468-471），或改页内编辑区。
 
-**R88　「图形层」chip 跳到前缀页** ✔已核对
+**R88　（🛠 已修复，D120 批 J）「图形层」chip 跳到前缀页** ✔已核对
 - 位置：`Profiles.cs:583`（`CreateChip(…ChipGraphics…, 2, …)`）+ `xaml.cs:358-362`（`pages = [Page_Profiles, Page_Components, ScrollViewer_Prefixes]`、`Math.Clamp(index, 0, 2)`）。
 - 影响：点顶部「图形层 6 个」打开**前缀页**；点「前缀 N」（tag 3）被 clamp 成 2 反而正确。
 - 建议：chip tag 只保留 0/1/2 语义（方案/组件/前缀），或改私有枚举。
 
-**R89　`InitializeRunnerButtonTips()` 定义但从未调用** ✔已核对
+**R89　（🛠 已修复，D120 批 J）`InitializeRunnerButtonTips()` 定义但从未调用** ✔已核对
 - 位置：`xaml.cs:124`（全仓无调用点）。
 - 影响：D113 加的 4 个按钮 tooltip（`Button_AddRunner`/`Button_SetDefaultRunner`/`Button_RunnerMore`/`Button_More`）全部没生效。
 - 建议：构造函数 `InitializeComponent()` 之后调用。
 
-**R90　「未使用」与「被 1 个方案使用」同时显示**
+**R90　（🛠 已修复，D120 批 J）「未使用」与「被 1 个方案使用」同时显示**
 - 位置：`xaml.cs:900-908`（`owners.Count <= 1 && prefix.Exists` 时加「未使用」）vs `:817-819`（infoText 已写「被 {used} 个方案使用」）、`:810`（标题写 `owners[0]`）。
 - 影响：恰好一个方案在用（最常见）时卡片同时出现「方案 A」「被 1 个方案使用」「未使用」；`owners.Count == 0 && !Managed` 时标题「外部前缀」下面又重复「未使用」。
 - 建议：删除该分支，或改成 `owners.Count == 0 && prefix.Managed`。
 
-**R91　编辑器有改动时点左列别的方案，静默丢弃**
+**R91　（🛠 已修复，D120 批 J）编辑器有改动时点左列别的方案，静默丢弃**
 - 位置：`Profiles.cs:95-106`（`ShowProfileDetail` + `ShowDetailPane()`，不走 `ConfirmLeaveEditorAsync`）；增强页 `Enhancements.cs:183`（`Button_EnhanceBack_Click`）与切页签同样无确认。
 - 影响：未保存改动丢失；`Tab_Click`（`:340-347`）切页签会确认，这里不会；增强页完全无 dirty 概念。
 - 建议：`Button_ProfileList_Click` 开头也走 `ConfirmLeaveEditorAsync()`；增强页复用同一确认。
 
-**R92　`_saveThenRun` 只在成功路径复位；运行一次失败报「保存失败」**
+**R92　（🛠 已修复，D120 批 J）`_saveThenRun` 只在成功路径复位；运行一次失败报「保存失败」**
 - 位置：`xaml.cs:1717-1733`。
 - 影响：`Save` 失败 → `return` 时 `_saveThenRun` 仍 true，之后点普通保存会莫名弹出「运行一次」选择框；`RunOnceAsync` 抛异常被同一 try 捕获，用户看到「保存失败」而文件其实已写盘。
 - 建议：入口先取出并清零 `_saveThenRun`；`RunOnceAsync` 移出 try 或按阶段给不同文案。
@@ -473,22 +473,22 @@
 - 影响：`ConfirmLeaveEditorAsync` / `ShowAsync` 任一抛出即到同步上下文 → 崩。
 - 建议：统一 try/catch + 日志 + toast（或 `async Task` + 小外壳）。
 
-**R94　删除组件时「是否在用」未 Normalize，可删掉正在用的运行器**
+**R94　（🛠 已修复，D120 批 J）删除组件时「是否在用」未 Normalize，可删掉正在用的运行器**
 - 位置：`xaml.cs:2063-2090`（`profile.RunnerPath == component.Path`）；对照 `:153-169`、`:741-743` 的 `ExpandPath` + `GetFullPath` + 去尾斜杠。
 - 影响：比较用 `Ordinal` 原始字符串（`:2084`），同页其它地方先 `ExpandPath`+`GetFullPath` 归一（`:741`、`:1000`、`:1487`）。实测 `RunnerPath` 写入点全部来自组件路径（`xaml.cs:1689`、`EnvironmentResolver.cs:94`、`RuntimeProfileStore.cs:320`），编辑器里 `RunnerPath` 是只读 Hint（`Profiles.cs:366`）→ 只有手改或旧版 JSON 才会出现 `~`/尾斜杠/`..`；一旦出现即漏判，对话框说「未被使用」，确认后删掉正在用的运行器。
 - 建议：统一 `NormalizePrefix(ExpandPath(profile.RunnerPath))`。
 
-**R95　每个运行器行都 `LoadAll` 一次，构建行时全量读盘**
+**R95　（🛠 已修复，D120 批 J）每个运行器行都 `LoadAll` 一次，构建行时全量读盘**
 - 位置：`xaml.cs:738-747`（`CountProfilesUsingRunner` 内部 `RuntimeProfileStore.LoadAll`）。
 - 影响：N 个运行器 = N 次 `LoadAll`（enumerate + 读全部 JSON + 可能的迁移写盘），全在 UI 线程；本机 `env/` 为空时成本可忽略，方案数上来后线性叠加。
 - 建议：`LoadComponentsAsync` 开头取一次快照，按 `NormalizePrefix` 建 `Dictionary<string,int>` 传进去。
 
-**R96　点「被 N 个方案使用」弹出的是全站汇总**
+**R96　（🛠 已修复，D120 批 J）点「被 N 个方案使用」弹出的是全站汇总**
 - 位置：`Profiles.cs:826-831`（`Tag = (prefix, owners)`）+ `Components.cs:1310-1372`（`Button_PrefixUsage_Click` 完全没用 `sender`）。
 - 影响：用户想看「谁在用这个前缀」，得到的是一张无关的全量占用表。
 - 建议：handler 先判 `Tag`，有 Tag 显示该前缀 owners，无 Tag 才走汇总。
 
-**R97　HUD 用「关闭/Close」当选项；HUD 下拉无 Header；无方案时保存静默**
+**R97　（🛠 已修复，D120 批 J）HUD 用「关闭/Close」当选项；HUD 下拉无 Header；无方案时保存静默**
 - 位置：`Enhancements.cs:28`（`Combo_Hud.Items.Add(Lang…Close2)`，该键在英文即 "Close"）、`RuntimeEnvironmentSetting.xaml:284-287`（`Combo_Hud` 无 `Header`）、`Enhancements.cs:278-284`（无选中方案时 `return`，无提示）。
 - 影响：英文界面 HUD 首项显示 "Close"（应为 Off）；用户只能靠旁边硬编码的 "HUD" 猜字段含义；保存无反馈。
 - 建议：新增 `HudOff` 键；补 `Header`；无方案时禁用整块或 toast 提示。

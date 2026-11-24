@@ -3491,6 +3491,12 @@
   <data name="Lunarward_RuntimeEnv_Close2" xml:space="preserve">
     <value>关闭</value>
   </data>
+  <data name="Lunarward_RuntimeEnv_HudOff" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixOwnersTitle" xml:space="preserve">
+    <value>使用这个前缀的方案</value>
+  </data>
   <data name="Lunarward_RuntimeEnv_NoAssetsForSource" xml:space="preserve">
     <value>这个源没有可用归档（没有匹配的资产，检查 components-sources.json 的 AssetPattern）。</value>
   </data>

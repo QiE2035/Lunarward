@@ -19,13 +19,21 @@ public sealed partial class RuntimeEnvironmentSetting
     /// <summary>回填控件时置位，避免 TextChanged / Toggled 又把它写回模型。</summary>
     private bool _enhanceLoading;
 
+    /// <summary>R91：增强页的「已回填」快照，用来判断有没有未保存的改动。</summary>
+    private string _enhanceSnapshot = string.Empty;
+
     private List<RuntimeProfile> _enhanceProfiles = new();
+
+
+    /// <summary>R91：把增强页五个字段拼成一份可比对的快照（不做语义归一，改动即视为脏）。</summary>
+    private string SnapshotEnhancements() =>
+        $"{Combo_Hud.SelectedIndex}\u001f{Box_HudOptions.Text}\u001f{Toggle_GameMode.IsOn}\u001f{Toggle_GameScope.IsOn}\u001f{Box_GameScopeArgs.Text}";
 
 
     private void InitializeEnhance()
     {
         Combo_Hud.Items.Clear();
-        Combo_Hud.Items.Add(Lang.Lunarward_RuntimeEnv_Close2);
+        Combo_Hud.Items.Add(Lang.Lunarward_RuntimeEnv_HudOff);
         Combo_Hud.Items.Add("DXVK HUD");
         Combo_Hud.Items.Add("MangoHud");
         Combo_Hud.SelectedIndex = 0;
@@ -54,6 +62,7 @@ public sealed partial class RuntimeEnvironmentSetting
         UpdateProfileListSelection();
         Text_EnhanceTitle.Text = profile.Name;
         LoadEnhanceFields(profile);
+        _enhanceSnapshot = SnapshotEnhancements();
         ShowEnhancePane();
     }
 
@@ -282,6 +291,8 @@ public sealed partial class RuntimeEnvironmentSetting
         RuntimeProfile? profile = SelectedProfileOrNull();
         if (profile is null)
         {
+            // R97：没选中方案时以前直接 return，点「保存」毫无反应。
+            Helpers.InAppToast.MainWindow?.Warning((string?)null, Lang.Lunarward_RuntimeEnv_NoProfilesHint, 4000);
             return;
         }
         profile.Hud = Combo_Hud.SelectedIndex switch { 1 => Enhancements.HudDxvk, 2 => Enhancements.HudMangoHud, _ => Enhancements.HudOff };
@@ -295,6 +306,7 @@ public sealed partial class RuntimeEnvironmentSetting
             return;
         }
         Helpers.InAppToast.MainWindow?.Success(string.Format(Lang.Lunarward_RuntimeEnv_EnhanceSaved, profile.Name), Enhancements.Describe(profile), 4000);
+        _enhanceSnapshot = SnapshotEnhancements();
         LoadProfiles();
         await RefreshChipsAsync();
         }

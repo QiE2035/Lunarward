@@ -1,4 +1,4 @@
-﻿// Lunarward：受管组件的「下载」与「导入归档」入口（D73 §2.3 / §13.8）。
+// Lunarward：受管组件的「下载」与「导入归档」入口（D73 §2.3 / §13.8）。
 //
 // 单开一个 partial 文件的原因：这两个入口都是「弹窗 + 长任务 + 进度」，跟页面本身的
 // 卡片/编辑器逻辑没关系，混在 RuntimeEnvironmentSetting.xaml.cs 里会长到读不动。
@@ -78,7 +78,7 @@ public sealed partial class RuntimeEnvironmentSetting
             if (sources.Count == 0)
             {
                 // D111：空态就说清楚下一步能做什么，别只弹一条 toast。
-                ContentDialogResult empty = await new ContentDialog
+                ContentDialogResult empty = await Starward.Helpers.DialogGate.Show(new ContentDialog
                 {
                     Title = kind == "graphics" ? Lang.Lunarward_RuntimeEnv_DownloadGraphicsTitle : Lang.Lunarward_RuntimeEnv_DownloadRunnerTitle,
                     Content = Lang.Lunarward_RuntimeEnv_NoEnabledSource,
@@ -86,7 +86,7 @@ public sealed partial class RuntimeEnvironmentSetting
                     CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
                     DefaultButton = ContentDialogButton.Primary,
                     XamlRoot = XamlRoot,
-                }.ShowAsync();
+                });
                 if (empty == ContentDialogResult.Primary)
                 {
                     await ShowSourcesDialogAsync();
@@ -490,7 +490,7 @@ public sealed partial class RuntimeEnvironmentSetting
 
             dialog.Opened += async (_, _) => await LoadAssetsAsync();
             dialog.Closing += (_, _) => cts?.Cancel();
-            await dialog.ShowAsync();
+            await Starward.Helpers.DialogGate.Show(dialog);
             cts?.Cancel();
         }
         catch (Exception ex)
@@ -589,7 +589,7 @@ public sealed partial class RuntimeEnvironmentSetting
                     DefaultButton = ContentDialogButton.Primary,
                     XamlRoot = XamlRoot,
                 };
-                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                if (await Starward.Helpers.DialogGate.Show(dialog) != ContentDialogResult.Primary)
                 {
                     return;
                 }
@@ -674,6 +674,37 @@ public sealed partial class RuntimeEnvironmentSetting
             var checkState = new Dictionary<string, (string Text, bool Ok)>();
             var list = new StackPanel { Spacing = 10 };
             var summary = new TextBlock { FontSize = 12, Opacity = 0.7 };
+
+            // R87：编辑源 / 删除源 / 新增源 / 恢复默认都要再开一个对话框，而 Uno 一次只允许一个 ContentDialog。
+            // 做法：先 Hide 管理窗并等 DialogGate 放锁，子对话框处理完再新建一个管理窗开回来（草稿在闭包里，不丢）。
+            ContentDialog? managerDialog = null;
+            Task nestedInFlight = Task.CompletedTask;
+
+            async Task RunNestedAsync(Func<Task> action)
+            {
+                if (!nestedInFlight.IsCompleted)
+                {
+                    return; // 上一个嵌套动作还没结束，连点忽略
+                }
+                var tcs = new TaskCompletionSource();
+                nestedInFlight = tcs.Task;
+                managerDialog?.Hide();
+                await Starward.Helpers.DialogGate.WaitClosedAsync();
+                try
+                {
+                    await action();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "nested source action failed");
+                    Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_SourcesSaveFailed);
+                }
+                finally
+                {
+                    Rebuild();
+                    tcs.TrySetResult();
+                }
+            }
 
             var search = new TextBox
             {
@@ -852,14 +883,14 @@ public sealed partial class RuntimeEnvironmentSetting
                         }
                         Rebuild();
                     };
-                    edit.Click += async (_, _) => await OpenSourceEditorAsync(current, isNew: false);
-                    remove.Click += async (_, _) => await RemoveSourceAsync(current);
+                    edit.Click += async (_, _) => await RunNestedAsync(() => OpenSourceEditorAsync(current, isNew: false));
+                    remove.Click += async (_, _) => await RunNestedAsync(() => RemoveSourceAsync(current));
                 }
             }
 
             async Task RemoveSourceAsync(SourceDraft draft)
             {
-                ContentDialogResult confirm = await new ContentDialog
+                ContentDialogResult confirm = await Starward.Helpers.DialogGate.Show(new ContentDialog
                 {
                     Title = Lang.Lunarward_RuntimeEnv_DeleteSource,
                     Content = string.Format(Lang.Lunarward_RuntimeEnv_DeleteSourceConfirm, draft.DisplayName),
@@ -867,7 +898,7 @@ public sealed partial class RuntimeEnvironmentSetting
                     CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
                     DefaultButton = ContentDialogButton.Close,
                     XamlRoot = XamlRoot,
-                }.ShowAsync();
+                });
                 if (confirm != ContentDialogResult.Primary)
                 {
                     return;
@@ -971,7 +1002,7 @@ public sealed partial class RuntimeEnvironmentSetting
                     }
                 };
 
-                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                if (await Starward.Helpers.DialogGate.Show(dialog) != ContentDialogResult.Primary)
                 {
                     return;
                 }
@@ -991,7 +1022,7 @@ public sealed partial class RuntimeEnvironmentSetting
             }
 
             search.TextChanged += (_, _) => Rebuild();
-            addButton.Click += async (_, _) => await OpenSourceEditorAsync(new SourceDraft { Enabled = true }, isNew: true);
+            addButton.Click += async (_, _) => await RunNestedAsync(() => OpenSourceEditorAsync(new SourceDraft { Enabled = true }, isNew: true));
             probeAll.Click += async (_, _) =>
             {
                 probeAll.IsEnabled = false;
@@ -1018,9 +1049,9 @@ public sealed partial class RuntimeEnvironmentSetting
                 }
                 Rebuild();
             };
-            reset.Click += async (_, _) =>
+            reset.Click += async (_, _) => await RunNestedAsync(async () =>
             {
-                ContentDialogResult confirm = await new ContentDialog
+                ContentDialogResult confirm = await Starward.Helpers.DialogGate.Show(new ContentDialog
                 {
                     Title = Lang.Lunarward_RuntimeEnv_ResetSources,
                     Content = Lang.Lunarward_RuntimeEnv_ResetSourcesHint,
@@ -1028,7 +1059,7 @@ public sealed partial class RuntimeEnvironmentSetting
                     CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
                     DefaultButton = ContentDialogButton.Close,
                     XamlRoot = XamlRoot,
-                }.ShowAsync();
+                });
                 if (confirm != ContentDialogResult.Primary)
                 {
                     return;
@@ -1038,8 +1069,7 @@ public sealed partial class RuntimeEnvironmentSetting
                 probeState.Clear();
                 checkState.Clear();
                 Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_SourcesResetDone, 4000);
-                Rebuild();
-            };
+            });
 
             var page = new StackPanel { Spacing = 12, Width = 560 };
             page.Children.Add(hint);
@@ -1048,18 +1078,32 @@ public sealed partial class RuntimeEnvironmentSetting
             page.Children.Add(summary);
             page.Children.Add(list);
 
-            var dialog = new ContentDialog
+            var scroll = new ScrollViewer { Content = page, MaxHeight = 560 };
+            ContentDialogResult shown;
+            while (true)
             {
-                Title = Lang.Lunarward_RuntimeEnv_ManageSources,
-                Content = new ScrollViewer { Content = page, MaxHeight = 560 },
-                PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Save,
-                CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = XamlRoot,
-            };
-
-            Rebuild();
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                Rebuild();
+                var manager = new ContentDialog
+                {
+                    Title = Lang.Lunarward_RuntimeEnv_ManageSources,
+                    Content = scroll,
+                    PrimaryButtonText = Lang.Lunarward_RuntimeEnv_Save,
+                    CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = XamlRoot,
+                };
+                managerDialog = manager;
+                shown = await Starward.Helpers.DialogGate.Show(manager);
+                if (nestedInFlight.IsCompleted)
+                {
+                    break;
+                }
+                // 点了编辑/删除/新增/恢复默认：等子对话框处理完，再换一个新实例把管理窗开回来。
+                await nestedInFlight;
+                scroll.Content = null;
+                scroll = new ScrollViewer { Content = page, MaxHeight = 560 };
+            }
+            if (shown != ContentDialogResult.Primary)
             {
                 return;
             }
@@ -1161,14 +1205,14 @@ public sealed partial class RuntimeEnvironmentSetting
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 8, 0, 0),
             });
-            await new ContentDialog
+            await Starward.Helpers.DialogGate.Show(new ContentDialog
             {
                 Title = Lang.Lunarward_RuntimeEnv_ProbeTitle,
                 Content = new ScrollViewer { Content = panel, MaxHeight = 480 },
                 CloseButtonText = Lang.Lunarward_RuntimeEnv_Close2,
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot,
-            }.ShowAsync();
+            });
         }
         catch (Exception ex)
         {
@@ -1262,14 +1306,14 @@ public sealed partial class RuntimeEnvironmentSetting
                     panel.Children.Add(row);
                 }
             }
-            await new ContentDialog
+            await Starward.Helpers.DialogGate.Show(new ContentDialog
             {
                 Title = Lang.Lunarward_RuntimeEnv_StagingTitle,
                 Content = new ScrollViewer { Content = panel, MaxHeight = 480 },
                 CloseButtonText = Lang.Lunarward_RuntimeEnv_Close2,
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot,
-            }.ShowAsync();
+            });
         }
         catch (Exception ex)
         {
@@ -1327,6 +1371,13 @@ public sealed partial class RuntimeEnvironmentSetting
     {
         try
         {
+            // R96：点的是某一行的「N 个方案使用」，就只列这一行的方案，不再一律抛全站汇总。
+            if (sender is FrameworkElement { Tag: (Features.Runtime.PrefixManager.PrefixInspection prefix, List<string> owners) }
+                && owners.Count > 0)
+            {
+                await ShowPrefixOwnersAsync(prefix, owners);
+                return;
+            }
             Helpers.InAppToast.MainWindow?.Information((string?)null, Lang.Lunarward_RuntimeEnv_CollectingUsage, 6000);
             List<Features.Runtime.PrefixManager.PrefixInspection> items = await Task.Run(() =>
                 Features.Runtime.PrefixManager
@@ -1372,20 +1423,52 @@ public sealed partial class RuntimeEnvironmentSetting
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 8, 0, 0),
             });
-            await new ContentDialog
+            await Starward.Helpers.DialogGate.Show(new ContentDialog
             {
                 Title = Lang.Lunarward_RuntimeEnv_UsageTitle,
                 Content = new ScrollViewer { Content = panel, MaxHeight = 480 },
                 CloseButtonText = Lang.Lunarward_RuntimeEnv_Close2,
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot,
-            }.ShowAsync();
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "summarize prefix usage failed");
             Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_StatsFailPrefix);
         }
+    }
+
+    /// <summary>R96：单个前缀的占用明细——只列真正用它的方案，不再拉全站汇总。</summary>
+    private async Task ShowPrefixOwnersAsync(Features.Runtime.PrefixManager.PrefixInspection prefix, List<string> owners)
+    {
+        var panel = new StackPanel { Spacing = 6, MinWidth = 420 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = prefix.Path,
+            FontSize = 12,
+            Opacity = 0.7,
+            TextWrapping = TextWrapping.Wrap,
+            IsTextSelectionEnabled = true,
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = prefix.Exists ? FormatSize(prefix.SizeBytes) : Lang.Lunarward_RuntimeEnv_Missing,
+            FontSize = 12,
+            Opacity = 0.6,
+        });
+        foreach (string owner in owners)
+        {
+            panel.Children.Add(new TextBlock { Text = owner, TextWrapping = TextWrapping.Wrap });
+        }
+        await Starward.Helpers.DialogGate.Show(new ContentDialog
+        {
+            Title = Lang.Lunarward_RuntimeEnv_PrefixOwnersTitle,
+            Content = new ScrollViewer { Content = panel, MaxHeight = 360 },
+            CloseButtonText = Lang.Lunarward_RuntimeEnv_Close2,
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = XamlRoot,
+        });
     }
 
     /// <summary>D110：错误文案不把 components-sources.json / AssetPattern 这类内部术语甩给用户。</summary>

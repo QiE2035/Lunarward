@@ -38,6 +38,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     public RuntimeEnvironmentSetting()
     {
         this.InitializeComponent();
+        InitializeRunnerButtonTips();
         RegisterShortcuts();
         // Uno 的 ScrollViewer 在「禁用横向滚动」时仍会给内容无限宽度，横向 StackPanel/Grid 的星号列就没有约束，
         // 表现为文字不省略、右侧徽标压到文字上甚至超出窗口（D58 v2 截图实测）。这里显式把列表宽度钉到可视区。
@@ -530,7 +531,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         _dialogOpen = true;
         try
         {
-            result = await dialog.ShowAsync();
+            result = await Starward.Helpers.DialogGate.Show(dialog);
         }
         finally
         {
@@ -667,7 +668,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = XamlRoot,
             };
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            if (await Starward.Helpers.DialogGate.Show(dialog) != ContentDialogResult.Primary)
             {
                 return;
             }
@@ -726,6 +727,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         StackPanel_Runners.Children.Clear();
         StackPanel_Components.Children.Clear();
 
+        // R95：「被几个方案使用」用一份快照算，不再每个运行器行 LoadAll 一次。
+        Dictionary<string, int> runnerUsage = BuildRunnerUsage(RuntimeProfileStore.LoadAll(_logger));
+
         if (runners.Count == 0)
         {
             StackPanel_Runners.Children.Add(new TextBlock
@@ -746,7 +750,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 StackPanel_Runners.Children.Add(GroupTitle(string.Format(Lang.Lunarward_RuntimeEnv_ManagedRunners, managedRunners.Count)));
                 foreach (Component runner in managedRunners)
                 {
-                    StackPanel_Runners.Children.Add(CreateComponentRow(runner, CountProfilesUsingRunner(runner)));
+                    StackPanel_Runners.Children.Add(CreateComponentRow(runner, runnerUsage.GetValueOrDefault(ComponentPathKey(runner.Path))));
                 }
             }
             if (externalRunners.Count > 0)
@@ -754,7 +758,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 StackPanel_Runners.Children.Add(GroupTitle(string.Format(Lang.Lunarward_RuntimeEnv_ExternalRunners, externalRunners.Count)));
                 foreach (Component runner in externalRunners)
                 {
-                    StackPanel_Runners.Children.Add(CreateComponentRow(runner, CountProfilesUsingRunner(runner)));
+                    StackPanel_Runners.Children.Add(CreateComponentRow(runner, runnerUsage.GetValueOrDefault(ComponentPathKey(runner.Path))));
                 }
             }
         }
@@ -801,20 +805,46 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     }
 
 
-    /// <summary>有几个方案正指着这个运行器（D63：让「这行有没有人在用」可见）。</summary>
-    private int CountProfilesUsingRunner(Component runner)
+    /// <summary>R94/R95：路径比较统一走这里——展开 ~/$HOME、绝对化、去尾斜杠。</summary>
+    private static string ComponentPathKey(string? path)
     {
-        int count = 0;
-        foreach (RuntimeProfile profile in RuntimeProfileStore.LoadAll(_logger))
+        string? expanded = Starward.Features.Runtime.PrefixManager.ExpandPath(path);
+        if (string.IsNullOrWhiteSpace(expanded))
         {
-            string? path = Starward.Features.Runtime.PrefixManager.ExpandPath(profile.RunnerPath);
-            if (!string.IsNullOrWhiteSpace(path)
-                && string.Equals(Path.GetFullPath(path!), runner.Path, StringComparison.Ordinal))
-            {
-                count++;
-            }
+            return "";
         }
-        return count;
+        try
+        {
+            return Starward.Features.Runtime.PrefixPath.Normalize(Path.GetFullPath(expanded!));
+        }
+        catch (Exception)
+        {
+            return Starward.Features.Runtime.PrefixPath.Normalize(expanded);
+        }
+    }
+
+
+    private static bool SameComponentPath(string? left, string? right)
+    {
+        string key = ComponentPathKey(left);
+        return key.Length > 0 && string.Equals(key, ComponentPathKey(right), StringComparison.Ordinal);
+    }
+
+
+    /// <summary>R95：一次 LoadAll 建「运行器路径 → 使用方案数」，别为每一行读一遍盘。</summary>
+    private static Dictionary<string, int> BuildRunnerUsage(IEnumerable<RuntimeProfile> profiles)
+    {
+        var usage = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (RuntimeProfile profile in profiles)
+        {
+            string key = ComponentPathKey(profile.RunnerPath);
+            if (key.Length == 0)
+            {
+                continue;
+            }
+            usage[key] = usage.TryGetValue(key, out int count) ? count + 1 : 1;
+        }
+        return usage;
     }
 
 
@@ -966,8 +996,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 TextWrapping = TextWrapping.Wrap,
             });
         }
-        else if (prefix.Exists)
+        else if (prefix.Managed)
         {
+            // R90：只有「受管且没人在用」才叫未使用；外部前缀本来就不归我们管，也不能删。
             content.Children.Add(new TextBlock
             {
                 Text = Lang.Lunarward_RuntimeEnv_Unused,
@@ -1112,7 +1143,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             return;
         }
         bool external = !Starward.Features.Runtime.PrefixManager.Inspect(prefixPath, computeSize: false).Managed;
-        ContentDialogResult result = await new ContentDialog
+        ContentDialogResult result = await Starward.Helpers.DialogGate.Show(new ContentDialog
         {
             Title = external ? Lang.Lunarward_RuntimeEnv_ConfirmRemoveExternal : Lang.Lunarward_RuntimeEnv_ConfirmRemoveGraphics,
             Content = Lang.Lunarward_RuntimeEnv_GraphicsMoveToPrefixBody + "\n" + prefixPath,
@@ -1120,7 +1151,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
-        }.ShowAsync();
+        });
         if (result != ContentDialogResult.Primary)
         {
             return;
@@ -1452,13 +1483,16 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private bool EditorDirty => ShowEditorPaneVisible && _editorSnapshot != SnapshotEditor();
 
+    /// <summary>R91：增强页同样只在「保存」时落盘，切走要先确认。</summary>
+    private bool EnhancementsDirty => Grid_ProfileEnhance.Visibility == Visibility.Visible && _enhanceSnapshot != SnapshotEnhancements();
+
     private bool ShowEditorPaneVisible => Grid_ProfileEditor.Visibility == Visibility.Visible;
 
 
     /// <summary>D108：离开编辑器前确认，避免切页签/切方案时静默丢草稿。</summary>
     private async Task<bool> ConfirmLeaveEditorAsync()
     {
-        if (!EditorDirty)
+        if (!EditorDirty && !EnhancementsDirty)
         {
             return true;
         }
@@ -1471,7 +1505,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             CloseButtonText = Lang.Lunarward_RuntimeEnv_DiscardEditKeep,
             DefaultButton = ContentDialogButton.Close,
         };
-        ContentDialogResult result = await dialog.ShowAsync();
+        ContentDialogResult result = await Starward.Helpers.DialogGate.Show(dialog);
         return result == ContentDialogResult.Primary;
     }
 
@@ -1755,6 +1789,9 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
     {
         try
         {
+            // R92：入口先取出并清零，否则保存失败后点普通保存仍会弹「运行一次」。
+            bool runAfterSave = _saveThenRun;
+            _saveThenRun = false;
             if (_editorRunner is null || _editorRunner.SelectedIndex < 0 || _editorRunner.SelectedIndex >= _editorRunners.Count)
             {
                 Helpers.InAppToast.MainWindow?.Warning((string?)null, Lang.Lunarward_RuntimeEnv_SelectRunnerFirst, 4000);
@@ -1808,10 +1845,18 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             LoadPrefixes();
             _ = RefreshChipsAsync();
             Helpers.InAppToast.MainWindow?.Success((string?)null, Lang.Lunarward_RuntimeEnv_Saved, 3000);
-            if (_saveThenRun)
+            if (runAfterSave)
             {
-                _saveThenRun = false;
-                await RunOnceAsync(profile);
+                // R92：运行一次失败不该冒充「保存失败」——文件其实已经写盘了。
+                try
+                {
+                    await RunOnceAsync(profile);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "run once after save failed");
+                    Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_RunOnceFailed);
+                }
             }
             // P3：第一次选用这个运行器时顺手自检一次（后台跑，不挡保存；结果只提示一句）
             if (runner.Usable is null)
@@ -1889,7 +1934,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             return;
         }
-        ContentDialogResult result = await new ContentDialog
+        ContentDialogResult result = await Starward.Helpers.DialogGate.Show(new ContentDialog
         {
             Title = Lang.Lunarward_RuntimeEnv_ConfirmCleanupPrefix,
             Content = string.Format(Lang.Lunarward_RuntimeEnv_DeletePrefixBody, path),
@@ -1897,7 +1942,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
-        }.ShowAsync();
+        });
         if (result != ContentDialogResult.Primary)
         {
             return;
@@ -2175,8 +2220,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 if (string.Equals(profile.RunnerId, component.Id, StringComparison.Ordinal)
                     || string.Equals(profile.DxvkId, component.Id, StringComparison.Ordinal)
                     || string.Equals(profile.Vkd3dId, component.Id, StringComparison.Ordinal)
-                    || (!string.IsNullOrWhiteSpace(profile.RunnerPath)
-                        && string.Equals(profile.RunnerPath, component.Path, StringComparison.Ordinal)))
+                    || SameComponentPath(profile.RunnerPath, component.Path))
                 {
                     users.Add(profile.Name);
                 }
@@ -2193,7 +2237,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             {
                 body.Children.Add(new TextBlock { Text = "· " + name, FontSize = 12, Opacity = 0.8 });
             }
-            ContentDialogResult confirm = await new ContentDialog
+            ContentDialogResult confirm = await Starward.Helpers.DialogGate.Show(new ContentDialog
             {
                 Title = users.Count == 0 ? Lang.Lunarward_RuntimeEnv_ConfirmDeleteComponent : Lang.Lunarward_RuntimeEnv_ConfirmDeleteComponentInUse,
                 Content = body,
@@ -2201,7 +2245,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot,
-            }.ShowAsync();
+            });
             if (confirm != ContentDialogResult.Primary)
             {
                 return;
@@ -2320,7 +2364,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         _dialogOpen = true;
         try
         {
-            choice = await dialog.ShowAsync();
+            choice = await Starward.Helpers.DialogGate.Show(dialog);
         }
         finally
         {
@@ -2712,7 +2756,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (await Starward.Helpers.DialogGate.Show(dialog) != ContentDialogResult.Primary)
         {
             return;
         }
@@ -2743,7 +2787,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         List<Component> unused = all
             .Where(c => ComponentStore.ManagedRootOf(c) is not null)
             .Where(c => !profiles.Any(p => p.RunnerId == c.Id || p.DxvkId == c.Id || p.Vkd3dId == c.Id
-                || (!string.IsNullOrWhiteSpace(p.RunnerPath) && p.RunnerPath == c.Path)))
+                || SameComponentPath(p.RunnerPath, c.Path)))
             .ToList();
         if (unused.Count == 0)
         {
@@ -2773,7 +2817,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             Opacity = 0.6,
             TextWrapping = TextWrapping.Wrap,
         });
-        ContentDialogResult confirm = await new ContentDialog
+        ContentDialogResult confirm = await Starward.Helpers.DialogGate.Show(new ContentDialog
         {
             Title = Lang.Lunarward_RuntimeEnv_CleanupUnused,
             Content = body,
@@ -2781,7 +2825,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = XamlRoot,
-        }.ShowAsync();
+        });
         if (confirm != ContentDialogResult.Primary)
         {
             return;
@@ -2909,7 +2953,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 IsThreeState = false,
             };
             body.Children.Add(deletePrefixBox);
-            ContentDialogResult confirm = await new ContentDialog
+            ContentDialogResult confirm = await Starward.Helpers.DialogGate.Show(new ContentDialog
             {
                 Title = Lang.Lunarward_RuntimeEnv_ConfirmDeleteProfile,
                 Content = body,
@@ -2917,7 +2961,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
                 CloseButtonText = Lang.Lunarward_RuntimeEnv_Cancel,
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = XamlRoot,
-            }.ShowAsync();
+            });
             if (confirm != ContentDialogResult.Primary)
             {
                 return;

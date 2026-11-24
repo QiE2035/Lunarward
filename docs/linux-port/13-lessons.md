@@ -1412,3 +1412,11 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 - 原因：剪贴板复制用例里 `ClipboardHelper` 启动 `wl-copy` 时只重定向了 stdin，`stdout`/`stderr` 继承自调用方。`wl-copy` 写完剪贴板会 fork 一个守护进程继续持有 selection，这个守护进程同时握着继承来的 stdout 写端 → 脚本里的 `out=$(lunarward …)` 等不到管道 EOF，永久阻塞。CI 走 xvfb、没有 `wl-copy`，所以只在 Wayland 本机必现。
 - 正确做法：任何「启动后可能常驻」的外部进程都要 `RedirectStandardOutput = true, RedirectStandardError = true`（不是只有 `RedirectStandardInput`）；需要看输出就异步读，不需要就丢弃。`ClipboardHelper.Linux.cs` 的两个分支（通用 `wl-copy` 与 `SetImageFile`）都已补上。
 - 排查手法：`ps -o pid,ppid,stat,cmd -p <hung>` 看是不是 `bash` 在读管道；再 `ls -l /proc/<hung>/fd` 找谁持有写端 —— 若是一个被 `systemd --user` 收养的 `wl-copy`，就是这个坑。
+
+## L-170 `ContentDialog`：同一实例不能二次 Show、连点会抛、嵌套必须先 Hide
+
+- 现象：运行环境页连点「清理前缀 / 删除组件 / 移除图形层」时偶发进程直接消失（`async void` 处理器里抛出无人接）；「管理下载源」弹窗开着时点「编辑」，要么报 `Only a single ContentDialog can be open`，要么新弹窗压在下面收不到输入。
+- 原因（三条独立坑）：①Uno/WinUI 的 `ContentDialog` **一个实例只能 `ShowAsync()` 一次**，第二次抛；②同一页面里 20+ 处各自裸 `ShowAsync()`，只有 2 处有 `_dialogOpen` 守卫，`async void` 里抛出就是同步上下文未捕获异常；③嵌套流程（管理窗 → 确认框）没有先 `Hide()` 外层，第二个弹窗与第一个并存。
+- 正确做法：抽一个进程级入口 `Helpers/DialogGate.Show(dialog)`——`Interlocked` 抢锁，抢不到直接按「用户取消」返回，`try/finally` 复位；每次都 `new ContentDialog { … }`；确实要嵌套时先 `Hide()` 外层，动作完成后再重建/重开（本仓库 `RunNestedAsync` 就是这个形状）。
+- 排查手法：日志里搜 `Only a single ContentDialog can be open`；`grep -rn "\.ShowAsync()" src/Lunarward` 数裸调用点，比逐个点界面快。
+- 代价：锁是进程级的，真正需要两个对话框并存（非模态）的设计会被这门锁挡住，届时要把「被拒」和「用户取消」区分开（`ContentDialogResult.None` 目前两者同义）。

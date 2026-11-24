@@ -284,6 +284,8 @@ public partial class Lang
         public static string Lunarward_RuntimeEnv_Source => ResourceManager.GetString("Lunarward_RuntimeEnv_Source", resourceCulture) ?? "Lunarward_RuntimeEnv_Source";
         public static string Lunarward_RuntimeEnv_DownloadComponent => ResourceManager.GetString("Lunarward_RuntimeEnv_DownloadComponent", resourceCulture) ?? "Lunarward_RuntimeEnv_DownloadComponent";
         public static string Lunarward_RuntimeEnv_Close2 => ResourceManager.GetString("Lunarward_RuntimeEnv_Close2", resourceCulture) ?? "Lunarward_RuntimeEnv_Close2";
+        public static string Lunarward_RuntimeEnv_HudOff => ResourceManager.GetString("Lunarward_RuntimeEnv_HudOff", resourceCulture) ?? "Off";
+        public static string Lunarward_RuntimeEnv_PrefixOwnersTitle => ResourceManager.GetString("Lunarward_RuntimeEnv_PrefixOwnersTitle", resourceCulture) ?? "使用这个前缀的方案";
         public static string Lunarward_RuntimeEnv_NoAssetsForSource => ResourceManager.GetString("Lunarward_RuntimeEnv_NoAssetsForSource", resourceCulture) ?? "Lunarward_RuntimeEnv_NoAssetsForSource";
         public static string Lunarward_RuntimeEnv_SelectVersionFirst => ResourceManager.GetString("Lunarward_RuntimeEnv_SelectVersionFirst", resourceCulture) ?? "Lunarward_RuntimeEnv_SelectVersionFirst";
         public static string Lunarward_RuntimeEnv_SelectionExpired => ResourceManager.GetString("Lunarward_RuntimeEnv_SelectionExpired", resourceCulture) ?? "Lunarward_RuntimeEnv_SelectionExpired";

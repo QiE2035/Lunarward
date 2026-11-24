@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D119）
+- **状态**：生效中（D0–D120）
 - **最后更新**：2026-11-24
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -1923,5 +1923,34 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - 源探测并发上限 4 是经验值；源多于 4 时「检查全部」耗时线性增加。
 
 **验证**：`dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错误；`dotnet test Starward.slnx` **286 通过**；`lint-ui-thread.sh` 全部通过；`cli-smoke` 40/0/1；`cli-extra` 32/0。
+
+**确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」。
+
+## D120 运行环境审查修复：批 J「交互与状态」
+
+**背景**：`28-runtime-env-audit.md` §6.7 的 R86–R92 与 §6.11 批 J 的 R94–R97（共 11 条）都在「点下去之后会发生什么」：22 处 `ContentDialog.ShowAsync()` 只有 2 处加锁、管理下载源弹窗里再叠一层、图形层 chip 跳错页、定义好的 tooltip 从没调用、「未使用」和「被 1 个方案使用」同屏、编辑器脏了切方案静默丢弃、`_saveThenRun` 泄漏到下一次保存、`RunnerPath` 比较一个归一化一个不归一、「被几个方案使用」每行读一次盘、「占用汇总」不看是哪个前缀、HUD 首项在英文里叫 Close。用户 m07141 批准全量修复、按批提交。
+
+**决定**
+
+1. **R86**：新增 `Helpers/DialogGate.Show(ContentDialog)`——静态 `Interlocked` 锁，已有对话框打开时直接返回 `ContentDialogResult.None`（调用方按「取消」处理），`finally` 复位；20+ 处裸 `ShowAsync()` 全部改走它。`ContentDialog` 实例一律每次新建（同一个实例不能二次 `ShowAsync`）。
+2. **R87**：「管理下载源」里的编辑 / 删除 / 新增 / 恢复默认改为 `RunNestedAsync(action)`：先 `Hide()` 管理窗、`DialogGate.WaitClosedAsync()` 等门闩真正放掉（`Hide()` 到 `ShowAsync` 续体之间是异步的，不等就会被子对话框当成「已有对话框」拒掉）、执行动作、`Rebuild` 后**新建一个实例**把管理窗开回来（同一实例不能二次 `ShowAsync`，页面元素先从旧 `ScrollViewer` 摘下）。照同文件「下载弹窗 → 管理来源」的做法，不再叠第二层。
+3. **R88**：chip 的 tag 恢复 0/1/2 语义——图形层 1（组件页）、前缀 2（前缀页）。
+4. **R89**：构造函数 `InitializeComponent()` 之后调用 `InitializeRunnerButtonTips()`，D113 的 4 个 tooltip 生效。
+5. **R90**：前缀卡片的「未使用」只在 `prefix.Managed` 时补，和 `infoText` 的「被 N 个方案使用」不再自相矛盾。
+6. **R91**：脏状态扩到增强页——`Enhancements.cs` 记 `_enhanceSnapshot`（HUD 开关 / 选项 / gamemode / gamescope / 参数五行拼串），`OpenEnhance` 回填后取快照、保存成功后刷新快照；`ConfirmLeaveEditorAsync` 改为 `EditorDirty || EnhancementsDirty` 才确认；`Button_ProfileList_Click` 与 `Button_EnhanceBack_Click` 都会先过这道确认。
+7. **R92**：保存处理器入口就 `runAfterSave = _saveThenRun; _saveThenRun = false;`，`RunOnceAsync` 移进独立 `try/catch`，失败报「运行一次失败」而不是「保存失败」——文件已经落盘了。
+8. **R94/R95**：新增 `ComponentPathKey` / `SameComponentPath`（`ExpandPath` → `GetFullPath` → 去尾斜杠 → `Ordinal`）与 `BuildRunnerUsage`（一次 `LoadAll` 建「路径 → 方案数」字典）；删除组件与「清理未用组件」都改用 `SameComponentPath`，运行器行的使用计数改查字典，删掉每行的 `CountProfilesUsingRunner`。
+9. **R96**：`Button_PrefixUsage_Click` 先看 `sender.Tag`——带 `(PrefixInspection, List<string>)` 时只列该前缀的方案（标题「使用这个前缀的方案」），无 Tag 才走全站占用汇总。
+10. **R97**：新增资源键 `Lunarward_RuntimeEnv_HudOff`（en `Off` / zh-CN `关闭` / zh-HK / zh-TW `關閉`），HUD 首项不再显示 Close；`Combo_Hud` 补 `Header="HUD"` 并删掉上方硬编码 TextBlock；无选中方案时点保存 toast `NoProfilesHint`，不再静默。
+
+**代价边界**
+
+- `DialogGate` 是进程级单锁：真正需要两个对话框同时存在（比如把某个确认框改成非模态）时，第二个会被直接拒掉，需要改成返回值区分「被拒」与「用户取消」。
+- 嵌套流程把管理窗 Hide 再重开，滚动位置与选中项会重置（列表本来就随动作重建）。
+- 增强页快照是纯字符串比对，输入框里只改空白也会被当成「有改动」，会多问一次。
+- 路径归一化后，`~`/尾斜杠/`..` 写法不同的历史配置会开始被识别为「在用」，可能让个别「以前能删」的组件变成「删不掉」——这是有意的方向。
+- `BuildRunnerUsage` 仍然在 UI 线程做**一次** `LoadAll`（N 次变 1 次）；方案数极多时这一次读盘仍在 UI 线程，属于 §6.10 第 2 条（统一 snapshot）留待批 K。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test Starward.slnx` **286 通过**；`lint-ui-thread.sh` 全部通过；`cli-smoke` 40/0/1；`cli-extra` 32/0。
 
 **确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」。

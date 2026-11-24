@@ -92,16 +92,29 @@ public sealed partial class RuntimeEnvironmentSetting
 
 
     /// <summary>点左列某一行：切右栏，列表选中态跟着走。</summary>
-    private void Button_ProfileList_Click(object sender, RoutedEventArgs e)
+    private async void Button_ProfileList_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { Tag: RuntimeProfile profile })
+        try
         {
-            return;
+            if (sender is not FrameworkElement { Tag: RuntimeProfile profile })
+            {
+                return;
+            }
+            // R91：切页签和点「返回」都会确认，唯独点左列别的方案不会——编到一半点一下就静默丢草稿。
+            if (!await ConfirmLeaveEditorAsync())
+            {
+                return;
+            }
+            _selectedProfileId = profile.Id;
+            UpdateProfileListSelection();
+            ShowProfileDetail(profile);
+            ShowDetailPane();
         }
-        _selectedProfileId = profile.Id;
-        UpdateProfileListSelection();
-        ShowProfileDetail(profile);
-        ShowDetailPane();
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "switch profile failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
+        }
     }
 
 
@@ -188,10 +201,23 @@ public sealed partial class RuntimeEnvironmentSetting
     }
 
 
-    private void Button_EnhanceBack_Click(object sender, RoutedEventArgs e)
+    private async void Button_EnhanceBack_Click(object sender, RoutedEventArgs e)
     {
-        ShowDetailPane();
-        ShowProfileDetail(SelectedProfileOrNull());
+        try
+        {
+            // R91：增强页也有未保存改动，返回同样要确认。
+            if (!await ConfirmLeaveEditorAsync())
+            {
+                return;
+            }
+            ShowDetailPane();
+            ShowProfileDetail(SelectedProfileOrNull());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "leave enhancements failed");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.Lunarward_RuntimeEnv_Failed);
+        }
     }
 
 
@@ -617,8 +643,8 @@ public sealed partial class RuntimeEnvironmentSetting
         StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipProfiles, profiles.Count), 0, Lang.Lunarward_RuntimeEnv_Profiles));
         StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipBindings, ProfileBinding.BindingCount()), BindingsChipTag, Lang.Lunarward_RuntimeEnv_Profiles));
         StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipRunners, usableRunners, runners.Count), 1, Lang.Lunarward_RuntimeEnv_Runner));
-        StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipGraphics, graphics.Count), 2, Lang.Lunarward_RuntimeEnv_Components_2));
-        StackPanel_Chips.Children.Add(CreateChip($"{string.Format(Lang.Lunarward_RuntimeEnv_ChipPrefix, prefixes.Count)} · {FormatSize(totalBytes)}", 3, Lang.Lunarward_RuntimeEnv_Prefix));
+        StackPanel_Chips.Children.Add(CreateChip(string.Format(Lang.Lunarward_RuntimeEnv_ChipGraphics, graphics.Count), 1, Lang.Lunarward_RuntimeEnv_Components_2));
+        StackPanel_Chips.Children.Add(CreateChip($"{string.Format(Lang.Lunarward_RuntimeEnv_ChipPrefix, prefixes.Count)} · {FormatSize(totalBytes)}", 2, Lang.Lunarward_RuntimeEnv_Prefix));
 
         RefreshBindingNotice(profiles);
     }
@@ -715,7 +741,7 @@ public sealed partial class RuntimeEnvironmentSetting
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = XamlRoot,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (await Starward.Helpers.DialogGate.Show(dialog) != ContentDialogResult.Primary)
         {
             return;
         }
@@ -875,7 +901,7 @@ public sealed partial class RuntimeEnvironmentSetting
             DefaultButton = ContentDialogButton.Primary,
             Content = body,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary || combo.SelectedIndex < 0)
+        if (await Starward.Helpers.DialogGate.Show(dialog) != ContentDialogResult.Primary || combo.SelectedIndex < 0)
         {
             return;
         }

@@ -277,13 +277,10 @@
                                             Text="{x:Bind lang:Lang.Lunarward_RuntimeEnv_Enhance_Notice}"
                                             TextWrapping="Wrap" />
 
-                                        <TextBlock
-                                            Margin="0,4,0,0"
-                                            Style="{ThemeResource BodyStrongTextBlockStyle}"
-                                            Text="HUD" />
                                         <ComboBox
                                             x:Name="Combo_Hud"
                                             MinWidth="220"
+                                            Header="HUD"
                                             SelectionChanged="Combo_Hud_SelectionChanged" />
                                         <ComboBox
                                             x:Name="Combo_HudPreset"
