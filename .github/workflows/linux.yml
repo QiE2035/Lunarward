@@ -24,6 +24,9 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v5
+      with:
+        # 增量覆盖率要拿「本次推送前」的提交做 diff，浅克隆里没有那个对象
+        fetch-depth: 0
 
     - name: Install .NET
       uses: actions/setup-dotnet@v5
@@ -51,9 +54,12 @@ jobs:
 
     # 覆盖率：被测逻辑以链接源码方式编译在测试程序集内，必须带 tests/coverlet.runsettings
     # （IncludeTestAssembly=true），否则 coverlet 直接忽略测试程序集、覆盖率恒为 0。
+    # 总量之外再判一次「本次新增行」的覆盖率：总量对局部稀释不敏感
+    # （批 K 一次 147 行无测试的代码只让总量掉 2.5 个点），见 D125。
     - name: Coverage (L1)
       env:
         LW_COVERAGE_OUT: ${{ runner.temp }}/coverage
+        LW_COVERAGE_DIFF_BASE: ${{ github.event.before || github.event.pull_request.base.sha }}
       run: bash scripts/test/coverage.sh 85
 
     - name: Upload coverage
