@@ -4,6 +4,7 @@
 // 这类代码以前完全没有用例，出错只能等用户发现「面板空白 / 历史不涨」。
 using Starward.Features.Runtime;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using Xunit;
@@ -198,10 +199,28 @@ public class RuntimeStorageTests : IDisposable
             DurationMs = 1500,
         };
 
-        string text = attempt.Describe();
+        // Describe 按本机时区展示，所以期望值也用本机时区算，不写死 09:30（CI 是 UTC）。
+        string expectedWhen = attempt.At.LocalDateTime.ToString("MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
 
-        Assert.Contains("09:30", text);
-        Assert.Contains("1.5 s", text);
+        CultureInfo previous = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+            string invariant = attempt.Describe();
+
+            // de-DE 下 `:0.0` 会给出 `1,5 s`，以前日志和界面都跟着乱。
+            CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+            string german = attempt.Describe();
+
+            Assert.Equal(invariant, german);
+            Assert.Contains(expectedWhen, german);
+            Assert.Contains("1.5 s", german);
+            Assert.DoesNotContain("1,5 s", german);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
     }
 
     [Fact]
