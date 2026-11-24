@@ -86,9 +86,24 @@ public static class EnvironmentResolver
         {
             return;
         }
-        if (!string.Equals(profile.RunnerId, component.Id, StringComparison.Ordinal))
+        bool sameId = string.Equals(profile.RunnerId, component.Id, StringComparison.Ordinal);
+        if (!sameId)
         {
-            logger?.LogInformation("Environment {id}: runner {from} -> {to}", profile.Id, profile.RunnerId ?? "(未指定)", component.Id);
+            bool hasConfiguredId = !string.IsNullOrWhiteSpace(profile.RunnerId);
+            Component? configured = hasConfiguredId
+                ? runners.FirstOrDefault(x => string.Equals(x.Id, profile.RunnerId, StringComparison.Ordinal))
+                : null;
+            if (hasConfiguredId && configured is null)
+            {
+                // R51：配置的运行器不在当前组件表里（外盘没挂载、PATH 扫描不完整）：不要悄悄换成别的 wine，
+                // 否则用户下次保存任意设置就把运行器改掉了，界面也不提示。
+                logger?.LogInformation("Environment {id}: runner {runner} 不在当前组件表（可能未挂载/未扫描），保留原配置",
+                    profile.Id, profile.RunnerId);
+                return;
+            }
+            // 组件在表里但不可用（文件缺失/没有执行位）：换成兜底运行器，并留下 Warning。
+            logger?.LogWarning("Environment {id}: runner {from} 不可用，改用 {to}",
+                profile.Id, profile.RunnerId ?? "(未指定)", component.Id);
             profile.RunnerId = component.Id;
         }
         profile.RunnerPath = component.Path;

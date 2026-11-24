@@ -44,7 +44,7 @@ public static class ProfileShellService
 
 
     /// <summary>拼出调试 Shell 的进程参数（不启动）。</summary>
-    public static ProcessStartInfo? CreateShellStartInfo(RuntimeProfile profile)
+    public static ProcessStartInfo? CreateShellStartInfo(RuntimeProfile profile, string? gameKey = null)
     {
         (string executable, string[] prefixArgs)? terminal = null;
         foreach ((string exe, string[] args) in Terminals)
@@ -72,7 +72,7 @@ public static class ProfileShellService
         }
         info.ArgumentList.Add(ResolveShell(profile));
 
-        foreach ((string key, string value) in BuildEnvironment(profile))
+        foreach ((string key, string value) in BuildEnvironment(profile, gameKey))
         {
             info.Environment[key] = value;
         }
@@ -93,11 +93,11 @@ public static class ProfileShellService
     }
 
 
-    public static bool TryOpenShell(RuntimeProfile profile, ILogger? logger = null)
+    public static bool TryOpenShell(RuntimeProfile profile, ILogger? logger = null, string? gameKey = null)
     {
         try
         {
-            ProcessStartInfo? info = CreateShellStartInfo(profile);
+            ProcessStartInfo? info = CreateShellStartInfo(profile, gameKey);
             if (info is null)
             {
                 logger?.LogWarning("No terminal emulator found for debug shell.");

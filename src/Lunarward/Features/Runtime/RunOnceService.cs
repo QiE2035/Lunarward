@@ -29,7 +29,7 @@ public static class RunOnceService
     /// <summary>
     /// 组装启动参数（不启动）。Windows 程序走方案里的 wine，Linux 程序直接执行。
     /// </summary>
-    public static ProcessStartInfo? CreateStartInfo(RuntimeProfile profile, string executable, string? arguments = null, string? workingDirectory = null)
+    public static ProcessStartInfo? CreateStartInfo(RuntimeProfile profile, string executable, string? arguments = null, string? workingDirectory = null, string? gameKey = null)
     {
         if (string.IsNullOrWhiteSpace(executable) || !File.Exists(executable))
         {
@@ -61,7 +61,7 @@ public static class RunOnceService
         info.WorkingDirectory = string.IsNullOrWhiteSpace(workingDirectory)
             ? Path.GetDirectoryName(executable) ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
             : workingDirectory;
-        foreach ((string key, string value) in ProfileShellService.BuildEnvironment(profile))
+        foreach ((string key, string value) in ProfileShellService.BuildEnvironment(profile, gameKey))
         {
             info.Environment[key] = value;
         }
@@ -70,9 +70,9 @@ public static class RunOnceService
 
 
     /// <summary>启动并立刻返回进程；输出重定向到日志目录，避免工具的输出没人看。</summary>
-    public static Process? Start(RuntimeProfile profile, string executable, string? arguments = null, ILogger? logger = null)
+    public static Process? Start(RuntimeProfile profile, string executable, string? arguments = null, ILogger? logger = null, string? gameKey = null)
     {
-        ProcessStartInfo? info = CreateStartInfo(profile, executable, arguments);
+        ProcessStartInfo? info = CreateStartInfo(profile, executable, arguments, null, gameKey);
         if (info is null)
         {
             logger?.LogWarning("Run once refused: {exe} (runner missing or file not found)", executable);

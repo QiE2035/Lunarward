@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D115）
+- **状态**：生效中（D0–D116）
 - **最后更新**：2026-11-24
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -1832,3 +1832,25 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` **276 通过**（新增 5 条：zip 权限位、zip 无权限位时的 ELF 兜底、slug 改名不换目录、旧配置按名字回退、垃圾名回退 Id）；`lint-ui-thread.sh` 通过。
 
 **确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」+ 28 文档 §6.11 批次 E。
+
+## D116 运行环境审查修复：批 F「启动链路」
+
+**背景**：`28-runtime-env-audit.md` §6.3 R46–R56，批 E 之后的第二批（用户 m07141「随进度提交」）。共同点是「启动链路上每一步都各自为政」：锁和 wineboot 顺序反了，建前缀的环境和启动游戏的环境不是一套，失败降级后还往全局 `~/.wine` 里装图形层。
+
+**决定**：
+
+1. **R46/R48 锁先于 wineboot，异常必释放**：`CreateGameProcessStartInfo` 先对 `EffectivePrefixPath` 拿锁，再在锁内 `EnsurePrefix`；`EnsurePrefix` 若返回别的路径就把锁换到真实前缀。拿锁之后的整段（图形层装配、环境组装、配方构建）包在 `try/catch` 里，失败即 `ReleasePrefixLock` 再抛——以前任何一个 NRE 都会让该前缀在本进程里永久显示「正被另一个实例使用」。
+2. **R47 半成品前缀不再被当成有效**：`CreateWithWineboot` 开工前写 `<prefix>/.lunarward/init.pending`，成功才删；超时时受管前缀（`PrefixRoot` 下）直接删除半成品，外部目录保留标记。`EnsurePrefix` 见到标记就重跑 wineboot；`drive_c` 与 `system.reg` 缺一都视为「不像前缀」。
+3. **R49 降级前缀不装图形层**：`EnsurePrefix` 失败后降级到 `~/.wine`/`LUNARWARD_WINEPREFIX` 时，跳过 DXVK/VKD3D 安装（以前会覆盖全局 `system32`，全机 wine 程序受影响），toast 已经提示降级。
+4. **R50 Shell / RunOnce 带 gameKey**：`ProfileShellService.CreateShellStartInfo` / `TryOpenShell`、`RunOnceService.CreateStartInfo` / `Start` 增加可选 `gameKey`；设置页两处入口传 `AppConfig.CurrentGameBiz`；CLI `--shell-plan` / `--run-once` 新增 `--game <biz>`（`--run-once` 会把它从附加参数里摘掉）。默认前缀方案在 Shell 里终于能拿到正确的 `WINEPREFIX`。
+5. **R55 wineboot 复用 Proton 环境**：`CreateWithWineboot` 在 4 个基础变量之后叠加 `RuntimeEnvironment.ProtonEnvironment(wine)` 与配方 `Env`，最后再写回 `WINEPREFIX` / `WINEARCH`（避免被旧配置覆盖）。建前缀与启动游戏看到同一套 `WINEDLLPATH` / `LD_LIBRARY_PATH` / `PROTONPATH`。
+6. **R51–R54 解析层**：`Refresh` 不再把「不在组件表里的运行器」改写成别的 wine（外盘未挂载时保留原配置）；`DefaultPrefixDirectory` 的 Id 回退分支也做 Sanitize + 越界复核；`PrefixPath.Expand` 支持裸 `$HOME`/`${HOME}` 并把相对路径绝对化；`NormalizePrefixArch` 把 `wow64` 归为 `win64`（以前方向反了，建出 32 位前缀，64 位游戏被预检挡下）。
+7. **R56 图形层安装事务化**：先全部拷到 `.lunarward/graphics-staging/<kind>`，再逐个「备份旧文件 → 替换」；中途失败按备份逆序回滚并删掉新文件，staging 无论如何清理。`Sizes` 缺失时不再算通过（同时要求文件非空）；`CollectFiles` 先判组件目录存在，批量安装不会因一个目录消失而中断。
+
+**代价边界**：`--shell-plan` 的输出在没有 `--game` 时与以前相同（WINEPREFIX 为空），给了 `--game` 才解析真实前缀；`init.pending` 标记会让「上次超时后干脆手工修复了前缀」的用户多跑一次 wineboot，但不会删外部目录。回滚只覆盖本次写入的文件，历史残留仍由「换版本时删除 stale」处理。
+
+8. **顺带修（L-169）**：`ClipboardHelper.Linux.cs` 启动 `wl-copy` 时补 `RedirectStandardOutput/Error`。`wl-copy` 写完剪贴板会 fork 守护进程继续持有 selection，继承来的 stdout 让 `cli-smoke` 里 `out=$(lunarward …)` 等不到 EOF、整套挂死；CI（xvfb，无 wl-copy）不暴露，本机 Wayland 必现。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` 276 通过；`lint-ui-thread.sh`、`lint-cli-help.sh`（A 段 51 开关）通过；`cli-smoke.sh` **40 通过 / 0 失败 / 1 跳过**（跳过的是需真实网络的 `--version-status`）；`cli-extra.sh` **32 通过 / 0 失败**。
+
+**确认方式**：用户 m07141 + 28 文档 §6.11 批次 F。

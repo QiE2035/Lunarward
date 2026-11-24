@@ -304,7 +304,16 @@ public static class PrefixManager
         // §3.3：root 跑 wine 会建出属主错乱的前缀，之后普通用户既改不动也删不掉
         Helpers.PosixIdentity.ThrowIfRoot("创建或写入 Wine 前缀");
         string path = EnvironmentResolver.EffectivePrefixPath(profile);
-        if (!Directory.Exists(path))
+        string pendingMarker = Path.Combine(path, ".lunarward", "init.pending");
+        if (Directory.Exists(path) && File.Exists(pendingMarker))
+        {
+            // R47：上次 wineboot 没跑完（超时/被杀/崩溃）。半成品前缀缺 system.reg，当成有效会
+            // 让之后每次启动都慢或报怪错 —— 这里重新初始化一次。
+            logger?.LogWarning("Prefix {path} was left half-initialized (init.pending); running wineboot again", path);
+            CreateWithWineboot(profile, path, logger);
+            TightenPermissions(path);
+        }
+        else if (!Directory.Exists(path))
         {
             // 上级目录可能是「前缀根目录」或随便一个文件夹：wine 会安静地在里面建空前缀，
             if (Directory.Exists(Path.GetDirectoryName(path)) && IsUnderPrefixRoot(path) is false)
@@ -314,9 +323,9 @@ public static class PrefixManager
             CreateWithWineboot(profile, path, logger);
             TightenPermissions(path);
         }
-        else if (!Directory.Exists(Path.Combine(path, "drive_c")))
+        else if (!Directory.Exists(Path.Combine(path, "drive_c")) || !File.Exists(Path.Combine(path, "system.reg")))
         {
-            throw new IOException($"目录存在但不像 Wine 前缀（缺少 drive_c）：{path}。请换一个路径，或删掉该目录后重试。");
+            throw new IOException($"目录存在但不像 Wine 前缀（缺少 drive_c / system.reg）：{path}。请换一个路径，或删掉该目录后重试。");
         }
         WriteMetadata(path, gameKey, profile);
         return path;
@@ -428,6 +437,31 @@ public static class PrefixManager
             && !string.IsNullOrWhiteSpace(overrides)
                 ? overrides
                 : "mscoree,mshtml=";
+        // R55：建前缀和启动游戏要用同一套运行环境。以前 wineboot 只拿到上面 4 个变量，
+        // Proton 的 WINEDLLPATH / LD_LIBRARY_PATH / PROTONPATH 全缺 —— winecfg、安装器里
+        // 解析到的 dll 可能与游戏里不同（实测本机 cachyos-11.0 能建出来，但环境不一致）。
+        foreach ((string key, string value) in RuntimeEnvironment.ProtonEnvironment(wine))
+        {
+            info.Environment[key] = value;
+        }
+        foreach ((string key, string value) in profile.Env)
+        {
+            info.Environment[key] = value;
+        }
+        // 前缀与架构最后写回：profile.Env 里可能残留旧的 WINEPREFIX / WINEARCH。
+        info.Environment["WINEPREFIX"] = path;
+        info.Environment["WINEARCH"] = PeArchitecture.NormalizePrefixArch(profile.PrefixArch);
+        // R47：先立「未完成」标记，wineboot 成功后才删；半成品前缀下次会被识别并重建。
+        string pendingMarker = Path.Combine(path, ".lunarward", "init.pending");
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(pendingMarker)!);
+            File.WriteAllText(pendingMarker, DateTimeOffset.Now.ToString("O"));
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to write init.pending marker: {path}", pendingMarker);
+        }
         using Process? process = Process.Start(info);
         if (process is null || !process.WaitForExit(TimeSpan.FromMinutes(3)))
         {
@@ -439,11 +473,31 @@ public static class PrefixManager
             {
                 Serilog.Log.Debug(ex, "Kill timed-out wineboot failed");
             }
+            // 超时后目录只剩骨架：受管前缀直接删掉，外部目录保留并让下次启动重建（R47）。
+            if (IsUnderPrefixRoot(path))
+            {
+                try
+                {
+                    Directory.Delete(path, recursive: true);
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogWarning(ex, "Failed to remove half-initialized prefix: {path}", path);
+                }
+            }
             throw new IOException("初始化前缀超时（3 分钟）：wineboot 可能卡在 wine-mono/Gecko 安装窗口，或运行器无法执行");
         }
         if (process.ExitCode != 0 || !Directory.Exists(Path.Combine(path, "drive_c")))
         {
             throw new IOException($"初始化前缀失败（退出码 {process.ExitCode}）：{path}");
+        }
+        try
+        {
+            File.Delete(pendingMarker);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to remove init.pending marker: {path}", pendingMarker);
         }
         logger?.LogInformation("Created prefix with wineboot: {path}", path);
     }

@@ -142,9 +142,12 @@ internal class LunarwardProgram
         // 只解析不启动：`lunarward --shell-plan` 打印每个 Profile 的调试 Shell 命令行与环境变量
         if (args.Length >= 1 && args[0] is "--shell-plan")
         {
+            // R50：--game <biz> 让 Shell 的 WINEPREFIX 与真实启动一致（否则落进 ~/.wine）
+            int shellGameIndex = System.Array.IndexOf(args, "--game");
+            string? shellGameKey = shellGameIndex > 0 && shellGameIndex + 1 < args.Length ? args[shellGameIndex + 1] : null;
             foreach (Features.Runtime.RuntimeProfile profile in Features.Runtime.RuntimeProfileStore.LoadAll())
             {
-                System.Diagnostics.ProcessStartInfo? info = Features.Runtime.ProfileShellService.CreateShellStartInfo(profile);
+                System.Diagnostics.ProcessStartInfo? info = Features.Runtime.ProfileShellService.CreateShellStartInfo(profile, shellGameKey);
                 Console.WriteLine(info is null
                     ? $"{profile.Name}: <no terminal emulator found>"
                     : $"{profile.Name}: {info.FileName} {string.Join(' ', info.ArgumentList)} | WINEPREFIX={GetEnv(info, "WINEPREFIX")} LUNARWARD_WINE={GetEnv(info, "LUNARWARD_WINE")} profile={GetEnv(info, "LUNARWARD_PROFILE")}");
@@ -1273,7 +1276,19 @@ internal class LunarwardProgram
             AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
             string wanted = args[1];
             string exe = args[2];
-            string extra = args.Length > 3 ? string.Join(' ', args[3..]) : "";
+            // R50：--game <biz> 从附加参数里摘出来，它的值才是这次启动用的游戏 key
+            var runOnceExtra = new System.Collections.Generic.List<string>();
+            string? runOnceGameKey = null;
+            for (int i = 3; i < args.Length; i++)
+            {
+                if (args[i] is "--game" && i + 1 < args.Length)
+                {
+                    runOnceGameKey = args[++i];
+                    continue;
+                }
+                runOnceExtra.Add(args[i]);
+            }
+            string extra = string.Join(' ', runOnceExtra);
             List<Starward.Features.Runtime.RuntimeProfile> profiles = Starward.Features.Runtime.RuntimeProfileStore.LoadAll();
             Starward.Features.Runtime.RuntimeProfile? profile = profiles.FirstOrDefault(x => x.Id == wanted)
                 ?? profiles.FirstOrDefault(x => string.Equals(x.Name, wanted, StringComparison.Ordinal));
@@ -1283,7 +1298,7 @@ internal class LunarwardProgram
                 Environment.ExitCode = 1;
                 return;
             }
-            using System.Diagnostics.Process? process = Starward.Features.Runtime.RunOnceService.Start(profile, exe, extra);
+            using System.Diagnostics.Process? process = Starward.Features.Runtime.RunOnceService.Start(profile, exe, extra, null, runOnceGameKey);
             if (process is null)
             {
                 Console.WriteLine("没能启动：文件不存在，或方案没有可用的 wine");

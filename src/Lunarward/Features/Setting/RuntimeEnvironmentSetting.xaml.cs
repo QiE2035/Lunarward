@@ -620,7 +620,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             {
                 return;
             }
-            var process = Starward.Features.Runtime.RunOnceService.Start(profile, file, argsBox.Text, _logger);
+            var process = Starward.Features.Runtime.RunOnceService.Start(profile, file, argsBox.Text, _logger, AppConfig.CurrentGameBiz.Value);
             if (process is null)
             {
                 Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_RunOnceFailed);
@@ -2356,7 +2356,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             return;
         }
-        if (ProfileShellService.TryOpenShell(profile, _logger))
+        if (ProfileShellService.TryOpenShell(profile, _logger, AppConfig.CurrentGameBiz.Value))
         {
             Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_Shell_Opened, profile.Name), 3000);
         }

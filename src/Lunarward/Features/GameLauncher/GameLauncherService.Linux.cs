@@ -177,6 +177,16 @@ internal partial class GameLauncherService
     }
 
 
+    /// <summary>拿前缀锁；被占用时抛出可读错误（R05/R46）。</summary>
+    private static void AcquirePrefixLock(string prefix)
+    {
+        if (!TryLockPrefix(prefix))
+        {
+            throw new InvalidOperationException($"前缀正被另一个实例使用：{prefix}。请先关闭正在运行的游戏，或换一个前缀。");
+        }
+    }
+
+
     private static void RunExitCompanions(GameBiz biz)
     {
         try
@@ -278,115 +288,142 @@ internal partial class GameLauncherService
         }
         string key = Path.GetFileNameWithoutExtension(exe);
         string? prefix;
+        // R49：前缀校验失败降级到 ~/.wine 时，不能再把图形层装进这个降级前缀（会影响全机 wine 程序）。
+        bool degradedPrefix = false;
         if (profile is not null)
         {
+            string expected = Features.Runtime.EnvironmentResolver.EffectivePrefixPath(profile);
+            // 前缀不存在就要跑 wineboot（约十几秒），先给用户一个明确提示（D73 §3.1：前缀只是路径）
+            if (!Directory.Exists(expected))
+            {
+                Helpers.InAppToast.MainWindow?.Information("首次启动：正在初始化 Wine 前缀，可能需要十几秒…", null, 8000);
+            }
+            // R46：先拿锁、再建前缀。以前 wineboot 在锁外执行，两个实例同时首启同一方案会一起写
+            // drive_c / 注册表，前缀半损坏而两边都继续启动。
+            prefix = expected;
+            AcquirePrefixLock(prefix);
             try
             {
-                // 前缀不存在就要跑 wineboot（约十几秒），先给用户一个明确提示（D73 §3.1：前缀只是路径）
-                string expected = Features.Runtime.EnvironmentResolver.EffectivePrefixPath(profile);
-                if (!Directory.Exists(expected))
-                {
-                    Helpers.InAppToast.MainWindow?.Information("首次启动：正在初始化 Wine 前缀，可能需要十几秒…", null, 8000);
-                }
                 prefix = Features.Runtime.PrefixManager.EnsurePrefix(profile, key.ToLowerInvariant(), _logger);
+                if (!string.Equals(NormalizePrefixKey(prefix), NormalizePrefixKey(expected), StringComparison.Ordinal))
+                {
+                    // EnsurePrefix 返回了别的路径（老配置/显式覆盖）时，锁要跟着换到真实前缀上。
+                    ReleasePrefixLock(expected);
+                    AcquirePrefixLock(prefix);
+                }
             }
             catch (Exception ex)
             {
+                ReleasePrefixLock(prefix);
+                ReleasePrefixLock(expected);
                 // 不再静默降级：用户配的前缀坏了还照常启动、换个前缀跑，是最难查的一类「假生效」（R03）。
+                degradedPrefix = true;
                 _logger.LogError(ex, "Ensure prefix failed, falling back to environment defaults.");
                 Helpers.InAppToast.MainWindow?.Warning(null, $"前缀创建/校验失败，本次改用默认前缀：{ex.Message}", 8000);
                 prefix = ResolvePrefix(key.ToLowerInvariant());
+                if (prefix is null)
+                {
+                    throw new DirectoryNotFoundException(
+                        $"未找到可用的 wine prefix。请设置 LUNARWARD_WINEPREFIX，或先创建 {Path.Combine(PrefixRoot, key.ToLowerInvariant())}。");
+                }
+                AcquirePrefixLock(prefix);
             }
         }
         else
         {
             prefix = ResolvePrefix(key.ToLowerInvariant());
-        }
-        if (prefix is null)
-        {
-            throw new DirectoryNotFoundException(
-                $"未找到可用的 wine prefix。请设置 LUNARWARD_WINEPREFIX，或先创建 {Path.Combine(PrefixRoot, key.ToLowerInvariant())}。");
-        }
-        if (!TryLockPrefix(prefix))
-        {
-            // R05：预检与启动之间的 TOCTOU、以及同进程重复启动，都在这里挡住，而不是共用一个前缀硬跑。
-            throw new InvalidOperationException($"前缀正被另一个实例使用：{prefix}。请先关闭正在运行的游戏，或换一个前缀。");
+            if (prefix is null)
+            {
+                throw new DirectoryNotFoundException(
+                    $"未找到可用的 wine prefix。请设置 LUNARWARD_WINEPREFIX，或先创建 {Path.Combine(PrefixRoot, key.ToLowerInvariant())}。");
+            }
+            AcquirePrefixLock(prefix);
         }
 
-        // M2：启动前把选定的 DXVK / VKD3D 装进前缀（D83 两类各自独立，可以同时装；
-        // 失败只告警，不阻断启动——组件缺失时游戏仍可用自带 d3d 实现）
-        if (profile is not null)
+        // R48：锁已经拿到，后面任何异常（装配/参数/Start 前的失败）都必须释放它，
+        // 否则该前缀在整个进程生命周期内都显示「正被另一个实例使用」。
+        try
         {
-            try
+            // M2：启动前把选定的 DXVK / VKD3D 装进前缀（D83 两类各自独立，可以同时装；
+            // 失败只告警，不阻断启动——组件缺失时游戏仍可用自带 d3d 实现）
+            if (profile is not null && !degradedPrefix)
             {
-                List<Features.Runtime.Component> graphics = Features.Runtime.ComponentStore
-                    .GetGraphics()
-                    .Where(c => c.Id == profile.DxvkId || c.Id == profile.Vkd3dId)
-                    .ToList();
-                if (graphics.Count > 0)
+                try
                 {
-                    bool changed = Features.Runtime.GraphicsInstaller.EnsureInstalled(prefix, graphics, _logger);
-                    if (changed)
+                    List<Features.Runtime.Component> graphics = Features.Runtime.ComponentStore
+                        .GetGraphics()
+                        .Where(c => c.Id == profile.DxvkId || c.Id == profile.Vkd3dId)
+                        .ToList();
+                    if (graphics.Count > 0)
                     {
-                        _logger.LogInformation("Graphics prepared: {names}", string.Join(", ", graphics.Select(x => x.Name)));
+                        bool changed = Features.Runtime.GraphicsInstaller.EnsureInstalled(prefix, graphics, _logger);
+                        if (changed)
+                        {
+                            _logger.LogInformation("Graphics prepared: {names}", string.Join(", ", graphics.Select(x => x.Name)));
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Profile has no graphics component selected; skip install.");
+                    }
+                    if (!string.IsNullOrWhiteSpace(profile.DxvkId) && graphics.All(c => c.Id != profile.DxvkId))
+                    {
+                        _logger.LogWarning("DXVK component not found: {id}", profile.DxvkId);
+                    }
+                    if (!string.IsNullOrWhiteSpace(profile.Vkd3dId) && graphics.All(c => c.Id != profile.Vkd3dId))
+                    {
+                        _logger.LogWarning("VKD3D component not found: {id}", profile.Vkd3dId);
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    _logger.LogDebug("Profile has no graphics component selected; skip install.");
-                }
-                if (!string.IsNullOrWhiteSpace(profile.DxvkId) && graphics.All(c => c.Id != profile.DxvkId))
-                {
-                    _logger.LogWarning("DXVK component not found: {id}", profile.DxvkId);
-                }
-                if (!string.IsNullOrWhiteSpace(profile.Vkd3dId) && graphics.All(c => c.Id != profile.Vkd3dId))
-                {
-                    _logger.LogWarning("VKD3D component not found: {id}", profile.Vkd3dId);
+                    _logger.LogWarning(ex, "Ensure graphics failed, continue without it.");
                 }
             }
-            catch (Exception ex)
+
+            info.Environment["WINEPREFIX"] = prefix;
+            // 记录本次真正用的运行器：记录子进程靠它挑对的 wineserver（自定义运行器 + 系统 wineserver 混用会让 -w 立刻返回）。
+            Features.PlayTime.PlayTimeSession.ActiveWine = wine;
+            // 不接管 wine 的输出：游戏日志独立，避免阻塞 GUI 线程（D27 输出可见性模型）。
+            info.Environment["WINEDEBUG"] = info.Environment.TryGetValue("WINEDEBUG", out var dbg) ? dbg : "-all";
+
+            // R19：自动注入层与调试 Shell / RunOnce 共用同一份装配（含 Proton 变量与增强开关）。
+            Dictionary<string, string> autoEnvironment = Features.Runtime.RuntimeEnvironment.Assemble(profile, key, prefix);
+            // R02：参数合并只在 Build 里做一次（追加，不替换）——这里传游戏自带参数原始值。
+            // R18：PATH 里没有的 wrapper 跳过并记下来，启动前提示；不再让 Process.Start 直接抛。
+            Features.Runtime.LaunchRecipe recipe = Features.Runtime.LaunchRecipeBuilder.Build(
+                profile, wine, prefix, exe, arg, autoEnvironment,
+                wrapper => Features.Runtime.Enhancements.FindInPath(wrapper) is not null);
+            // R01：以 recipe.Environment 为唯一依据整体下发（继承环境 + Proton 变量 + 增强 HUD + 配方覆盖，
+            // 且 WINEPREFIX 已被 Build 固定成真实前缀）。之前只回灌 profile.Env，导致 HUD 全静默失效、
+            // 用户写 WINEPREFIX 还能把加锁/DXVK 用的前缀和进程实际前缀拆成两个。
+            foreach ((string envKey, string envValue) in recipe.Environment)
             {
-                _logger.LogWarning(ex, "Ensure graphics failed, continue without it.");
+                info.Environment[envKey] = envValue;
             }
+            if (recipe.MissingWrappers.Count > 0)
+            {
+                string names = string.Join("、", recipe.MissingWrappers);
+                _logger.LogWarning("Wrappers not found in PATH, skipped: {names}", names);
+                Helpers.InAppToast.MainWindow?.Warning(null, $"未找到启动包装程序，已跳过：{names}", 8000);
+            }
+            foreach (Features.Runtime.EnvOverride overridden in recipe.Overrides)
+            {
+                _logger.LogWarning("环境变量 {key} 被配方覆盖：自动注入 {auto} → 配方 {recipe}", overridden.Key, overridden.AutoValue, overridden.RecipeValue);
+            }
+            info.FileName = recipe.Argv[0];
+            info.ArgumentList.Clear();
+            for (int i = 1; i < recipe.Argv.Count; i++)
+            {
+                info.ArgumentList.Add(recipe.Argv[i]);
+            }
+            return info;
         }
-
-        info.Environment["WINEPREFIX"] = prefix;
-        // 记录本次真正用的运行器：记录子进程靠它挑对的 wineserver（自定义运行器 + 系统 wineserver 混用会让 -w 立刻返回）。
-        Features.PlayTime.PlayTimeSession.ActiveWine = wine;
-        // 不接管 wine 的输出：游戏日志独立，避免阻塞 GUI 线程（D27 输出可见性模型）。
-        info.Environment["WINEDEBUG"] = info.Environment.TryGetValue("WINEDEBUG", out var dbg) ? dbg : "-all";
-
-        // R19：自动注入层与调试 Shell / RunOnce 共用同一份装配（含 Proton 变量与增强开关）。
-        Dictionary<string, string> autoEnvironment = Features.Runtime.RuntimeEnvironment.Assemble(profile, key, prefix);
-        // R02：参数合并只在 Build 里做一次（追加，不替换）——这里传游戏自带参数原始值。
-        // R18：PATH 里没有的 wrapper 跳过并记下来，启动前提示；不再让 Process.Start 直接抛。
-        Features.Runtime.LaunchRecipe recipe = Features.Runtime.LaunchRecipeBuilder.Build(
-            profile, wine, prefix, exe, arg, autoEnvironment,
-            wrapper => Features.Runtime.Enhancements.FindInPath(wrapper) is not null);
-        // R01：以 recipe.Environment 为唯一依据整体下发（继承环境 + Proton 变量 + 增强 HUD + 配方覆盖，
-        // 且 WINEPREFIX 已被 Build 固定成真实前缀）。之前只回灌 profile.Env，导致 HUD 全静默失效、
-        // 用户写 WINEPREFIX 还能把加锁/DXVK 用的前缀和进程实际前缀拆成两个。
-        foreach ((string envKey, string envValue) in recipe.Environment)
+        catch
         {
-            info.Environment[envKey] = envValue;
+            ReleasePrefixLock(prefix);
+            throw;
         }
-        if (recipe.MissingWrappers.Count > 0)
-        {
-            string names = string.Join("、", recipe.MissingWrappers);
-            _logger.LogWarning("Wrappers not found in PATH, skipped: {names}", names);
-            Helpers.InAppToast.MainWindow?.Warning(null, $"未找到启动包装程序，已跳过：{names}", 8000);
-        }
-        foreach (Features.Runtime.EnvOverride overridden in recipe.Overrides)
-        {
-            _logger.LogWarning("环境变量 {key} 被配方覆盖：自动注入 {auto} → 配方 {recipe}", overridden.Key, overridden.AutoValue, overridden.RecipeValue);
-        }
-        info.FileName = recipe.Argv[0];
-        info.ArgumentList.Clear();
-        for (int i = 1; i < recipe.Argv.Count; i++)
-        {
-            info.ArgumentList.Add(recipe.Argv[i]);
-        }
-        return info;
     }
 
     /// <summary>

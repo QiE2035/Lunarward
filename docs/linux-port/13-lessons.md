@@ -1405,3 +1405,10 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 - 原因：右栏写的是 `<Grid Grid.Column="1">` 同时放两个 `ScrollViewer`，但没写 `Grid.RowDefinitions`；Uno 把这一行按内容高度量（等价 Auto），内部 `ScrollViewer` 拿到的高度就是内容高度，于是既不产生滚动条、也不滚动，超出的部分由父级直接裁掉。
 - 正确做法：给这类「同格多视图」的 Grid 显式补一行 `<RowDefinition Height="*" />`（或直接把 `ScrollViewer` 的父级设成 `Grid` 的星号行），让内部 `ScrollViewer` 拿到有限视口高度。
 - 排查手法：`xdotool mousemove X Y click 5`（滚轮）与 `PageDown` 都不动 → 先怀疑视口没被约束；`Window` 放大后能露出的内容更多，也说明是父级裁剪而不是内容缺失。
+
+## L-169 `wl-copy` 守护进程继承 stdout：`out=$(…)` 永远等不到 EOF，CLI 用例挂死
+
+- 现象：`scripts/test/cli-smoke.sh` 本机跑 26 分钟无输出，进程树只剩 `bash` + `tail`，没有 Lunarward 子进程；`/proc/<pid>/wchan` 是 `anon_pipe_read`。
+- 原因：剪贴板复制用例里 `ClipboardHelper` 启动 `wl-copy` 时只重定向了 stdin，`stdout`/`stderr` 继承自调用方。`wl-copy` 写完剪贴板会 fork 一个守护进程继续持有 selection，这个守护进程同时握着继承来的 stdout 写端 → 脚本里的 `out=$(lunarward …)` 等不到管道 EOF，永久阻塞。CI 走 xvfb、没有 `wl-copy`，所以只在 Wayland 本机必现。
+- 正确做法：任何「启动后可能常驻」的外部进程都要 `RedirectStandardOutput = true, RedirectStandardError = true`（不是只有 `RedirectStandardInput`）；需要看输出就异步读，不需要就丢弃。`ClipboardHelper.Linux.cs` 的两个分支（通用 `wl-copy` 与 `SetImageFile`）都已补上。
+- 排查手法：`ps -o pid,ppid,stat,cmd -p <hung>` 看是不是 `bash` 在读管道；再 `ls -l /proc/<hung>/fd` 找谁持有写端 —— 若是一个被 `systemd --user` 收养的 `wl-copy`，就是这个坑。

@@ -1,3 +1,13 @@
+## 2026-11-24 —— 运行环境审查修复：批 F「启动链路」（D116）
+
+- 前缀锁改到 wineboot 之前拿，双开不再同时初始化同一前缀；拿锁后任何异常都会释放锁，不再出现「前缀永久被占用」。
+- wineboot 先写 `init.pending`、成功才删；超时的受管半成品前缀会被清理，下次启动自动重建，缺 `system.reg` 的目录不再当成有效前缀。
+- 前缀校验失败降级到 `~/.wine` 时不再往里装 DXVK/VKD3D，避免污染全局前缀。
+- 调试 Shell 与「运行一次」按当前游戏解析真实前缀（CLI 用 `--game <biz>`），不再是空的 `WINEPREFIX`。
+- wineboot 复用 Proton 的 `WINEDLLPATH` / `LD_LIBRARY_PATH` / `PROTONPATH`，建前缀与启动游戏环境一致。
+- 图形层安装改为 staging + 备份回滚，装一半失败不会留下新旧 dll 混搭；文件大小记录缺失不再判「已安装」。
+- 顺带修：Wayland 下复制剪贴板启动的 `wl-copy` 不再继承应用 stdout，`cli-smoke` 的 `out=$(…)` 不再被守护进程拖住（L-169）。
+
 ## 2026-11-24 —— 运行环境审查修复：批 E「数据安全」（D115）
 
 - 下载/导入的组件解压后补齐执行位：zip 读外层 Unix 属性，tar.xz 按 ELF 文件头兜底补 u+x（SharpCompress 不暴露 Mode），默认源 wine-staging 装完不再显示「没有可执行权限」。

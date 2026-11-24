@@ -115,7 +115,9 @@ internal static class PeArchitecture
             return "win64";
         }
         string value = prefixArch.Trim().ToLowerInvariant();
-        return value is "win32" or "wow64" ? "win32" : "win64";
+        // R54：wow64 的语义是「64 位前缀 + WoW64」，之前被归一成 win32，反向建出 32 位前缀，
+        // 64 位游戏随后被预检判 BAD EXE FORMAT；而且 wine 本身不接受 "wow64" 这个值。
+        return value == "win32" ? "win32" : "win64";
     }
 
 

@@ -41,7 +41,7 @@ public static class ClipboardHelper
         {
             try
             {
-                var psi = new ProcessStartInfo(cmd) { RedirectStandardInput = true, UseShellExecute = false };
+                var psi = new ProcessStartInfo(cmd) { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
                 foreach (var a in args)
                 {
                     psi.ArgumentList.Add(a);
@@ -76,7 +76,7 @@ public static class ClipboardHelper
         }
         try
         {
-            var wl = new ProcessStartInfo("wl-copy") { RedirectStandardInput = true, UseShellExecute = false };
+            var wl = new ProcessStartInfo("wl-copy") { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
             wl.ArgumentList.Add("--type");
             wl.ArgumentList.Add("image/png");
             using (var p = Process.Start(wl))

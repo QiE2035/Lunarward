@@ -146,6 +146,7 @@ public static class GraphicsInstaller
             && existing.Id == component.Id
             && existing.Files.Count > 0
             && existing.Files.All(file => File.Exists(file)
+                && new FileInfo(file).Length > 0
                 && (!existing.Sizes.TryGetValue(file, out long expected) || expected <= 0 || new FileInfo(file).Length == expected)))
         {
             logger?.LogDebug("Graphics already installed: {id}", component.Id);
@@ -157,17 +158,77 @@ public static class GraphicsInstaller
         string system32 = Path.Combine(prefix, "drive_c", "windows", "system32");
         string syswow64 = Path.Combine(prefix, "drive_c", "windows", "syswow64");
         Directory.CreateDirectory(system32);
-        List<string> written = new();
-        Dictionary<string, long> sizes = new();
-        foreach ((string source, string target, bool is32Bit) in files)
+        // R56：先全部拷进 staging，再逐个替换目标；中途失败按备份回滚。以前直接覆盖目标，
+        // 拷一半失败就是新旧 dll 混搭（BAD EXE FORMAT），而界面还显示「已安装」。
+        string staging = Path.Combine(prefix, ".lunarward", "graphics-staging", kindText);
+        string backupDir = Path.Combine(prefix, ".lunarward", "graphics-backup", kindText);
+        Directory.CreateDirectory(staging);
+        var plan = new List<(string Staged, string Dest)>();
+        var rollback = new List<(string Dest, string? Saved)>();
+        try
         {
-            string dir = is32Bit ? syswow64 : system32;
-            Directory.CreateDirectory(dir);
-            string dest = Path.Combine(dir, Path.GetFileName(target));
-            File.Copy(source, dest, overwrite: true);
-            written.Add(dest);
-            sizes[dest] = new FileInfo(dest).Length;
+            foreach ((string source, string target, bool is32Bit) in files)
+            {
+                string dir = is32Bit ? syswow64 : system32;
+                Directory.CreateDirectory(dir);
+                string dest = Path.Combine(dir, Path.GetFileName(target));
+                string staged = Path.Combine(staging, Path.GetFileName(target));
+                File.Copy(source, staged, overwrite: true);
+                plan.Add((staged, dest));
+            }
+            foreach ((string staged, string dest) in plan)
+            {
+                string? saved = null;
+                if (File.Exists(dest))
+                {
+                    Directory.CreateDirectory(backupDir);
+                    saved = Path.Combine(backupDir, Path.GetFileName(dest));
+                    File.Copy(dest, saved, overwrite: true);
+                }
+                File.Move(staged, dest, overwrite: true);
+                rollback.Add((dest, saved));
+            }
         }
+        catch (Exception ex)
+        {
+            foreach ((string dest, string? saved) in Enumerable.Reverse(rollback))
+            {
+                try
+                {
+                    if (saved is not null)
+                    {
+                        File.Copy(saved, dest, overwrite: true);
+                    }
+                    else if (File.Exists(dest))
+                    {
+                        File.Delete(dest);
+                    }
+                }
+                catch (Exception rollbackEx)
+                {
+                    logger?.LogWarning(rollbackEx, "Rollback graphics file failed: {file}", dest);
+                }
+            }
+            logger?.LogError(ex, "Install graphics failed, rolled back: {name}", component.Name);
+            throw;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(staging))
+                {
+                    Directory.Delete(staging, recursive: true);
+                }
+            }
+            catch (Exception cleanupEx)
+            {
+                logger?.LogDebug(cleanupEx, "Cleanup graphics staging failed: {path}", staging);
+            }
+        }
+
+        List<string> written = plan.Select(x => x.Dest).ToList();
+        var sizes = written.ToDictionary(f => f, f => new FileInfo(f).Length, StringComparer.Ordinal);
 
         // 换版本时先删掉旧记录里、这次没再写的那几个文件（同类的 dll 名基本重合，剩下的就是真正的残留）。
         if (existing is not null)
@@ -381,6 +442,12 @@ public static class GraphicsInstaller
     {
         List<(string, string, bool)> result = new();
         string root = component.Path;
+        // R56：组件目录被删/被移走时 EnumerateFiles 直接抛，批量安装会在这里中断，
+        // 前面装好的组件之后静默跳过。
+        if (!Directory.Exists(root))
+        {
+            return result;
+        }
         string? x64 = Directory.Exists(Path.Combine(root, "x64")) ? Path.Combine(root, "x64") : null;
         string? x32 = Directory.Exists(Path.Combine(root, "x32")) ? Path.Combine(root, "x32")
             : Directory.Exists(Path.Combine(root, "x86")) ? Path.Combine(root, "x86")

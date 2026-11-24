@@ -191,7 +191,7 @@
 > 触发：用户 m06812「再逐文件仔细审查一遍所有『运行环境』相关代码，包括逻辑层，UI 等等，找出所有存在的细节问题，以及可改进的地方，并给出相应的意见」。
 > 范围：`src/Lunarward/Features/Runtime/*.cs`（25 文件 6977 行）、`Features/Setting/RuntimeEnvironmentSetting*.cs`（5 个 partial 6156 行）、`RuntimeEnvironmentSetting.xaml`（572 行），并回查 `GameLauncher/GameLauncherService(.Linux).cs`、`LaunchPreflight.cs`、`GameSettingPage.xaml.cs`、`Helpers/JsonFile.cs` 等调用方。
 > 方法：4 组只读子代理分工通读（页面 / 组件与下载 / 启动与解析 / 方案与绑定）+ 本人 grep 自查 + 抽查关键断言；标 ✔已核对的条目由本人回源码逐行确认。初稿中标「推断」的 7 条已于 2026-11-24 逐条取证并订正（结论与实测见 §6.12）：其中 R55 的「建前缀失败」被实测否定、R77 的「死锁面」被代码否定、R94 的适用范围收窄到「手改文件」。仍未实测的只剩「外部服务端行为」（R61 触发、R62 可达性）。
-> 状态：**批 E 已修**（R43 / R44 / R45 / R64，D115）；其余未修，按 §6.11 批次 E–K 推进，改完在对应条目标 🛠 并写决策号。
+> 状态：**批 E–F 已修**（批 E：R43/R44/R45/R64，D115；批 F：R46–R56，D116）；其余未修，按 §6.11 批次推进，改完在对应条目标 🛠 并写决策号。
 
 ### 6.1 结论摘要
 
@@ -225,57 +225,57 @@
 
 ### 6.3 High · 启动链路与解析
 
-**R46　wineboot 在拿前缀锁之前执行，两实例并发写同一前缀（TOCTOU）**
+**R46　wineboot 在拿前缀锁之前执行，两实例并发写同一前缀（TOCTOU）（🛠 已修复，D116 批 F）**
 - 位置：`Features/Runtime/PrefixManager.cs:302-316`（`EnsurePrefix` 无条件建）；`Features/GameLauncher/GameLauncherService.Linux.cs:291`（`EnsurePrefix`）与 `:310`（`TryLockPrefix`）。
 - 影响：GUI 启动与 `--prefix-ensure` / `--launch`（或双开）同时首启同一方案 → 两个 wineboot 同时写注册表与 `drive_c`，前缀半损坏且两边都继续启动。锁的意义（R05）被结构性地让位给锁外操作。
 - 建议：先按 `EffectivePrefixPath` 拿锁，再在锁内做「存在性判断 + wineboot」；或 wineboot 到 `<prefix>.tmp-<pid>` 后原子 rename。
 
-**R47　wineboot 超时被 Kill 后的半成品前缀被永久当作有效**
+**R47　wineboot 超时被 Kill 后的半成品前缀被永久当作有效（🛠 已修复，D116 批 F）**
 - 位置：`PrefixManager.cs:302-320`（超时 `Kill(entireProcessTree)` 后直接 throw，不清理）、`:432-446`。
 - 影响：wineboot 卡在 wine-mono/Gecko 或运行器不可执行（3 分钟超时）时目录只剩骨架；下次 `EnsurePrefix` 只校验 `drive_c` 存在 → 拿缺 `system.reg` 的前缀跑，症状是「首次失败后每次启动都慢或报怪错」。
 - 建议：wineboot 前写 `<prefix>/.lunarward/init.pending`，成功后删除；`EnsurePrefix` 见 pending 或无 `system.reg` 就重跑并告警；超时对受管路径删除半成品。
 
-**R48　前缀锁取得后到 `Process.Start` 之间的异常都不释放锁**
+**R48　前缀锁取得后到 `Process.Start` 之间的异常都不释放锁（🛠 已修复，D116 批 F）**
 - 位置：`GameLauncherService.Linux.cs:310,473-485`（只有 `catch { ReleasePrefixLock(...); throw; }` 包住 `Process.Start`）。
 - 影响：上述 NRE、`Assemble`/`Build`/`info.Environment` 上抛的任何异常 → `_prefixLocks` 里的 `FileStream` 陪进程活到退出，该前缀此后一律「正被另一个实例使用」，只能重启应用。
 - 建议：`CreateGameProcessStartInfo` 整体 try/catch，失败即 `ReleasePrefixLock` 后 rethrow。
 
-**R49　前缀校验失败降级到 `~/.wine`，随后仍把 DXVK/VKD3D 装进这个降级前缀**
+**R49　前缀校验失败降级到 `~/.wine`，随后仍把 DXVK/VKD3D 装进这个降级前缀（🛠 已修复，D116 批 F）**
 - 位置：`GameLauncherService.Linux.cs:296-305`（catch 里 `prefix = ResolvePrefix(...)`）、`:317-351`（图形层用同一个 `prefix` 装机）。
 - 影响：前缀缺 `drive_c`、无写权限或 wineboot 失败时，d3d9/d3d10core/d3d11/dxgi 被覆盖进全局 `~/.wine/system32`，全机 wine 程序受影响，存档也落 `~/.wine`；只在 catcher 里一条 toast。
 - 建议：降级路径跳过图形层安装（或只装进受管目录）并写进启动报告；更彻底的是不降级（保持 R03「失败即中止」）。
 
-**R50　调试 Shell / 一次性运行不传 gameKey，默认前缀方案拿不到 WINEPREFIX**
+**R50　调试 Shell / 一次性运行不传 gameKey，默认前缀方案拿不到 WINEPREFIX（🛠 已修复，D116 批 F）**
 - 位置：`Features/Runtime/ProfileShellService.cs:75,89-93`；`RunOnceService.cs:64`；签名 `BuildEnvironment(RuntimeProfile profile, string? gameKey = null)`。
 - 影响：`PrefixPath` 为空的方案（`RuntimeProfileStore.cs:306-312` 默认即空）→ Shell 里 `$WINEPREFIX` 为空，wine 用 `~/.wine`；用户在「同一环境」跑的补丁/安装器全落进全局前缀，游戏随后在 `prefixes/<name>` 看不到。
 - 建议：调用点传 gameKey（或 `Assemble(profile, gameKey, EnvironmentResolver.EffectivePrefixPath(profile))`）。
 
-**R51　兜底选出的「第一个可用运行器」被写回 `RunnerId`**
+**R51　兜底选出的「第一个可用运行器」被写回 `RunnerId`（🛠 已修复，D116 批 F）**
 - 位置：`EnvironmentResolver.cs:89-94`（`FirstOrDefault(x => x.Usable == true) ?? FirstOrDefault()`）+ 保存路径。
 - 影响：外盘 Proton 未挂载、组件扫描不完整时，用户下次保存任意设置就被换成别的 wine，界面无提示（只有 Debug/Info 日志）。
 - 建议：只有「id 在表里但文件缺失/不可用」才改写；不在表里保留原值并提示「未挂载/未扫描到」。
 
-**R52　`profile.Id` 衍生的回退前缀路径没做越界校验**
+**R52　`profile.Id` 衍生的回退前缀路径没做越界校验（🛠 已修复，D116 批 F）**
 - 位置：`EnvironmentResolver.cs:108-113`（`Path.Combine(root, string.IsNullOrWhiteSpace(profile?.Id) ? "default" : profile!.Id)`，无 `StartsWith` 复核；name 分支有）。
 - 影响：手改 `<id>.json` 的 `"Id":"../x"`（或绝对路径 Id 丢弃 root）→ 前缀落到 PrefixRoot 外，`Managed=false`，图形层可被装进任意目录，`--prefix-remove` 也删不到。
 - 建议：回退分支同样 `Sanitize` + 越界复核，非法 Id 用 `"default"`。
 
-**R53　`PrefixPath` 只展开 `~/`、`$HOME/`、`${HOME}/`，裸 `$HOME` 与相对路径不绝对化**
+**R53　`PrefixPath` 只展开 `~/`、`$HOME/`、`${HOME}/`，裸 `$HOME` 与相对路径不绝对化（🛠 已修复，D116 批 F）**
 - 位置：`Features/Runtime/PrefixPath.cs:25-42`。
 - 影响：`$HOME` 得到字面量 → 在**当前工作目录**建名为 `$HOME` 的前缀；`"myprefix"` 这种相对路径随 CWD 漂移（wine 记绝对路径，换个 CWD 启动就是另一个前缀）。
 - 建议：展开后 `Path.IsPathRooted` 校验，否则 `GetFullPath` 并提示；补齐裸 `$HOME`。
 
-**R54　`wow64` 被归一成 `win32`，方向反了**
+**R54　`wow64` 被归一成 `win32`，方向反了（🛠 已修复，D116 批 F）**
 - 位置：`Features/Runtime/PeArchitecture.cs:118`（`return value is "win32" or "wow64" ? "win32" : "win64";`），该值在 `PrefixManager.cs:424` 作为 `WINEARCH` 交给 wineboot。
 - 影响：配方写 `PrefixArch=wow64`（语义 = 64 位前缀 + WoW64）→ 实际建出 32 位前缀 → 64 位游戏被预检判 `BAD EXE FORMAT`（`:133`）挡住；wine 本身也不接受 `wow64` 这个值。
 - 建议：`"wow64" => "win64"`，或明确拒绝并提示只支持 `win32`/`win64`。
 
-**R55　wineboot 不套 Proton 运行时环境，与启动游戏时不一致**
+**R55　wineboot 不套 Proton 运行时环境，与启动游戏时不一致（🛠 已修复，D116 批 F）**
 - 位置：`PrefixManager.cs:393-449`（只设 `WINEPREFIX`/`WINEDEBUG`/`WINEARCH`/`WINEDLLOVERRIDES`）；对照 `RuntimeEnvironment.cs:75-131` 已有 `ProtonEnvironment`。
 - 影响：建前缀时子进程只拿到 4 个变量，没有 `WINEDLLPATH`/`LD_LIBRARY_PATH`/`PROTONPATH`。2026-11-24 实测（本机 Proton `cachyos-11.0`，`/usr/share/steam/compatibilitytools.d/proton-cachyos-slr`）：用与代码完全相同的变量跑 `wine wineboot -u`，11.5 s 建成前缀（650 MB）→ 「建前缀失败/超时」不成立；实际差异是 wineboot 与游戏启动时环境不一致（缺 Proton 自带 dll 的搜索路径），后续在 winecfg / 安装器里跑的组件可能与游戏里选择不同 dll，属一致性缺陷。
 - 建议：wineboot 复用 `ProtonEnvironment(wine)` + 配方 env（至少 PATH / LD_LIBRARY_PATH / WINEDLLPATH）。
 
-**R56　`GraphicsInstaller` 无事务、无回滚、完整性判定依赖 `Sizes`**
+**R56　`GraphicsInstaller` 无事务、无回滚、完整性判定依赖 `Sizes`（🛠 已修复，D116 批 F）**
 - 位置：`GraphicsInstaller.cs:160-199`（先覆盖 dll、再删旧残留、最后写记录）、`:155,208-218`（`.bak` 只写不读，全仓无读取方）、`:146-153`（`Sizes` 缺失即视为通过）、`:387-391`（组件目录不存在时 `EnumerateFiles` 直接抛，批量循环中断）。
 - 影响：copy 失败 → 新旧 dll 混搭（BAD EXE FORMAT）而界面仍显示已安装；装机失败/装错版本无回滚入口；被补丁覆盖成 0 字节的 dll 判「已安装」；组件目录被删时前一个装好、后面静默跳过。
 - 建议：先写 `<prefix>/.lunarward/staging` 再整体替换，记录写成功后再删 stale；实现 `RestoreLastKnownGraphics(prefix)` 或在卸载/重装入口暴露 `.bak`；`Sizes` 缺失时补算回写（最低要求「存在且长度 > 0」）；`CollectFiles` 先 `Directory.Exists`。

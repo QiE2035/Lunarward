@@ -37,7 +37,17 @@ public static class PrefixPath
         string combined = Path.GetFullPath(Path.Combine(fullRoot, segment));
         if (!combined.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
         {
-            combined = Path.Combine(fullRoot, string.IsNullOrWhiteSpace(id) ? "default" : id!);
+            // R52：Id 来自 JSON，同样可能被手改成 "../x"；兜底也要 Sanitize + 越界复核。
+            string safeId = ComponentNaming.Sanitize(id ?? "").Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(safeId) || safeId == "default" && string.IsNullOrWhiteSpace(id))
+            {
+                safeId = "default";
+            }
+            combined = Path.GetFullPath(Path.Combine(fullRoot, safeId));
+            if (!combined.StartsWith(fullRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                combined = Path.Combine(fullRoot, "default");
+            }
         }
         return combined;
     }
@@ -56,6 +66,11 @@ public static class PrefixPath
         {
             return Normalize(home);
         }
+        // R53：裸 $HOME / ${HOME} 之前不展开，会在当前工作目录建出一个名叫 "$HOME" 的前缀。
+        if (expanded is "$HOME" or "${HOME}")
+        {
+            return Normalize(home);
+        }
         if (expanded.StartsWith("~/", StringComparison.Ordinal))
         {
             expanded = Path.Combine(home, expanded[2..]);
@@ -69,7 +84,20 @@ public static class PrefixPath
             expanded = Path.Combine(home, expanded[8..]);
         }
         expanded = Environment.ExpandEnvironmentVariables(expanded);
-        return Normalize(expanded);
+        string normalized = Normalize(expanded);
+        // R53：相对路径会随 CWD 漂移（wine 记绝对路径，换个 CWD 启动就是另一个前缀）：一律立刻绝对化。
+        if (normalized.Length > 0 && !Path.IsPathRooted(normalized))
+        {
+            try
+            {
+                normalized = Normalize(Path.GetFullPath(normalized));
+            }
+            catch
+            {
+                // 含非法字符时保留原样，交给调用方报错。
+            }
+        }
+        return normalized;
     }
 
 

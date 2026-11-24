@@ -52,7 +52,7 @@ public class PeArchitectureTests
     [InlineData("win64", "win64")]
     [InlineData("WIN64", "win64")]
     [InlineData("win32", "win32")]
-    [InlineData("wow64", "win32")]
+    [InlineData("wow64", "win64")]
     [InlineData("随便写的", "win64")]
     public void NormalizePrefixArch_FollowsProfileRules(string? input, string expected)
     {
