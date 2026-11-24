@@ -26,7 +26,22 @@ namespace Starward.Features.Background;
 
 public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 {
-    private static readonly int _videoFrameIntervalMs = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_FPS"), out int fps) && fps > 0 ? Math.Max(1000 / fps, 1) : 1000 / 30;
+    // 合成间隔（毫秒）。0 = 还没测出来；以前这里写死 1000/30，等于替视频决定帧率——
+    // 24 fps 的素材被当成「帧来得慢、不用限」，60 fps 的被砍掉一半（用户 2026-11-24 指出）。
+    // 现在的口径：量视频自己的帧到达节奏（VLC 按源帧率送帧），用实测间隔限合成。
+    // LUNARWARD_VIDEO_FPS 仍可显式覆盖。
+    private static readonly int _videoFrameIntervalOverride = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_FPS"), out int fps) && fps > 0 ? Math.Max(1000 / fps, 1) : 0;
+
+    private long _videoFrameIntervalMs;
+
+    /// <summary>最近 16 帧的到达时刻（TickCount64），用来量源帧率。</summary>
+    private readonly long[] _videoFrameTicks = new long[16];
+
+    private int _videoFrameTickCount;
+
+    private int _videoFrameTickNext;
+
+    private bool _videoFrameRateLogged;
 
     private long _lastVideoInvalidate;
 
@@ -661,6 +676,60 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 
 
     /// <summary>
+    /// 量视频自己的帧节奏，返回「两次合成之间至少隔多少毫秒」。
+    /// 前 8 帧的间隔还不代表稳态（起播、seek 之后会有跳变），所以样本不够时返回 0（不限）；
+    /// 取最近 16 帧间隔的均值再打 8 折，既不会因为抖动把正常帧丢掉，又能在 UI 忙时合并重绘。
+    /// 上限 240 fps / 下限 10 fps：异常值（暂停后恢复的第一帧、掉帧）不至于把间隔拉爆。
+    /// </summary>
+    private long MeasureFrameInterval(long now)
+    {
+        _videoFrameTicks[_videoFrameTickNext] = now;
+        _videoFrameTickNext = (_videoFrameTickNext + 1) % _videoFrameTicks.Length;
+        if (_videoFrameTickCount < _videoFrameTicks.Length)
+        {
+            _videoFrameTickCount++;
+        }
+        if (_videoFrameTickCount < 8)
+        {
+            return 0;
+        }
+        long first = long.MaxValue;
+        long last = long.MinValue;
+        int deltas = 0;
+        long sum = 0;
+        for (int i = 0; i < _videoFrameTickCount; i++)
+        {
+            long tick = _videoFrameTicks[i];
+            if (tick == 0)
+            {
+                continue;
+            }
+            if (tick < first)
+            {
+                first = tick;
+            }
+            if (tick > last)
+            {
+                last = tick;
+            }
+            deltas++;
+        }
+        deltas -= 1;
+        if (deltas < 7 || last <= first)
+        {
+            return 0;
+        }
+        sum = last - first;
+        double average = (double)sum / deltas;
+        if (average < 1000.0 / 240 || average > 1000.0 / 10)
+        {
+            return 0;
+        }
+        return Math.Max((long)(average * 0.8), 1);
+    }
+
+
+    /// <summary>
     /// libVLC 的 vmem 回调线程上执行：拷进 back 缓冲、交换、再按目标帧率**合并**地请求一次重绘。
     /// 合并的意思是「UI 队列里最多挂一个 Invalidate」——UI 线程忙的时候直接丢帧，
     /// 而不是把任务越堆越多（堆积的表现就是画面停住、点东西几秒后才响应）。
@@ -701,6 +770,20 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
                 return;
             }
             long now = Environment.TickCount64;
+            if (_videoFrameIntervalOverride > 0)
+            {
+                _videoFrameIntervalMs = _videoFrameIntervalOverride;
+            }
+            else
+            {
+                _videoFrameIntervalMs = MeasureFrameInterval(now);
+                if (_videoFrameIntervalMs > 0 && !_videoFrameRateLogged)
+                {
+                    _videoFrameRateLogged = true;
+                    Serilog.Log.Information("video background: measured {period:F1} ms/frame, composite interval {interval} ms",
+                        _videoFrameIntervalMs / 0.8, _videoFrameIntervalMs);
+                }
+            }
             if (now - _lastVideoInvalidate < _videoFrameIntervalMs)
             {
                 return;
