@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-24 —— 评估 NV12 直出与零拷贝：两条都不做（D127）
+
+- NV12 直出（libvlc 给 YUV、我们转 BGRA）在隔离 POC 里省一半解码 CPU，但接进应用后更贵：VLC 的 RV32 转换是 SIMD 汇编，我们的是标量 C#，Release 同机实测 RV32 70% → NV12 92%。代码已回退，不留开关（D127）。
+- 顺带查出 libvlc 的 NV12 会写超 `1.5 × W × H`（1080p 多 6 行），按理论大小分配会稳定段错误，记进 L-177。
+- 零拷贝 POC：SkiaSharp 用 `GRContext.CreateGl` + `GRBackendTexture` + `SKImage.FromTexture` 能直接包外部 GL 纹理（`IsTextureBacked=True`），NVIDIA 与 Mesa 两套 EGL 都跑通；但 libvlc 3 的 `vmem` 没有 dmabuf 出口、Uno 渲染循环也没有注入外部图像的入口，端到端仍要回读，所以不做（L-178 / D127）。
+
 ## 2026-11-24 —— 背景视频的帧率改成「量出来的」，去掉写死的 30 fps（D126）
 
 - 以前没设 `LUNARWARD_VIDEO_FPS` 就按 `1000 / 30` 限帧，等于替视频决定帧率：24 fps 素材被当成「帧来得慢、不用限」，60 fps 素材被砍掉一半。用户指出这违背「视频播放要和视频本身一致」。

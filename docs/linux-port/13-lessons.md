@@ -1550,3 +1550,19 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 - 现象：想按视频自己的帧率限合成（而不是写死 30 fps），三条路都不通：①`MediaPlayer.Fps` 在 vmem 输出下**恒为 0**（3.10.2 实测，起播 5 秒后仍是 0）；②`Media.Parse(ParseLocal)` 后 `media.Tracks` 有视频轨，但 VP9/WebM 的 `VideoTrack.FrameRateNum / FrameRateDen` **都是 0**（容器里写的是时间基，不是帧率）；③`ffprobe` 能拿到 30 fps，但要 fork 外部进程，UI 线程不许（硬规则 10）。
 - 修法：在 vmem 回调里量帧到达时刻（`Environment.TickCount64`，环形缓冲 16 帧），样本 ≥8 帧后取「跨度 / (n-1)」当每帧周期，打 8 折当合成间隔；异常值用 10–240 fps 上下限挡掉。实测一条标称 30 fps 的 VP9 壁纸量出 `30.0 ms/帧`（libvlc 的 vmem 送帧粒度约 1 ms，比标称 33.3 ms 略快），按实测走反而更贴合真实送帧节奏。
 - 通用规则：**拿不到可靠的元数据时，量实际行为，别退回硬编码常量**——常量在 24 fps 与 60 fps 素材上都会错（一个被无谓限制，一个被砍半）。
+
+### L-177 · 视频壁纸：NV12 直出比 RV32 更贵，且缓冲要留填充行
+
+- 现象：想省掉 libvlc 的 YUV→RV32 转换，改成让它直出 NV12、我们转 BGRA。隔离 POC 里确实赢（RV32 18.4% 核 → NV12 6.1%），接进应用后反而输（Release 同机：RV32 70% → NV12 92%）。
+- 原因：POC 只量「解码 + 拷进缓冲」，没量「我们自己的转换」。VLC 的 RV32 转换是 SIMD 汇编，我们的 NV12→BGRA 是标量 C#（1080p 一帧约 7–10 ms，单核），省下的不够付出去的。
+- 第二个坑：按 `1.5 × W × H` 分配 NV12 缓冲会**稳定段错误**。libvlc 的 NV12 输出会在 UV 平面后多写几行（1080p 实测写到 3,121,920 字节，比 3,110,400 多 11,520 = 6 行）。给 32 行填充余量后立刻正常。POC 里没崩只是因为裸控制台没有别的线程在冲那块内存。
+- 还有个只在应用里出现的坑：`Lock` 回调里用 `Parallel.For` 铺开转换会稳定崩（改成串行就好），而 `Display` 回调里做同样的行并行没问题——vmem 回调线程的栈空间/信号状态不保证，别在里面起并行任务。
+- 教训：**POC 的收益必须把「我们自己那一半」算进去**，否则测的是「换了个更便宜的搬运工」，不是「总成本更低」。
+
+### L-178 · SkiaSharp 能把外部 GL 纹理包成 SKImage（零拷贝的 Skia 侧是可行的）
+
+- 结论：只要线程上有当前 GL 上下文，`GRGlInterface.CreateOpenGl(getProcAddress)` → `GRContext.CreateGl` → `new GRBackendTexture(w, h, mipmapped, new GRGlTextureInfo{ Target, Id, Format })` → `SKImage.FromTexture(gr, btex, GRSurfaceOrigin.TopLeft, SKColorType.Bgra8888, SKAlphaType.Premul)` 就能得到一个 `IsTextureBacked == true` 的图像，直接 `canvas.DrawImage` 画在 GPU 表面上，全程不经 CPU。
+- 上下文怎么来（无窗口场景）：`eglGetPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA, 0, 0)` → `eglInitialize` → `eglBindAPI(EGL_OPENGL_API)` → `eglCreateContext(dpy, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, …)` → `eglMakeCurrent(dpy, 0, 0, ctx)`。**不要**先 `eglChooseConfig`：surfaceless 平台上一个窗口配置也不匹配时它会返回 false 但 `eglGetError() == EGL_SUCCESS`，看起来像「成功但没配置」，走 `EGL_NO_CONFIG_KHR` 才干净。
+- `GRGlGetProcedureAddressDelegate` 只有一个 `string name` 参数，返回 `IntPtr`；先试 `eglGetProcAddress`，返回 0 再用 `NativeLibrary.TryGetExport(libGL, name, out addr)` 兜 GL 1.1 的核心函数（那些不受 EGL 管）。
+- 实测环境：NVIDIA 硬件 EGL（`GRContext.Backend=OpenGL`、`MaxTextureSize=32768`）与 Mesa 软件 EGL（16384）都通过，回读像素与上传值逐值吻合。
+- 边界：这条链只解决「纹理 → Skia」。libvlc 3 的 `vmem` 只给 CPU 内存、Uno 渲染循环没有注入外部图像的公开入口，端到端零拷贝仍不成立（见 D127）。
