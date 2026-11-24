@@ -6,7 +6,16 @@
 
 - 最后更新：2026-11-20（文档整理：用例总数修正为 230 = 218 `T-*` + 12 `RG-*`；D87 运行器命名 12 例、D88 `lint-pkgbuild.sh` 静态检查、D89 SDK 下限防回归）
 - 对应代码：`src/Lunarward`（`main`），单头 Linux，不改 `src/Starward/`
-- 现状（2026-11-20 实测）：L1 单测 **264 条**；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **40 条** + `cli-extra.sh` **32 条** + `chunk-smoke.sh` **6 条** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
+- 现状（2026-11-24 实测）：L1 单测 **379 条**；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **40 条** + `cli-extra.sh` **32 条** + `chunk-smoke.sh` **6 条** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
+
+### 覆盖率口径（D122，2026-11-24）
+
+`scripts/test/coverage.sh` 的门限是**行覆盖率 85%**（CI 里 `.github/workflows/linux.yml` 调 `coverage.sh 85`）。这个数的口径必须写清楚，否则很容易误读：
+
+- 分母 = **被链接进 `tests/Lunarward.Tests` 的源码文件**（当前 24 个文件、3008 行）。没被链接的主程序代码（窗口、页面、服务层，6000+ 行）**不进分母**——覆盖率只对「能单测的那部分」有意义。
+- 测试工程用「链接源码」编译（D37），所以 `IncludeTestAssembly=true` 必须开；但它会把 **测试文件自身**也算进统计（历史上有 26 个测试文件几乎 100% 覆盖，占分母三分之一）。`tests/coverlet.runsettings` 因此用 `ExcludeByFile` 排除 `tests/**/*.cs`，**口径只留 `src/Lunarward/`**。
+- 结论：`85%` 指的是「链接集里 src 的行覆盖」，不含测试代码。2026-11-24 修正口径前，报告里的 82%–88% 都掺了测试代码，实际 src 只有 81.58%（D122）；修正后实测 85.30%。
+- 改这个口径要一并改本节与 D122，不要只改阈值。
 
 ---
 

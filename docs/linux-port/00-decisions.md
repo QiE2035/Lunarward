@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D121）
+- **状态**：生效中（D0–D122）
 - **最后更新**：2026-11-24
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -2000,3 +2000,27 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 **验证**：`dotnet build Starward.slnx -c Debug` 与 `-c Release` 均 0 错误；`dotnet test Starward.slnx` **305 通过**（新增 `MergeEnvironment_DropsInvalidKeysAndCanonicalizesKnownOnes`、`BuildArgv_SplitsGameAndRecipeArgsSeparately`、`Sanitize_KeepsUnicodeLetters`、`Sanitize_TruncatesLongNamesWithHash`、`TryDetectPrefixArch_ReadsArchBeyondFirst32Lines`、`TryDetectPrefixArch_StopsAtFirstSection`、`OutputCaptureTests` 的 7 条断言）；`lint-ui-thread.sh` 全 PASS；`cli-smoke` 40/0/1；`cli-extra` 32/0。
 
 **确认方式**：用户 m07141「先提交，然后全部修复，随进度提交」；m00600「后续记得随时更新进度」。
+
+### D122 · CI 覆盖率门限口径修正与真实用例补齐（2026-11-24）
+
+**背景**：`e18cf39`（D121 批 K）推送后 CI 只有 **Coverage (L1)** 失败：`行覆盖 82.03%（3942/4805）` 低于 85%。回头用 git worktree 逐个提交跑 `coverage.sh`，发现从 `83ebeb1`（D116 批 F）起就一直在 84.5%–84.8%，门限是勉强过的；批 K 让它彻底掉下去。查报告时又发现更根本的问题：覆盖率口径把**测试代码自己**算进了分母。
+
+**决定**
+
+1. **口径修正**：`tests/coverlet.runsettings` 加 `<ExcludeByFile>**/tests/Lunarward.Tests/*.cs</ExcludeByFile>`，报告只统计 `src/Lunarward/`。
+   - 为什么必须改：测试工程用「链接源码」编译（D37），`IncludeTestAssembly=true` 不得不开；但这样一来 26 个测试文件（4312/4348 = 99.17% 覆盖）也进了分母，占约三分之一。历史报告里的 82%–88% 全是掺水数——真实 src 只有 **81.58%**（2454/3008），加测试会同时抬高分母里最容易被覆盖的那部分，等于自己给自己刷分。
+2. **门限数值不动**：`coverage.sh` 与 CI 仍是 `85`。修正口径后靠补**真实用例**达标（实测 85.30%），不用「调低阈值」掩盖问题。
+3. **新增用例**（305 → **379** 条）：`ComponentSourceFetchTests`（24 条：JSON 解析、缓存命中/淘汰、ETag 条件请求、5xx 重试一次、限流头、网络异常、ProbeAsync/ProbeAllAsync、源覆盖写盘）、`RuntimeStorageTests`（18 条：输出捕获落盘/过滤/Attach、启动历史往返/压缩/坏文件、InvariantCulture 时间与时长）、`RunnerNamingTests`（17 条：系统目录判定、`/opt`/`~/.local/share`/`/run/media`/`/media`/`/mnt`/家目录的来源段、`WithOrigin`）、`EnhancementsTests`（+6 条：`HudText`、`RequiredBinaries`、MangoHud 层探测、`IsExecutableFile`、`Describe` 各分支）、`GameVersionMarkerTests`（+2 条）、`PrefixPathTests`（+2 条）。
+4. **顺带修的真 bug**：`ComponentSources.ListAssetsAsync` 从没把响应头里的 ETag 写进资产缓存（写的是进函数时的 `cachedEtag`，首次必为 null），于是 `If-None-Match` 永远发不出去、304 分支是死代码。改为在响应处取 `response.Headers.ETag` 并入缓存。
+5. **口径写进文档**：`19-test-plan.md` 新增「覆盖率口径（D122）」小节，写明分母 = 链接集、不含 `tests/`、不覆盖未链接的主程序代码；改口径要同时改该节与 D122。
+
+**代价边界**
+
+- 分母只含 24 个链接进测试工程的文件（3008 行），主程序里没链接的 UI/服务代码（6000+ 行）不在统计内——覆盖率因此**不代表全仓**，只代表「可单测的那部分」。
+- 排除测试文件后历史数字不可直接比较（88.97% → 85.30% 是口径变化，不是覆盖退化）。
+- MangoHud 层探测会扫系统目录，测试机装了 MangoHud 时「缺层」分支断言不到，相关用例按实际探测结果分支（`HasMangoHudLayer` 的正向判定稳定）。
+- 补的这些用例大量走真实临时目录（`XDG_DATA_HOME` / `XDG_CONFIG_HOME` / `/tmp`），跑得比纯逻辑用例慢，全量从 ~1.2 s 涨到 ~1.5 s。
+
+**验证**：`bash scripts/test/coverage.sh 85` → `行覆盖 85.30%（2566/3008）  分支覆盖 78.84%  类 52` PASS；`dotnet test Starward.slnx` **379 通过**；`lint-ui-thread.sh` 全 PASS。
+
+**确认方式**：用户 m00928「先等一下，CI失败了，看看怎么回事」；随后在选项里选「排除测试文件 + 再补真实用例到 85%」。

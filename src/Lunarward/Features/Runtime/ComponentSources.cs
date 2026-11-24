@@ -396,6 +396,7 @@ public static class ComponentSources
         string api = $"https://api.github.com/repos/{source.Owner}/{source.Repo}/releases?per_page={releases}";
         string cacheKey = $"{source.Owner}/{source.Repo}|{releases}|{source.AssetPattern}|{source.Kind}";
         string? cachedEtag = null;
+        string? responseEtag = null;
         if (AssetCache.TryGetValue(cacheKey, out var cached))
         {
             if (DateTimeOffset.UtcNow - cached.At < AssetCacheTtl)
@@ -431,6 +432,9 @@ public static class ComponentSources
                 AssetCache[cacheKey] = (DateTimeOffset.UtcNow, cachedEtag, notModified.Items);
                 return notModified.Items;
             }
+            // D112 的本意是「缓存 + ETag」：以前这里存的还是进函数时的 cachedEtag（首次必为 null），
+            // 响应头里的 ETag 从来没被记下来，于是 If-None-Match 永远发不出去、304 分支是死代码。
+            responseEtag = response.Headers.ETag?.ToString() ?? cachedEtag;
             if (!response.IsSuccessStatusCode)
             {
                 int code = (int)response.StatusCode;
@@ -525,7 +529,7 @@ public static class ComponentSources
             throw new ComponentSourceException($"列版本失败：{ex.Message}");
         }
         TrimAssetCache();
-        AssetCache[cacheKey] = (DateTimeOffset.UtcNow, cachedEtag, result);
+        AssetCache[cacheKey] = (DateTimeOffset.UtcNow, responseEtag ?? cachedEtag, result);
         return result;
     }
 

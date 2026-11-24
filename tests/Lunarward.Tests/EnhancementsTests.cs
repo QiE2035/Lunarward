@@ -299,4 +299,166 @@ public class EnhancementsTests
             Assert.Contains(" -H ", preset, StringComparison.Ordinal);
         }
     }
+
+    // ---- R101 / R124 补充：MangoHud 走 Vulkan 层判定、可执行位、缺什么的口径 ----
+
+    [Theory]
+    [InlineData("dxvk", "DXVK HUD")]
+    [InlineData("d3d", "DXVK HUD")]
+    [InlineData("mangohud", "MangoHud")]
+    [InlineData("mango", "MangoHud")]
+    [InlineData("", "关闭")]
+    [InlineData(null, "关闭")]
+    public void HudText_NamesPreset(string? hud, string expected)
+    {
+        Assert.Equal(expected, Enhancements.HudText(hud));
+    }
+
+
+    [Fact]
+    public void RequiredBinaries_NeverAsksForMangoHudCommand()
+    {
+        Assert.Empty(Enhancements.RequiredBinaries(null));
+        Assert.Equal(new[] { "gamescope" }, Enhancements.RequiredBinaries(MakeProfile(x => x.GameScope = true)));
+        Assert.Equal(new[] { "gamemoderun" }, Enhancements.RequiredBinaries(MakeProfile(x => x.GameMode = true)));
+        Assert.DoesNotContain("mangohud", Enhancements.RequiredBinaries(MakeProfile(x => x.Hud = Enhancements.HudMangoHud)));
+    }
+
+
+    [Fact]
+    public void HasMangoHudLayer_DetectsLayerManifest()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "lw-layer-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            // 只看「能不能在额外的层目录里认出来」：本机装了 MangoHud 时会扫到系统目录，
+            // 所以这里不断言「空目录 = false」（那取决于跑测试的机器）。
+            File.WriteAllText(Path.Combine(dir, "MangoHud.json"), "{}");
+            Assert.True(Enhancements.HasMangoHudLayer(dir));
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+
+    [Fact]
+    public void MissingRequirements_MangoHudWithoutLayer_AndUnderGameScopeSkipsIt()
+    {
+        string emptyDir = Path.Combine(Path.GetTempPath(), "lw-empty-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(emptyDir);
+        try
+        {
+            // 本机装了 MangoHud 层时不会被点名，这两种情况都合法，断言跟着实际探测走。
+            bool hasLayer = Enhancements.HasMangoHudLayer(emptyDir);
+            IReadOnlyList<string> missing = Enhancements.MissingRequirements(MakeProfile(x => x.Hud = Enhancements.HudMangoHud), emptyDir);
+            if (hasLayer)
+            {
+                Assert.DoesNotContain("MangoHud（Vulkan 层）", missing);
+            }
+            else
+            {
+                Assert.Contains("MangoHud（Vulkan 层）", missing);
+            }
+
+            IReadOnlyList<string> withScope = Enhancements.MissingRequirements(
+                MakeProfile(x =>
+                {
+                    x.Hud = Enhancements.HudMangoHud;
+                    x.GameScope = true;
+                }),
+                emptyDir);
+            Assert.DoesNotContain("MangoHud（Vulkan 层）", withScope);
+            Assert.Contains("gamescope", withScope);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(emptyDir, recursive: true);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+
+    [Fact]
+    public void IsExecutableFile_ChecksUnixModeBits()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "lw-exec-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string plain = Path.Combine(dir, "plain");
+            File.WriteAllText(plain, "#!/bin/sh\n");
+            File.SetUnixFileMode(plain, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            Assert.False(Enhancements.IsExecutableFile(plain));
+
+            File.SetUnixFileMode(plain, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            Assert.True(Enhancements.IsExecutableFile(plain));
+
+            Assert.False(Enhancements.IsExecutableFile(Path.Combine(dir, "missing")));
+            Assert.False(Enhancements.IsExecutableFile(null));
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+
+    [Fact]
+    public void Describe_CoversEachEnhancementBranch()
+    {
+        Assert.Equal("没有开启任何增强", Enhancements.Describe(null));
+
+        string emptyDir = Path.Combine(Path.GetTempPath(), "lw-none-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(emptyDir);
+        try
+        {
+            string dxvk = Enhancements.Describe(MakeProfile(x => x.Hud = Enhancements.HudDxvk), emptyDir);
+            Assert.StartsWith("DXVK_HUD=", dxvk);
+
+            string mangoUnderScope = Enhancements.Describe(
+                MakeProfile(x =>
+                {
+                    x.Hud = Enhancements.HudMangoHud;
+                    x.GameScope = true;
+                }),
+                emptyDir);
+            Assert.Contains("MangoHud（gamescope 下不额外注入）", mangoUnderScope);
+            // 空参数按默认 -f 展示
+            Assert.Contains("gamescope -f", mangoUnderScope);
+
+            string mode = Enhancements.Describe(MakeProfile(x => x.GameMode = true), emptyDir);
+            Assert.Contains("gamemoderun", mode);
+            Assert.Contains("缺少程序：gamemoderun", mode);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(emptyDir, recursive: true);
+            }
+            catch
+            {
+            }
+        }
+    }
 }

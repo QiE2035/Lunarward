@@ -61,7 +61,7 @@ Lunarward 是 Uno/Skia 应用，**不发布 AT-SPI 树**：`cu_a11y_find` / `cu_
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 305 条）
+# 单元测试（当前 379 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）
@@ -137,7 +137,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 | L2 | CLI + 夹具 | `scripts/test/cli-smoke.sh`、`cli-extra.sh`、`chunk-smoke.sh`、`lint-ui-thread.sh`、`lint-cli-help.sh`、`lint-pkgbuild.sh`、`perf.sh` | 子命令、预检、安装管线、离线 Sophon、静态规则、启动卡顿 |
 | L3 | 真机 GUI | 人工 + `cu_*` 工具 | 排版、交互、性能、视觉 |
 
-覆盖率现实：测试工程**链接源码**而非引用程序集，`coverlet` 测不到主程序（line-rate 0）。要覆盖率得先改 `ProjectReference` + `InternalsVisibleTo`。
+覆盖率现实：测试工程**链接源码**而非引用程序集，所以 `tests/coverlet.runsettings` 必须开 `IncludeTestAssembly`（否则 line-rate 恒 0），并用 `ExcludeByFile` 排除测试文件自身——**分母 = 链接进测试工程的 src 文件**，不含 `tests/`、也不含没链接的主程序 UI/服务代码（D122）。门限 85%（`scripts/test/coverage.sh 85`），2026-11-24 实测 85.30%。覆盖率只代表「可单测的那部分」。
 
 **GUI 自动化约定**：能用 `cu_*`（dsh-cu）就不要 `xdotool`——`cu_batch` 一次调用完成「激活→点击→等待→截图」，`cu_screenshot` 取图，`cu_windows waitFor` 等窗口。`xdotool` 只保留「毫秒级轮询窗口出现」。跑 GUI 用例前先看 `cu_status.session.locked`；**跑完立刻 `pkill -x Lunarward`**，别让测试实例留在用户桌面上。
 
@@ -148,7 +148,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 活跃文档**共 14 份**（2026-11-21 增补 `25`/`26`/`27`，2026-11-23 增补 `28`/`29`）：
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D121 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D122 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
 - `13-lessons.md` — L-01…L-171 坑与复现方法（唯一）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`scripts/list-deviations.sh` 生成；逐点以 `25` 为准）

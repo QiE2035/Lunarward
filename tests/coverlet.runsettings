@@ -10,6 +10,10 @@
           <Format>cobertura</Format>
           <IncludeTestAssembly>true</IncludeTestAssembly>
           <SkipAutoProps>true</SkipAutoProps>
+          <!-- 测试工程与被测源码在同一个程序集里（链接源码，D37），所以上面必须开 IncludeTestAssembly。
+               但这会把测试文件自己也统计进来：它们几乎 100% 覆盖，会把分母整体拉高，
+               等于用测试代码给自己刷分。这里把 tests/ 下的文件排除，口径只留 src/Lunarward/。 -->
+          <ExcludeByFile>**/tests/Lunarward.Tests/*.cs</ExcludeByFile>
           <ExcludeByAttribute>GeneratedCodeAttribute</ExcludeByAttribute>
           <Exclude>[xunit.*]*,[Microsoft.*]*,[Serilog]*</Exclude>
         </Configuration>

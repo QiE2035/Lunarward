@@ -46,4 +46,28 @@ public class PrefixPathTests
     {
         Assert.Equal("/a/b", PrefixPath.Normalize(PrefixPath.Normalize("/a/b/")));
     }
+
+    [Fact]
+    public void DefaultPrefixDirectory_EscapesRoot_WhenSlugIsTraversal()
+    {
+        // R52：Id/slug 来自 JSON，可能被手改成 "../x"，结果必须仍落在 root 内。
+        string root = "/tmp/lw-prefixes";
+        Assert.StartsWith(root + "/", PrefixPath.DefaultPrefixDirectory(root, "../escape", null, "abc"));
+        Assert.StartsWith(root + "/", PrefixPath.DefaultPrefixDirectory(root, null, "../../x", "../z"));
+        // 名字含非法字符时退回 Id，而不是叫 default
+        Assert.Equal("/tmp/lw-prefixes/abc", PrefixPath.DefaultPrefixDirectory(root, null, "///", "abc"));
+    }
+
+
+    [Fact]
+    public void Expand_BareHomeVariables_And_RelativePaths()
+    {
+        string home = "/home/someone";
+        Assert.Equal(home, PrefixPath.Expand("$HOME", home));
+        Assert.Equal(home, PrefixPath.Expand("${HOME}", home));
+        Assert.Equal($"{home}/games/p", PrefixPath.Expand("${HOME}/games/p", home));
+        // 相对路径立刻绝对化，不跟着 CWD 漂移
+        string? relative = PrefixPath.Expand("prefix-here", home);
+        Assert.True(System.IO.Path.IsPathRooted(relative));
+    }
 }
