@@ -1,6 +1,6 @@
 // Lunarward：命令行开关的唯一声明表（D79）。
 //
-// 以前 `--help` 是一段手写字符串，和 `Program.Linux.cs` 里 46 个 `args[0] is "--x"` 分支
+// 以前 `--help` 是一段手写字符串，和 `Program.Linux.cs` 里 48 个 `args[0] is "--x"` 分支
 // 各写一遍：加开关忘了写帮助（这轮就发生过：`--profile-ensure` 事后补的），
 // 或者描述写成旧的（`--preflight` 一直写着「六项」）。
 //
@@ -109,7 +109,7 @@ internal static class CliSpec
         new("--update-check", "", "查询 AUR 版本", GroupMisc),
         new("--url-plan", "<url>", "展开 URL 参数（不启动）", GroupMisc),
         new("--webkit-login", "--url <页> --output <文件>", "登录窗（本程序 + WebKitGTK 6.0，独立进程）", GroupMisc),
-        new("--selftest-ui", "", "进程内 UI 自检（10 条断言）", GroupMisc),
+        new("--selftest-ui", "", "进程内 UI 自检（11 条断言）", GroupMisc),
 
         // 开发 / 截图用：直接决定「开窗后落到哪个状态」，由 Features/App/DevSwitches.cs 读。
         new("--page", "<页面>", "启动后直接跳到某个主页", GroupGui),

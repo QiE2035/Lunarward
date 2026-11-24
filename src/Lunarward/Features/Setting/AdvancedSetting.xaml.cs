@@ -237,7 +237,8 @@ public sealed partial class AdvancedSetting : PageBase
     {
         var text = new TextBlock
         {
-            FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas, monospace"),
+            // 不指定族名：Windows 专属族名（Cascadia Mono / Consolas）在 Linux 上不保证命中，
+            // 而逗号分隔的多族名在 Uno 上是否被拆开解析没有定论（L-171）；等宽只是视觉诉求，交给主题默认字体。
             FontSize = 12,
             IsTextSelectionEnabled = true,
             TextWrapping = TextWrapping.NoWrap,

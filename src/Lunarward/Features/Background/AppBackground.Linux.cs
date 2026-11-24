@@ -1,4 +1,4 @@
-﻿// Lunarward：应用背景（壁纸）。
+// Lunarward：应用背景（壁纸）。
 //
 // 上游用 Win2D + MediaPlayer 播放视频壁纸、用 CanvasBitmap 做缩放；Linux 侧 M2 先做静态图：
 //   - 图片：BitmapImage 直接加载（file:// 与 ms-appx://）
@@ -84,8 +84,10 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         VerticalAlignment = VerticalAlignment.Stretch,
     };
 
-    // 视频帧走 SkiaSharp 画布：Uno/Skia 的 Image 对 WriteableBitmap 的像素更新不重绘（L-87），
-    // 反复赋 Source、甚至双缓冲换实例都无效，实测两次截图差异 0.00%。
+    // 视频帧走 SkiaSharp 画布：早先的写法是每帧往同一个 WriteableBitmap 里写像素再赋给 Image，
+    // 因为 Source 属性值没变（同一个实例），Image 不会重新采样，画面停住（L-71，修法是先赋 null 再赋回）。
+    // 当时把这件事记成了「平台不重绘」（还误引了 L-87，那条讲的是米游社 Theme 图是纯透明层）；
+    // 现在改成画布直接画，既省掉一次整帧拷贝，也不必再依赖那种赋值技巧。
     private readonly SkiaSharp.Views.Windows.SKXamlCanvas _videoCanvas = new()
     {
         Visibility = Visibility.Collapsed,
@@ -555,7 +557,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
 
     private string? _currentVideoPath;
 
-    // 旧的 WriteableBitmap 双缓冲方案已废弃（Uno/Skia 不重绘，L-87），保留字段清理见 StopVideoBackground。
+    // 旧的 WriteableBitmap 双缓冲方案已废弃（Image 复用同一实例不重新采样，见 L-71），保留字段清理见 StopVideoBackground。
 
 
 

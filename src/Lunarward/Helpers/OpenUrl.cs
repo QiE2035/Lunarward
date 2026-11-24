@@ -1,7 +1,8 @@
 // Lunarward：用系统默认程序打开 URL / 文件 / 目录。
 //
-// 上游到处用 `Windows.System.Launcher.LaunchUriAsync`，Uno 的 X11 后端没有实现它
-// （运行时里搜不到任何 xdg-open / gio 调用痕迹，调用会静默失败），所以在 Linux 上统一走这里。
+// 上游到处用 `Windows.System.Launcher.LaunchUriAsync`。Uno 的 Skia/X11 后端其实有实现
+// （`LinuxLauncherExtension` → xdg-open / gio，见 L-74），但它没有 portal 通道、
+// 个别 scheme（如 ms-settings:）也没有 handler，所以 Linux 侧统一走这个入口。
 //
 // 24 号 P2：优先 xdg-desktop-portal 的 OpenURI（沙盒 / 纯 Wayland 下唯一正规通道），
 // portal 不可用才退回 `xdg-open` → `gio open`。

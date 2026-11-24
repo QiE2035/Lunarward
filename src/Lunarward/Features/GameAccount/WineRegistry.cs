@@ -1,8 +1,9 @@
 // Lunarward：Linux 下没有 Windows 注册表。米哈游的账号票据（MIHOYOSDK_ADL_*）实际保存在
 // wine 前缀的注册表里，这里通过 `wine reg` 读写对应前缀，语义与上游 Registry.GetValue/SetValue 对齐。
 //
-// 性能注意（L-127）：每次 `wine reg` 都是一次 fork + wineserver 通信，实测冷 1.1 s、热 0.13–0.2 s，
-// 在 UI 线程上同步调用时会整窗卡住（曾实测 4.1 s）。因此：
+// 性能注意（L-127）：每次 `wine reg` 都是一次 fork + wineserver 通信。实测热路径 0.13–0.2 s；
+// 冷路径受前缀体积 / 机器负载影响很大，本机 1.1 s，历史另测 4–5 s —— 统一按「冷 1–5 s」理解。
+// 在 UI 线程上同步调用时会整窗卡住。因此：
 //   0. 读取先直接解析 <prefix>/user.reg、system.reg（WineRegistryFiles，毫秒级、不 fork，D86）；
 //      只有文件给不出结论时才回落 `reg query`；
 //   1. 读取按「整个键」缓存，一次取回所有值，N 个值只 fork 一次；

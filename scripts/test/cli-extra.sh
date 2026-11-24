@@ -230,7 +230,7 @@ if expect_rc 0 "$rc" && expect_contains "$(text)" "--profile-ensure" \
     && expect_contains "$(text)" "运行环境" && expect_contains "$(text)" "组件与图形层" \
     && expect_contains "$(text)" "--graphics-remove"; then pass_case; fi
 
-case_start "T-CL-48b" "--help 提到预检含运行身份与架构（十项）"
+case_start "T-CL-48b" "--help 提到预检含运行身份与架构（十一项）"
 lw --help >"$out" 2>&1; rc=$?
 if expect_rc 0 "$rc" && expect_contains "$(text)" "游戏架构" \
     && expect_contains "$(text)" "运行身份"; then pass_case; fi
