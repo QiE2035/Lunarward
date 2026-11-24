@@ -142,46 +142,6 @@ public sealed partial class FileManageSetting : PageBase
     }
 
 
-<<<<<<< /tmp/_ours
-
-    /// <summary>B13：Uno 的 AppInstance 是未实现的投影桩，单独兜住异常再重启。</summary>
-    private static void UnregisterInstanceKey()
-    {
-        try
-        {
-            AppInstance.GetCurrent().UnregisterKey();
-        }
-        catch (Exception ex)
-        {
-            Serilog.Log.Debug(ex, "AppInstance.UnregisterKey is not available on this platform");
-        }
-    }
-
-
-    private void TextBlock_IsTextTrimmedChanged(TextBlock sender, IsTextTrimmedChangedEventArgs args)
-    {
-        if (sender.FontSize > 12)
-        {
-            sender.FontSize -= 1;
-        }
-    }
-
-
-
-||||||| /tmp/_base
-
-    private void TextBlock_IsTextTrimmedChanged(TextBlock sender, IsTextTrimmedChangedEventArgs args)
-    {
-        if (sender.FontSize > 12)
-        {
-            sender.FontSize -= 1;
-        }
-    }
-
-
-
-=======
->>>>>>> /tmp/_theirs
     #endregion
 
 

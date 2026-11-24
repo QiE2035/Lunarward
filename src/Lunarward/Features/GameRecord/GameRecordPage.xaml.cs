@@ -63,7 +63,6 @@ public sealed partial class GameRecordPage : PageBase
     }
 
 
-<<<<<<< /tmp/_ours
 
     protected override void OnGameChanged()
     {
@@ -95,10 +94,6 @@ public sealed partial class GameRecordPage : PageBase
     }
 
 
-||||||| /tmp/_base
-
-=======
->>>>>>> /tmp/_theirs
     protected override void OnUnloaded()
     {
         WeakReferenceMessenger.Default.UnregisterAll(this);

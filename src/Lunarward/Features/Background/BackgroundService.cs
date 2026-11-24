@@ -202,7 +202,6 @@ public class BackgroundService
     /// <returns></returns>
     public static string? GetFallbackBackgroundImage()
     {
-<<<<<<< /tmp/_ours
         string? bg = GetBgFilePath(AppConfig.GetBg(gameId.GameBiz));
         if (!File.Exists(bg))
         {
@@ -212,20 +211,6 @@ public class BackgroundService
             bg = File.Exists(path) ? path : null;
         }
         return bg;
-||||||| /tmp/_base
-        string? bg = GetBgFilePath(AppConfig.GetBg(gameId.GameBiz));
-        if (!File.Exists(bg))
-        {
-            string baseFolder = AppContext.BaseDirectory;
-            string path = Path.Combine(baseFolder, @"Assets\Image\UI_CutScene_1130320101A.png");
-            bg = File.Exists(path) ? path : null;
-        }
-        return bg;
-=======
-        string baseFolder = AppContext.BaseDirectory;
-        string path = Path.Combine(baseFolder, @"Assets\Image\UI_CutScene_1130320101A.png");
-        return File.Exists(path) ? path : null;
->>>>>>> /tmp/_theirs
     }
 
 
@@ -266,17 +251,8 @@ public class BackgroundService
     /// <returns></returns>
     public static async Task<string?> ChangeCustomBackgroundFileAsync(string file)
     {
-<<<<<<< /tmp/_ours
-        string bg = Path.Join(AppConfig.CacheFolder, "bg");
-        string name = Path.GetFileName(file);
-        if (Path.GetDirectoryName(file) != bg)
-||||||| /tmp/_base
-        string bg = Path.Join(AppConfig.CacheFolder, "bg");
-        if (Path.GetDirectoryName(file.Path) != bg)
-=======
         string bg = Path.Join(AppConfig.UserDataFolder, "bg");
         if (Path.GetDirectoryName(file.Path) != bg)
->>>>>>> /tmp/_theirs
         {
             // Lunarward：用 System.IO + 简单嗅探替代 MediaSource/BitmapDecoder 校验
             await CheckBackgroundFileAvailableAsync(file);

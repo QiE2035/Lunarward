@@ -750,33 +750,6 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
         {
             if (CurrentGameId.GameBiz.Game is GameBiz.hk4e)
             {
-<<<<<<< /tmp/_ours
-                string? name = await BackgroundService.ChangeCustomBackgroundFileAsync(file.Path);
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    return;
-                }
-                CustomBg = name;
-                AppConfig.SetCustomBg(CurrentGameBiz, name);
-                if (EnableCustomBg)
-                {
-                    WeakReferenceMessenger.Default.Send(new BackgroundChangedMessage());
-                }
-                else
-||||||| /tmp/_base
-                string? name = await BackgroundService.ChangeCustomBackgroundFileAsync(file);
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    return;
-                }
-                CustomBg = name;
-                AppConfig.SetCustomBg(CurrentGameBiz, name);
-                if (EnableCustomBg)
-                {
-                    WeakReferenceMessenger.Default.Send(new BackgroundChangedMessage());
-                }
-                else
-=======
                 StackPanel_GenshinHDR.Visibility = Visibility.Visible;
                 NavigationViewItem_GraphicsSetting.Visibility = Visibility.Visible;
                 _displayInformation = DisplayInformation.CreateForWindowId(this.XamlRoot.GetAppWindow().Id);
@@ -795,7 +768,6 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
             {
                 var dxConfig = await _hoyoPlayService.GetDXConfigAsync(CurrentGameId, GPUInfoHelper.GetGPUInfos(), UnloadCancellationToken);
                 if (dxConfig?.EnableDXSwitch is true && dxConfig.AutoMode)
->>>>>>> /tmp/_theirs
                 {
                     ComboBox_DXRenderMode.Visibility = Visibility.Visible;
                     NavigationViewItem_GraphicsSetting.Visibility = Visibility.Visible;

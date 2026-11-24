@@ -6,12 +6,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
-<<<<<<< /tmp/_ours
-using System.IO.Compression;
-||||||| /tmp/_base
-=======
 using System.IO.Hashing;
->>>>>>> /tmp/_theirs
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -112,23 +107,11 @@ internal static class DatabaseService
             string folder = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Starward\DatabaseBackup");
 #pragma warning restore CS0162 // 检测到无法访问的代码
             Directory.CreateDirectory(folder);
-<<<<<<< /tmp/_ours
-            string file = Path.Combine(folder, $"StarwardDatabase_AutoBackup_{DateTime.Now:yyyyMMdd_HHmmss}.db");
-            string archive = Path.ChangeExtension(file, ".zip");
-            string archive_tmp = archive + "_tmp";
-            string[] files = Directory.GetFiles(folder, "StarwardDatabase_AutoBackup_*.zip");
-||||||| /tmp/_base
-            string file = Path.Combine(folder, $"StarwardDatabase_AutoBackup_{DateTime.Now:yyyyMMdd_HHmmss}.db");
-            string archive = Path.ChangeExtension(file, ".7z");
-            string archive_tmp = archive + "_tmp";
-            string[] files = Directory.GetFiles(folder, "StarwardDatabase_AutoBackup_*.7z");
-=======
             string hash = Convert.ToHexStringLower(XxHash3.Hash(MemoryMarshal.AsBytes(AppConfig.UserDataFolder.AsSpan())));
             string file = Path.Combine(folder, $"StarwardDatabase_AutoBackup_{hash}_{DateTime.Now:yyyyMMdd_HHmmss}.db");
             string archive = Path.ChangeExtension(file, ".7z");
             string archive_tmp = archive + ".tmp";
             string[] files = Directory.GetFiles(folder, $"StarwardDatabase_AutoBackup_{hash}_*.7z");
->>>>>>> /tmp/_theirs
             if (files.Length == 0)
             {
                 BackupDatabase(file);

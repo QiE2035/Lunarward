@@ -101,34 +101,10 @@
                         <TextBlock FontSize="{x:Bind InstallPhaseFontSize}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    IsTextScaleFactorEnabled="False"
-<<<<<<< /tmp/_ours
-                                   Text="{x:Bind InstallStateText}" />
-                        <!--  剩余时间  -->
-                        <FontIcon Grid.Row="1"
-                                  Grid.Column="0"
-                                  FontSize="12"
-                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  Glyph="&#xE823;"
-                                  IsTextScaleFactorEnabled="False" />
-                        <TextBlock Grid.Row="1"
-                                   Grid.Column="1"
-||||||| /tmp/_base
-                                   Text="{x:Bind InstallStateText}" />
-                        <!--  剩余时间  -->
-                        <FontIcon Grid.Row="1"
-                                  Grid.Column="0"
-                                  FontSize="12"
-                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  Glyph="&#xE917;"
-                                  IsTextScaleFactorEnabled="False" />
-                        <TextBlock Grid.Row="1"
-                                   Grid.Column="1"
-=======
                                    Text="{x:Bind InstallPhaseText}"
                                    TextAlignment="{x:Bind InstallPhaseTextAlignment}" />
                         <!--  剩余时间 / 网络或存储数据量  -->
                         <TextBlock VerticalAlignment="Center"
->>>>>>> /tmp/_theirs
                                    FontSize="12"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    IsTextScaleFactorEnabled="False"
@@ -224,37 +200,11 @@
                                    FontSize="12"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    IsTextScaleFactorEnabled="False"
-<<<<<<< /tmp/_ours
-                                   Text="{x:Bind ProgressPercentText}" />
-                        <!--  剩余时间  -->
-                        <FontIcon Margin="8,0,0,0"
-                                  VerticalAlignment="Bottom"
-                                  FontSize="14"
-                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  Glyph="&#xE823;"
-                                  IsTextScaleFactorEnabled="False"
-                                  Visibility="{x:Bind RemainTimeText, Converter={StaticResource ObjectToVisibilityConverter}}" />
-                        <TextBlock Margin="4,0,0,0"
-                                   VerticalAlignment="Bottom"
-||||||| /tmp/_base
-                                   Text="{x:Bind ProgressPercentText}" />
-                        <!--  剩余时间  -->
-                        <FontIcon Margin="8,0,0,0"
-                                  VerticalAlignment="Bottom"
-                                  FontSize="14"
-                                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                  Glyph="&#xE917;"
-                                  IsTextScaleFactorEnabled="False"
-                                  Visibility="{x:Bind RemainTimeText, Converter={StaticResource ObjectToVisibilityConverter}}" />
-                        <TextBlock Margin="4,0,0,0"
-                                   VerticalAlignment="Bottom"
-=======
                                    Text="{x:Bind ProgressPercentText}"
                                    Visibility="{x:Bind ProgressPercentText, Converter={StaticResource ObjectToVisibilityConverter}}" />
                         <!--  第几步 · 当前状态  -->
                         <TextBlock Grid.Row="1"
                                    Grid.Column="0"
->>>>>>> /tmp/_theirs
                                    FontSize="12"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                    IsTextScaleFactorEnabled="False"
@@ -328,13 +278,7 @@
                         <FontIcon Grid.Column="0"
                                   FontSize="12"
                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-<<<<<<< /tmp/_ours
-                                  Glyph="&#xE896;"
-||||||| /tmp/_base
-                                  Glyph="&#xF012;"
-=======
                                   Glyph="&#xE8B7;"
->>>>>>> /tmp/_theirs
                                   IsTextScaleFactorEnabled="False" />
                         <TextBlock Grid.Column="1"
                                    FontSize="12"

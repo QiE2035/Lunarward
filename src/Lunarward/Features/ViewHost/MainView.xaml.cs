@@ -352,7 +352,6 @@ public sealed partial class MainView : UserControl
             InitializePassportUser();
         }
         UpdateNavigationView();
-<<<<<<< /tmp/_ours
         // 页面是缓存的，不重建就不会自己换内容：广播一次，让当前页刷新（D62）。
         WeakReferenceMessenger.Default.Send(new CurrentGameChangedMessage(CurrentGameId));
     }
@@ -378,11 +377,6 @@ public sealed partial class MainView : UserControl
         {
             Serilog.Log.Warning(ex, "[dev] switch game failed");
         }
-||||||| /tmp/_base
-=======
-        HideLauncherConfigView();
-        UpdateDragableArea();
->>>>>>> /tmp/_theirs
     }
 #endif
 
@@ -681,21 +675,10 @@ public sealed partial class MainView : UserControl
     {
         try
         {
-<<<<<<< /tmp/_ours
             await Task.Delay(1500);
             Uri? proxy = HttpClient.DefaultProxy.GetProxy(new Uri("https://starward.scighost.com"));
             // D86：这条只提醒一次（原来每次启动都弹，配合系统代理的用户等于每次开机被念一遍）。
             if (proxy is not null && Helpers.OneShotHints.TryTake("system-proxy"))
-||||||| /tmp/_base
-            await Task.Delay(1500);
-            Uri? proxy = HttpClient.DefaultProxy.GetProxy(new Uri("https://starward.scighost.com"));
-            if (proxy is not null)
-=======
-            CurrentPassportUser = null;
-            PassportUsers = null;
-            UpdateHypFlyoutLayout();
-            if (CurrentLauncherConfig?.CanLogin ?? false)
->>>>>>> /tmp/_theirs
             {
                 _ = _windowsDeviceFpService.InitializeDeviceFpAsync(CurrentLauncherConfig.Region);
                 PassportUsers = new(PassportService.GetPassportUserInfos(CurrentLauncherConfig.Region));

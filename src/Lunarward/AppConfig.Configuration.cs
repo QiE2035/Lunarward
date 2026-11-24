@@ -1,9 +1,3 @@
-<<<<<<< /tmp/_ours
-||||||| /tmp/_base
-using Microsoft.Win32;
-=======
-﻿using Microsoft.Win32;
->>>>>>> /tmp/_theirs
 using Starward.Features.Database;
 using Starward.GameInstall;
 using Starward.Helpers;
@@ -14,14 +8,7 @@ using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-<<<<<<< /tmp/_ours
-using System.Threading.Tasks;
-||||||| /tmp/_base
-using System.Threading.Tasks;
 using Vanara.PInvoke;
-=======
-using Vanara.PInvoke;
->>>>>>> /tmp/_theirs
 
 namespace Starward;
 
@@ -171,7 +158,6 @@ public static partial class AppConfig
                 }
                 else
                 {
-<<<<<<< /tmp/_ours
                     await new NoPermissionWindow(userDataFolder).WaitAsync();
                     Environment.Exit(0);
                 }
@@ -183,38 +169,12 @@ public static partial class AppConfig
                 Directory.CreateDirectory(UserDataFolder);
                 DatabaseService.SetDatabase(UserDataFolder);
                 LoadConfiguration();
-||||||| /tmp/_base
-                    await new NoPermissionWindow(userDataFolder).WaitAsync();
-                    Environment.Exit(0);
-                }
-            }
-            else
-            {
-                if (await new WelcomeWindow().WaitAsync())
-                {
-                    LoadConfiguration();
-                }
-                else
-                {
-                    Environment.Exit(0);
-                }
-=======
-                    ShowNoPermissionMessageBox(userDataFolder);
-                    Environment.Exit(0);
-                }
->>>>>>> /tmp/_theirs
             }
         }
         catch (Exception ex)
         {
-<<<<<<< /tmp/_ours
-            System.Diagnostics.Debug.WriteLine($"{Lang.AppConfig_AnUnknownIssueOccurredDuringInitialization}\n{ex.Message}");
-||||||| /tmp/_base
-            User32.MessageBox(HWND.NULL, $"{Lang.AppConfig_AnUnknownIssueOccurredDuringInitialization}\n{ex.Message}", "Starward", User32.MB_FLAGS.MB_OK);
-=======
             User32.MessageBox(HWND.NULL, $"{Lang.AppConfig_AnUnknownIssueOccurredDuringInitialization}\n{ex.Message}", "Starward", User32.MB_FLAGS.MB_OK);
             ClipboardHelper.SetText(ex.ToString());
->>>>>>> /tmp/_theirs
             Environment.Exit(0);
         }
     }
@@ -305,37 +265,12 @@ public static partial class AppConfig
     }
 
 
-<<<<<<< /tmp/_ours
-    public static void LoadConfigurationFromStore()
-||||||| /tmp/_base
-    public static void LoadConfigurationFromRegistry()
-=======
     private static void LoadConfigurationFromRegistry()
->>>>>>> /tmp/_theirs
     {
-<<<<<<< /tmp/_ours
         string? lang = LinuxConfig.Get("Language")?.Trim();
         EnableLoginAuthTicket = LinuxConfig.Get("EnableLoginAuthTicket") is "1" or "True" or "true";
         stoken = LinuxConfig.Get("stoken")?.Trim();
         mid = LinuxConfig.Get("mid")?.Trim();
-||||||| /tmp/_base
-#if DEBUG
-        using var key = Registry.CurrentUser.CreateSubKey(@"Software\Starward.Debug");
-#else
-        using var key = Registry.CurrentUser.CreateSubKey(@"Software\Starward");
-#endif
-        string? lang = (key.GetValue("Language") as string)?.Trim();
-        EnableLoginAuthTicket = key.GetValue("EnableLoginAuthTicket") is 1;
-        stoken = (key.GetValue("stoken") as string)?.Trim();
-        mid = (key.GetValue("mid") as string)?.Trim();
-=======
-#if DEBUG
-        using var key = Registry.CurrentUser.CreateSubKey(@"Software\Starward.Debug");
-#else
-        using var key = Registry.CurrentUser.CreateSubKey(@"Software\Starward");
-#endif
-        string? lang = (key.GetValue("Language") as string)?.Trim();
->>>>>>> /tmp/_theirs
         SetLanguage(lang);
     }
 
@@ -353,13 +288,7 @@ public static partial class AppConfig
     }
 
 
-<<<<<<< /tmp/_ours
-    public static void SaveConfigurationToStore()
-||||||| /tmp/_base
-    public static void SaveConfigurationToRegistry()
-=======
     private static void SaveConfigurationToRegistry()
->>>>>>> /tmp/_theirs
     {
         try
         {
@@ -368,7 +297,6 @@ public static partial class AppConfig
             {
                 LinuxConfig.Set("UserDataFolder", UserDataFolder);
             }
-<<<<<<< /tmp/_ours
             if (EnableLoginAuthTicket.HasValue)
             {
                 LinuxConfig.Set("EnableLoginAuthTicket", EnableLoginAuthTicket.Value ? "1" : "0");
@@ -376,21 +304,6 @@ public static partial class AppConfig
             LinuxConfig.Set("stoken", stoken);
             LinuxConfig.Set("mid", mid);
             LinuxConfig.Save();
-||||||| /tmp/_base
-            if (EnableLoginAuthTicket.HasValue)
-            {
-                key.SetValue("EnableLoginAuthTicket", EnableLoginAuthTicket.Value ? 1 : 0);
-            }
-            if (!string.IsNullOrWhiteSpace(stoken))
-            {
-                key.SetValue("stoken", stoken);
-            }
-            if (!string.IsNullOrWhiteSpace(mid))
-            {
-                key.SetValue("mid", mid);
-            }
-=======
->>>>>>> /tmp/_theirs
         }
         catch { }
     }

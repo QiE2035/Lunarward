@@ -163,61 +163,8 @@ public sealed partial class PreDownloadButton : UserControl
     public void UpdateGameInstallTaskState(GameInstallProgress task)
     {
         State = task.State;
-<<<<<<< /tmp/_ours
-        long total = task.Progress_DownloadTotalBytes;
-        long finish = task.Progress_DownloadFinishBytes;
-        // total 还没算出来（等待/估算阶段）时不要显示 NaN%。
-        ProgressPercentText = total > 0 ? $"{(double)finish / total:P1}" : "";
-        DownloadBytesText = ToBytesText(finish, total);
-        if (State is GameInstallState.Paused or GameInstallState.Queueing or GameInstallState.Error)
-        {
-            DownloadSpeedText = "- KB/s";
-            RemainTimeText = "--:--:--";
-        }
-        else if (State is not GameInstallState.Finish)
-        {
-            DownloadSpeedText = ToSpeedText(task.NetworkDownloadSpeed);
-            RemainTimeText = ToRemainTimeText(task.RemainTimeSeconds);
-            ErrorMessage = task.ErrorMessage;
-        }
-        else
-        {
-            DownloadSpeedText = null;
-            RemainTimeText = null;
-            ErrorMessage = null;
-        }
-        UpdateButtonState();
-    }
-
-||||||| /tmp/_base
-        long total = task.Progress_DownloadTotalBytes;
-        long finish = task.Progress_DownloadFinishBytes;
-        ProgressPercentText = $"{(double)finish / total:P1}";
-        DownloadBytesText = ToBytesText(finish, total);
-        if (State is GameInstallState.Paused or GameInstallState.Queueing or GameInstallState.Error)
-        {
-            DownloadSpeedText = "- KB/s";
-            RemainTimeText = "--:--:--";
-        }
-        else if (State is not GameInstallState.Finish)
-        {
-            DownloadSpeedText = ToSpeedText(task.NetworkDownloadSpeed);
-            RemainTimeText = ToRemainTimeText(task.RemainTimeSeconds);
-            ErrorMessage = task.ErrorMessage;
-        }
-        else
-        {
-            DownloadSpeedText = null;
-            RemainTimeText = null;
-            ErrorMessage = null;
-        }
-        UpdateButtonState();
-    }
-
-=======
         Step = task.Step;
         InstallStateText = GameInstallProgressDisplay.GetOperationPhaseText(task);
->>>>>>> /tmp/_theirs
 
         bool hasPercent = GameInstallProgressDisplay.TryGetPercent(task, out double percent);
         ProgressPercentText = hasPercent ? GameInstallProgressDisplay.ToPercentText(percent) : null;

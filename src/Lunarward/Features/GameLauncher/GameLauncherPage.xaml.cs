@@ -1,25 +1,13 @@
-<<<<<<< /tmp/_ours
 using CommunityToolkit.Mvvm.ComponentModel;
 using Starward.Language;
 using Starward.Features.Runtime;
-||||||| /tmp/_base
-using CommunityToolkit.Mvvm.ComponentModel;
-=======
-﻿using CommunityToolkit.Mvvm.ComponentModel;
->>>>>>> /tmp/_theirs
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
-<<<<<<< /tmp/_ours
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-||||||| /tmp/_base
-=======
 using Microsoft.UI.Xaml.Documents;
->>>>>>> /tmp/_theirs
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.Background;
@@ -74,7 +62,6 @@ public sealed partial class GameLauncherPage : PageBase
 
     protected override void OnLoaded()
     {
-<<<<<<< /tmp/_ours
         // B30：缓存页切游戏时 OnGameChanged 已经重载过内容，紧接着的 Loaded 别再跑一遍（两次并发初始化）。
         if (_gameChangedHandled)
         {
@@ -88,25 +75,10 @@ public sealed partial class GameLauncherPage : PageBase
         // D94：页面缓存后 Tick 会在第一次 Unloaded 被摘掉，重新挂载要接回来，否则安装进度不再更新。
         _dispatchTimer.Tick -= UpdateGameInstallTaskProgress;
         _dispatchTimer.Tick += UpdateGameInstallTaskProgress;
-||||||| /tmp/_base
-        InitializeGameFeature();
-        CheckGameVersion();
-        UpdateGameInstallTask();
-        CheckCloudGame();
-        _ = InitializeGameServerAsync();
-        _ = InitializeBackgameImageSwitcherAsync();
-=======
-        InitializeGameFeature();
-        CheckGameVersion();
-        UpdateGameInstallTask();
-        CheckCloudGame();
-        _ = InitializeGameServerAsync();
->>>>>>> /tmp/_theirs
         WeakReferenceMessenger.Default.Register<GameInstallPathChangedMessage>(this, OnGameInstallPathChanged);
         WeakReferenceMessenger.Default.Register<MainWindowStateChangedMessage>(this, OnMainWindowStateChanged);
         WeakReferenceMessenger.Default.Register<RemovableStorageDeviceChangedMessage>(this, OnRemovableStorageDeviceChanged);
         WeakReferenceMessenger.Default.Register<GameInstallTaskStartedMessage>(this, OnGameInstallTaskStarted);
-<<<<<<< /tmp/_ours
         WeakReferenceMessenger.Default.Register<BackgroundChangedMessage>(this, OnBackgroundChanged);
         WeakReferenceMessenger.Default.Register<GameLauncherPage, CurrentGameChangedMessage>(this, (r, m) => r.OnCurrentGameChanged(m));
     }
@@ -161,10 +133,6 @@ public sealed partial class GameLauncherPage : PageBase
         {
             _logger.LogError(ex, "Load game content {GameBiz}", CurrentGameBiz);
         }
-||||||| /tmp/_base
-        WeakReferenceMessenger.Default.Register<BackgroundChangedMessage>(this, OnBackgroundChanged);
-=======
->>>>>>> /tmp/_theirs
     }
 
 
@@ -736,7 +704,6 @@ public sealed partial class GameLauncherPage : PageBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Start game");
-<<<<<<< /tmp/_ours
             if (!OperatingSystem.IsWindows())
             {
                 Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_Launch_Failed + " " + ex.Message, 6000);
@@ -1019,10 +986,6 @@ public sealed partial class GameLauncherPage : PageBase
         {
             _logger.LogWarning(ex, "ensure prefix for graphics");
             return null;
-||||||| /tmp/_base
-=======
-            InAppToast.MainWindow?.Error(ex);
->>>>>>> /tmp/_theirs
         }
     }
 
@@ -1374,7 +1337,6 @@ public sealed partial class GameLauncherPage : PageBase
     }
 
 
-<<<<<<< /tmp/_ours
 
 
     #endregion
@@ -1687,245 +1649,6 @@ public sealed partial class GameLauncherPage : PageBase
     }
 
 
-||||||| /tmp/_base
-
-
-    #endregion
-
-
-
-    #region Switch Background Image
-
-
-    private const string PlayIcon = "\uF5B0";
-
-    private const string PauseIcon = "\uE62E";
-
-
-    public List<GameBackground> BackgroundImages { get; set => SetProperty(ref field, value); }
-
-    public bool CanStopVideo { get; set => SetProperty(ref field, value); }
-
-    public string StartStopButtonIcon { get; set => SetProperty(ref field, value); }
-
-
-    private int currentBackgroundImageIndex;
-    public int CurrentBackgroundImageIndex
-    {
-        get => currentBackgroundImageIndex;
-        set
-        {
-            if (SetProperty(ref currentBackgroundImageIndex, value))
-            {
-                ChangeBackgroundImageIndex(value);
-            }
-        }
-    }
-
-
-    private void OnBackgroundChanged(object _, BackgroundChangedMessage message)
-    {
-        if (message.GameBackground is null)
-        {
-            _ = InitializeBackgameImageSwitcherAsync();
-        }
-    }
-
-
-    private async Task InitializeBackgameImageSwitcherAsync()
-    {
-        try
-        {
-            CanStopVideo = false;
-            BackgroundImages = await _backgroundService.GetGameBackgroundsAsync(CurrentGameId);
-            if (BackgroundImages.Count > 1)
-            {
-                Border_SwitchBackgroundImage.Visibility = Visibility.Visible;
-                GameBackground? currentBackground = await _backgroundService.GetSuggestedGameBackgroundAsync(CurrentGameId);
-                if (currentBackground != null && BackgroundImages.FirstOrDefault(x => x.Id == currentBackground.Id) is GameBackground current)
-                {
-                    currentBackgroundImageIndex = Math.Clamp(BackgroundImages.IndexOf(current), 0, BackgroundImages.Count - 1);
-                    OnPropertyChanged(nameof(CurrentBackgroundImageIndex));
-                    CanStopVideo = current.Type is GameBackground.BACKGROUND_TYPE_VIDEO;
-                    if (CanStopVideo)
-                    {
-                        current.StopVideo = currentBackground.StopVideo;
-                        StartStopButtonIcon = current.StopVideo ? PlayIcon : PauseIcon;
-                    }
-                }
-            }
-            else
-            {
-                Border_SwitchBackgroundImage.Visibility = Visibility.Collapsed;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Initialize background image switcher {GameBiz}", CurrentGameBiz);
-        }
-    }
-
-
-    private void ChangeBackgroundImageIndex(int index)
-    {
-        try
-        {
-            if (index < 0 || index >= BackgroundImages.Count)
-            {
-                return;
-            }
-            GameBackground current = BackgroundImages[index];
-            WeakReferenceMessenger.Default.Send(new BackgroundChangedMessage(current));
-            CanStopVideo = current.Type is GameBackground.BACKGROUND_TYPE_VIDEO;
-            if (CanStopVideo)
-            {
-                StartStopButtonIcon = current.StopVideo ? PlayIcon : PauseIcon;
-            }
-        }
-        catch { }
-    }
-
-
-    private void Border_SwitchBackgroundImage_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        Border_SwitchBackgroundImage.Opacity = 1;
-    }
-
-
-    private void Border_SwitchBackgroundImage_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        Border_SwitchBackgroundImage.Opacity = 0;
-    }
-
-
-    int _switchBackgroundTotalDelta = 0;
-
-    private void Border_SwitchBackgroundImage_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-    {
-        int delta = e.GetCurrentPoint(this).Properties.MouseWheelDelta;
-        _switchBackgroundTotalDelta += delta;
-        if (_switchBackgroundTotalDelta <= -120)
-        {
-            CurrentBackgroundImageIndex++;
-            _switchBackgroundTotalDelta = 0;
-        }
-        else if (_switchBackgroundTotalDelta >= 120)
-        {
-            CurrentBackgroundImageIndex--;
-            _switchBackgroundTotalDelta = 0;
-        }
-    }
-
-
-    [RelayCommand]
-    public void OpenBackgroundViewWindow()
-    {
-        try
-        {
-            new BackgroundViewWindow().Show();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Open background view window.");
-        }
-    }
-
-
-    [RelayCommand]
-    private async Task CopyCurrentBackgroundImageAsync()
-    {
-        try
-        {
-            string? path = null;
-            GameBackground? background = AppBackground.Current.CurrentGameBackground;
-            if (background?.Type is GameBackground.BACKGROUND_TYPE_CUSTOM)
-            {
-                path = background.Background.Url;
-            }
-            else if (background?.Type is GameBackground.BACKGROUND_TYPE_VIDEO && !background.StopVideo)
-            {
-                string name = Path.GetFileName(background.Video.Url);
-                path = BackgroundService.GetBgFilePath(name);
-            }
-            else if (background is not null)
-            {
-                string name = Path.GetFileName(background.Background.Url);
-                path = BackgroundService.GetBgFilePath(name);
-            }
-            if (File.Exists(path))
-            {
-                var file = await StorageFile.GetFileFromPathAsync(path);
-                ClipboardHelper.SetStorageItems(DataPackageOperation.Copy, file);
-                InAppToast.MainWindow?.Information(Lang.Common_CopiedToClipboard);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Copy current background image {GameBiz}", CurrentGameBiz);
-        }
-    }
-
-
-    [RelayCommand]
-    private async Task SaveCurrentBackgroundImageAsync()
-    {
-        try
-        {
-            string? path = null;
-            GameBackground? background = AppBackground.Current.CurrentGameBackground;
-            if (background?.Type is GameBackground.BACKGROUND_TYPE_CUSTOM)
-            {
-                path = background.Background.Url;
-            }
-            else if (background?.Type is GameBackground.BACKGROUND_TYPE_VIDEO && !background.StopVideo)
-            {
-                string name = Path.GetFileName(background.Video.Url);
-                path = BackgroundService.GetBgFilePath(name);
-            }
-            else if (background is not null)
-            {
-                string name = Path.GetFileName(background.Background.Url);
-                path = BackgroundService.GetBgFilePath(name);
-            }
-            if (File.Exists(path))
-            {
-                var savePath = await FileDialogHelper.OpenSaveFileDialogAsync(this.XamlRoot, Path.GetFileName(path));
-                if (!string.IsNullOrWhiteSpace(savePath))
-                {
-                    File.Copy(path, savePath, true);
-                    var file = await StorageFile.GetFileFromPathAsync(savePath);
-                    var options = new FolderLauncherOptions();
-                    options.ItemsToSelect.Add(file);
-                    await Launcher.LaunchFolderAsync(await file.GetParentAsync(), options);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Save as current background image {GameBiz}", CurrentGameBiz);
-        }
-    }
-
-
-    [RelayCommand]
-    private void StartOrStopVideoBackground()
-    {
-        try
-        {
-            GameBackground current = BackgroundImages[CurrentBackgroundImageIndex];
-            if (current.Type is GameBackground.BACKGROUND_TYPE_VIDEO)
-            {
-                current.StopVideo = !current.StopVideo;
-                StartStopButtonIcon = current.StopVideo ? PlayIcon : PauseIcon;
-                WeakReferenceMessenger.Default.Send(new BackgroundChangedMessage(current));
-            }
-        }
-        catch { }
-    }
-
-
-=======
->>>>>>> /tmp/_theirs
     #endregion
 
 

@@ -1,9 +1,3 @@
-<<<<<<< /tmp/_ours
-||||||| /tmp/_base
-using Microsoft.Win32;
-=======
-﻿using Microsoft.Win32;
->>>>>>> /tmp/_theirs
 using System;
 using System.IO;
 using System.Linq;
@@ -35,49 +29,6 @@ public static partial class AppConfig
     }
 
 
-<<<<<<< /tmp/_ours
-    internal static string ReadFirstLine(string path)
-    {
-        try
-        {
-            return File.Exists(path) ? File.ReadLines(path).FirstOrDefault()?.Trim() ?? "" : "";
-        }
-        catch
-        {
-            return "";
-        }
-    }
-
-
-    internal static string ReadMachineId()
-    {
-        string machineId = ReadFirstLine("/etc/machine-id");
-        if (!string.IsNullOrWhiteSpace(machineId))
-        {
-            return machineId;
-        }
-        // 退而求其次：本应用自己的持久化标识
-        string file = Path.Combine(UserDataFolder ?? Path.GetTempPath(), "machine_id");
-        try
-        {
-            if (File.Exists(file))
-            {
-                return File.ReadAllText(file).Trim();
-            }
-            var id = Guid.NewGuid().ToString("N");
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file, id);
-            return id;
-        }
-        catch
-        {
-            return Environment.MachineName;
-        }
-    }
-
-
-||||||| /tmp/_base
-=======
     private static Timer? _gcTimer;
 
 
@@ -92,7 +43,6 @@ public static partial class AppConfig
     }
 
 
->>>>>>> /tmp/_theirs
 
     #region Emoji
 

@@ -66,13 +66,7 @@
                                Text="">
                         <Run Text="{x:Bind lang:Lang.InstallGameDialog_DownloadResources}" />
                         <Run Text="" />
-<<<<<<< /tmp/_ours
-                        <Run Text="{x:Bind PackageSizeText, Mode=OneWay}" />
-||||||| /tmp/_base
-                        <Run Text="{x:Bind PackageSizeText}" />
-=======
                         <Run Text="{x:Bind DownloadResourceSizeText}" />
->>>>>>> /tmp/_theirs
                     </TextBlock>
                     <!--  所需空间  -->
                     <TextBlock FontSize="12"
@@ -81,13 +75,7 @@
                                Text="">
                         <Run Text="{x:Bind lang:Lang.InstallGameDialog_SpaceRequired}" />
                         <Run Text="" />
-<<<<<<< /tmp/_ours
-                        <Run Text="{x:Bind UnzipSpaceText, Mode=OneWay}" />
-||||||| /tmp/_base
-                        <Run Text="{x:Bind UnzipSpaceText}" />
-=======
                         <Run Text="{x:Bind SpaceRequiredSizeText}" />
->>>>>>> /tmp/_theirs
                     </TextBlock>
                     <!--  可用空间  -->
                     <TextBlock FontSize="12"
@@ -96,13 +84,7 @@
                                Text="">
                         <Run Text="{x:Bind lang:Lang.InstallGameDialog_SpaceAvailable}" />
                         <Run Text="" />
-<<<<<<< /tmp/_ours
-                        <Run Text="{x:Bind AvailableSpaceText, Mode=OneWay}" />
-||||||| /tmp/_base
-                        <Run Text="{x:Bind AvailableSpaceText}" />
-=======
                         <Run Text="{x:Bind SpaceAvailableSizeText}" />
->>>>>>> /tmp/_theirs
                     </TextBlock>
                 </StackPanel>
             </Border>

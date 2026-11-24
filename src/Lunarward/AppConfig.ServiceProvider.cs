@@ -7,21 +7,10 @@ using Starward.Core.Gacha.Genshin;
 using Starward.Core.Gacha.StarRail;
 using Starward.Core.Gacha.ZZZ;
 using Starward.Core.GameNotice;
-<<<<<<< /tmp/_ours
-using Starward.Core.DeviceFp;
-using Starward.Core.GameRecord;
 using Starward.Core.GameRecord.BH3;
 using Starward.Core.GameRecord.Genshin;
 using Starward.Core.GameRecord.StarRail;
 using Starward.Core.GameRecord.ZZZ;
-||||||| /tmp/_base
-using Starward.Core.GameRecord;
-=======
-using Starward.Core.GameRecord.BH3;
-using Starward.Core.GameRecord.Genshin;
-using Starward.Core.GameRecord.StarRail;
-using Starward.Core.GameRecord.ZZZ;
->>>>>>> /tmp/_theirs
 using Starward.Core.HoYoPlay;
 using Starward.Core.Passport;
 using Starward.Core.SelfQuery;
@@ -74,7 +63,6 @@ public static partial class AppConfig
                                                   .CreateLogger();
             Log.Information($"Welcome to Lunarward v{AppVersion}\r\nSystem: {Environment.OSVersion}\r\nCommand Line: {Environment.CommandLine}");
 
-<<<<<<< /tmp/_ours
             var sc = new ServiceCollection();
             sc.AddMemoryCache();
             sc.AddLogging(c => c.AddSerilog(Log.Logger));
@@ -106,54 +94,8 @@ public static partial class AppConfig
             sc.AddSingleton<UIGFGachaService>();
             sc.AddSingleton<GenshinBeyondGachaClient>();
             sc.AddSingleton<GenshinBeyondGachaService>();
-||||||| /tmp/_base
+
             var sc = new ServiceCollection();
-            sc.AddMemoryCache();
-            sc.AddLogging(c => c.AddSerilog(Log.Logger));
-            sc.AddHttpClient().ConfigureHttpClientDefaults(ConfigDefaultHttpClient);
-
-            sc.AddSingleton<HoYoPlayClient>();
-            sc.AddSingleton<GameNoticeClient>();
-            sc.AddSingleton<HoYoPlayService>();
-            sc.AddSingleton<BackgroundService>();
-            sc.AddSingleton<GameLauncherService>();
-            sc.AddSingleton<GamePackageService>();
-            sc.AddSingleton<PlayTimeRecordService>();
-            sc.AddSingleton<PlayTimeStatsService>();
-            sc.AddSingleton<GameNoticeService>();
-            sc.AddSingleton<SetupService>();
-
-            sc.AddSingleton<GenshinGachaClient>();
-            sc.AddSingleton<StarRailGachaClient>();
-            sc.AddSingleton<ZZZGachaClient>();
-            sc.AddSingleton<GenshinGachaService>();
-            sc.AddSingleton<StarRailGachaService>();
-            sc.AddSingleton<ZZZGachaService>();
-            sc.AddSingleton<UIGFGachaService>();
-            sc.AddSingleton<GenshinBeyondGachaClient>();
-            sc.AddSingleton<GenshinBeyondGachaService>();
-=======
->>>>>>> /tmp/_theirs
-
-<<<<<<< /tmp/_ours
-            sc.AddSingleton<DeviceFpClient>();
-            sc.AddSingleton<HyperionGenshinClient>();
-            sc.AddSingleton<HoyolabGenshinClient>();
-            sc.AddSingleton<HyperionStarRailClient>();
-            sc.AddSingleton<HoyolabStarRailClient>();
-            sc.AddSingleton<HyperionZZZClient>();
-            sc.AddSingleton<HoyolabZZZClient>();
-            sc.AddSingleton<HyperionBH3Client>();
-            sc.AddSingleton<HoyolabBH3Client>();
-            sc.AddSingleton<PassportClient>();
-            sc.AddSingleton<GameRecordService>();
-||||||| /tmp/_base
-            sc.AddSingleton<HoyolabClient>();
-            sc.AddSingleton<HyperionClient>();
-            sc.AddSingleton<GameRecordService>();
-=======
-            var sc = new ServiceCollection();
->>>>>>> /tmp/_theirs
 
             ConfigServiceCollection(sc);
 
@@ -161,16 +103,10 @@ public static partial class AppConfig
         }
     }
 
-<<<<<<< /tmp/_ours
             sc.AddSingleton<RpcService>();
             // Lunarward: 真实安装流程依赖 Starward.RPC（gRPC + 命名管道，D6 待换 Unix socket）；
             // 这里注册的是 Features/GameInstall/GameInstallShims.cs 里的最小实现。
             sc.AddSingleton<Starward.RPC.GameInstall.GameInstallService>();
-||||||| /tmp/_base
-            sc.AddSingleton<RpcService>();
-            sc.AddSingleton<GameInstallService>();
-=======
->>>>>>> /tmp/_theirs
 
     public static void ConfigServiceCollection(IServiceCollection sc)
     {
@@ -248,12 +184,7 @@ public static partial class AppConfig
         sc.AddHttpClient<LogUploadClient>().ConfigStarwardHttpClient();
     }
 
-<<<<<<< /tmp/_ours
             // Lunarward: ScreenCaptureService 依赖 Windows.Graphics.Capture + Win2D，M2 重写后再注册
-||||||| /tmp/_base
-            sc.AddSingleton<ScreenCaptureService>();
-=======
->>>>>>> /tmp/_theirs
 
 
 

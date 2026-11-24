@@ -1,14 +1,6 @@
-<<<<<<< /tmp/_ours
 <?xml version="1.0" encoding="utf-8" ?>
 <sf:PageBase
              NavigationCacheMode="Required" x:Class="Starward.Features.Gacha.GenshinBeyondGachaPage"
-||||||| /tmp/_base
-<?xml version="1.0" encoding="utf-8" ?>
-<sf:PageBase x:Class="Starward.Features.Gacha.GenshinBeyondGachaPage"
-=======
-﻿<?xml version="1.0" encoding="utf-8" ?>
-<sf:PageBase x:Class="Starward.Features.Gacha.GenshinBeyondGachaPage"
->>>>>>> /tmp/_theirs
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:cwc="using:CommunityToolkit.WinUI.Controls"

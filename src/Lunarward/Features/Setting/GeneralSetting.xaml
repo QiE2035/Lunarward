@@ -53,7 +53,6 @@
                              Tag="{x:Bind sfv:MainWindowCloseOption.Exit}" />
             </StackPanel>
 
-<<<<<<< /tmp/_ours
             <ToggleSwitch Margin="0,12,0,0"
                           IsOn="{x:Bind EnableGameAccountSwitcher, Mode=TwoWay}"
                           OffContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}"
@@ -61,57 +60,6 @@
 
 
             <!--  Linux：透明/动画效果是 Windows 系统设置项，Linux 下无对应开关，整段移除（D61）。  -->
-||||||| /tmp/_base
-            <ToggleSwitch Margin="0,12,0,0"
-                          IsOn="{x:Bind EnableGameAccountSwitcher, Mode=TwoWay}"
-                          OffContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}"
-                          OnContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}" />
-
-
-            <MenuFlyoutSeparator Margin="0,20,0,0" />
-
-            <!--  透明/动画效果  -->
-            <TextBlock Margin="0,20,0,0"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="{x:Bind lang:Lang.SettingPage_ForABetterExperiencePleaseEnableTheFollowingFeaturesInSystemSettings}"
-                       TextWrapping="Wrap" />
-            <TextBlock Margin="0,12,0,0" HorizontalAlignment="Left">
-                <Hyperlink Click="Hyperlink_VisualEffects_Click"
-                           NavigateUri="ms-settings:easeofaccess-visualeffects"
-                           UnderlineStyle="None">
-                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_TransparencyEffects}" />
-                </Hyperlink>
-                <Run Text="" />
-                <Run Text="" />
-                <Hyperlink Click="Hyperlink_VisualEffects_Click"
-                           NavigateUri="ms-settings:easeofaccess-visualeffects"
-                           UnderlineStyle="None">
-                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_AnimationEffects}" />
-                </Hyperlink>
-            </TextBlock>
-=======
-            <MenuFlyoutSeparator Margin="0,20,0,0" />
-
-            <!--  透明/动画效果  -->
-            <TextBlock Margin="0,20,0,0"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="{x:Bind lang:Lang.SettingPage_ForABetterExperiencePleaseEnableTheFollowingFeaturesInSystemSettings}"
-                       TextWrapping="Wrap" />
-            <TextBlock Margin="0,12,0,0" HorizontalAlignment="Left">
-                <Hyperlink Click="Hyperlink_VisualEffects_Click"
-                           NavigateUri="ms-settings:easeofaccess-visualeffects"
-                           UnderlineStyle="None">
-                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_TransparencyEffects}" />
-                </Hyperlink>
-                <Run Text="" />
-                <Run Text="" />
-                <Hyperlink Click="Hyperlink_VisualEffects_Click"
-                           NavigateUri="ms-settings:easeofaccess-visualeffects"
-                           UnderlineStyle="None">
-                    <Run Text="{x:Bind lang:Lang.AppearanceSettingPage_AnimationEffects}" />
-                </Hyperlink>
-            </TextBlock>
->>>>>>> /tmp/_theirs
 
         </StackPanel>
     </ScrollViewer>

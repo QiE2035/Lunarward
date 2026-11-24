@@ -1,11 +1,5 @@
-<<<<<<< /tmp/_ours
-using Microsoft.UI.Xaml;
-||||||| /tmp/_base
-﻿using Microsoft.UI.Xaml;
-=======
 ﻿using CommunityToolkit.WinUI.Controls;
 using Microsoft.UI.Xaml;
->>>>>>> /tmp/_theirs
 using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Linq;

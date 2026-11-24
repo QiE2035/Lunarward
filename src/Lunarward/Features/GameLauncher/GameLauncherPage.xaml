@@ -53,7 +53,6 @@
             </StackPanel>
         </Border>
 
-<<<<<<< /tmp/_ours
         <!--  背景图切换  -->
         <Border x:Name="Border_SwitchBackgroundImage"
                 Height="60"
@@ -142,105 +141,6 @@
                 <ScalarTransition />
             </Border.OpacityTransition>
         </Border>
-||||||| /tmp/_base
-        <!--  背景图切换  -->
-        <Border x:Name="Border_SwitchBackgroundImage"
-                Height="60"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Bottom"
-                Opacity="0"
-                PointerEntered="Border_SwitchBackgroundImage_PointerEntered"
-                PointerExited="Border_SwitchBackgroundImage_PointerExited"
-                PointerWheelChanged="Border_SwitchBackgroundImage_PointerWheelChanged"
-                Visibility="Collapsed">
-            <StackPanel Margin="16,0,0,4"
-                        Padding="4"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Bottom"
-                        Background="Transparent"
-                        Orientation="Horizontal"
-                        Spacing="4">
-                <!--  index 指示器  -->
-                <PipsPager x:Name="PipsPager_SwitchBackgroundImage"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Bottom"
-                           NextButtonVisibility="VisibleOnPointerOver"
-                           NumberOfPages="{x:Bind BackgroundImages.Count}"
-                           PreviousButtonVisibility="VisibleOnPointerOver"
-                           SelectedPageIndex="{x:Bind CurrentBackgroundImageIndex, Mode=TwoWay}"
-                           Style="{ThemeResource CustomPipsPagerStyle}" />
-                <AppBarSeparator Padding="0,4,0,4" />
-                <!--  图库  -->
-                <Button Padding="4"
-                        VerticalAlignment="Center"
-                        Command="{x:Bind OpenBackgroundViewWindowCommand}"
-                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
-                        ToolTipService.ToolTip="{x:Bind lang:Lang.GameLauncherPage_Gallery}">
-                    <FontIcon FontSize="16"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              Glyph="&#xE91B;"
-                              IsTextScaleFactorEnabled="False" />
-                </Button>
-                <!--  复制  -->
-                <Button Padding="4"
-                        VerticalAlignment="Center"
-                        Command="{x:Bind CopyCurrentBackgroundImageCommand}"
-                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
-                        ToolTipService.ToolTip="{x:Bind lang:Lang.Common_Copy}">
-                    <FontIcon FontSize="16"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              Glyph="&#xE8C8;"
-                              IsTextScaleFactorEnabled="False" />
-                </Button>
-                <!--  另存为  -->
-                <Button Padding="4"
-                        Command="{x:Bind SaveCurrentBackgroundImageCommand}"
-                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
-                        ToolTipService.ToolTip="{x:Bind lang:Lang.ImageViewWindow2_SaveAs}">
-                    <FontIcon FontSize="16"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              Glyph="&#xE74E;"
-                              IsTextScaleFactorEnabled="False" />
-                </Button>
-                <!--  播放/暂停  -->
-                <Button Padding="4"
-                        Command="{x:Bind StartOrStopVideoBackgroundCommand}"
-                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
-                        ToolTipService.ToolTip="{x:Bind lang:Lang.GameLauncherPage_PlayPause}"
-                        Visibility="{x:Bind CanStopVideo}">
-                    <FontIcon FontSize="16"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              Glyph="{x:Bind StartStopButtonIcon}"
-                              IsTextScaleFactorEnabled="False" />
-                </Button>
-                <!--  占位  -->
-                <Button Padding="4"
-                        IsHitTestVisible="False"
-                        Opacity="0"
-                        Style="{ThemeResource DateTimePickerFlyoutButtonStyle}"
-                        Visibility="{x:Bind CanStopVideo, Converter={StaticResource BoolToVisibilityReversedConverter}}">
-                    <FontIcon FontSize="16"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              Glyph="{x:Bind StartStopButtonIcon}"
-                              IsTextScaleFactorEnabled="False" />
-                </Button>
-            </StackPanel>
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Offset="0.0" Color="#00000000" />
-                    <GradientStop Offset="1.0" Color="#88000000" />
-                </LinearGradientBrush>
-            </Border.Background>
-            <Border.OpacityTransition>
-                <ScalarTransition />
-            </Border.OpacityTransition>
-        </Border>
-=======
-        <!--  背景切换  -->
-        <sfb:BackgroundSwitcher HorizontalAlignment="Stretch"
-                                VerticalAlignment="Bottom"
-                                CurrentGameId="{x:Bind CurrentGameId}" />
->>>>>>> /tmp/_theirs
 
         <!--  游戏通知  -->
         <local:GameBannerAndPost x:Name="GameBannerAndPost"

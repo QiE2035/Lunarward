@@ -510,7 +510,6 @@ internal partial class GameLauncherService
                 }
             }
 
-<<<<<<< /tmp/_ours
             // Lunarward：上游在启动前用 winreg 写 HDR 开关，在 Linux 上等于「先跑一次 wine」，
             // 会破坏「游戏必须是 wine 的第一个进程」这条铁律（L-62）。HDR 改由设置页保存时写入目标前缀。
             // Lunarward：上游在启动前用 winreg 写 HDR 开关（Windows 上游戏与设置共用同一份注册表）。
@@ -531,28 +530,10 @@ internal partial class GameLauncherService
             // Linux 没有对应概念，且套一层 shell 会破坏「游戏是 wine 第一个进程」的前提，
             // 因此该开关在 Linux 上忽略（保留判断以免上游字段消失时编译失败）。
             if (!thirdPartyTool && AppConfig.StartGameWithCMD && OperatingSystem.IsWindows())
-||||||| /tmp/_base
-            if (gameId.GameBiz.Game is GameBiz.hk4e)
-            {
-                GameSettingService.SetGenshinEnableHDR(gameId.GameBiz, AppConfig.EnableGenshinHDR);
-            }
-            if (!thirdPartyTool && AppConfig.StartGameWithCMD)
-=======
-            CancellationToken token = CancellationTokenSource.CreateLinkedTokenSource(cancellation, new CancellationTokenSource(3000).Token).Token;
-            var sb = new StringBuilder();
-            sb.Append(AppConfig.GetStartArgument(gameId)?.Trim());
-            await AppendDX12Async(sb, gameId, token);
-            await AppendLoginAuthTicketAsync(sb, gameId, token);
-            SetGenshinEnableHDR(gameId);
-            string arg = sb.ToString();
-
-            if (!thirdPartyTool && AppConfig.StartGameWithCMD)
->>>>>>> /tmp/_theirs
             {
                 arg = $"""/c start "" /d "{Path.GetDirectoryName(exe)}" "{exe}" {arg}""";
                 exe = "cmd.exe";
             }
-<<<<<<< /tmp/_ours
             _logger.LogInformation("Start game ({biz})\r\npath: {exe}\r\narg: {arg}", gameId, exe, arg);
             // Lunarward：Linux 启动前预检（失败即中止，并把每条原因写进异常信息与启动报告）
             Features.Runtime.RuntimeProfile? launchProfile = null;
@@ -598,12 +579,6 @@ internal partial class GameLauncherService
             bool viaWine = launch.ViaWine;
             _logger.LogInformation("Linux launch: {file} {args}", info.FileName, string.Join(" ", info.ArgumentList));
             if (!OperatingSystem.IsWindows())
-||||||| /tmp/_base
-            _logger.LogInformation("Start game ({biz})\r\npath: {exe}\r\narg: {arg}", gameId, exe, arg);
-            var info = new ProcessStartInfo
-=======
-            var info = new ProcessStartInfo
->>>>>>> /tmp/_theirs
             {
                 string? reportPath = LaunchReport.Write(gameId.GameBiz, exe, arg, launchProfile, preflight!, info, viaWine);
                 if (reportPath is not null)

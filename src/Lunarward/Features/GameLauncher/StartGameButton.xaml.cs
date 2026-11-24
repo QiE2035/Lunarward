@@ -309,7 +309,6 @@ public sealed partial class StartGameButton : UserControl
 
         if (task.State is RunnerState.Running or RunnerState.Paused or RunnerState.Error)
         {
-<<<<<<< /tmp/_ours
             long total = task.Progress_DownloadTotalBytes;
             long finish = task.Progress_DownloadFinishBytes;
             // 总量还没出来时按 0 处理，避免 NaN% 和越界进度环（L-65）。
@@ -319,30 +318,7 @@ public sealed partial class StartGameButton : UserControl
             VerifySpeedText = ToSpeedText(task.StorageReadSpeed);
             RemainTimeText = ToRemainTimeText(task.RemainTimeSeconds);
             if (task.Operation is GameInstallOperation.Update && task.DownloadMode is GameInstallDownloadMode.Chunk)
-||||||| /tmp/_base
-            long total = task.Progress_DownloadTotalBytes;
-            long finish = task.Progress_DownloadFinishBytes;
-            double progress = (double)finish / total;
-            DownloadSpeedText = ToSpeedText(task.NetworkDownloadSpeed);
-            InstallSpeedText = ToSpeedText(task.StorageWriteSpeed);
-            VerifySpeedText = ToSpeedText(task.StorageReadSpeed);
-            RemainTimeText = ToRemainTimeText(task.RemainTimeSeconds);
-            if (task.Operation is GameInstallOperation.Update && task.DownloadMode is GameInstallDownloadMode.Chunk)
-=======
-            if (task.ProgressDisplay.HasFlag(ProgressDisplay.NetworkBytes))
->>>>>>> /tmp/_theirs
             {
-<<<<<<< /tmp/_ours
-                progress = task.Progress_WriteTotalBytes > 0
-                               ? (double)task.Progress_WriteFinishBytes / task.Progress_WriteTotalBytes
-                               : 0;
-                ProgressRingValue = Math.Clamp((int)(progress * 100), 0, 100);
-                ProgressPercentText = total > 0 ? $"{progress:P1}" : "";
-||||||| /tmp/_base
-                progress = (double)task.Progress_WriteFinishBytes / task.Progress_WriteTotalBytes;
-                ProgressRingValue = (int)(progress * 100);
-                ProgressPercentText = $"{progress:P1}";
-=======
                 DownloadBytesText = GameInstallProgressDisplay.ToBytesText(task.NetworkFinishedBytes, task.NetworkTotalBytes);
             }
             if (task.State is RunnerState.Running
@@ -355,17 +331,9 @@ public sealed partial class StartGameButton : UserControl
             {
                 InstallBytesText = GameInstallProgressDisplay.ToBytesText(task.StorageFinishedBytes, task.StorageTotalBytes);
                 InstallBytesLabel = task.Step is RunnerStep.Verifying ? Lang.StartGameButton_Verify : Lang.StartGameButton_Install;
->>>>>>> /tmp/_theirs
             }
             else
             {
-<<<<<<< /tmp/_ours
-                ProgressRingValue = Math.Clamp((int)(progress * 100), 0, 100);
-                ProgressPercentText = total > 0 ? $"{progress:P1}" : "";
-||||||| /tmp/_base
-                ProgressRingValue = (int)(progress * 100);
-                ProgressPercentText = $"{progress:P1}";
-=======
                 InstallBytesLabel = "";
             }
             if (task.HardLinkBytes > 0)
@@ -377,7 +345,6 @@ public sealed partial class StartGameButton : UserControl
                 && task.ProgressDisplay.HasFlag(ProgressDisplay.NetworkSpeed))
             {
                 RemainTimeText = GameInstallProgressDisplay.ToRemainTimeText(task.RemainTimeSeconds);
->>>>>>> /tmp/_theirs
             }
         }
 
