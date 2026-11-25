@@ -43,7 +43,7 @@ public sealed partial class WelcomeWindow : WindowBase
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         CenterInScreen(1200, 676);
         AdaptTitleBarButtonColorToActuallTheme();
-        SetDragRectangles(new RectInt32 { X = 0, Y = 0, Width = 100000, Height = (int)(48 * UIScale) });
+        SetDragRectangles(new RectInt32(0, 0, 100000, (int)(48 * UIScale)));
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.IsMaximizable = false;

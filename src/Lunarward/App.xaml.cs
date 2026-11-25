@@ -280,48 +280,6 @@ public partial class App : Application
     }
 
 
-    private async Task<bool> HandleStartupAsync(string[] args)
-    {
-        // lunarward://startgame?biz=hk4e_cn → startgame --biz hk4e_cn
-        // 桌面文件里写的是 `Exec="…" %u`，浏览器/其它程序点链接时传进来的就是这条 URL。
-        args = ExpandUrlArgument(args);
-        IConfiguration config = new ConfigurationBuilder().AddCommandLine(args).Build();
-        Helpers.Housekeeping.Run(AppConfig.CacheFolder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "lunarward"));
-        if (args[0].ToLower() is "rpc")
-        {
-            // Lunarward: RPC 子进程（D6 待换成 Unix domain socket）暂不启用
-            _ = args;
-            Environment.Exit(0);
-        }
-        if (args[0].ToLower() is "playtime")
-        {
-            int pid = config.GetValue<int>("pid");
-            string bizName = config.GetValue<string>("biz") ?? "";
-            if (pid > 0 && GameBiz.TryParse(bizName, out GameBiz biz))
-            {
-                var playtime = AppConfig.GetService<Features.PlayTime.PlayTimeRecordService>();
-                await playtime.LogPlayTimeAsync(biz, pid);
-            }
-            Environment.Exit(0);
-        }
-
-        if (args[0].ToLower() is "startgame")
-        {
-            string bizName = config.GetValue<string>("biz") ?? "";
-            GameId? gameId = GameBiz.TryParse(bizName, out GameBiz biz) ? GameId.FromGameBiz(biz) : null;
-            if (gameId is not null)
-            {
-                await AppConfig.GetService<GameLauncherService>().StartGameAsync(gameId);
-            }
-            Environment.Exit(0);
-        }
-
-        return false;
-    }
-
-
-
-
     /// <summary>
     /// 把 `lunarward://<host>?<query>` 展开成内部命令行参数。
     /// 目前只支持 `startgame`；未知 host 原样返回，交给后面的分支报错而不是假装成功。
@@ -511,18 +469,5 @@ public partial class App : Application
 
 
 
-    /// <summary>用半透明画刷替换 AcrylicBrush（Uno 只实现 FallbackColor，会盖住壁纸）。</summary>
-    private static void ApplyAcrylicFallback()
-    {
-        try
-        {
-            Application.Current.Resources["CustomAcrylicBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xD0, 0x1C, 0x1C, 0x20));
-            Application.Current.Resources["CustomOverlayAcrylicBrush"] = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xA8, 0x10, 0x10, 0x12));
-        }
-        catch (Exception ex)
-        {
-            Serilog.Log.Warning(ex, "[background] replace acrylic brush failed");
-        }
-    }
 
 }

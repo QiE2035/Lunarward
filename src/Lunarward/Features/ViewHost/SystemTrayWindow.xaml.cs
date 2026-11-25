@@ -73,7 +73,7 @@ public sealed partial class SystemTrayWindow : WindowBase
 
     private void SystemTrayWindow_Activated(object sender, WindowActivatedEventArgs args)
     {
-        if (args.WindowActivationState.ToString() == "Deactivated")
+        if (args.WindowActivationState is WindowActivationState.Deactivated)
         {
             Hide();
         }

@@ -94,6 +94,42 @@ internal class LunarwardProgram
         static Starward.Core.GameBiz? GetCurrentGameBiz() => Helpers.GameIdHelper.CurrentGameBiz();
 
 
+        // 上游的 `rpc` 子命令（Program.cs → RpcRunner）在移植侧没有对应实现（M4 占位，D6）。
+        // 这里显式拒掉，避免 `lunarward rpc` 被当成「没有参数」去开主窗口（D134）。
+        if (args.Length >= 1 && args[0].ToLowerInvariant() is "rpc")
+        {
+            Console.Error.WriteLine("rpc 子进程在 Linux 上未实现（M4 占位）。");
+            Environment.ExitCode = 2;
+            return;
+        }
+
+        // 游玩时长记账（对齐上游 `src/Starward/Program.cs:48` 的 playtime 分支）：
+        // 云游戏按钮会以 `lunarward playtime --biz hk4e_cn --pid <pid>` 拉起本程序，
+        // 这里只记账然后退出——不走 GUI，否则会多开一个主窗口（D134）。
+        if (args.Length >= 1 && args[0].ToLowerInvariant() is "playtime")
+        {
+            InitEnviroment();
+            // 手写解析即可：只有两个开关，不为它拉 ConfigurationBuilder（AddCommandLine 要额外 using）。
+            string playtimeBiz = "";
+            int playtimePid = 0;
+            for (int i = 1; i < args.Length; i++)
+            {
+                if (args[i] is "--biz" && i + 1 < args.Length)
+                {
+                    playtimeBiz = args[++i];
+                }
+                else if (args[i] is "--pid" && i + 1 < args.Length && int.TryParse(args[++i], out int parsedPid))
+                {
+                    playtimePid = parsedPid;
+                }
+            }
+            if (playtimePid > 0 && Starward.Core.GameBiz.TryParse(playtimeBiz, out Starward.Core.GameBiz playBiz))
+            {
+                AppConfig.GetService<Features.PlayTime.PlayTimeRecordService>().LogPlayTimeAsync(playBiz, playtimePid).GetAwaiter().GetResult();
+            }
+            return;
+        }
+
         // 登录助手（D76）：登录窗是独立进程，实现换成「本程序 + WebKitGTK 6.0」，不再依赖 python3。
         if (args.Length >= 1 && args[0] is "--webkit-login")
         {
