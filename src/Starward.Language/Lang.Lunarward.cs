@@ -74,6 +74,8 @@ public partial class Lang
         public static string Lunarward_Companion_TriggerAfterDelay => ResourceManager.GetString("Lunarward_Companion_TriggerAfterDelay", resourceCulture) ?? "Lunarward_Companion_TriggerAfterDelay";
         public static string Lunarward_Companion_TriggerOnExit => ResourceManager.GetString("Lunarward_Companion_TriggerOnExit", resourceCulture) ?? "Lunarward_Companion_TriggerOnExit";
         public static string Lunarward_Companion_Delay => ResourceManager.GetString("Lunarward_Companion_Delay", resourceCulture) ?? "Lunarward_Companion_Delay";
+        public static string Lunarward_GenshinHDRLuminance_Title => ResourceManager.GetString("Lunarward_GenshinHDRLuminance_Title", resourceCulture) ?? "HDR brightness";
+        public static string Lunarward_GenshinHDRLuminance_PreviewUnavailable => ResourceManager.GetString("Lunarward_GenshinHDRLuminance_PreviewUnavailable", resourceCulture) ?? "Linux: the HDR preview is not available; only the luminance values written to the game can be adjusted.";
         public static string Lunarward_Preflight_Action_OpenGameSettings => ResourceManager.GetString("Lunarward_Preflight_Action_OpenGameSettings", resourceCulture) ?? "Open game settings";
         public static string Lunarward_Preflight_Action_OpenRuntimeSettings => ResourceManager.GetString("Lunarward_Preflight_Action_OpenRuntimeSettings", resourceCulture) ?? "Open runtime environment";
         public static string Lunarward_Preflight_Action_OpenPrefixFolder => ResourceManager.GetString("Lunarward_Preflight_Action_OpenPrefixFolder", resourceCulture) ?? "Open prefix folder";

@@ -44,7 +44,10 @@ public class GameAccountService
             "global" => GameRegistry.MIHOYOSDK_ADL_PROD_OVERSEA_h1158948810,
             _ => throw new ArgumentOutOfRangeException($"Unknown region {biz}"),
         };
-        var values = await WineRegistry.GetKeyValuesAsync(key, cancellationToken).ConfigureAwait(false);
+        // D134：读也要读游戏真正使用的前缀（写侧 L197 早已如此）。前缀还没解析出来时
+        // WineRegistry 会回落到默认前缀，但那时游戏本身也还没跑过，读到空值是对的。
+        string? prefix = Starward.Features.GameSetting.GameSettingService.GetGameWinePrefix(biz);
+        var values = await WineRegistry.GetKeyValuesAsync(key, prefix, cancellationToken).ConfigureAwait(false);
         values.TryGetValue(keyName, out object? raw);
         if (raw is byte[] adl)
         {

@@ -41,8 +41,11 @@ internal static class GameSettingService
 
     public static GraphicsSettings_PCResolution_h431323223? GetGameResolutionSetting(GameBiz biz)
     {
+        if (!TryGetReadPrefix(biz, out string prefix))
+        {
+            return null;
+        }
         var keyPath = biz.GetGameRegistryKey();
-        string? prefix = ResolveGamePrefix(biz);
         if (biz.ToGame().Value is GameBiz.bh3 or GameBiz.hkrpg)
         {
             var keyName = biz.ToGame().Value switch
@@ -70,7 +73,7 @@ internal static class GameSettingService
         }
         if (biz.ToGame() == GameBiz.nap)
         {
-            var fullScreen = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Fullscreen_mode_h3630240806, 0) ?? 0) != 3;
+            var fullScreen = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Fullscreen_mode_h3630240806, 0, prefix) ?? 0) != 3;
             var width = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Width_h182942802, 0, prefix) ?? 0);
             var height = (int)(WineRegistry.GetValue(keyPath, Screenmanager_Resolution_Height_h2627697771, 0, prefix) ?? 0);
             if (width * height > 0)
@@ -147,8 +150,11 @@ internal static class GameSettingService
 
     public static int? GetGameVoiceLanguageSetting(GameBiz biz)
     {
+        if (!TryGetReadPrefix(biz, out string prefix))
+        {
+            return null;
+        }
         var keyPath = biz.GetGameRegistryKey();
-        string? prefix = ResolveGamePrefix(biz);
         if (biz.ToGame() == GameBiz.hk4e)
         {
             var data = WineRegistry.GetValue(keyPath, GENERAL_DATA_h2389025596, null, prefix) as byte[];
@@ -229,8 +235,12 @@ internal static class GameSettingService
     {
         if (biz.Game is GameBiz.hkrpg)
         {
+            if (!TryGetReadPrefix(biz, out string fpsReadPrefix))
+            {
+                return 60;
+            }
             string key = biz.GetGameRegistryKey();
-            byte[]? data = WineRegistry.GetValue(key, GraphicsSettings_Model_h2986158309, null, ResolveGamePrefix(biz)) as byte[];
+            byte[]? data = WineRegistry.GetValue(key, GraphicsSettings_Model_h2986158309, null, fpsReadPrefix) as byte[];
             if (data is not null)
             {
                 string str = Encoding.UTF8.GetString(data).TrimEnd('\0');
@@ -286,9 +296,9 @@ internal static class GameSettingService
         string? value = node?.ToJsonString();
         if (string.IsNullOrWhiteSpace(value))
         {
-            value = $$"""
-                {"FPS":{{fps}},"EnableVSync":false,"RenderScale":1.0,"ResolutionQuality":3,"ShadowQuality":3,"LightQuality":3,"CharacterQuality":3,"EnvDetailQuality":3,"ReflectionQuality":3,"SFXQuality":3,"BloomQuality":3,"AAMode":1,"EnableMetalFXSU":false,"EnableHalfResTransparent":false,"EnableSelfShadow":1,"DlssQuality":0}
-                """;
+            // D134：对齐上游——键不存在时只写 FPS，不凭空生成 RenderScale/各 Quality，
+            // 否则等于用移植侧硬编码值覆盖用户的画质设置。
+            value = $$"""{"FPS":{{fps}}}""";
         }
         value += "\0";
         // 画质预设设置为0（自定义）时，帧率设置方能生效；两个值合成一次 reg import
@@ -324,12 +334,39 @@ internal static class GameSettingService
             throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_PrefixNotFound);
         }
         string key = biz.GetGameRegistryKey();
-        await WineRegistry.SetValueAsync(key, WINDOWS_HDR_ON_h3132281285, enableHDR ? 1 : 0, prefix, cancellationToken).ConfigureAwait(false);
+        // D134：与分辨率/语音/星铁 FPS 一致，走能返回 bool 的批量写——单值版 SetValueAsync 内部
+        // 只 Log.Debug 吞掉异常，会让 UI 显示「应用成功」而游戏里没开。
+        var payload = new Dictionary<string, object>
+        {
+            [WINDOWS_HDR_ON_h3132281285] = enableHDR ? 1 : 0,
+        };
+        if (!await WineRegistry.SetValuesAsync(key, payload, prefix, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_SetGameSettingFailed);
+        }
     }
 
 
     /// <summary>按游戏绑定的 Profile 解析「已经存在」的前缀；不会为了写设置去创建/克隆前缀。</summary>
     public static string? GetGameWinePrefix(GameBiz biz) => ResolveGamePrefix(biz);
+
+
+    /// <summary>
+    /// 读路径专用：前缀解析不出来时不要去默认前缀（~/.wine）捞旧值——那会让界面显示别的前缀的值
+    /// 或上一次的老值（D134，对齐上游「读写同一份注册表」的语义）。写路径仍然是「解析不出来就抛」。
+    /// </summary>
+    private static bool TryGetReadPrefix(GameBiz biz, out string prefix)
+    {
+        string? resolved = ResolveGamePrefix(biz);
+        if (string.IsNullOrWhiteSpace(resolved))
+        {
+            Serilog.Log.Debug("Skip reading game setting: prefix not resolved for {biz}", biz.Value);
+            prefix = "";
+            return false;
+        }
+        prefix = resolved;
+        return true;
+    }
 
 
     private static string? ResolveGamePrefix(GameBiz biz)
@@ -358,10 +395,10 @@ internal static class GameSettingService
     public static async Task<(int MaxLuminance, int SceneLuminance, int UILuminance)> GetGenshinHDRLuminanceAsync(GameBiz biz, CancellationToken cancellationToken = default)
     {
         int max = 1000, scene = 300, ui = 350;
-        if (biz.Game is GameBiz.hk4e)
+        if (biz.Game is GameBiz.hk4e && TryGetReadPrefix(biz, out string lumReadPrefix))
         {
             string key = biz.GetGameRegistryKey();
-            var values = await WineRegistry.GetKeyValuesAsync(key, ResolveGamePrefix(biz), cancellationToken).ConfigureAwait(false);
+            var values = await WineRegistry.GetKeyValuesAsync(key, lumReadPrefix, cancellationToken).ConfigureAwait(false);
             byte[]? data = values.TryGetValue(GENERAL_DATA_h2389025596, out object? raw) ? raw as byte[] : null;
             if (data is not null)
             {

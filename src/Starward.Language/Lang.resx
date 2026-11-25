@@ -3122,7 +3122,13 @@ You are welcome to submit the exported data to the following repository:</value>
   <data name="Lunarward_Preflight_OK" xml:space="preserve">
     <value>OK</value>
   </data>
-    <data name="Lunarward_Preflight_Action_OpenGameSettings" xml:space="preserve">
+      <data name="Lunarward_GenshinHDRLuminance_Title" xml:space="preserve">
+    <value>HDR brightness</value>
+  </data>
+  <data name="Lunarward_GenshinHDRLuminance_PreviewUnavailable" xml:space="preserve">
+    <value>Linux: the HDR preview is not available; only the luminance values written to the game can be adjusted.</value>
+  </data>
+<data name="Lunarward_Preflight_Action_OpenGameSettings" xml:space="preserve">
     <value>Open game settings</value>
   </data>
   <data name="Lunarward_Preflight_Action_OpenRuntimeSettings" xml:space="preserve">

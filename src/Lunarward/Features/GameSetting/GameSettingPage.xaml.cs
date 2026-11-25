@@ -88,7 +88,6 @@ public sealed partial class GameSettingPage : PageBase
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
-        var swNav = System.Diagnostics.Stopwatch.StartNew();
         base.OnNavigatedTo(e);
         // Lunarward：没有选择游戏时（干净环境/首启），本页仍然会被导航到（例如 L1.5 自检）。
         // 这里给一个明确空态并提前返回，避免下游按游戏分支时对空的 GameId 解引用（测试方案 F-06）。
@@ -138,11 +137,6 @@ public sealed partial class GameSettingPage : PageBase
             // Lunarward：Linux 上 DisplayArea/ContentIsland 不可用，分辨率列表先留空（见 13-lessons.md）
         }
         await InitializeGameSettingAsync();
-        // Lunarward：截图验证用（--scroll <px> / LUNARWARD_SCROLL），见 Features/App/DevSwitches.cs
-        if (Starward.Features.Dev.DevSwitches.Scroll is int offset && offset > 0)
-        {
-            ScrollViewer_Main.ChangeView(null, offset, null, true);
-        }
     }
 
 
@@ -551,7 +545,7 @@ public sealed partial class GameSettingPage : PageBase
                     Width = ResolutionWidth,
                     Height = ResolutionHeight,
                 };
-                GameSettingService.SetGameResolutionSetting(CurrentGameBiz, model);
+                await GameSettingService.SetGameResolutionSettingAsync(CurrentGameBiz, model);
                 //AppConfig.SetUsePopupWindow(CurrentGameId, UsePopupWindow);
             }
             if (IsLanguageSettingEnable)

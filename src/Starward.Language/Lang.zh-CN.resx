@@ -3122,7 +3122,13 @@
   <data name="Lunarward_Preflight_OK" xml:space="preserve">
     <value>知道了</value>
   </data>
-    <data name="Lunarward_Preflight_Action_OpenGameSettings" xml:space="preserve">
+      <data name="Lunarward_GenshinHDRLuminance_Title" xml:space="preserve">
+    <value>HDR 亮度</value>
+  </data>
+  <data name="Lunarward_GenshinHDRLuminance_PreviewUnavailable" xml:space="preserve">
+    <value>Linux：HDR 预览暂不可用，只能调整写入游戏的亮度参数。</value>
+  </data>
+<data name="Lunarward_Preflight_Action_OpenGameSettings" xml:space="preserve">
     <value>打开游戏设置</value>
   </data>
   <data name="Lunarward_Preflight_Action_OpenRuntimeSettings" xml:space="preserve">

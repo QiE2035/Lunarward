@@ -32,7 +32,7 @@ public sealed partial class GenshinHDRLuminanceSettingDialog : ContentDialog
 
     public GenshinHDRLuminanceSettingDialog()
     {
-        Title = Lang.GenshinHDRLuminanceSettingDialog_MonitorInformation;
+        Title = Lang.Lunarward_GenshinHDRLuminance_Title;
         PrimaryButtonText = Lang.Common_Save;
         CloseButtonText = Lang.Common_Cancel;
         DefaultButton = ContentDialogButton.Primary;
@@ -85,7 +85,7 @@ public sealed partial class GenshinHDRLuminanceSettingDialog : ContentDialog
         var panel = new StackPanel { Spacing = 16, MinWidth = 620 };
         panel.Children.Add(new TextBlock
         {
-            Text = "Linux：HDR 预览暂不可用，只能调整写入游戏的亮度参数。",
+            Text = Lang.Lunarward_GenshinHDRLuminance_PreviewUnavailable,
             TextWrapping = TextWrapping.Wrap,
         });
         panel.Children.Add(CreateRow(Lang.GenshinHDRLuminanceSettingDialog_MaxLuminance, _sliderMax, _valueMax));
