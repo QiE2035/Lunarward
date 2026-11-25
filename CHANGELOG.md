@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-25 —— 全部文档按 0.19.0 重算，并修掉 5 处审计中撞见的缺陷（D133）
+
+- **偏离总账重算**：`25-deviation-register.md` 按 9 个模块逐文件重读，从旧的 265 点重算为 **423 点 / 112 个文件**（must 158 / reasonable 166 / avoidable 99，可回流上游 12）；附录 B 列全部 99 条可避免项，附录 C 列 12 条可回流修正。
+- **同名差异表改脚本生成**：`18-upstream-table.md` 不再手工分类，「变更行」由 `diff` 现算、「分类」从 `25` §3 推导；当前 80 个文件（上一版表内 88 个，差额来自上游 0.19.0 自己重写/删除的文件）。
+- **口径校准**：单测 365、`--selftest-ui` 12 条、`Lang.resx` 1393 键、`*.Linux.cs` 33 个、XAML 28 实质差异；`README` 的上游基线改为「领先 186 / 落后 1 / merge-base `747ed10b`」。
+- **顺手修的 5 处**：启动器多配置面板会因 `GameFileDatabase` 未初始化而崩（`AppConfig.Configuration.cs` 两分支补 `SetDatabase`）；无系统代理时 Hyp 账号列表永远不加载（`InitializePassportUser` 恢复上游语义）；5 个调试环境变量在 Release 也生效（收进 `DevSwitches.DevEnv`）；「设置 → 截图」页一片空白（`ScreenshotSetting.Linux.cs` 漏 `InitializeComponent()`，并加 `--selftest-ui` 断言）；删掉 `/tmp/lw-trace.txt` 调试残留。
+- 新增 `L-189`（`Compile Remove` 的 code-behind 漏 `InitializeComponent` → 整页空白）与 `L-190`（统计数字要有唯一口径行 + 机器校验）。
+
 ## 2026-11-25 —— 热更新的两块 Windows-only 依赖补齐：wine 前缀注册表 + 跨平台硬链接（D132）
 
 - **热更新在 Linux 上不再被整体关掉**：删掉 `CheckUpdateAsync` 开头的 `if (!OperatingSystem.IsWindows()) return false;`，按用户口径「先接通，能不能用等真踩到再说」。

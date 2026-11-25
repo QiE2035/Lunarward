@@ -6,7 +6,7 @@
 
 - 最后更新：2026-11-24（用例计数按表内唯一 ID 重算为 **237 条** = 225 `T-*` + 12 `RG-*`，并修掉 `T-UI-30/31/33` 的重号；覆盖率口径按 D122 落实；D87 运行器命名 12 例、D88 `lint-pkgbuild.sh` 静态检查、D89 SDK 下限防回归）
 - 对应代码：`src/Lunarward`（`main`），单头 Linux，不改 `src/Starward/`
-- 现状（2026-11-24 实测）：L1 单测数量以 `dotnet test Starward.slnx -c Debug` 的实际输出为准（2026-11-25 为 **365 条**）；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **41 例（40 通过 + 1 跳过）** + `cli-extra.sh` **32 例（含 4 条退役 SKIP）** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
+- 现状（2026-11-24 实测）：L1 单测数量以 `dotnet test Starward.slnx -c Debug` 的实际输出为准（2026-11-25 为 **365 条**）；L1.5 `--selftest-ui` **12 条**；L2 `cli-smoke.sh` **41 例（40 通过 + 1 跳过）** + `cli-extra.sh` **32 例（含 4 条退役 SKIP）** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
 
 ### 覆盖率口径（D122，2026-11-24）
 
@@ -364,7 +364,7 @@
 
 | ID | 场景 | 期望 | 层 |
 |---|---|---|---|
-| T-I18N-01 | 11 语言键齐全 | 与 `src/Starward.Language/Lang.resx` 的键集一致（2026-11-24 为 1343 键），无缺失 | L1 |
+| T-I18N-01 | 11 语言键齐全 | 与 `src/Starward.Language/Lang.resx` 的键集一致（2026-11-25 为 1393 键），无缺失 | L1 |
 | T-I18N-02 | 运行时切换语言 | 界面与活动/资讯标题都跟着变（`Lang` + `CoreLang` 两处） | L3 |
 | T-I18N-03 | 长语言文案 | 德语/俄语长词不撑破布局 | L3 |
 | T-I18N-04 | 数字/时间格式 | 按 locale 显示 | L1 |
@@ -581,7 +581,7 @@ L3 不进 CI：需要真实桌面、真实输入，而且很多判据是「看�
 实现：`src/Lunarward/Features/Dev/UiSelfTest.cs` + `MainWindow.OnSelfTestActivated`；CLI 开关 `--selftest-ui`
 （只设 `LUNARWARD_SELFTEST=1`，真正执行在窗口首次 Activated 之后，跑完 `Environment.Exit`）。
 
-当前 11 条断言（2026-11-24 按 `UiSelfTest.cs` 的 `checks` 列表核对；首轮真机 8/8 通过的是当时那 8 条）：
+当前 12 条断言（2026-11-25 按 `UiSelfTest.cs` 的 `checks` 列表核对；首轮真机 8/8 通过的是当时那 8 条）：
 
 | 断言 | 抓什么 |
 | --- | --- |
@@ -590,6 +590,7 @@ L3 不进 CI：需要真实桌面、真实输入，而且很多判据是「看�
 | 启动器页已加载 | `Frame` 吞掉页面构造异常（L-28） |
 | 导航到游戏设置页后内容非空 | 页面 ctor 抛异常被 frame 掩盖 |
 | 导航到设置页后内容非空 | 同上 |
+| 设置子页 `ScreenshotSetting` 能加载自己的 XAML | code-behind 被 `Compile Remove` 后漏 `InitializeComponent()` → 页面空白（真实缺陷，2026-11-25 修） |
 | 运行环境是一级页（footer 入口可打开） | 一级页被 Uno 吃掉 / 被 `SupportedPages` 白名单换回启动器（D80） |
 | 关键画刷资源存在 | 主题资源被删（`ApplicationPageBackgroundThemeBrush` / `SystemAccentColor`） |
 | 运行时方案能被解析 | 绑定损坏导致回落空方案 |
@@ -636,7 +637,7 @@ CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1
 | RG-11 预检结论要反映到退出码 | `--preflight` 判定不可启动仍 `rc=0` | 不可启动时 `rc=1` | L2 | ✅ `cli-extra.sh` |
 | RG-12 安装路径不依赖 config.json | `--install-fetch` 说「没有记录安装路径」，实际存 SQLite | 传 `--install-dir` 后能完成规划 | L2 | ✅ `cli-extra.sh` |
 
-落地位置汇总：`tests/Lunarward.Tests/*`（L1）、`Features/Dev/UiSelfTest.cs`（L1.5，11 条）、`scripts/test/{cli-smoke,cli-extra,lint-ui-thread,lint-cli-help,lint-doc-status,lint-pkgbuild,perf}.sh`（L2）。
+落地位置汇总：`tests/Lunarward.Tests/*`（L1）、`Features/Dev/UiSelfTest.cs`（L1.5，12 条）、`scripts/test/{cli-smoke,cli-extra,lint-ui-thread,lint-cli-help,lint-doc-status,lint-pkgbuild,perf}.sh`（L2）。
 
 ### 12.1 关于「lint」这一层
 

@@ -2,7 +2,7 @@
 
 - **最后更新**：2026-11-24（文档事实校准：提交数 / 测试计数 / 前缀读取耗时按实测更正；D123 视频硬解；D122 覆盖率口径；D109 米游社工具箱页签/下载组件修复；D108 运行环境页面 UI 21 条；D104–D107 运行环境 42 条实现错位；D95–D103 审计 70 条修复）
 - **当前阶段**：功能移植完成（M1–M3 主体）+ 运行环境与打包收口。**代码侧没有在做的功能批**，剩下的是真机验收。
-- **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 **165** 个提交、落后 **2** 个（2026-11-24 快照；merge base 仍是 `df8ae07`，2026-11-21 已并入历史，见 D93）。未并入的两个上游提交：`747ed10b` `0.19.0` 版本号、`5ce5e31f` `feat(i18n): add Indonesian (id-ID) localization (#1965)`
+- **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 **186** 个提交、落后 **1** 个（2026-11-25 快照；merge base `747ed10b` = `0.19.0` 版本号提交，已随 PR #1 并入，见 D93/D128）。未并入的上游提交：`48b0cd90` `hide quick clear image when there is no clearance record (#1945)`
 - **版本**：`0.1.0`（`src/Lunarward/Lunarward.csproj`）
 - **分发**：AUR（`lunarward` / `lunarward-git`）、AppImage、CI 产物（`lunarward-linux-x64`，self-contained tar.gz，保留 7 天）
 - **用户文档**：[`docs/user/faq.md`](../user/faq.md)、[`docs/user/runtime-environment.md`](../user/runtime-environment.md)
@@ -59,9 +59,9 @@
 
 | 文档 | 用途 |
 | --- | --- |
-| `00-decisions.md` | **唯一决策源**：D0–D132 的结论、理由、代价、变更记录 |
+| `00-decisions.md` | **唯一决策源**：D0–D133 的结论、理由、代价、变更记录 |
 | `12-shims-and-gaps.md` | **唯一状态登记表**：每处替身/缺口的真实状态 |
-| `13-lessons.md` | **唯一坑记录**：L-01…L-188 的实测结论与复现方法（编号勘误见文末）（单元测试数量以 `dotnet test` 输出为准） |
+| `13-lessons.md` | **唯一坑记录**：L-01…L-190 的实测结论与复现方法（编号勘误见文末）（单元测试数量以 `dotnet test` 输出为准） |
 | `18-upstream-deviations.md` | 移植偏差原则、登记标记、上游同步流程 |
 | `18-upstream-table.md` | 同名差异文件的自动分类与复核进度（`scripts/list-deviations.sh` 生成）；逐点清单以 `25` 为准 |
 | `19-test-plan.md` | **唯一测试计划**：237 条用例（225 `T-*` + 12 `RG-*`，按表内唯一 ID 统计）、L1/L1.5/L2/L3 分层、性能预算、缺陷流程 |

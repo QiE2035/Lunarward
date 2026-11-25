@@ -1682,3 +1682,21 @@ bitmap.Resize(info, new SKSamplingOptions(SKCubicResampler.Mitchell));
 **教训**：从 Windows 移植过来的路径拼接，要按「**字面量里有没有反斜杠**」扫一遍，不能只看 `Path.Combine` 用得对不对——上游那一行看起来完全正常。反过来说，也只在这类地方能安全地改：路径语义本来就是平台相对的，改完 Windows 行为不变。
 
 **注意**：路径修对了 ≠ 功能能用了。同一处热更新还依赖注册表（服务器名）与硬链接（打补丁），所以 D131 里给 `CheckUpdateAsync` 加了 `!OperatingSystem.IsWindows()` 的整体关闭——半可用状态会真的触发一次「按错误区域下载」的热更新。
+
+## L-189　被 `Compile Remove` 的 code-behind 由 `*.Linux.cs` 取代时，漏 `InitializeComponent()` 会得到整整一页空白
+
+**现象**：从设置页进「截图」子页（`Features/Setting/ScreenshotSetting`）是一片空白——不崩溃、控制台无异常、`Debug` 构建也 0 错。同类能一路活到合并后才被发现（`git show a0e10c6f:` 证明 0.19.0 合并前就这样）。
+
+**原因**：上游 `ScreenshotSetting.xaml.cs` 已被 `<Compile Remove>`（`Lunarward.csproj`），改由 `ScreenshotSetting.Linux.cs` 提供同名类；那份 ctor 只赋了两个属性，**没有** `InitializeComponent()`。XAML 生成的 `InitializeComponent` 不会被框架自动调用，没人调就没人创建可视树。
+
+**做法**：ctor 第一行补 `InitializeComponent();`；并在 `--selftest-ui` 加一条断言 `new ScreenshotSetting().Content is not null`（`Features/Dev/UiSelfTest.cs`），把这类「编译得过、跑起来空白」的缺陷变成 CI 能抓的回归。
+
+**教训**：凡是 `*.Linux.cs` 顶替 `Compile Remove` 掉的 code-behind，都要对一遍「上游 ctor / `OnNavigatedTo` 里干了什么」。`dotnet build` 对这类缺陷完全没有信号——`InitializeComponent` 由 Uno 的源生成器提供，不用也不会报 CS 警告。反证方法：把 `InitializeComponent()` 注释掉再跑一次 `--selftest-ui`，必须从 12 通过 0 失败变成 11 通过 1 失败，否则断言本身是假的。
+
+## L-190　文档里的统计数字要有「唯一口径行 + 机器校验」，否则每轮同步都重新漂移一次
+
+**现象**：0.19.0 合并后同一批数字在四份文档里各不相同——`12` 写 36 个 `*.Linux.cs`（实际 33）、`18` 写 81 个同名文件（实际 80）、`19` 写 230 条用例（实际 237）、`00` 的口径行还写 379 条单测（实际 365）。都不是「写错一次」，是每次改代码只改了一处。
+
+**做法**：`docs/linux-port/00-decisions.md` 里保留一条「统计口径统一（后续改动以这些为准）」的行，所有文档引用数字时以它为准；能机器判定的交给 `scripts/test/lint-doc-status.sh`（编号唯一、替身清单、排除条数、同名文件数、文档份数），其余在每次改动的那份文档里写「最后核对：日期 + HEAD」。
+
+**教训**：数字不是知识，是缓存。缓存就必须有失效条件——不写「怎么复算」的数字，下一轮一定是错的；同理，`18-upstream-table.md` 那种纯人工分类的表，改脚本生成比每次人工补行可靠（分类从 `25` §3 推导）。
