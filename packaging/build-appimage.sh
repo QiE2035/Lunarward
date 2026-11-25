@@ -11,7 +11,7 @@ repo="$(dirname "$here")"
 appdir="${APPDIR:-$repo/build/Lunarward.AppDir}"
 out="$repo/build"
 
-command -v dotnet >/dev/null || { echo "需要 dotnet SDK 10" >&2; exit 1; }
+command -v dotnet >/dev/null || { echo "需要 dotnet SDK 11" >&2; exit 1; }
 
 echo "==> 清理 $appdir"
 rm -rf "$appdir"
@@ -19,7 +19,7 @@ mkdir -p "$appdir/usr/lib/lunarward" "$appdir/usr/share/applications" \
          "$appdir/usr/share/icons/hicolor/256x256/apps"
 
 echo "==> publish"
-# 必须进项目目录：dotnet 从当前工作目录向上找 global.json，仓库根钉的是上游 SDK 10.0.400
+# 必须进项目目录：dotnet 从当前工作目录向上找 global.json，仓库根钉的是 SDK 11.0.100
 ( cd "$repo/src/Lunarward" && \
   dotnet publish Lunarward.csproj -c Release -r linux-x64 --self-contained false \
     -o "$appdir/usr/lib/lunarward" )

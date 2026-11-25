@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework><!-- LUNARWARD-DEVIATION: 上游该库为 net10.0-windows（.NET 11），移植侧钉在 net10.0，见 D128。 -->
+		<TargetFramework>net11.0</TargetFramework><!-- LUNARWARD-DEVIATION: 上游为 net11.0-windows；移植侧要能在 Linux 上引用，改平台中立，Windows 专属调用见 *.Linux.cs（D128）。 -->
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -11,16 +11,10 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- LUNARWARD-DEVIATION: .NET 11 的隐式 using 含 System.Net.Http.Json，net10 没有。 -->
-		<Using Include="System.Net.Http.Json" />
+		<PackageReference Include="Starward.HPatch" Version="0.1.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- LUNARWARD-DEVIATION: 上游引用 Starward.HPatch 0.1.0（NuGet 只发布 net11.0 资产，net10.0 无法正常还原）。
-		     该包是纯托管实现、无本地依赖，这里以直接引用的方式使用同一份程序集，见 D128。 -->
-		<Reference Include="Starward.HPatch">
-			<HintPath>..\..\libs\Starward.HPatch.dll</HintPath>
-		</Reference>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -33,7 +27,6 @@
 		<PackageReference Include="Polly" Version="8.9.1" />
 		<PackageReference Include="Starward.SharpSevenZip" Version="2.0.130" />
 		<PackageReference Include="System.Threading.RateLimiting" Version="11.0.0" />
-		<PackageReference Include="ZstdSharp.Port" Version="0.8.8" /><!-- LUNARWARD-DEVIATION: net10 没有内建的 ZstandardStream，见 D128。 -->
 		<PackageReference Include="Vanara.PInvoke.Kernel32" Version="5.0.8" />
 		<PackageReference Include="ZiggyCreatures.FusionCache" Version="2.10.0" />
 	</ItemGroup>

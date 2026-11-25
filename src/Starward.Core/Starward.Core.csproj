@@ -1,15 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- LUNARWARD-DEVIATION: .NET 11 的隐式 using 含 System.Net.Http.Json，.NET 10 没有；见 D128。 -->
-    <Using Include="System.Net.Http.Json" />
-  </ItemGroup>
+          </ItemGroup>
 
   <ItemGroup>
     <Compile Update="Localization\CoreLang.Designer.cs">
