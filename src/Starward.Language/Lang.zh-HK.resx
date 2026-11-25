@@ -4351,4 +4351,25 @@
   <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
     <value>在資料夾中顯示</value>
   </data>
+  <data name="Lunarward_Login_OpeningWindow" xml:space="preserve">
+    <value>登入視窗已開啟，請在新視窗中完成登入（最長等待 5 分鐘）…</value>
+  </data>
+  <data name="Lunarward_Login_NoCookie" xml:space="preserve">
+    <value>未取得登入狀態：視窗被關閉或等待逾時，可重試。</value>
+  </data>
+  <data name="Lunarward_Login_FetchingRoles" xml:space="preserve">
+    <value>已取得登入狀態，正在取得角色資訊…</value>
+  </data>
+  <data name="Lunarward_Login_Succeeded" xml:space="preserve">
+    <value>登入成功，已新增 {0} 個角色。</value>
+  </data>
+  <data name="Lunarward_Login_Failed" xml:space="preserve">
+    <value>登入失敗：{0}</value>
+  </data>
+  <data name="Lunarward_Login_StateExists" xml:space="preserve">
+    <value>登入狀態已存在，可直接返回戰績頁。</value>
+  </data>
+  <data name="Lunarward_Login_PleaseSignIn" xml:space="preserve">
+    <value>請先點選「開啟登入視窗」完成登入。</value>
+  </data>
 </root>

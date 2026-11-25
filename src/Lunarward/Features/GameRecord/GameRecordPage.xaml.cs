@@ -60,6 +60,13 @@ public sealed partial class GameRecordPage : PageBase
         {
             DispatcherQueue.TryEnqueue(() => _ = InitializeGameRoleAsync());
         });
+        // 上游 0.19.0 登录完成后由 HypThirdPartyLoginMessage 触发刷新；Linux 的登录页走独立 WebKitGTK
+        // 窗口，完成后发的是 GameRecordRoleChangedMessage（LoginPage.Linux.cs）——以前没人订阅它，
+        // 结果登录成功回到战绩页仍是空的（D134）。
+        WeakReferenceMessenger.Default.Register<GameRecordRoleChangedMessage>(this, (r, m) =>
+        {
+            DispatcherQueue.TryEnqueue(() => _ = InitializeGameRoleAsync());
+        });
         await Task.Delay(16);
         NavigateTo(typeof(BlankPage));
         await InitializeGameRoleAsync();

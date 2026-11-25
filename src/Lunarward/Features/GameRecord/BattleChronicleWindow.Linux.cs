@@ -2,6 +2,7 @@
 // 先提供一个讲清楚「为什么没有、什么时候有」的占位窗口，登录与 BBS 页面在 M2 用独立 WebKitGTK 窗口实现。
 // L-183：以前这里是 `Content = new Grid();`，用户点「战绩」只看到一片空白，以为是程序坏了。
 using Starward.Features;
+using Starward.Language;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -19,7 +20,7 @@ public sealed partial class BattleChronicleWindow : WindowBase
 
     public BattleChronicleWindow()
     {
-        Title = "战绩";
+        Title = Lang.HoyolabToolboxPage_BattleChronicle;
         _roleText = new TextBlock
         {
             Opacity = 0.7,
@@ -61,15 +62,4 @@ public sealed partial class BattleChronicleWindow : WindowBase
         };
     }
 
-    public void ShowBattleChronicle(Microsoft.UI.Xaml.Window owner, Starward.Core.GameRecord.GameRecordRole? role)
-    {
-        OwnerWindow = owner;
-        CurrentRole = role;
-        _roleText.Text = role is null
-            ? ""
-            : $"当前角色：{role.Nickname}（UID {role.Uid}）";
-        Activate();
-    }
-
-    public string? DocumentTitle { get; set; }
 }

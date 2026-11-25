@@ -4358,4 +4358,25 @@
   <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
     <value>在文件夹中显示</value>
   </data>
+  <data name="Lunarward_Login_OpeningWindow" xml:space="preserve">
+    <value>登录窗口已打开，请在新窗口中完成登录（最长等待 5 分钟）…</value>
+  </data>
+  <data name="Lunarward_Login_NoCookie" xml:space="preserve">
+    <value>未取得登录态：窗口被关闭或等待超时，可重试。</value>
+  </data>
+  <data name="Lunarward_Login_FetchingRoles" xml:space="preserve">
+    <value>已取得登录态，正在获取角色信息…</value>
+  </data>
+  <data name="Lunarward_Login_Succeeded" xml:space="preserve">
+    <value>登录成功，已添加 {0} 个角色。</value>
+  </data>
+  <data name="Lunarward_Login_Failed" xml:space="preserve">
+    <value>登录失败：{0}</value>
+  </data>
+  <data name="Lunarward_Login_StateExists" xml:space="preserve">
+    <value>登录态已存在，可直接返回战绩页。</value>
+  </data>
+  <data name="Lunarward_Login_PleaseSignIn" xml:space="preserve">
+    <value>请先点击「打开登录窗口」完成登录。</value>
+  </data>
 </root>

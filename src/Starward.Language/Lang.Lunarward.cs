@@ -93,6 +93,13 @@ public partial class Lang
         public static string Lunarward_Login_Title => ResourceManager.GetString("Lunarward_Login_Title", resourceCulture) ?? "Lunarward_Login_Title";
         public static string Lunarward_Login_Description => ResourceManager.GetString("Lunarward_Login_Description", resourceCulture) ?? "Lunarward_Login_Description";
         public static string Lunarward_Login_Open => ResourceManager.GetString("Lunarward_Login_Open", resourceCulture) ?? "Lunarward_Login_Open";
+        public static string Lunarward_Login_OpeningWindow => ResourceManager.GetString("Lunarward_Login_OpeningWindow", resourceCulture) ?? "Lunarward_Login_OpeningWindow";
+        public static string Lunarward_Login_NoCookie => ResourceManager.GetString("Lunarward_Login_NoCookie", resourceCulture) ?? "Lunarward_Login_NoCookie";
+        public static string Lunarward_Login_FetchingRoles => ResourceManager.GetString("Lunarward_Login_FetchingRoles", resourceCulture) ?? "Lunarward_Login_FetchingRoles";
+        public static string Lunarward_Login_Succeeded => ResourceManager.GetString("Lunarward_Login_Succeeded", resourceCulture) ?? "Lunarward_Login_Succeeded";
+        public static string Lunarward_Login_Failed => ResourceManager.GetString("Lunarward_Login_Failed", resourceCulture) ?? "Lunarward_Login_Failed";
+        public static string Lunarward_Login_StateExists => ResourceManager.GetString("Lunarward_Login_StateExists", resourceCulture) ?? "Lunarward_Login_StateExists";
+        public static string Lunarward_Login_PleaseSignIn => ResourceManager.GetString("Lunarward_Login_PleaseSignIn", resourceCulture) ?? "Lunarward_Login_PleaseSignIn";
         public static string Lunarward_Profiles_Empty => ResourceManager.GetString("Lunarward_Profiles_Empty", resourceCulture) ?? "Lunarward_Profiles_Empty";
         public static string Lunarward_Components_Empty => ResourceManager.GetString("Lunarward_Components_Empty", resourceCulture) ?? "Lunarward_Components_Empty";
         public static string Lunarward_Template_Create => ResourceManager.GetString("Lunarward_Template_Create", resourceCulture) ?? "Lunarward_Template_Create";

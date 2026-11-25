@@ -4358,4 +4358,25 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
     <value>Show in Folder</value>
   </data>
+  <data name="Lunarward_Login_OpeningWindow" xml:space="preserve">
+    <value>Login window opened, please finish signing in there (waits up to 5 minutes).</value>
+  </data>
+  <data name="Lunarward_Login_NoCookie" xml:space="preserve">
+    <value>No login state: the window was closed or the wait timed out, you can retry.</value>
+  </data>
+  <data name="Lunarward_Login_FetchingRoles" xml:space="preserve">
+    <value>Login state obtained, fetching role info…</value>
+  </data>
+  <data name="Lunarward_Login_Succeeded" xml:space="preserve">
+    <value>Signed in, {0} role(s) added.</value>
+  </data>
+  <data name="Lunarward_Login_Failed" xml:space="preserve">
+    <value>Login failed: {0}</value>
+  </data>
+  <data name="Lunarward_Login_StateExists" xml:space="preserve">
+    <value>Login state already present, you can go back to the battle chronicle page.</value>
+  </data>
+  <data name="Lunarward_Login_PleaseSignIn" xml:space="preserve">
+    <value>Please click “Open login window” to sign in first.</value>
+  </data>
 </root>
