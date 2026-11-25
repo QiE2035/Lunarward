@@ -83,8 +83,10 @@
 | 3.2 安装 | 扫描根 `LUNARWARD_GAME_ROOTS`、任务表不清理、finally 缺 1 秒退避 | 删环境变量 / 补清理与退避 |
 | 3.3 游戏设置 | 读注册表回落 `~/.wine`、HDR 写入静默失败、分辨率同步等待、HDR 对话框文案 | 走游戏前缀 / 抛错 / 改异步 / 走 `Lang` |
 | 3.4 外壳 | `App.HandleStartupAsync`、`ApplyAcrylicFallback`、缺 `playtime`/`rpc` 子命令 | 删死代码 / 补子命令（托盘激活与拖拽区两点还原后编不过，不改） |
-| 3.5 截图 | 右键菜单、缩略图 `IsThumbnail`、截图文件名、批量转换整库、两个死处理器 | 补菜单（`RightTapped` 现造）/ 补属性 / 改格式 / 要求先勾选 / 删 |
+| 3.5 截图 | 右键菜单、缩略图 `IsThumbnail`、截图文件名、批量转换整库、两个死处理器、格式/质量编码 | 补菜单（`RightTapped` 现造）/ 补属性 / 改格式 / 要求先勾选 / 删 |
 | 视图底座 | `PageBase` 在 `Unloaded` 退订 `Loaded`（缓存页面再进入时 `OnLoaded` 不执行） | 不再退订 |
+
+**D134 第二轮（3.5/3.7/3.8/3.9）**：截图格式/质量真的生效（`ScreenCapture.Linux.cs` 落盘后按设置转 AVIF/JXL，失败保留 PNG）；托盘底色按桌面主题推断（`SystemBackdropHelper` 把上游 `alwaysActive` 当 `isDark` 的误读）；更新窗补 `INotifyPropertyChanged` + `Bindings.Update()`，「重试」失败会显示原因；数据库自动备份扩展名 `.7z` → `.zip`（产物本来就是 ZIP）；自定义背景校验去掉嵌套同步等待；删 `CachedImage` 里的空类。
 
 **仍保留的 avoidable 项（下一轮）**：`GameLauncherPage` 内联 `BackgroundSwitcher`（约 270 行，需截图验证）、截图外部目录管理与「格式/质量」设置开关、`ImageViewWindow` 死窗口三件套、`ImageConvertItem` 孤立模型、`LoginPage` 残留（上游 0.19.0 已删）、BBS 桥裁剪、托盘主题/更新窗重试/深链等 3.8/3.9 条目。
 
