@@ -16,25 +16,24 @@
         <StackPanel>
 
             <!--  诊断（D61）：替代 Windows 的「获得管理员权限」入口  -->
-            <TextBlock Margin="0,20,0,0" FontSize="20" Text="诊断" />
+            <TextBlock Margin="0,20,0,0" FontSize="20" Text="{x:Bind lang:Lang.Lunarward_Diagnose_Title}" />
             <TextBlock Margin="0,8,0,0"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       TextWrapping="Wrap">
-                把运行器、运行方案、前缀状态、最近 3 份启动报告和日志尾部打成一个 zip，方便排查问题（不需要管理员权限）。
-            </TextBlock>
+                       Text="{x:Bind lang:Lang.Lunarward_Diagnose_Description}"
+                       TextWrapping="Wrap" />
             <StackPanel Margin="0,12,0,0" Orientation="Horizontal" Spacing="12">
                 <Button Height="40"
                         Click="Button_CreateDiagnose_Click"
                         Style="{ThemeResource AccentButtonStyle}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xF412;" />
-                        <TextBlock Text="生成诊断包" />
+                        <TextBlock Text="{x:Bind lang:Lang.Lunarward_Diagnose_Create}" />
                     </StackPanel>
                 </Button>
                 <Button Height="40" Click="Button_OpenDiagnoseFolder_Click">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <FontIcon FontSize="16" Glyph="&#xE838;" />
-                        <TextBlock Text="打开下载目录" />
+                        <TextBlock Text="{x:Bind lang:Lang.Lunarward_Diagnose_OpenFolder}" />
                     </StackPanel>
                 </Button>
             </StackPanel>

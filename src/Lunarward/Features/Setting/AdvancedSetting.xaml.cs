@@ -51,11 +51,11 @@ public sealed partial class AdvancedSetting : PageBase
         };
         var dialog = new ContentDialog
         {
-            Title = "最近运行输出",
+            Title = Starward.Language.Lang.Lunarward_Diagnose_OutputTitle,
             Content = scroll,
-            PrimaryButtonText = "刷新",
-            SecondaryButtonText = "打开日志文件夹",
-            CloseButtonText = "关闭",
+            PrimaryButtonText = Starward.Language.Lang.Lunarward_Diagnose_Refresh,
+            SecondaryButtonText = Starward.Language.Lang.Lunarward_Diagnose_OpenLogFolder,
+            CloseButtonText = Starward.Language.Lang.Lunarward_Diagnose_Close,
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = this.XamlRoot,
         };
@@ -99,7 +99,7 @@ public sealed partial class AdvancedSetting : PageBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Create diagnostic bundle failed");
-            Helpers.InAppToast.MainWindow?.Error((string?)null, $"生成诊断包失败：{ex.Message}", 8000);
+            Helpers.InAppToast.MainWindow?.Error((string?)null, string.Format(Starward.Language.Lang.Lunarward_Diagnose_Failed, ex.Message), 8000);
         }
     }
 

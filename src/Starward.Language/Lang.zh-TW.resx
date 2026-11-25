@@ -4376,4 +4376,31 @@
   <data name="Lunarward_FileDialog_NoTool" xml:space="preserve">
     <value>沒有可用的檔案選擇對話框：請安裝 kdialog 或 zenity（portal 回退也不可用）。</value>
   </data>
+  <data name="Lunarward_Diagnose_Title" xml:space="preserve">
+    <value>診斷</value>
+  </data>
+  <data name="Lunarward_Diagnose_Description" xml:space="preserve">
+    <value>把執行器、執行方案、前綴狀態、最近 3 份啟動報告和日誌尾部打成一個 zip，方便排查問題（不需要管理員權限）。</value>
+  </data>
+  <data name="Lunarward_Diagnose_Create" xml:space="preserve">
+    <value>產生診斷包</value>
+  </data>
+  <data name="Lunarward_Diagnose_OpenFolder" xml:space="preserve">
+    <value>開啟下載目錄</value>
+  </data>
+  <data name="Lunarward_Diagnose_OutputTitle" xml:space="preserve">
+    <value>最近執行輸出</value>
+  </data>
+  <data name="Lunarward_Diagnose_Refresh" xml:space="preserve">
+    <value>重新整理</value>
+  </data>
+  <data name="Lunarward_Diagnose_OpenLogFolder" xml:space="preserve">
+    <value>開啟日誌資料夾</value>
+  </data>
+  <data name="Lunarward_Diagnose_Close" xml:space="preserve">
+    <value>關閉</value>
+  </data>
+  <data name="Lunarward_Diagnose_Failed" xml:space="preserve">
+    <value>產生診斷包失敗：{0}</value>
+  </data>
 </root>

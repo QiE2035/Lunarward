@@ -4382,4 +4382,31 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   <data name="Lunarward_FileDialog_NoTool" xml:space="preserve">
     <value>No file dialog available: install kdialog or zenity (the portal fallback was unavailable too).</value>
   </data>
+  <data name="Lunarward_Diagnose_Title" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="Lunarward_Diagnose_Description" xml:space="preserve">
+    <value>Pack runners, runtime profiles, prefix state, the last 3 launch reports and the log tail into a zip — handy for troubleshooting, no admin rights needed.</value>
+  </data>
+  <data name="Lunarward_Diagnose_Create" xml:space="preserve">
+    <value>Create diagnostic bundle</value>
+  </data>
+  <data name="Lunarward_Diagnose_OpenFolder" xml:space="preserve">
+    <value>Open downloads folder</value>
+  </data>
+  <data name="Lunarward_Diagnose_OutputTitle" xml:space="preserve">
+    <value>Recent run output</value>
+  </data>
+  <data name="Lunarward_Diagnose_Refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Lunarward_Diagnose_OpenLogFolder" xml:space="preserve">
+    <value>Open log folder</value>
+  </data>
+  <data name="Lunarward_Diagnose_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Lunarward_Diagnose_Failed" xml:space="preserve">
+    <value>Failed to create the diagnostic bundle: {0}</value>
+  </data>
 </root>
