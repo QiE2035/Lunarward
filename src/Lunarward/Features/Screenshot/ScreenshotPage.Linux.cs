@@ -17,6 +17,7 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     public ScreenshotPage()
     {
         OpenImageBatchConvertWindowCommand = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(BatchConvertAsync);
+        ManageScreenshotFolderCommand = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(ManageScreenshotFolderAsync);
         // x:Bind 默认 OneTime：数据要在 InitializeComponent 之前准备好。
         LoadImages();
 
@@ -92,26 +93,50 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     }
 
 
+    /// <summary>
+    /// D134：上游支持「默认目录 + 每游戏的外部截图目录」（设置页/管理对话框可加）。
+    /// 移植侧以前只读默认目录，管理对话框也就成了摆设；这里按 AppConfig 里登记的列表逐个读。
+    /// </summary>
+    private IReadOnlyList<string> ScreenshotFolders()
+    {
+        var folders = new List<string> { ScreenCaptureLinux.DefaultFolder };
+        string? external = AppConfig.GetExternalScreenshotFolder(CurrentGameId);
+        if (!string.IsNullOrWhiteSpace(external))
+        {
+            foreach (string part in external.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (!folders.Contains(part, StringComparer.Ordinal))
+                {
+                    folders.Add(part);
+                }
+            }
+        }
+        return folders;
+    }
+
+
     private void LoadImages()
     {
         var items = new List<ScreenshotItem>();
-        try
+        foreach (string folder in ScreenshotFolders())
         {
-            string folder = ScreenCaptureLinux.DefaultFolder;
-            if (Directory.Exists(folder))
+            try
             {
-                items = Directory.EnumerateFiles(folder)
+                if (!Directory.Exists(folder))
+                {
+                    continue;
+                }
+                items.AddRange(Directory.EnumerateFiles(folder)
                     .Where(IsSupportedFile)
                     .Select(x => new FileInfo(x))
-                    .OrderByDescending(x => x.LastWriteTime)
-                    .Select(x => new ScreenshotItem(x.FullName))
-                    .ToList();
+                    .Select(x => new ScreenshotItem(x.FullName)));
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "读取截图目录失败：{folder}", folder);
             }
         }
-        catch (Exception ex)
-        {
-            Serilog.Log.Warning(ex, "读取截图目录失败");
-        }
+        items = items.OrderByDescending(x => x.CreationTime).ToList();
         foreach (ScreenshotItem item in items)
         {
             item.PropertyChanged += (_, e) =>
@@ -217,7 +242,35 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
 
     public BitmapImage? Header { get; set; }
 
-    public CommunityToolkit.Mvvm.Input.IRelayCommand ManageScreenshotFolderCommand { get; } = new CommunityToolkit.Mvvm.Input.RelayCommand(OpenScreenshotFolder);
+    public CommunityToolkit.Mvvm.Input.IAsyncRelayCommand ManageScreenshotFolderCommand { get; }
+
+    /// <summary>与上游一致：打开「管理截图文件夹」对话框（默认目录 + 可增删的外部目录）。</summary>
+    private async Task ManageScreenshotFolderAsync()
+    {
+        try
+        {
+            var folders = ScreenshotFolders()
+                .Select((path, i) => new Starward.Features.Screenshot.ScreenshotFolder(path) { Default = i == 0 })
+                .ToList();
+            var dialog = new Starward.Features.Screenshot.ScreenshotFolderManageDialog
+            {
+                Folders = folders,
+                CurrentGameId = CurrentGameId,
+                XamlRoot = this.XamlRoot,
+            };
+            await Helpers.DialogGate.Show(dialog);
+            if (dialog.FolderChanged)
+            {
+                string value = string.Join(';', dialog.Folders.Where(x => x.CanRemove).Select(x => x.Folder));
+                AppConfig.SetExternalScreenshotFolder(CurrentGameId, value);
+                LoadImages();
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "管理截图文件夹失败");
+        }
+    }
     public CommunityToolkit.Mvvm.Input.IAsyncRelayCommand OpenImageBatchConvertWindowCommand { get; }
 
     /// <summary>没有内置文件管理器，交给桌面：`xdg-open <folder>`。</summary>

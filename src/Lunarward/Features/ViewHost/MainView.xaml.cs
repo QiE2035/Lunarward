@@ -115,7 +115,7 @@ public sealed partial class MainView : UserControl
 
 
     /// <summary>
-    /// Esc 的第一优先级：先把「游戏选择层」或打开的下拉/浮出菜单收掉，
+    /// Esc 的第一优先级：先把打开的下拉/浮出菜单收掉（游戏选择层由 GameSwitcher 自己处理），
     /// 都收掉了才轮到把窗口隐藏到托盘（否则用户只是想退出选择层，窗口却消失了）。
     /// </summary>
     public bool TryCloseGameSelector()
@@ -269,11 +269,11 @@ public sealed partial class MainView : UserControl
                     }
                     catch (Exception)
                     {
-                        // 调试直达失败时静默，正常导航仍由 GameSelector 负责
+                        // 调试直达失败时静默，正常导航仍由 GameSwitcher / 导航栏负责
                     }
                 }
                 DebugNavigate();
-                // GameSelector 恢复选中会再导航一次，延迟补一次保证停在该页
+                // GameSwitcher 恢复选中会再导航一次，延迟补一次保证停在该页
                 DispatcherQueue.TryEnqueue(async () =>
                 {
                     await Task.Delay(1500);

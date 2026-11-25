@@ -7,6 +7,7 @@
 // 这里只做用户级注册，不碰系统目录、不请求 root。
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.IO;
 
 namespace Starward.Features.UrlProtocol;
@@ -86,12 +87,52 @@ internal static class UrlProtocolService
                 File.Delete(DesktopFilePath);
                 RunQuiet("update-desktop-database", Path.GetDirectoryName(DesktopFilePath)!);
             }
+            // D134：只删 .desktop 不够——~/.config/mimeapps.list 里还留着
+            // `x-scheme-handler/lunarward=lunarward.desktop`，桌面环境会把请求发给一个不存在的处理器，
+            // 结果就是「点了没反应也不报错」。把指向我们这条的清掉（别动其它应用的关联）。
+            RemoveMimeAssociation();
         }
         catch (Exception ex)
         {
             Serilog.Log.Warning(ex, "Unregister protocol failed");
         }
     }
+
+    private static void RemoveMimeAssociation()
+    {
+        try
+        {
+            string configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } xdg
+                ? xdg
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
+            string file = Path.Combine(configHome, "mimeapps.list");
+            if (!File.Exists(file))
+            {
+                return;
+            }
+            string[] lines = File.ReadAllLines(file);
+            var kept = new List<string>(lines.Length);
+            bool changed = false;
+            foreach (string line in lines)
+            {
+                if (line.StartsWith($"x-scheme-handler/{Scheme}=", StringComparison.Ordinal))
+                {
+                    changed = true;
+                    continue;
+                }
+                kept.Add(line);
+            }
+            if (changed)
+            {
+                File.WriteAllLines(file, kept);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "清理 mimeapps.list 关联失败");
+        }
+    }
+
 
     /// <summary>以「当前用户默认处理器是不是我们自己」判断，而不是看文件在不在。</summary>
     public static bool IsProtocolRegistered()

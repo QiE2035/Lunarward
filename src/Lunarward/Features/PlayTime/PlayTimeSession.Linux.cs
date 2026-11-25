@@ -212,13 +212,16 @@ internal static class PlayTimeSession
                         }
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    // /proc/<pid> 在这一瞬间消失是常态；留一条 Debug 便于排查「明明在跑却判成没跑」。
+                    Serilog.Log.Verbose(ex, "read /proc/{pid} failed", dir);
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Serilog.Log.Debug(ex, "scan /proc for {name} failed", exeNames);
         }
         return false;
     }
