@@ -312,7 +312,8 @@ public sealed partial class MainView : UserControl
         {
             await Task.Delay(1500);
             Uri? proxy = HttpClient.DefaultProxy.GetProxy(new Uri("https://starward.scighost.com"));
-            if (proxy is not null)
+            // D86：这条只提醒一次（原来每次启动都弹，配合系统代理的用户等于每次开机被念一遍）。
+            if (proxy is not null && Helpers.OneShotHints.TryTake("system-proxy"))
             {
                 InAppToast.MainWindow?.Information(Lang.MainView_CheckSystemProxy_SystemProxyIsEnabled, proxy.ToString(), 5000);
             }
@@ -665,9 +666,13 @@ public sealed partial class MainView : UserControl
         try
         {
             await Task.Delay(1500);
-            Uri? proxy = HttpClient.DefaultProxy.GetProxy(new Uri("https://starward.scighost.com"));
-            // D86：这条只提醒一次（原来每次启动都弹，配合系统代理的用户等于每次开机被念一遍）。
-            if (proxy is not null && Helpers.OneShotHints.TryTake("system-proxy"))
+            // 上游 MainView.xaml.cs:426 是同步版本，这里延后 1.5 s 放后台避免拖慢启动；
+            // 判定必须用 CurrentLauncherConfig.CanLogin——之前误把 D86 的系统代理提示守卫套在了这里，
+            // 结果「没配系统代理」的用户永远拿不到 Hyp 账号列表。
+            CurrentPassportUser = null;
+            PassportUsers = null;
+            UpdateHypFlyoutLayout();
+            if (CurrentLauncherConfig?.CanLogin ?? false)
             {
                 _ = _windowsDeviceFpService.InitializeDeviceFpAsync(CurrentLauncherConfig.Region);
                 PassportUsers = new(PassportService.GetPassportUserInfos(CurrentLauncherConfig.Region));

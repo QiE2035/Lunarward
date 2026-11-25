@@ -1,4 +1,5 @@
 using Starward.Features.Database;
+using Starward.GameInstall;
 using Starward.Features.ViewHost;
 using Starward.Helpers;
 using Starward.Setup.Core;
@@ -159,6 +160,10 @@ public static partial class AppConfig
                 {
                     UserDataFolder = userDataFolder;
                     DatabaseService.SetDatabase(userDataFolder);
+                    // LUNARWARD-DEVIATION: 上游 src/Starward/AppConfig.Configuration.cs:114 同样在这里初始化
+                    // GameFileDatabase；0.19.0 新增的启动器多配置面板（Features/GameSelector/LauncherConfigView）
+                    // 一打开就 GameFileDatabase.CreateConnection()，未初始化会抛 InvalidOperationException。
+                    GameFileDatabase.SetDatabase(userDataFolder);
                     LoadConfiguration();
                 }
                 else
@@ -173,6 +178,7 @@ public static partial class AppConfig
                 UserDataFolder = Path.Combine(LinuxDataHome, "lunarward");
                 Directory.CreateDirectory(UserDataFolder);
                 DatabaseService.SetDatabase(UserDataFolder);
+                GameFileDatabase.SetDatabase(UserDataFolder);
                 LoadConfiguration();
             }
         }

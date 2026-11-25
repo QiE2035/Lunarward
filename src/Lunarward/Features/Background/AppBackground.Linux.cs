@@ -30,8 +30,8 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     // 合成间隔（毫秒）。0 = 还没测出来；以前这里写死 1000/30，等于替视频决定帧率——
     // 24 fps 的素材被当成「帧来得慢、不用限」，60 fps 的被砍掉一半（用户 2026-11-24 指出）。
     // 现在的口径：量视频自己的帧到达节奏（VLC 按源帧率送帧），用实测间隔限合成。
-    // LUNARWARD_VIDEO_FPS 仍可显式覆盖。
-    private static readonly int _videoFrameIntervalOverride = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_FPS"), out int fps) && fps > 0 ? Math.Max(1000 / fps, 1) : 0;
+    // LUNARWARD_VIDEO_FPS 仍可显式覆盖（开发开关，Release 需 LUNARWARD_DEV=1，硬规则 6）。
+    private static readonly int _videoFrameIntervalOverride = int.TryParse(Features.Dev.DevSwitches.DevEnv("LUNARWARD_VIDEO_FPS"), out int fps) && fps > 0 ? Math.Max(1000 / fps, 1) : 0;
 
     private long _videoFrameIntervalMs;
 
@@ -49,7 +49,8 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
     // E：起播后 2 秒内一帧都没来就说明「播放器起来了但没解码」，这类问题以前只能靠 CPU 占用才能发现。
     private long _videoFrameCount;
 
-    private static readonly bool _skipVideoPaint = Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_NOPAINT") is "1";
+    /// <summary>开发开关（Release 需 LUNARWARD_DEV=1）：只合成不贴图，用来分离「解码贵」还是「贴图贵」。</summary>
+    private static readonly bool _skipVideoPaint = Features.Dev.DevSwitches.DevEnv("LUNARWARD_VIDEO_NOPAINT") is "1";
 
 
     private static AppBackground? _current;
@@ -308,7 +309,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             }
         }
         // 上游给 1 秒 API 超时；Linux 首包要 TLS 握手，1 秒几乎必然超时（L-71），这里放宽到 4 秒（可调）。
-        int apiTimeoutMs = int.TryParse(Environment.GetEnvironmentVariable("LUNARWARD_BG_TIMEOUT_MS"), out int dbgMs) && dbgMs > 0 ? dbgMs : 4000;
+        int apiTimeoutMs = int.TryParse(Features.Dev.DevSwitches.DevEnv("LUNARWARD_BG_TIMEOUT_MS"), out int dbgMs) && dbgMs > 0 ? dbgMs : 4000;
         try
         {
             // 超时往往只是首包 TLS 慢（L-71）：按 1x / 2x 退避重试，仍失败才算「拿不到」。
@@ -579,7 +580,7 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
             CancellationToken token = _updateBackgroundCts.Token;
 
             // 调试开关（M3 验证用）：直接指定本地视频，跳过 API 类型判断
-            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_BG"))
+            if (!string.IsNullOrWhiteSpace(Features.Dev.DevSwitches.DevEnv("LUNARWARD_VIDEO_BG"))
                 && await TryStartVideoBackgroundAsync(null, token))
             {
                 // 调试入口也要记状态：否则守卫失效，每次进页面都会重启播放器（日志里反复 video background started）。
@@ -988,8 +989,8 @@ public sealed partial class AppBackground : UserControl, INotifyPropertyChanged
         try
         {
             // customVideoPath 优先（0.19.0 的自定义背景），其次 M3 调试变量。
-            string? videoPath = customVideoPath ?? Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_BG");
-            string? themePath = Environment.GetEnvironmentVariable("LUNARWARD_VIDEO_OVERLAY");
+            string? videoPath = customVideoPath ?? Features.Dev.DevSwitches.DevEnv("LUNARWARD_VIDEO_BG");
+            string? themePath = Features.Dev.DevSwitches.DevEnv("LUNARWARD_VIDEO_OVERLAY");
             if (!string.IsNullOrWhiteSpace(videoPath))
             {
                 // 调试：直接指定本地视频与主题图，跳过 API 下载（M3 验证用）

@@ -82,6 +82,16 @@ internal static class UiSelfTest
                 return (ok, page?.Name ?? "(null)");
             }),
 
+            new("设置子页 ScreenshotSetting 能加载自己的 XAML", () =>
+            {
+                // 2026-11-25：它的 code-behind 被 Compile Remove，由 ScreenshotSetting.Linux.cs 取代，
+                // 那份 ctor 漏了 InitializeComponent() → 页面渲染出来是空白（Build 不报错，只有打开才看得见）。
+                // 页面类自己构造一遍最直接：Content 为 null 就是没加载 XAML。
+                var page = new ScreenshotSetting();
+                bool ok = page.Content is not null;
+                return Task.FromResult((ok, ok ? page.Content!.GetType().Name : "(null)"));
+            }),
+
             new("运行环境是一级页（footer 入口可打开）", async () =>
             {
                 // D80：它不再挂在设置页里。这条断言同时卡住「footer 条目被 Uno 吃掉」与「被 SupportedPages 白名单换回启动器」两种回归

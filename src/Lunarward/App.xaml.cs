@@ -105,9 +105,7 @@ public partial class App : Application
             // D86：结果以 KnownGames 为准。ScanAndApply 在「缓存还新鲜」时直接 return 0，
             // 拿返回值写日志会一直显示「识别到 0 个」，与实际认到的游戏数量无关。
             // D95：扫描是磁盘 IO，放后台线程，避免「启动先卡几秒」（B65）。
-        System.IO.File.AppendAllText("/tmp/lw-trace.txt", "C scan begin\n");
             await System.Threading.Tasks.Task.Run(() => Features.GameInstall.GameInstallScanner.ScanAndApply());
-        System.IO.File.AppendAllText("/tmp/lw-trace.txt", "D scan done\n");
             int knownGames = Features.GameInstall.GameInstallScanner.KnownGames.Count;
             if (knownGames > 0)
             {

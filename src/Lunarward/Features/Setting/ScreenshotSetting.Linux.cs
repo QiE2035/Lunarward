@@ -62,6 +62,9 @@ public sealed partial class ScreenshotSetting : PageBase
 
     public ScreenshotSetting()
     {
+        // 上游 ScreenshotSetting.xaml.cs 的 ctor 第一句就是它；本文件取代了那份 code-behind，
+        // 漏掉会得到一页空白（XAML 编译出来的 InitializeComponent 不会被框架自动调用）。
+        InitializeComponent();
         ScreenshotFolder = AppConfig.ScreenshotFolder;
         AutoCopyScreenshotToClipboard = AppConfig.AutoCopyScreenshotToClipboard;
     }

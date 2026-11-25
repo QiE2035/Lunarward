@@ -60,6 +60,13 @@ internal static class DevSwitches
     private static bool Flag(string argName, string envName)
         => Read(argName, envName) is string value && value is "1" or "true";
 
+    /// <summary>
+    /// 只给开发期用的环境变量（硬规则 6 / D35）：Release 构建下返回 null，Debug 或 `LUNARWARD_DEV=1` 才生效。
+    /// 用于「临时排错开关」——它们不该在发行版里改变用户看到的画面。
+    /// </summary>
+    internal static string? DevEnv(string name)
+        => IsEnabled ? Environment.GetEnvironmentVariable(name) : null;
+
     /// <summary>直接跳到某个主页：launcher / gamesetting / screenshot / gacha / record / selfquery / beyond / setting / login。</summary>
     public static string? Page => Read("page", "LUNARWARD_PAGE");
 
