@@ -7,7 +7,7 @@
              xmlns:lang="using:Starward.Language"
              xmlns:local="using:Starward.Features.Setting"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:sf="using:Starward.Frameworks"
+             xmlns:sf="using:Starward.Features"
              x:DefaultBindMode="OneWay"
              mc:Ignorable="d">
 
@@ -89,7 +89,9 @@
                 <!--  运行环境已提升为一级页（D80），入口在 MainView 的 footer、齿轮正上方。
                       这里保留 SettingPage 里的 Tag 映射只为兼容旧的 subpage 参数，不再有可见条目。  -->
                 <!--  高级  -->
-                <NavigationViewItem Content="{x:Bind lang:Lang.SettingPage_Advanced}" Tag="AdvancedSetting">
+                <NavigationViewItem Content="{x:Bind lang:Lang.SettingPage_Advanced}"
+                                    Tag="AdvancedSetting"
+                                    Visibility="Collapsed">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xEA86;" />
                     </NavigationViewItem.Icon>

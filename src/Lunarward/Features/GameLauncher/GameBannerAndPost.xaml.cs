@@ -7,14 +7,15 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Starward.Core.HoYoPlay;
-using Starward.Features.HoYoPlay;
 using Starward.Features.ViewHost;
+using Starward.GameInstall;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Windows.System;
+using Starward.GameInstall;
 
 
 namespace Starward.Features.GameLauncher;

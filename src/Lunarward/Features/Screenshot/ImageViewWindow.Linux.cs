@@ -3,7 +3,7 @@ using Microsoft.UI.Xaml;
 // Lunarward：旧版看图窗口（上游已被 ImageViewWindow2 取代，但仍被截图流程引用）。
 // Win2D 画布 → M3 用 SkiaSharp 重画；这里先补齐 x:Bind 契约与窗口壳。
 using Microsoft.UI.Xaml.Media.Imaging;
-using Starward.Frameworks;
+using Starward.Features;
 
 namespace Starward.Features.Screenshot;
 
@@ -17,7 +17,7 @@ public sealed class ImageFile
     public int Height { get; set; }
 }
 
-public sealed partial class ImageViewWindow : WindowEx
+public sealed partial class ImageViewWindow : WindowBase
 {
     public ImageViewWindow()
     {

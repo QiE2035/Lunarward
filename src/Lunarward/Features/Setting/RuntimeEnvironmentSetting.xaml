@@ -8,7 +8,7 @@
     xmlns:local="using:Starward.Features.Setting"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:runtime="using:Starward.Features.Runtime"
-    xmlns:sf="using:Starward.Frameworks"
+    xmlns:sf="using:Starward.Features"
     mc:Ignorable="d">
 
     <!--  D85：运行环境界面重排。

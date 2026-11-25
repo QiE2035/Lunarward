@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -59,46 +59,46 @@
             : using a System.ComponentModel.TypeConverter
             : and then encoded with base64 encoding.
     -->
-  <xsd:schema xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" id="root">
-    <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
     <xsd:element name="root" msdata:IsDataSet="true">
       <xsd:complexType>
         <xsd:choice maxOccurs="unbounded">
           <xsd:element name="metadata">
             <xsd:complexType>
               <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0"/>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
               </xsd:sequence>
-              <xsd:attribute name="name" use="required" type="xsd:string"/>
-              <xsd:attribute name="type" type="xsd:string"/>
-              <xsd:attribute name="mimetype" type="xsd:string"/>
-              <xsd:attribute ref="xml:space"/>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
             </xsd:complexType>
           </xsd:element>
           <xsd:element name="assembly">
             <xsd:complexType>
-              <xsd:attribute name="alias" type="xsd:string"/>
-              <xsd:attribute name="name" type="xsd:string"/>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
             </xsd:complexType>
           </xsd:element>
           <xsd:element name="data">
             <xsd:complexType>
               <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
-                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2"/>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
               </xsd:sequence>
-              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1"/>
-              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3"/>
-              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4"/>
-              <xsd:attribute ref="xml:space"/>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
             </xsd:complexType>
           </xsd:element>
           <xsd:element name="resheader">
             <xsd:complexType>
               <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
               </xsd:sequence>
-              <xsd:attribute name="name" type="xsd:string" use="required"/>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
             </xsd:complexType>
           </xsd:element>
         </xsd:choice>
@@ -187,7 +187,7 @@
     <value>ไม่มีสิทธิในการเขียน</value>
   </data>
   <data name="SelectDirectoryPage_OK" xml:space="preserve">
-    <value>OK</value>
+    <value>ตกลง</value>
   </data>
   <data name="SelectDirectoryPage_ChooseAnother" xml:space="preserve">
     <value>เลือกเพิ่มเติม</value>
@@ -196,7 +196,7 @@
     <value>ยกเลิก</value>
   </data>
   <data name="SelectDirectoryPage_FirstUse" xml:space="preserve">
-    <value>เหมือนจะเป็นครั้งแรกที่คุณใช้ {Lunarward} นะ</value>
+    <value>เหมือนจะเป็นครั้งแรกที่คุณใช้ {Starward} นะ</value>
   </data>
   <data name="SelectGamePage_GoToLauncher" xml:space="preserve">
     <value>ไปที่ Launcher</value>
@@ -205,7 +205,7 @@
     <value>เลือกโฟลเดอร์</value>
   </data>
   <data name="SelectGamePage_SomeGame" xml:space="preserve">
-    <value>{Lunarward} รองรับเกมของ {miHoYo/HoYoverse} แค่บางเกมเท่านั้น โปรดเลือกเกมที่ต้องการจากด้านล่าง - สามารถเปลี่ยนเมื่อไหร่ก็ได้หลังจากเข้า Launcher</value>
+    <value>{Starward} รองรับเกมของ {miHoYo/HoYoverse} แค่บางเกมเท่านั้น โปรดเลือกเกมที่ต้องการจากด้านล่าง - สามารถเปลี่ยนเมื่อไหร่ก็ได้หลังจากเข้า Launcher</value>
   </data>
   <data name="SelectGamePage_TheLastStep" xml:space="preserve">
     <value>ขั้นตอนสุดท้ายแล้ว ~</value>
@@ -319,7 +319,7 @@
     <value>ซิงค์จาก Miyoushe (ทดลอง)</value>
   </data>
   <data name="GachaLogPage_SyncFromMiyousheAll" xml:space="preserve">
-    <value>Sync All from Miyoushe (Experimental)</value>
+    <value>ซิงค์ทั้งหมดจาก Miyoushe (ทดลอง)</value>
   </data>
   <data name="GachaLogPage_InputURL" xml:space="preserve">
     <value>ใส่ URL บันทึกการสุ่ม</value>
@@ -937,7 +937,7 @@
     <value>คำเตือน</value>
   </data>
   <data name="HoyolabToolboxPage_DisclaimerContent" xml:space="preserve">
-    <value>ฟีเจอร์ในหน้านี้จำเป็นต้องให้ผู้ใช้ล็อกอินเข้าบัญชี HoYoLAB แล้ว Lunarward จะเก็บข้อมูลการล็อกอิน (Cookie) เพื่อที่จะปลอมตัวเป็นผู้ใช้และส่งคำขอข้อมูลต่างๆไปยังเซิฟเวอร์ของ miHoYo - วิธีนี้มีความเสี่ยงและทางเราจะไม่รับผิดชอบใดๆหากบัญชีของผู้ใช้เกิดความผิดปกติและถูกแบน
+    <value>ฟีเจอร์ในหน้านี้จำเป็นต้องให้ผู้ใช้ล็อกอินเข้าบัญชี HoYoLAB แล้ว Starward จะเก็บข้อมูลการล็อกอิน (Cookie) เพื่อที่จะปลอมตัวเป็นผู้ใช้และส่งคำขอข้อมูลต่างๆไปยังเซิฟเวอร์ของ miHoYo - วิธีนี้มีความเสี่ยงและทางเราจะไม่รับผิดชอบใดๆหากบัญชีของผู้ใช้เกิดความผิดปกติและถูกแบน
 
 คุณยอมรับความเสี่ยงและยืนยันที่จะใช้ฟีเจอร์นี้หรือไม่</value>
   </data>
@@ -1177,7 +1177,7 @@
     <value>URL โพรโทคอล (ทดลอง)</value>
   </data>
   <data name="SettingPage_URLProtocolDesc" xml:space="preserve">
-    <value>ซอฟต์แวร์อื่นสามารถใช้บางฟีเจอร์ของ Lunarward ผ่าน URL โพรโทคอล</value>
+    <value>ซอฟต์แวร์อื่นสามารถใช้บางฟีเจอร์ของ Starward ผ่าน URL โพรโทคอล</value>
   </data>
   <data name="SettingPage_RegisterURLProtocol" xml:space="preserve">
     <value>ลงทะเบียน URL โพรโทคอล</value>
@@ -1277,7 +1277,7 @@
     <value>ทดสอบเครือข่าย</value>
   </data>
   <data name="SelectLanguagePage_AreYouAbleToReceiveUpdatesForStarward" xml:space="preserve">
-    <value>คุณสามารถรับการอัปเดตของ Lunarward ได้หรือไม่?</value>
+    <value>คุณสามารถรับการอัปเดตของ Starward ได้หรือไม่?</value>
   </data>
   <data name="SelectDirectoryPage_PleaseSelectAFolderToStoreYourPersonalData" xml:space="preserve">
     <value>กรุณาเลือกโฟลเดอร์เพื่อเก็บข้อมูลส่วนตัวของคุณ มันสำคัญมาก!</value>
@@ -1298,7 +1298,7 @@
     <value>นิยายบริสุทธิ์</value>
   </data>
   <data name="AppearanceSettingPage_HelpUsTranslateStarward" xml:space="preserve">
-    <value>ช่วยแปล Lunarward</value>
+    <value>ช่วยแปล Starward</value>
   </data>
   <data name="FileSettingPage_Cache" xml:space="preserve">
     <value>แคช</value>
@@ -1787,6 +1787,12 @@
   <data name="StartGameButton_Verify" xml:space="preserve">
     <value>ตรวจสอบ</value>
   </data>
+  <data name="StartGameButton_Cleaning" xml:space="preserve">
+    <value>กำลังทำความสะอาด</value>
+  </data>
+  <data name="StartGameButton_StepProgress" xml:space="preserve">
+    <value>ขั้นตอนที่ {0}/{1}</value>
+  </data>
   <data name="SettingPage_RPCServiceIsNotRunning" xml:space="preserve">
     <value>บริการ RPC ไม่ได้ทำงาน</value>
   </data>
@@ -1821,10 +1827,10 @@
     <value>ประกาศความไม่เข้ากัน</value>
   </data>
   <data name="PreDownloadDialog_IncompatibilityNoticeContent" xml:space="preserve">
-    <value>ไฟล์ติดตั้งล่วงหน้าของ Lunarward และ HoYoPlay (miHoYo Launcher) ไม่เข้ากันและไม่สามารถรับรู้ซึ่งกันและกัน</value>
+    <value>ไฟล์ติดตั้งล่วงหน้าของ Starward และ HoYoPlay (miHoYo Launcher) ไม่เข้ากันและไม่สามารถรับรู้ซึ่งกันและกัน</value>
   </data>
   <data name="WelcomeView_DearPlayerWelcomeToStarward" xml:space="preserve">
-    <value>เรียนผู้เล่น ยินดีต้อนรับสู่ Lunarward!</value>
+    <value>เรียนผู้เล่น ยินดีต้อนรับสู่ Starward!</value>
   </data>
   <data name="WelcomeView_WelcomeToStarwardDescription" xml:space="preserve">
     <value>นี่คือตัวเรียกใช้งานที่ออกแบบมาโดยเฉพาะสำหรับเกม HoYoverse ช่วยให้คุณจัดการเกมได้อย่างง่ายดายและเพลิดเพลินกับประสบการณ์ที่ดีขึ้น</value>
@@ -1848,16 +1854,16 @@
     <value>ติดตั้งแล้ว</value>
   </data>
   <data name="WelcomeView_StarwardStart" xml:space="preserve">
-    <value>Lunarward เริ่ม!</value>
+    <value>Starward เริ่ม!</value>
   </data>
   <data name="GameSelector_ClickToSelectOrSwitchGame" xml:space="preserve">
     <value>คลิกเพื่อเลือกหรือสลับเกม</value>
   </data>
   <data name="GameLauncherSettingDialog_UninstallGameUserDataFolderWarning" xml:space="preserve">
-    <value>โฟลเดอร์ข้อมูล Lunarward อยู่ในโฟลเดอร์เกมและจะถูกลบไปพร้อมกับเกม กรุณาเปลี่ยนตำแหน่งโฟลเดอร์ข้อมูลในหน้าการตั้งค่าแล้วลองอีกครั้ง</value>
+    <value>โฟลเดอร์ข้อมูล Starward อยู่ในโฟลเดอร์เกมและจะถูกลบไปพร้อมกับเกม กรุณาเปลี่ยนตำแหน่งโฟลเดอร์ข้อมูลในหน้าการตั้งค่าแล้วลองอีกครั้ง</value>
   </data>
   <data name="GameLauncherSettingDialog_UninstallGameStarwardProgramFolderWarning" xml:space="preserve">
-    <value>โปรแกรม Lunarward อยู่ในโฟลเดอร์เกมและจะถูกลบไปพร้อมกับเกม กรุณาย้ายโปรแกรมออกจากโฟลเดอร์เกมแล้วลองอีกครั้ง</value>
+    <value>โปรแกรม Starward อยู่ในโฟลเดอร์เกมและจะถูกลบไปพร้อมกับเกม กรุณาย้ายโปรแกรมออกจากโฟลเดอร์เกมแล้วลองอีกครั้ง</value>
   </data>
   <data name="CloudGameButton_CloudGame" xml:space="preserve">
     <value>เกมคลาวด์</value>
@@ -2145,7 +2151,7 @@
     <value>ช่วงไดนามิกสูง</value>
   </data>
   <data name="WelcomeView_IfStarwardTakesALongTimeToStartItIsRecommendedToDisableSmartAppControlInWindowsSecurity" xml:space="preserve">
-    <value>หาก Lunarward ใช้เวลานานในการเริ่มต้น แนะนำให้ปิด Smart App Control ใน Windows Security</value>
+    <value>หาก Starward ใช้เวลานานในการเริ่มต้น แนะนำให้ปิด Smart App Control ใน Windows Security</value>
   </data>
   <data name="WelcomeView_OpenWindowsSecurity" xml:space="preserve">
     <value>เปิด Windows Security</value>
@@ -2154,7 +2160,7 @@
     <value>เรียนรู้เพิ่มเติม</value>
   </data>
   <data name="WelcomeView_NetworkErrorYouCanContinueUsingStarwardButYouWonTReceiveFutureUpdates" xml:space="preserve">
-    <value>ข้อผิดพลาดเครือข่าย คุณยังคงใช้ Lunarward ได้ แต่จะไม่ได้รับการอัปเดตในอนาคต</value>
+    <value>ข้อผิดพลาดเครือข่าย คุณยังคงใช้ Starward ได้ แต่จะไม่ได้รับการอัปเดตในอนาคต</value>
   </data>
   <data name="MainView_CheckSystemProxy_SystemProxyIsEnabled" xml:space="preserve">
     <value>เปิดใช้พรอกซีระบบแล้ว</value>
@@ -2337,7 +2343,7 @@
     <value>เปลี่ยนโฟลเดอร์</value>
   </data>
   <data name="HotkeySetting_SingleKeyShortcutsTips" xml:space="preserve">
-    <value>หากคุณลงทะเบียนแป้นพิมพ์ลัดแบบปุ่มเดียว (F1–F12) คุณต้องเรียกใช้ Lunarward ด้วยสิทธิ์ผู้ดูแลระบบ มิฉะนั้นแป้นพิมพ์ลัดอาจไม่ทำงานในเกม</value>
+    <value>หากคุณลงทะเบียนแป้นพิมพ์ลัดแบบปุ่มเดียว (F1–F12) คุณต้องเรียกใช้ Starward ด้วยสิทธิ์ผู้ดูแลระบบ มิฉะนั้นแป้นพิมพ์ลัดอาจไม่ทำงานในเกม</value>
   </data>
   <data name="SettingPage_KeyboardShortcuts" xml:space="preserve">
     <value>แป้นพิมพ์ลัด</value>
@@ -2376,10 +2382,10 @@
     <value>รองรับเฉพาะคอนโทรลเลอร์ที่ใช้โปรโตคอล Xbox เท่านั้น ไม่รับประกันความเข้ากันได้กับคอนโทรลเลอร์ประเภทอื่น</value>
   </data>
   <data name="GamepadControlSetting_SimulateInputDesc" xml:space="preserve">
-    <value>จำลองอินพุตแป้นพิมพ์และเมาส์โดยใช้คอนโทรลเลอร์เกม ฟีเจอร์นี้ต้องเรียกใช้ Lunarward ด้วยสิทธิ์ผู้ดูแลระบบจึงจะทำงานได้อย่างถูกต้องในเกม</value>
+    <value>จำลองอินพุตแป้นพิมพ์และเมาส์โดยใช้คอนโทรลเลอร์เกม ฟีเจอร์นี้ต้องเรียกใช้ Starward ด้วยสิทธิ์ผู้ดูแลระบบจึงจะทำงานได้อย่างถูกต้องในเกม</value>
   </data>
   <data name="GamepadControlSetting_LongPressGuideButtonDesc" xml:space="preserve">
-    <value>กดค้างที่ปุ่ม Guide เพื่อเปิดหน้าต่างหลักของ Lunarward</value>
+    <value>กดค้างที่ปุ่ม Guide เพื่อเปิดหน้าต่างหลักของ Starward</value>
   </data>
   <data name="GamepadControlSetting_BothThumbsticksDesc" xml:space="preserve">
     <value>กดปุ่มแท่งควบคุมทั้งสองพร้อมกันเพื่อเปิดใช้งานการจำลองแป้นพิมพ์และเมาส์ด้วยคอนโทรลเลอร์</value>
@@ -2391,7 +2397,7 @@
     <value>• เมื่อจับคู่ปุ่ม Guide แป้นพิมพ์ลัดเริ่มต้นของ Xbox Game Bar จะถูกปิดใช้งาน ซอฟต์แวร์อื่น (เช่น Steam Big Picture Mode) อาจตอบสนองต่อปุ่ม Guide ได้เช่นกัน หากเกิดข้อขัดแย้ง คุณต้องปิดใช้งานฟีเจอร์เหล่านั้นด้วยตนเอง</value>
   </data>
   <data name="GamepadControlSetting_ButtonMappingKeyboardDesc" xml:space="preserve">
-    <value>• เมื่อจับคู่กับปุ่มแป้นพิมพ์ ให้ป้อนชื่อปุ่มตามที่ปรากฏบนแป้นพิมพ์ คั่นด้วยช่องว่าง ตัวอย่างเช่น จับคู่ปุ่มเป็น "Ctrl + Alt + F1" ให้ป้อน "Ctrl Alt F1" สำหรับปุ่มบนแป้นตัวเลข ให้เพิ่ม Pad ก่อนปุ่ม เช่น Pad8, Pad+ ฟีเจอร์นี้ต้องเรียกใช้ Lunarward ด้วยสิทธิ์ผู้ดูแลระบบจึงจะทำงานได้อย่างถูกต้องในเกม</value>
+    <value>• เมื่อจับคู่กับปุ่มแป้นพิมพ์ ให้ป้อนชื่อปุ่มตามที่ปรากฏบนแป้นพิมพ์ คั่นด้วยช่องว่าง ตัวอย่างเช่น จับคู่ปุ่มเป็น "Ctrl + Alt + F1" ให้ป้อน "Ctrl Alt F1" สำหรับปุ่มบนแป้นตัวเลข ให้เพิ่ม Pad ก่อนปุ่ม เช่น Pad8, Pad+ ฟีเจอร์นี้ต้องเรียกใช้ Starward ด้วยสิทธิ์ผู้ดูแลระบบจึงจะทำงานได้อย่างถูกต้องในเกม</value>
   </data>
   <data name="GamepadControlSetting_ButtonMappingShareDesc" xml:space="preserve">
     <value>• ปุ่ม Share ยังคงทริกเกอร์ภาพหน้าจอของ Xbox Game Bar และขณะนี้ยังไม่มีวิธีแก้ปัญหาที่ดี</value>
@@ -2789,59 +2795,215 @@
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>สถิติอ้างอิงจากเวลาที่เกมทำงาน ไม่ใช่เวลาเล่นจริง และใช้เพื่อการอ้างอิงเท่านั้น</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Title" xml:space="preserve">
-    <value>สภาพแวดล้อมการทำงาน</value>
+  <data name="LauncherConfigView_ViewDetails" xml:space="preserve">
+    <value>ดูรายละเอียด</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
-    <value>โปรไฟล์คือตัวรัน พรีฟิกซ์ Wine และคอมโพเนนต์กราฟิก เกมแต่ละเกมผูกกับโปรไฟล์ได้หนึ่งโปรไฟล์</value>
+  <data name="LauncherConfigView_PreRegister" xml:space="preserve">
+    <value>ลงทะเบียนล่วงหน้า</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
-    <value>โปรไฟล์ใหม่</value>
+  <data name="GameReservationView_PreRegister" xml:space="preserve">
+    <value>ลงทะเบียนล่วงหน้าเลย</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
-    <value>เปิดเชลล์สำหรับดีบัก</value>
+  <data name="LauncherConfigView_InstalledGames" xml:space="preserve">
+    <value>เกมที่ติดตั้งแล้ว</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
-    <value>ข้อความการกำหนดค่า</value>
+  <data name="LauncherConfigSettingDialog_LauncherChannelSetting" xml:space="preserve">
+    <value>ตั้งค่าช่องทางของ Launcher</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
-    <value>ปิด</value>
+  <data name="LauncherConfigSettingDialog_AddCustomChannel" xml:space="preserve">
+    <value>เพิ่มช่องทางกำหนดเอง</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
-    <value>โคลน</value>
+  <data name="LauncherConfigSettingDialog_AuthLogin" xml:space="preserve">
+    <value>เข้าสู่ระบบด้วยการอนุญาต</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Components" xml:space="preserve">
-    <value>คอมโพเนนต์ที่ตรวจพบ</value>
+  <data name="LauncherConfigSettingDialog_BetaServer" xml:space="preserve">
+    <value>เซิร์ฟเวอร์ทดสอบ</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_ImportGraphics" xml:space="preserve">
-    <value>นำเข้ากราฟิก…</value>
+  <data name="FindGamesDialog_FindInstalledGames" xml:space="preserve">
+    <value>ค้นหาเกมที่ติดตั้งแล้ว</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
-    <value>ติดตั้งลงพรีฟิกซ์…</value>
+  <data name="FindGamesDialog_ScanAllDrives" xml:space="preserve">
+    <value>สแกนทุกไดรฟ์</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
-    <value>เทมเพลตพรีฟิกซ์</value>
+  <data name="FindGamesDialog_NoGameFilesWereFound" xml:space="preserve">
+    <value>ไม่พบไฟล์เกม</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
-    <value>ยังไม่มีเทมเพลต สร้างได้ขณะแก้ไขโปรไฟล์</value>
+  <data name="FindGamesDialog_SelectTheGamesToAdd" xml:space="preserve">
+    <value>เลือกเกมที่จะเพิ่ม</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
-    <value>ติดตั้งแล้ว</value>
+  <data name="FindGamesDialog_AddGames" xml:space="preserve">
+    <value>เพิ่มเกม</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
-    <value>ยังไม่ติดตั้ง</value>
+  <data name="LauncherConfigSettingDialog_IDNameAndRegionCannotBeEmpty" xml:space="preserve">
+    <value>ID, Name และ Region ต้องไม่เว้นว่าง</value>
   </data>
-  <data name="Lunarward_Editor_Title" xml:space="preserve">
-    <value>โปรไฟล์</value>
+  <data name="LauncherConfigSettingDialog_NoGamesFoundForThisLauncher" xml:space="preserve">
+    <value>ไม่พบเกมสำหรับ Launcher นี้</value>
   </data>
-  <data name="Lunarward_Editor_UseDetectedRunner" xml:space="preserve">
-    <value>เลือกจากตัวรันที่ตรวจพบ</value>
+  <data name="MainView_LogInAgain" xml:space="preserve">
+    <value>เข้าสู่ระบบอีกครั้ง</value>
   </data>
-  <data name="Lunarward_Editor_PrefixMode" xml:space="preserve">
-    <value>โหมดพรีฟิกซ์</value>
+  <data name="MainView_UseTheCurrentAccountToLogIntoTheGame" xml:space="preserve">
+    <value>ล็อกอินเกมด้วยบัญชีปัจจุบัน</value>
   </data>
-  <data name="Lunarward_Editor_Shell" xml:space="preserve">
-    <value>เชลล์สำหรับดีบัก</value>
+  <data name="MainView_LoginFailed" xml:space="preserve">
+    <value>เข้าสู่ระบบไม่สำเร็จ</value>
+  </data>
+  <data name="InstallGameDialog_LoadingDownloadResources" xml:space="preserve">
+    <value>กำลังดาวน์โหลดทรัพยากร</value>
+  </data>
+  <data name="InstallGameDialog_VoiceoverResources" xml:space="preserve">
+    <value>ทรัพยากรเสียงพากย์</value>
+  </data>
+  <data name="InstallGameDialog_DownloadResources" xml:space="preserve">
+    <value>ดาวน์โหลดทรัพยากร</value>
+  </data>
+  <data name="InstallGameDialog_SpaceRequired" xml:space="preserve">
+    <value>ต้องการพื้นที่</value>
+  </data>
+  <data name="InstallGameDialog_FailedToAcquireDownloadResources" xml:space="preserve">
+    <value>ดาวน์โหลดทรัพยากรล้มเหลว</value>
+  </data>
+  <data name="InstallGameDialog_GameResourcesDoNotExist" xml:space="preserve">
+    <value>ไม่มีทรัพยากรเกม</value>
+  </data>
+  <data name="InstallGameDialog_LoginExpiredPleaseLogInAgain" xml:space="preserve">
+    <value>หมดเวลาการล็อกอิน กรุณาล็อกอินใหม่อีกครั้ง</value>
+  </data>
+  <data name="InstallGameDialog_CurrentAccountDoesnTHaveBetaTestingAccess" xml:space="preserve">
+    <value>บัญชีปัจจุบันไม่มีสิทธิ์เข้าร่วมการทดสอบ Beta</value>
+  </data>
+  <data name="InstallGameDialog_GameVersion" xml:space="preserve">
+    <value>เวอร์ชันเกม</value>
+  </data>
+  <data name="GameLauncherSettingDialog_StartupSetting" xml:space="preserve">
+    <value>ตั้งค่าการเริ่มต้น</value>
+  </data>
+  <data name="GameLauncherSettingDialog_RenderMode" xml:space="preserve">
+    <value>โหมดการเรนเดอร์</value>
+  </data>
+  <data name="StartGameButton_UpdatePlugin" xml:space="preserve">
+    <value>อัปเดตปลั๊กอิน</value>
+  </data>
+  <data name="Common_LogOut" xml:space="preserve">
+    <value>ออกจากระบบ</value>
+  </data>
+  <data name="PlayTimeStatsDialog_DayStartsAt" xml:space="preserve">
+    <value>เวลาเริ่มต้นของวัน</value>
+  </data>
+  <data name="PlayTimeStatsDialog_SetTheOffsetRelativeToTheLocalTimeZoneToAlignTheServerTime" xml:space="preserve">
+    <value>ตั้งค่าออฟเซ็ตเทียบกับเขตเวลาท้องถิ่นเพื่อให้ตรงกับเวลาของเซิร์ฟเวอร์</value>
+  </data>
+  <data name="LauncherConfigView_ShareStorageSpaceWithOtherGamesThroughHardLinks" xml:space="preserve">
+    <value>แชร์พื้นที่จัดเก็บกับเกมอื่นผ่านฮาร์ดลิงก์:</value>
+  </data>
+  <data name="LauncherConfigView_ActualStorageSpaceUsed" xml:space="preserve">
+    <value>พื้นที่จัดเก็บที่ใช้จริง:</value>
+  </data>
+  <data name="LauncherConfigView_FindInstalledGamesOrAddChannelServers" xml:space="preserve">
+    <value>ค้นหาเกมที่ติดตั้งแล้วหรือเพิ่มเซิร์ฟเวอร์ช่องทาง</value>
+  </data>
+  <data name="FindGamesDialog_QuickSearch" xml:space="preserve">
+    <value>ค้นหาด่วน</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ResourceManagement" xml:space="preserve">
+    <value>การจัดการทรัพยากร</value>
+  </data>
+  <data name="GameLauncherSettingDialog_CutsceneResourceManagement" xml:space="preserve">
+    <value>การจัดการทรัพยากรคัตซีน</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ManageResource" xml:space="preserve">
+    <value>จัดการทรัพยากร</value>
+  </data>
+  <data name="GameLauncherSettingDialog_GameOrInstallTaskIsRunning" xml:space="preserve">
+    <value>เกมหรืองานติดตั้งกำลังทำงานอยู่</value>
+  </data>
+  <data name="GameLauncherSettingDialog_DeletedResource" xml:space="preserve">
+    <value>ทรัพยากรที่ถูกลบ</value>
+  </data>
+  <data name="GameLauncherSettingDialog_CutsceneResourceManageDesc" xml:space="preserve">
+    <value>ลบทรัพยากรคัตซีนบางส่วนเพื่อประหยัดพื้นที่จัดเก็บ เมื่อเปิดใช้งาน Launcher จะจัดการฮอตอัปเดตของเกม</value>
+  </data>
+  <data name="GameLauncherSettingDialog_CutsceneResourceManifestIsUnavailable" xml:space="preserve">
+    <value>ไม่สามารถใช้งาน manifest ของทรัพยากรคัตซีนได้</value>
+  </data>
+  <data name="StartGameButton_HotUpdate" xml:space="preserve">
+    <value>ฮอตอัปเดต</value>
+  </data>
+  <data name="StartGameButton_ComingSoon" xml:space="preserve">
+    <value>เร็วๆ นี้</value>
+  </data>
+  <data name="GameLauncherPage_HotUpdateCheckFailed" xml:space="preserve">
+    <value>ตรวจสอบฮอตอัปเดตไม่สำเร็จ</value>
+  </data>
+  <data name="GameLauncherSettingDialog_LocalResource" xml:space="preserve">
+    <value>ทรัพยากรในเครื่อง</value>
+  </data>
+  <data name="HypLoginWindow_UnofficialAPPPleaseBeMindfulOfYourAccountSecurity" xml:space="preserve">
+    <value>แอพที่ไม่เป็นทางการ โปรดระวังความปลอดภัยของบัญชีของคุณ</value>
+  </data>
+  <data name="Lunarward_Clone_Result" xml:space="preserve">
+    <value>โคลนเป็น “{0}” แล้ว</value>
+  </data>
+  <data name="Lunarward_Companion_Add" xml:space="preserve">
+    <value>เพิ่ม</value>
+  </data>
+  <data name="Lunarward_Companion_Delay" xml:space="preserve">
+    <value>หน่วงเวลา (มิลลิวินาที)</value>
+  </data>
+  <data name="Lunarward_Companion_Description" xml:space="preserve">
+    <value>เครื่องมือที่เริ่มหลังเกมเปิดหรือปิด การเริ่มพร้อมเกมปิดไว้โดยค่าเริ่มต้นและจะถามยืนยัน</value>
+  </data>
+  <data name="Lunarward_Companion_DisabledText" xml:space="preserve">
+    <value>ปิดใช้งาน</value>
+  </data>
+  <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
+    <value>แก้ไขโปรแกรมหลังเริ่มเกม</value>
+  </data>
+  <data name="Lunarward_Companion_EditNew" xml:space="preserve">
+    <value>โปรแกรมหลังเริ่มเกมใหม่</value>
+  </data>
+  <data name="Lunarward_Companion_Empty" xml:space="preserve">
+    <value>ยังไม่มีโปรแกรมหลังเริ่มเกม</value>
+  </data>
+  <data name="Lunarward_Companion_LaunchNow" xml:space="preserve">
+    <value>เริ่มทันที</value>
+  </data>
+  <data name="Lunarward_Companion_OffText" xml:space="preserve">
+    <value>เริ่มพร้อมเกม: ปิด</value>
+  </data>
+  <data name="Lunarward_Companion_On" xml:space="preserve">
+    <value>เริ่มพร้อมเกม</value>
+  </data>
+  <data name="Lunarward_Companion_OnText" xml:space="preserve">
+    <value>เริ่มพร้อมเกม: เปิด</value>
+  </data>
+  <data name="Lunarward_Companion_OpenFolder" xml:space="preserve">
+    <value>เปิดโฟลเดอร์การตั้งค่า</value>
+  </data>
+  <data name="Lunarward_Companion_Section" xml:space="preserve">
+    <value>โปรแกรมหลังเริ่มเกม</value>
+  </data>
+  <data name="Lunarward_Companion_Trigger" xml:space="preserve">
+    <value>ตัวกระตุ้น</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterDelay" xml:space="preserve">
+    <value>หลังหน่วงเวลา</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterStart" xml:space="preserve">
+    <value>หลังเกมเริ่ม</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerOnExit" xml:space="preserve">
+    <value>หลังเกมปิด</value>
+  </data>
+  <data name="Lunarward_Components_Empty" xml:space="preserve">
+    <value>ไม่พบตัวรันหรือคอมโพเนนต์กราฟิก</value>
+  </data>
+  <data name="Lunarward_Delete_Result" xml:space="preserve">
+    <value>ลบ “{0}” แล้ว</value>
+  </data>
+  <data name="Lunarward_Editor_EnsureGraphics" xml:space="preserve">
+    <value>ตรวจสอบคอมโพเนนต์ก่อนเริ่ม</value>
   </data>
   <data name="Lunarward_Editor_Env" xml:space="preserve">
     <value>ตัวแปรสภาพแวดล้อมเพิ่มเติม (หนึ่ง KEY=VALUE ต่อบรรทัด)</value>
@@ -2852,194 +3014,20 @@
   <data name="Lunarward_Editor_KeepPrefixGraphics" xml:space="preserve">
     <value>คงของเดิมที่มีอยู่ในพรีฟิกซ์</value>
   </data>
-  <data name="Lunarward_Editor_EnsureGraphics" xml:space="preserve">
-    <value>ตรวจสอบคอมโพเนนต์ก่อนเริ่ม</value>
+  <data name="Lunarward_Editor_PrefixMode" xml:space="preserve">
+    <value>โหมดพรีฟิกซ์</value>
   </data>
-  <data name="Lunarward_Companion_Section" xml:space="preserve">
-    <value>โปรแกรมหลังเริ่มเกม</value>
+  <data name="Lunarward_Editor_Shell" xml:space="preserve">
+    <value>เชลล์สำหรับดีบัก</value>
   </data>
-  <data name="Lunarward_Companion_Description" xml:space="preserve">
-    <value>เครื่องมือที่เริ่มหลังเกมเปิดหรือปิด การเริ่มพร้อมเกมปิดไว้โดยค่าเริ่มต้นและจะถามยืนยัน</value>
+  <data name="Lunarward_Editor_Title" xml:space="preserve">
+    <value>โปรไฟล์</value>
   </data>
-  <data name="Lunarward_Companion_Add" xml:space="preserve">
-    <value>เพิ่ม</value>
+  <data name="Lunarward_Editor_UseDetectedRunner" xml:space="preserve">
+    <value>เลือกจากตัวรันที่ตรวจพบ</value>
   </data>
-  <data name="Lunarward_Companion_OpenFolder" xml:space="preserve">
-    <value>เปิดโฟลเดอร์การตั้งค่า</value>
-  </data>
-  <data name="Lunarward_Companion_Empty" xml:space="preserve">
-    <value>ยังไม่มีโปรแกรมหลังเริ่มเกม</value>
-  </data>
-  <data name="Lunarward_Companion_LaunchNow" xml:space="preserve">
-    <value>เริ่มทันที</value>
-  </data>
-  <data name="Lunarward_Companion_Trigger" xml:space="preserve">
-    <value>ตัวกระตุ้น</value>
-  </data>
-  <data name="Lunarward_Companion_TriggerAfterStart" xml:space="preserve">
-    <value>หลังเกมเริ่ม</value>
-  </data>
-  <data name="Lunarward_Companion_TriggerAfterDelay" xml:space="preserve">
-    <value>หลังหน่วงเวลา</value>
-  </data>
-  <data name="Lunarward_Companion_TriggerOnExit" xml:space="preserve">
-    <value>หลังเกมปิด</value>
-  </data>
-  <data name="Lunarward_Companion_Delay" xml:space="preserve">
-    <value>หน่วงเวลา (มิลลิวินาที)</value>
-  </data>
-  <data name="Lunarward_Preflight_Title" xml:space="preserve">
-    <value>เริ่มไม่ได้: การตรวจสอบบางรายการไม่ผ่าน</value>
-  </data>
-  <data name="Lunarward_Preflight_OK" xml:space="preserve">
-    <value>ตกลง</value>
-  </data>
-  <data name="Lunarward_Output_Title" xml:space="preserve">
-    <value>เอาต์พุตการทำงาน</value>
-  </data>
-  <data name="Lunarward_Output_OpenFolder" xml:space="preserve">
-    <value>เปิดโฟลเดอร์บันทึก</value>
-  </data>
-  <data name="Lunarward_Screenshot_Selected" xml:space="preserve">
-    <value>เลือกแล้ว</value>
-  </data>
-  <data name="Lunarward_Screenshot_Total" xml:space="preserve">
-    <value>ทั้งหมด</value>
-  </data>
-  <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
-    <value>แสดงในโฟลเดอร์</value>
-  </data>
-  <data name="Lunarward_Login_Title" xml:space="preserve">
-    <value>ลงชื่อเข้าใช้ผ่านหน้าต่างแยก</value>
-  </data>
-  <data name="Lunarward_Login_Description" xml:space="preserve">
-    <value>Lunarward เปิดหน้าเข้าสู่ระบบของ miHoYo หรือ HoYoLAB ด้วย WebKit ของระบบ แล้วดึงคุกกี้กลับมา</value>
-  </data>
-  <data name="Lunarward_Login_Open" xml:space="preserve">
-    <value>เปิดหน้าต่างลงชื่อเข้าใช้</value>
-  </data>
-  <data name="Lunarward_Profiles_Empty" xml:space="preserve">
-    <value>ยังไม่มีโปรไฟล์</value>
-  </data>
-  <data name="Lunarward_Components_Empty" xml:space="preserve">
-    <value>ไม่พบตัวรันหรือคอมโพเนนต์กราฟิก</value>
-  </data>
-  <data name="Lunarward_Template_Create" xml:space="preserve">
-    <value>บันทึกพรีฟิกซ์นี้เป็นเทมเพลต…</value>
-  </data>
-  <data name="Lunarward_Template_Use" xml:space="preserve">
-    <value>สร้างโปรไฟล์จากเทมเพลตนี้</value>
-  </data>
-  <data name="Lunarward_Clone_Result" xml:space="preserve">
-    <value>โคลนเป็น “{0}” แล้ว</value>
-  </data>
-  <data name="Lunarward_Delete_Result" xml:space="preserve">
-    <value>ลบ “{0}” แล้ว</value>
-  </data>
-  <data name="Lunarward_Shell_Opened" xml:space="preserve">
-    <value>เปิดเชลล์ดีบักสำหรับ “{0}” แล้ว</value>
-  </data>
-  <data name="Lunarward_Shell_NoTerminal" xml:space="preserve">
-    <value>ไม่พบโปรแกรมจำลองเทอร์มินัล (konsole/kitty/alacritty/wezterm/gnome-terminal/xterm)</value>
-  </data>
-  <data name="Lunarward_Filter_AllFiles" xml:space="preserve">
-    <value>ไฟล์ทั้งหมด</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Template" xml:space="preserve">
-    <value>โคลนเทมเพลต (ค่าเริ่มต้น)</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Dedicated" xml:space="preserve">
-    <value>แยกเฉพาะ</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Shared" xml:space="preserve">
-    <value>ใช้ร่วมกัน</value>
-  </data>
-  <data name="Lunarward_PrefixMode_External" xml:space="preserve">
-    <value>ภายนอก (ใช้ตามเดิม)</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Ephemeral" xml:space="preserve">
-    <value>ชั่วคราว (สร้างใหม่ทุกครั้ง)</value>
-  </data>
-  <data name="Lunarward_Graphics_KeepExisting" xml:space="preserve">
-    <value>คงของเดิมที่มีอยู่ในพรีฟิกซ์</value>
-  </data>
-  <data name="Lunarward_Toast_Imported" xml:space="preserve">
-    <value>นำเข้า {0} “{1}” แล้ว</value>
-  </data>
-  <data name="Lunarward_Field_Name" xml:space="preserve">
-    <value>ชื่อ</value>
-  </data>
-  <data name="Lunarward_Field_Path" xml:space="preserve">
-    <value>พาธ</value>
-  </data>
-  <data name="Lunarward_Field_Arguments" xml:space="preserve">
-    <value>อาร์กิวเมนต์</value>
-  </data>
-  <data name="Lunarward_Companion_On" xml:space="preserve">
-    <value>เริ่มพร้อมเกม</value>
-  </data>
-  <data name="Lunarward_Companion_OnText" xml:space="preserve">
-    <value>เริ่มพร้อมเกม: เปิด</value>
-  </data>
-  <data name="Lunarward_Companion_OffText" xml:space="preserve">
-    <value>เริ่มพร้อมเกม: ปิด</value>
-  </data>
-  <data name="Lunarward_Companion_DisabledText" xml:space="preserve">
-    <value>ปิดใช้งาน</value>
-  </data>
-  <data name="Lunarward_Launch_Failed" xml:space="preserve">
-    <value>เริ่มไม่สำเร็จ:</value>
-  </data>
-  <data name="Lunarward_Output_View" xml:space="preserve">
-    <value>ดูเอาต์พุตล่าสุด…</value>
-  </data>
-  <data name="Lunarward_Output_Empty" xml:space="preserve">
-    <value>ยังไม่มีเอาต์พุต</value>
-  </data>
-  <data name="Lunarward_Screenshot_Count" xml:space="preserve">
-    <value>ทั้งหมด {0}</value>
-  </data>
-  <data name="Lunarward_Screenshot_SelectedCount" xml:space="preserve">
-    <value>เลือก {0} จาก {1}</value>
-  </data>
-  <data name="Lunarward_Viewer_Prev" xml:space="preserve">
-    <value>ก่อนหน้า</value>
-  </data>
-  <data name="Lunarward_Viewer_Next" xml:space="preserve">
-    <value>ถัดไป</value>
-  </data>
-  <data name="Lunarward_Viewer_Close" xml:space="preserve">
-    <value>ปิด</value>
-  </data>
-  <data name="Lunarward_Companion_EditNew" xml:space="preserve">
-    <value>โปรแกรมหลังเริ่มเกมใหม่</value>
-  </data>
-  <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
-    <value>แก้ไขโปรแกรมหลังเริ่มเกม</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
-    <value>เทมเพลตพรีฟิกซ์</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
-    <value>ตัวรันและกราฟิก (DXVK / VKD3D) จะถูกค้นหาในโฟลเดอร์ระบบ, Steam และ ~/.local/share/lunarward/components ตัวเปิดเกมจะไม่ดาวน์โหลดสิ่งใดอัตโนมัติ</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
-    <value>ยังไม่มีเทมเพลต ในโปรไฟล์ใดก็ได้ ใช้ “บันทึกพรีฟิกซ์นี้เป็นเทมเพลต…” เพื่อเก็บพรีฟิกซ์ที่เตรียมไว้</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
-    <value>template / ephemeral จะโคลนพรีฟิกซ์ (reflink บนโวลุ่มเดียวกัน 650 MB ใช้เวลาไม่ถึง 0.2 วินาที); external ใช้โฟลเดอร์ที่ระบุตามเดิม</value>
-  </data>
-  <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
-    <value>ค่าเริ่มต้น ({0})</value>
-  </data>
-  <data name="Lunarward_Profile_DefaultNameNoWine" xml:space="preserve">
-    <value>ค่าเริ่มต้น (ไม่พบ Wine)</value>
-  </data>
-  <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
-    <value>ไม่สามารถรับข้อมูลเวอร์ชันได้ (เครือข่ายหรือ API ผิดพลาด)</value>
-  </data>
-  <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
-    <value>ไม่พบแมนนิเฟส: </value>
+  <data name="Lunarward_Error_InstallDirInvalid" xml:space="preserve">
+    <value>โฟลเดอร์ติดตั้งไม่ถูกต้อง</value>
   </data>
   <data name="Lunarward_Error_InstallFailed" xml:space="preserve">
     <value>ดาวน์โหลดล้มเหลว: </value>
@@ -3047,28 +3035,193 @@
   <data name="Lunarward_Error_LaunchFailed" xml:space="preserve">
     <value>เริ่มไม่สำเร็จ: </value>
   </data>
-  <data name="Lunarward_Error_InstallDirInvalid" xml:space="preserve">
-    <value>โฟลเดอร์ติดตั้งไม่ถูกต้อง</value>
+  <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
+    <value>ไม่พบแมนนิเฟส: </value>
+  </data>
+  <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
+    <value>ไม่สามารถรับข้อมูลเวอร์ชันได้ (เครือข่ายหรือ API ผิดพลาด)</value>
   </data>
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>พรีฟิกซ์นี้ถูกใช้งานอยู่: </value>
   </data>
-  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
-    <value>ปุ่มลัดทั่วระบบบน Linux ทำงานโดยตรวจสอบสถานะคีย์บอร์ด X11 เป็นระยะ ไม่ต้องใช้สิทธิ์ root ใช้ได้ในเซสชัน X11 / XWayland แต่ใช้ไม่ได้ในเซสชัน Wayland แท้ — ให้ผูกคำสั่ง `lunarward --show` กับปุ่มลัดของระบบแทน</value>
+  <data name="Lunarward_Field_Arguments" xml:space="preserve">
+    <value>อาร์กิวเมนต์</value>
   </data>
-  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
-    <value>ยังไม่รองรับ</value>
+  <data name="Lunarward_Field_Name" xml:space="preserve">
+    <value>ชื่อ</value>
+  </data>
+  <data name="Lunarward_Field_Path" xml:space="preserve">
+    <value>พาธ</value>
+  </data>
+  <data name="Lunarward_Filter_AllFiles" xml:space="preserve">
+    <value>ไฟล์ทั้งหมด</value>
   </data>
   <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
     <value>เวอร์ชัน Linux ยังไม่ได้ทำการแมปเกมแพด หน้านี้เป็นเพียงตัวอย่าง และสวิตช์ด้านล่างไม่มีผล</value>
   </data>
-  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
-    <value>ยังไม่มีบัญชีหรือตัวละคร</value>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>ยังไม่รองรับ</value>
+  </data>
+  <data name="Lunarward_Graphics_KeepExisting" xml:space="preserve">
+    <value>คงของเดิมที่มีอยู่ในพรีฟิกซ์</value>
+  </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>ปุ่มลัดทั่วระบบบน Linux ทำงานโดยตรวจสอบสถานะคีย์บอร์ด X11 เป็นระยะ ไม่ต้องใช้สิทธิ์ root ใช้ได้ในเซสชัน X11 / XWayland แต่ใช้ไม่ได้ในเซสชัน Wayland แท้ — ให้ผูกคำสั่ง `lunarward --show` กับปุ่มลัดของระบบแทน</value>
+  </data>
+  <data name="Lunarward_Launch_Failed" xml:space="preserve">
+    <value>เริ่มไม่สำเร็จ:</value>
+  </data>
+  <data name="Lunarward_Login_Description" xml:space="preserve">
+    <value>Lunarward เปิดหน้าเข้าสู่ระบบของ miHoYo หรือ HoYoLAB ด้วย WebKit ของระบบ แล้วดึงคุกกี้กลับมา</value>
+  </data>
+  <data name="Lunarward_Login_Open" xml:space="preserve">
+    <value>เปิดหน้าต่างลงชื่อเข้าใช้</value>
+  </data>
+  <data name="Lunarward_Login_Title" xml:space="preserve">
+    <value>ลงชื่อเข้าใช้ผ่านหน้าต่างแยก</value>
+  </data>
+  <data name="Lunarward_Output_Empty" xml:space="preserve">
+    <value>ยังไม่มีเอาต์พุต</value>
+  </data>
+  <data name="Lunarward_Output_OpenFolder" xml:space="preserve">
+    <value>เปิดโฟลเดอร์บันทึก</value>
+  </data>
+  <data name="Lunarward_Output_Title" xml:space="preserve">
+    <value>เอาต์พุตการทำงาน</value>
+  </data>
+  <data name="Lunarward_Output_View" xml:space="preserve">
+    <value>ดูเอาต์พุตล่าสุด…</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Dedicated" xml:space="preserve">
+    <value>แยกเฉพาะ</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Ephemeral" xml:space="preserve">
+    <value>ชั่วคราว (สร้างใหม่ทุกครั้ง)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_External" xml:space="preserve">
+    <value>ภายนอก (ใช้ตามเดิม)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Shared" xml:space="preserve">
+    <value>ใช้ร่วมกัน</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Template" xml:space="preserve">
+    <value>โคลนเทมเพลต (ค่าเริ่มต้น)</value>
+  </data>
+  <data name="Lunarward_Preflight_OK" xml:space="preserve">
+    <value>ตกลง</value>
+  </data>
+  <data name="Lunarward_Preflight_Title" xml:space="preserve">
+    <value>เริ่มไม่ได้: การตรวจสอบบางรายการไม่ผ่าน</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
+    <value>ค่าเริ่มต้น ({0})</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultNameNoWine" xml:space="preserve">
+    <value>ค่าเริ่มต้น (ไม่พบ Wine)</value>
+  </data>
+  <data name="Lunarward_Profiles_Empty" xml:space="preserve">
+    <value>ยังไม่มีโปรไฟล์</value>
   </data>
   <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
     <value>เข้าสู่ระบบด้วยบัญชี HoYoLAB / miHoYo แล้วสถิติจะแสดงที่นี่</value>
   </data>
   <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
     <value>เข้าสู่ระบบ</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>ยังไม่มีบัญชีหรือตัวละคร</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
+    <value>โคลน</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>ปิด</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Components" xml:space="preserve">
+    <value>คอมโพเนนต์ที่ตรวจพบ</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
+    <value>ตัวรันและกราฟิก (DXVK / VKD3D) จะถูกค้นหาในโฟลเดอร์ระบบ, Steam และ ~/.local/share/lunarward/components ตัวเปิดเกมจะไม่ดาวน์โหลดสิ่งใดอัตโนมัติ</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
+    <value>โปรไฟล์คือตัวรัน พรีฟิกซ์ Wine และคอมโพเนนต์กราฟิก เกมแต่ละเกมผูกกับโปรไฟล์ได้หนึ่งโปรไฟล์</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ImportGraphics" xml:space="preserve">
+    <value>นำเข้ากราฟิก…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
+    <value>ติดตั้งลงพรีฟิกซ์…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
+    <value>ติดตั้งแล้ว</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
+    <value>โปรไฟล์ใหม่</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
+    <value>ยังไม่มีเทมเพลต สร้างได้ขณะแก้ไขโปรไฟล์</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
+    <value>ยังไม่ติดตั้ง</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
+    <value>เปิดเชลล์สำหรับดีบัก</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
+    <value>template / ephemeral จะโคลนพรีฟิกซ์ (reflink บนโวลุ่มเดียวกัน 650 MB ใช้เวลาไม่ถึง 0.2 วินาที); external ใช้โฟลเดอร์ที่ระบุตามเดิม</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
+    <value>เทมเพลตพรีฟิกซ์</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
+    <value>ยังไม่มีเทมเพลต ในโปรไฟล์ใดก็ได้ ใช้ “บันทึกพรีฟิกซ์นี้เป็นเทมเพลต…” เพื่อเก็บพรีฟิกซ์ที่เตรียมไว้</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
+    <value>เทมเพลตพรีฟิกซ์</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>ข้อความการกำหนดค่า</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Title" xml:space="preserve">
+    <value>สภาพแวดล้อมการทำงาน</value>
+  </data>
+  <data name="Lunarward_Screenshot_Count" xml:space="preserve">
+    <value>ทั้งหมด {0}</value>
+  </data>
+  <data name="Lunarward_Screenshot_Selected" xml:space="preserve">
+    <value>เลือกแล้ว</value>
+  </data>
+  <data name="Lunarward_Screenshot_SelectedCount" xml:space="preserve">
+    <value>เลือก {0} จาก {1}</value>
+  </data>
+  <data name="Lunarward_Screenshot_Total" xml:space="preserve">
+    <value>ทั้งหมด</value>
+  </data>
+  <data name="Lunarward_Shell_NoTerminal" xml:space="preserve">
+    <value>ไม่พบโปรแกรมจำลองเทอร์มินัล (konsole/kitty/alacritty/wezterm/gnome-terminal/xterm)</value>
+  </data>
+  <data name="Lunarward_Shell_Opened" xml:space="preserve">
+    <value>เปิดเชลล์ดีบักสำหรับ “{0}” แล้ว</value>
+  </data>
+  <data name="Lunarward_Template_Create" xml:space="preserve">
+    <value>บันทึกพรีฟิกซ์นี้เป็นเทมเพลต…</value>
+  </data>
+  <data name="Lunarward_Template_Use" xml:space="preserve">
+    <value>สร้างโปรไฟล์จากเทมเพลตนี้</value>
+  </data>
+  <data name="Lunarward_Toast_Imported" xml:space="preserve">
+    <value>นำเข้า {0} “{1}” แล้ว</value>
+  </data>
+  <data name="Lunarward_Viewer_Close" xml:space="preserve">
+    <value>ปิด</value>
+  </data>
+  <data name="Lunarward_Viewer_Next" xml:space="preserve">
+    <value>ถัดไป</value>
+  </data>
+  <data name="Lunarward_Viewer_Prev" xml:space="preserve">
+    <value>ก่อนหน้า</value>
+  </data>
+  <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
+    <value>แสดงในโฟลเดอร์</value>
   </data>
 </root>

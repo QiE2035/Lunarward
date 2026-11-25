@@ -1,8 +1,8 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
-using Starward.Frameworks;
+using Starward.Features;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -14,7 +14,7 @@ using Windows.System;
 namespace Starward.Features.ViewHost;
 
 [ObservableObject]
-public sealed partial class NoPermissionWindow : WindowEx
+public sealed partial class NoPermissionWindow : WindowBase
 {
 
 

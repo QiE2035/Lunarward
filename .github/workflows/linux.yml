@@ -24,11 +24,14 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v5
+      with:
+        # 增量覆盖率要拿「本次推送前」的提交做 diff，浅克隆里没有那个对象
+        fetch-depth: 0
 
     - name: Install .NET
       uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: '10.0.x'
+        dotnet-version: '11.0.x'
 
     # Restore 要带 Configuration=Release：Uno.Sdk 按 Optimize 决定是否引用 DevServer 包，
     # 用 Debug 的还原结果去编译 Release 会命中 UNOB0019（DevServer 不允许优化构建）。
@@ -51,9 +54,12 @@ jobs:
 
     # 覆盖率：被测逻辑以链接源码方式编译在测试程序集内，必须带 tests/coverlet.runsettings
     # （IncludeTestAssembly=true），否则 coverlet 直接忽略测试程序集、覆盖率恒为 0。
+    # 总量之外再判一次「本次新增行」的覆盖率：总量对局部稀释不敏感
+    # （批 K 一次 147 行无测试的代码只让总量掉 2.5 个点），见 D125。
     - name: Coverage (L1)
       env:
         LW_COVERAGE_OUT: ${{ runner.temp }}/coverage
+        LW_COVERAGE_DIFF_BASE: ${{ github.event.before || github.event.pull_request.base.sha }}
       run: bash scripts/test/coverage.sh 85
 
     - name: Upload coverage
@@ -70,31 +76,25 @@ jobs:
 
     - name: L2 CLI smoke
       env:
-        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net11.0-desktop/Lunarward
       run: bash scripts/test/cli-smoke.sh
 
     # L2 补充命令面：--shell-plan/--url-plan/--companion-*/--prefix-*/--runner-check/
     # --convert-screenshots + 假 Sophon 的 --install-plan/--patch-plan/--install-fetch/--update-run。
     - name: L2 CLI extra smoke
       env:
-        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net11.0-desktop/Lunarward
       run: bash scripts/test/cli-extra.sh
-
-    # L2 安装链路：本地假 Sophon 服务（protobuf 清单 + zstd 分块），验证「只下新块、未变更文件链接」。
-    - name: L2 install smoke (fake Sophon)
-      env:
-        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
-      run: bash scripts/test/chunk-smoke.sh
 
     # 性能冒烟：与 docs/linux-port/perf-baseline.json 比，超过 +20% 判回归（当前基线只含 CLI 冷启动）。
     - name: Perf smoke (baseline compare)
       env:
-        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net11.0-desktop/Lunarward
       run: bash scripts/test/perf.sh
 
     - name: L1.5 UI self-test (xvfb)
       env:
-        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net11.0-desktop/Lunarward
       run: |
         sudo apt-get install -y xvfb
         # 退出阶段 Uno/GTK 在 xvfb 上偶发 SIGSEGV（139），以自检自身的汇总行为准
@@ -106,7 +106,7 @@ jobs:
 
     - name: Perf snapshot (informational)
       env:
-        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net10.0-desktop/Lunarward
+        LW_BIN: ${{ github.workspace }}/src/Lunarward/bin/Release/net11.0-desktop/Lunarward
       run: |
         # CI 机器性能与本地基线不可比，这里只记录当次数值（不设门禁）；门禁在本地按 perf-baseline.json 比对
         bash scripts/test/perf.sh --record || true

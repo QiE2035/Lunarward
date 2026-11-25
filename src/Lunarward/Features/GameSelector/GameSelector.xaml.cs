@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
@@ -9,7 +9,7 @@ using Microsoft.Win32;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.GameLauncher;
-using Starward.Features.HoYoPlay;
+using Starward.GameInstall;
 using Starward.Features.Setting;
 using Starward.Features.ViewHost;
 using Starward.Helpers;
@@ -72,6 +72,103 @@ public sealed partial class GameSelector : UserControl
 
 
     public bool IsPinned { get; set => SetProperty(ref field, value); }
+
+
+    #region LUNARWARD-DEVIATION: 移植侧选择层状态的持久化
+
+    // 上游 0.19.0 删除了 AppConfig.CachedGameInfo / SelectedGameBizs / IsGameBizSelectorPinned /
+    // CurrentGameBiz（[Obsolete(..., true)]），当前游戏只记 AppConfig.CurrentGameId (string?)。
+    // GameSelector 是移植侧独有的选择层（上游用 GameSwitcher/LauncherConfigView 代替），
+    // 它需要「已固定的游戏区服列表 / 缓存的游戏信息 / 是否固定」三份状态，这里改用 AppConfig
+    // 的通用键值接口（与 GameInstallScanner 的 GameScanRoots 同一套），键名沿用旧属性名，
+    // 这样升级后原有用户的选择不会丢。
+
+    private const string SelectedGameBizsKey = "SelectedGameBizs";
+
+    private const string CachedGameInfoKey = "CachedGameInfo";
+
+    private const string IsGameBizSelectorPinnedKey = "IsGameBizSelectorPinned";
+
+    private const string CurrentGameBizKey = "CurrentGameBiz";
+
+    /// <summary>所有可被 GameId 反查到的游戏区服。</summary>
+    private static readonly GameBiz[] AllGameBizs =
+    [
+        GameBiz.hk4e_cn, GameBiz.hk4e_bilibili, GameBiz.hk4e_global,
+        GameBiz.hkrpg_cn, GameBiz.hkrpg_bilibili, GameBiz.hkrpg_global,
+        GameBiz.nap_cn, GameBiz.nap_bilibili, GameBiz.nap_global,
+        GameBiz.bh3_cn, GameBiz.bh3_global,
+    ];
+
+
+    /// <summary>当前选择的游戏区服（以 AppConfig.CurrentGameId 为准，旧键仅作迁移兜底）。</summary>
+    private static GameBiz LoadCurrentGameBiz()
+    {
+        string? id = AppConfig.CurrentGameId;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return GameBiz.TryParse(AppConfig.GetValue<string>(null, CurrentGameBizKey), out GameBiz old) ? old : default;
+        }
+        foreach (GameBiz biz in AllGameBizs)
+        {
+            if (GameId.FromGameBiz(biz)?.Id == id)
+            {
+                return biz;
+            }
+        }
+        return default;
+    }
+
+
+    /// <summary>
+    /// 记录当前选择的游戏区服：写上游的 AppConfig.CurrentGameId，同时更新旧键给尚未迁移的移植侧代码读。
+    /// </summary>
+    private static void SaveCurrentGameBiz(GameBiz gameBiz)
+    {
+        AppConfig.SetValue(gameBiz.Value, CurrentGameBizKey);
+        if (GameId.FromGameBiz(gameBiz) is GameId gameId)
+        {
+            AppConfig.CurrentGameId = gameId.Id;
+        }
+    }
+
+
+    /// <summary>记录中且位于可移动存储上的安装目录（对应已删除的 AppConfig.GetGameInstallPathRemovable）。</summary>
+    private static bool IsGameInstallPathInRemovableStorage(GameId gameId)
+    {
+        return GameLauncherService.GetGameInstallPath(gameId, out bool storageRemoved) is not null && storageRemoved;
+    }
+
+
+    /// <summary>写入/清除游戏安装目录（对应已删除的 AppConfig.SetGameInstallPath）。</summary>
+    private void SetGameInstallPath(GameId gameId, string? path)
+    {
+        try
+        {
+            if (_hoyoplayService.GetLauncherConfig(gameId) is not null)
+            {
+                _gameLauncherService.ChangeGameInstallPath(gameId, path);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+        // 兜底：HoYoPlay client 还没恢复（首启、没拉过启动器列表）时直接写 GameEntry 表，
+        // 行为与 GameLauncherService.ChangeGameInstallPath 一致，只是跳过图标固定消息。
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            GameEntryService.SetInstallPathNull(gameId);
+        }
+        else
+        {
+            string relativePath = GameLauncherService.GetRelativePathIfInRemovableStorage(path, out bool removable);
+            GameEntryService.SetInstallPath(gameId, LauncherId.FromGameBiz(gameId.GameBiz) ?? LauncherId.ChinaOfficial, relativePath, removable);
+        }
+    }
+
+    #endregion
 
 
     private bool ignoreDpiChanged = false;
@@ -156,7 +253,7 @@ public sealed partial class GameSelector : UserControl
     {
         try
         {
-            string? json = AppConfig.CachedGameInfo;
+            string? json = AppConfig.GetValue<string>(null, CachedGameInfoKey);
             if (!string.IsNullOrWhiteSpace(json))
             {
                 return JsonSerializer.Deserialize<List<GameInfo>>(json) ?? [];
@@ -183,7 +280,7 @@ public sealed partial class GameSelector : UserControl
             GameBizIcons.Clear();
 
             // 从配置文件读取已选的 GameBiz
-            string? bizs = AppConfig.SelectedGameBizs;
+            string? bizs = AppConfig.GetValue<string>(null, SelectedGameBizsKey);
             foreach (string str in bizs?.Split(',')?.Distinct() ?? [])
             {
                 if (GameBiz.TryParse(str, out GameBiz biz))
@@ -199,7 +296,7 @@ public sealed partial class GameSelector : UserControl
             }
 
             // 选取当前游戏
-            GameBiz lastSelectedGameBiz = AppConfig.CurrentGameBiz;
+            GameBiz lastSelectedGameBiz = LoadCurrentGameBiz();
             if (GameBizIcons.FirstOrDefault(x => x.GameBiz == lastSelectedGameBiz) is GameBizIcon icon)
             {
                 CurrentGameBizIcon = icon;
@@ -225,7 +322,7 @@ public sealed partial class GameSelector : UserControl
                 CurrentGameChanged?.Invoke(this, (CurrentGameId, false));
             }
 
-            if (AppConfig.IsGameBizSelectorPinned)
+            if (AppConfig.GetValue(false, IsGameBizSelectorPinnedKey))
             {
                 Pin();
             }
@@ -368,7 +465,7 @@ public sealed partial class GameSelector : UserControl
             icon.IsSelected = true;
 
             CurrentGameChanged?.Invoke(this, (icon.GameId, false));
-            AppConfig.CurrentGameBiz = icon.GameBiz;
+            SaveCurrentGameBiz(icon.GameBiz);
         }
     }
 
@@ -386,7 +483,7 @@ public sealed partial class GameSelector : UserControl
         }
         CurrentGameBiz = biz;
         CurrentGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(biz);
-        AppConfig.CurrentGameBiz = biz;
+        SaveCurrentGameBiz(biz);
         CurrentGameChanged?.Invoke(this, (CurrentGameId, false));
         Serilog.Log.Information("[dev] switched game to {biz}", biz.Value);
     }
@@ -414,7 +511,7 @@ public sealed partial class GameSelector : UserControl
             HideFullBackground();
 
             CurrentGameChanged?.Invoke(this, (icon.GameId, true));
-            AppConfig.CurrentGameBiz = icon.GameBiz;
+            SaveCurrentGameBiz(icon.GameBiz);
         }
     }
 
@@ -534,7 +631,7 @@ public sealed partial class GameSelector : UserControl
                 GameIconsAreaVisible = false;
             }
         }
-        AppConfig.IsGameBizSelectorPinned = IsPinned;
+        AppConfig.SetValue(IsPinned, IsGameBizSelectorPinnedKey);
     }
 
 
@@ -554,7 +651,7 @@ public sealed partial class GameSelector : UserControl
                 sb.Append(icon.GameBiz);
                 sb.Append(',');
             }
-            AppConfig.SelectedGameBizs = sb.ToString().TrimEnd(',');
+            AppConfig.SetValue(sb.ToString().TrimEnd(','), SelectedGameBizsKey);
         }
         catch { }
     }
@@ -654,7 +751,7 @@ public sealed partial class GameSelector : UserControl
                 // 当前语言为简体中文时，游戏信息显示从中国官服获取的内容
                 foreach (var info in gameInfos)
                 {
-                    if (info.GameBiz.IsChinaServer() && !info.IsBilibiliServer())
+                    if (info.GameBiz.IsChinaServer() && !info.GameBiz.IsBilibili())
                     {
                         list.Add(new GameBizDisplay { GameInfo = info });
                     }
@@ -715,6 +812,35 @@ public sealed partial class GameSelector : UserControl
 
 
     /// <summary>
+    /// 拉取所有已启用启动器的游戏信息并缓存。
+    /// LUNARWARD-DEVIATION: 移植侧原来的 Features/HoYoPlay/HoYoPlayService.UpdateGameInfoListAsync
+    /// 已随上游 0.19.0 的合并删除（现在用 Starward.GameInstall 的 HoYoPlayService + LauncherConfig），
+    /// 这里按原语义重建：先刷新启动器客户端映射，再逐个拿游戏信息，最后写缓存。
+    /// 旧实现还会预下载游戏背景图，那个下载器随旧模块一起没了，这里不再做（背景图由 Background 模块按需拉取）。
+    /// </summary>
+    private async Task<List<GameInfo>> UpdateGameInfoListAsync(CancellationToken cancellationToken = default)
+    {
+        List<GameInfo> gameInfos = [];
+        List<LauncherConfigModel> launchers = LauncherConfigModel.GetEnabled();
+        await _hoyoplayService.UpdateLauncherClientMapAsync(launchers.Select(x => x.ToLauncherConfig()), cancellationToken);
+        foreach (LauncherConfigModel launcher in launchers)
+        {
+            try
+            {
+                gameInfos.AddRange(await _hoyoplayService.GetGameInfosAsync(launcher.ToLauncherConfig(), cancellationToken));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+        }
+        AppConfig.SetValue(JsonSerializer.Serialize(gameInfos), CachedGameInfoKey);
+        return gameInfos;
+    }
+
+
+
+    /// <summary>
     /// 更新所有游戏服务器信息，更新游戏图标
     /// </summary>
     /// <returns></returns>
@@ -722,7 +848,7 @@ public sealed partial class GameSelector : UserControl
     {
         try
         {
-            List<GameInfo> gameInfos = await _hoyoplayService.UpdateGameInfoListAsync();
+            List<GameInfo> gameInfos = await UpdateGameInfoListAsync();
             InitializeGameServerArea(gameInfos);
             foreach (GameBizIcon icon in GameBizIcons)
             {
@@ -825,7 +951,7 @@ public sealed partial class GameSelector : UserControl
                 }
                 HideFullBackground();
                 _isGameBizDisplayPressed = false;
-                AppConfig.CurrentGameBiz = server.GameBiz;
+                SaveCurrentGameBiz(server.GameBiz);
             }
         }
         catch { }
@@ -989,14 +1115,14 @@ public sealed partial class GameSelector : UserControl
             foreach (GameInfo item in gameInfos)
             {
                 GameBiz gameBiz = item.GameBiz;
-                if (item.IsBilibiliServer())
+                if (item.GameBiz.IsBilibili())
                 {
                     gameBiz = $"{gameBiz.Game}_bilibili";
                 }
-                string? path = GameLauncherService.GetGameInstallPath(gameBiz);
+                string? path = GameLauncherService.GetGameInstallPath(Starward.Core.HoYoPlay.GameId.FromGameBiz(gameBiz)!);
                 if (!string.IsNullOrWhiteSpace(path))
                 {
-                    if (Directory.Exists(path) || AppConfig.GetGameInstallPathRemovable(gameBiz))
+                    if (Directory.Exists(path) || IsGameInstallPathInRemovableStorage(Starward.Core.HoYoPlay.GameId.FromGameBiz(gameBiz)!))
                     {
                         sb.Append(gameBiz);
                         sb.Append(',');
@@ -1008,9 +1134,9 @@ public sealed partial class GameSelector : UserControl
                 {
                     // D95：扫描本身由 GameInstallScanner 做；这里只清理「记录了但目录已不存在」的失效路径，
                     // 旧实现直接 continue，失效路径会一直留在已安装列表里（B36）。
-                    if (!string.IsNullOrWhiteSpace(path) && !Directory.Exists(path) && !AppConfig.GetGameInstallPathRemovable(gameBiz))
+                    if (!string.IsNullOrWhiteSpace(path) && !Directory.Exists(path) && !IsGameInstallPathInRemovableStorage(Starward.Core.HoYoPlay.GameId.FromGameBiz(gameBiz)!))
                     {
-                        GameLauncherService.ChangeGameInstallPath(gameBiz, null);
+                        SetGameInstallPath(Starward.Core.HoYoPlay.GameId.FromGameBiz(gameBiz)!, null);
                     }
                     continue;
                 }
@@ -1028,14 +1154,14 @@ public sealed partial class GameSelector : UserControl
                     path = Registry.GetValue(key, "GameInstallPath", null) as string;
                     if (Directory.Exists(path))
                     {
-                        AppConfig.SetGameInstallPath(gameBiz, path);
+                        SetGameInstallPath(Starward.Core.HoYoPlay.GameId.FromGameBiz(gameBiz)!, path);
                         sb.Append(gameBiz);
                         sb.Append(',');
                         continue;
                     }
                 }
             }
-            AppConfig.SelectedGameBizs = sb.ToString().TrimEnd(',');
+            AppConfig.SetValue(sb.ToString().TrimEnd(','), SelectedGameBizsKey);
             InitializeGameSelector();
             if (!IsPinned)
             {

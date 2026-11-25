@@ -17,12 +17,17 @@ public static class XamlRootExtension
         }
         try
         {
-            // Uno 的 XamlRoot.ContentIslandEnvironment 目前是 NotImplemented，直接兜底到主窗口
             var id = xamlRoot.ContentIslandEnvironment.AppWindowId;
             return Microsoft.UI.Windowing.AppWindow.GetFromWindowId(id);
         }
         catch (Exception)
         {
+            // Uno 的 ContentIslandEnvironment 目前是 NotImplemented，改查我们自己的窗口登记表。
+            // L-183：以前无条件回落到主窗口，子窗口/对话框拿到的是主窗口的 id（DisplayInformation 会按主窗口算 DPI）。
+            if (Features.WindowBase.FindAppWindow(xamlRoot) is { } owner)
+            {
+                return owner;
+            }
             try
             {
                 return Features.ViewHost.MainWindow.Current?.AppWindow;

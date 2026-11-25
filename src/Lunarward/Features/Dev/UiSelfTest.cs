@@ -60,7 +60,7 @@ internal static class UiSelfTest
             new("导航到游戏设置页后内容非空", async () =>
             {
                 // 无当前游戏时不具备前置条件：CI（干净环境）会在这里 NRE（F-06），先跳过并让 F-06 单独跟踪
-                if (string.IsNullOrEmpty(AppConfig.CurrentGameBiz.Value))
+                if (string.IsNullOrEmpty(AppConfig.CurrentGameId))
                 {
                     return (true, "无当前游戏，已跳过（F-06 待修）");
                 }

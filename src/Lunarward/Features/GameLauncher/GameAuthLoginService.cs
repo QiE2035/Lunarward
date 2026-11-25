@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.GameRecord;
@@ -69,8 +69,8 @@ public class GameAuthLoginService
         request.Headers.Add("x-rpc-app_id", "ddxf5dufpuyo");
         request.Headers.Add("x-rpc-client_type", "3");
         request.Headers.Add("x-rpc-game_biz", "hyp_cn");
-        await AppConfig.GetService<GameRecordService>().UpdateDeviceFpAsync(false, cancellationToken);
-        request.Headers.Add("x-rpc-device_fp", AppConfig.HyperionDeviceFp);
+        // 0.19.0 起设备指纹由 WindowsDeviceFpService 持有（AppConfig.HyperionDeviceFp 已 Obsolete，D128）。
+        request.Headers.Add("x-rpc-device_fp", AppConfig.GetService<Features.Passport.WindowsDeviceFpService>().GetDeviceFp());
         var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         var node = await response.Content.ReadFromJsonAsync<Root<Data>>(cancellationToken);
@@ -117,8 +117,7 @@ public class GameAuthLoginService
             request.Headers.Add("x-rpc-app_id", "ddxf5dufpuyo");
             request.Headers.Add("x-rpc-client_type", "3");
             request.Headers.Add("x-rpc-game_biz", "hyp_cn");
-            await AppConfig.GetService<GameRecordService>().UpdateDeviceFpAsync(false, cancellationToken);
-            request.Headers.Add("x-rpc-device_fp", AppConfig.HyperionDeviceFp);
+            request.Headers.Add("x-rpc-device_fp", AppConfig.GetService<Features.Passport.WindowsDeviceFpService>().GetDeviceFp());
             var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             response.EnsureSuccessStatusCode();
             var node = await response.Content.ReadFromJsonAsync<Root<AuthTicket>>(cancellationToken);

@@ -1,4 +1,4 @@
-// Lunarward：日志与临时文件的「定期回收」。
+﻿// Lunarward：日志与临时文件的「定期回收」。
 //
 // Serilog 的 File sink 只负责写，不管删；我们每天一个 Starward_yymmdd.log，
 // 不清理就会一直涨（L-62）。这里在启动时做一次轻量清理：
@@ -106,13 +106,31 @@ internal static class Housekeeping
             if (removed > 0)
             {
                 Log.Information("Housekeeping: removed {count} stale temp files ({size}) under {path}",
-                                removed, Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(bytes), installPath);
+                                removed, FormatSize(bytes), installPath);
             }
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Prune stale temp files failed: {path}", installPath);
         }
+    }
+
+
+
+    /// <summary>把字节数格式化成 "12.3 MB"（移植侧原由 Sophon 管线提供，0.19.0 对齐后管线已删，D128）。</summary>
+    private static string FormatSize(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        int unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+        return unit == 0
+            ? $"{bytes} B"
+            : string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{value:0.#} {units[unit]}");
     }
 
 }

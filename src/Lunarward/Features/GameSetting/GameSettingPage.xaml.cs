@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
 using Starward.Language;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
@@ -11,7 +11,6 @@ using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
 using Starward.Features.GameLauncher;
 using Starward.Features.GameSelector;
-using Starward.Frameworks;
 using Starward.Helpers;
 using System;
 using System.Collections.Generic;
@@ -19,6 +18,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Starward.Features;
 
 
 namespace Starward.Features.GameSetting;
@@ -34,8 +34,9 @@ public sealed partial class GameSettingPage : PageBase
     {
         try
         {
-            string? installPath = Starward.Features.GameLauncher.GameLauncherService.GetGameInstallPath(CurrentGameBiz);
-            string? exeName = await AppConfig.GetService<Starward.Features.GameLauncher.GameLauncherService>().GetGameExeNameAsync(CurrentGameId);
+            // 与上游一致：安装路径按 GameId 查（GameEntry 表），GameBiz → GameId 对 bh3 区服会得到 null
+            string? installPath = Starward.Features.GameLauncher.GameLauncherService.GetGameInstallPath(CurrentGameId);
+            string? exeName = await AppConfig.GetService<Starward.Features.GameLauncher.GameLauncherService>().GetGameExeNameAsync(CurrentGameId, System.Threading.CancellationToken.None);
             string? exePath = string.IsNullOrWhiteSpace(installPath) || string.IsNullOrWhiteSpace(exeName)
                 ? null
                 : Path.Combine(installPath!, exeName!);
@@ -188,7 +189,7 @@ public sealed partial class GameSettingPage : PageBase
         {
             if (SetProperty(ref field, value))
             {
-                AppConfig.SetStartArgument(CurrentGameBiz, value);
+                AppConfig.SetStartArgument(CurrentGameId, value);
             }
         }
     }
@@ -353,8 +354,10 @@ public sealed partial class GameSettingPage : PageBase
                     HDRNotSupported = true;
                 }
             }
-            StartArgument = AppConfig.GetStartArgument(CurrentGameBiz);
-            UsePopupWindow = AppConfig.GetUsePopupWindow(CurrentGameBiz);
+            StartArgument = AppConfig.GetStartArgument(CurrentGameId);
+            // 上游 0.19.0 删掉了「在弹出窗口中打开」功能（GameSettingPage.xaml.cs 里读写都被注释），
+            // 这里同样不再读取，保留属性只为 XAML 绑定不报错。
+            //UsePopupWindow = AppConfig.GetUsePopupWindow(CurrentGameId);
             var registrySettings = await Task.Run(() => new GameSettingSnapshot(
                 Resolution: GameSettingService.GetGameResolutionSetting(biz),
                 StarRailFpsIndex: biz.Game is GameBiz.hkrpg ? GameSettingService.GetStarRailFPSIndex(biz) : null,
@@ -548,8 +551,8 @@ public sealed partial class GameSettingPage : PageBase
                     Width = ResolutionWidth,
                     Height = ResolutionHeight,
                 };
-                await GameSettingService.SetGameResolutionSettingAsync(CurrentGameBiz, model);
-                AppConfig.SetUsePopupWindow(CurrentGameBiz, UsePopupWindow);
+                GameSettingService.SetGameResolutionSetting(CurrentGameBiz, model);
+                //AppConfig.SetUsePopupWindow(CurrentGameId, UsePopupWindow);
             }
             if (IsLanguageSettingEnable)
             {
@@ -631,7 +634,7 @@ public sealed partial class GameSettingPage : PageBase
     {
         try
         {
-            Starward.Core.GameBiz biz = AppConfig.CurrentGameBiz;
+            Starward.Core.GameBiz biz = CurrentGameBiz;
             string? boundId = Starward.Features.Runtime.ProfileBinding.Get(biz);
             IReadOnlyList<Starward.Features.Runtime.RuntimeProfile> profiles = Starward.Features.Runtime.RuntimeProfileStore.LoadAll();
             bool missing = !string.IsNullOrWhiteSpace(boundId) && profiles.All(p => p.Id != boundId);
@@ -671,7 +674,7 @@ public sealed partial class GameSettingPage : PageBase
         _profileSelectorReady = false;
         IReadOnlyList<Starward.Features.Runtime.RuntimeProfile> profiles = Starward.Features.Runtime.RuntimeProfileStore.LoadAll();
         ComboBox_Profile.ItemsSource = profiles;
-        Starward.Core.GameBiz biz = AppConfig.CurrentGameBiz;
+        Starward.Core.GameBiz biz = CurrentGameBiz;
         RefreshBindingWarning();
         Starward.Features.Runtime.RuntimeProfile? current = Starward.Features.Runtime.ProfileBinding.Resolve(biz);
         ComboBox_Profile.SelectedItem = current is null ? null : profiles.FirstOrDefault(p => p.Id == current.Id);
@@ -687,7 +690,7 @@ public sealed partial class GameSettingPage : PageBase
         }
         if (ComboBox_Profile.SelectedItem is Starward.Features.Runtime.RuntimeProfile profile)
         {
-            if (Starward.Features.Runtime.ProfileBinding.Set(AppConfig.CurrentGameBiz, profile.Id))
+            if (Starward.Features.Runtime.ProfileBinding.Set(CurrentGameBiz, profile.Id))
             {
                 RefreshBindingWarning();
                 Helpers.InAppToast.MainWindow?.Success((string?)null, $"已切换为「{profile.Name}」", 3000);

@@ -1,4 +1,4 @@
-// Lunarward：CachedImage 的 Linux 实现（替代上游依赖 Scighost.WinUI.ImageEx 的版本）。
+﻿// Lunarward：CachedImage 的 Linux 实现（替代上游依赖 Scighost.WinUI.ImageEx 的版本）。
 // 公开 API 与上游保持一致：Source（ms-appx / file / http）、IsThumbnail、PngThumbnail。
 // 上游 Controls/CachedImage.cs 保留在仓库中，但排除编译。
 using Microsoft.UI.Xaml;
@@ -16,6 +16,20 @@ namespace Starward.Controls;
 public sealed partial class CachedImage : Image
 {
     private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    /// <summary>
+    /// Lunarward：上游 `CachedImage : ImageEx`（Control）自带 `Background`，0.19.0 的 XAML 用它给
+    /// 未加载出来的占位块上色；我们的实现继承 `Image`（没有 Background），这里补一个同名依赖属性
+    /// 让 XAML 编译通过，值只保存不绘制（占位背景色在 Linux 上是缺失的视觉细节，L-183）。
+    /// </summary>
+    public Brush? Background
+    {
+        get => (Brush?)GetValue(BackgroundProperty);
+        set => SetValue(BackgroundProperty, value);
+    }
+
+    public static readonly DependencyProperty BackgroundProperty =
+        DependencyProperty.Register(nameof(Background), typeof(Brush), typeof(CachedImage), new PropertyMetadata(null));
 
     private CancellationTokenSource? _cts;
 
@@ -217,9 +231,10 @@ public sealed partial class CachedImage : Image
                                                  SkiaSharp.SKAlphaType.Premul);
             using var surface = SkiaSharp.SKSurface.Create(info);
             using var image = SkiaSharp.SKImage.FromBitmap(src);
-            // SKFilterQuality.High = 三次卷积 + mipmap：缩 10 倍也不会出现最近邻锯齿或线性采样的摩尔纹。
-            using var paint = new SkiaSharp.SKPaint { FilterQuality = SkiaSharp.SKFilterQuality.High };
-            surface.Canvas.DrawImage(image, new SkiaSharp.SKRect(0, 0, targetWidth, targetHeight), paint);
+            // 三次卷积 + 线性 mipmap：缩 10 倍也不会出现最近邻锯齿或线性采样的摩尔纹。
+            // SkiaSharp 4 起 SKPaint.FilterQuality / SKFilterQuality 已删除，采样质量改由 SKSamplingOptions 表达（L-184）。
+            surface.Canvas.DrawImage(image, new SkiaSharp.SKRect(0, 0, targetWidth, targetHeight),
+                new SkiaSharp.SKSamplingOptions(SkiaSharp.SKCubicResampler.Mitchell), null);
             using var snapshot = surface.Snapshot();
             using var encoded = snapshot.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
             var ms = new MemoryStream();

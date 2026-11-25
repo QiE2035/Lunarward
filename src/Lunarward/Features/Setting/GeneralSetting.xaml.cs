@@ -3,10 +3,11 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Starward.Features.ViewHost;
-using Starward.Frameworks;
+using Starward.GameInstall;
 using System;
 using System.Globalization;
 using Windows.System;
+using Starward.Features;
 
 
 namespace Starward.Features.Setting;
@@ -15,6 +16,8 @@ public sealed partial class GeneralSetting : PageBase
 {
 
     private readonly ILogger<GeneralSetting> _logger = AppConfig.GetLogger<GeneralSetting>();
+
+    private readonly HoYoPlayService _hoYoPlayService = AppConfig.GetService<HoYoPlayService>();
 
 
     public GeneralSetting()
@@ -93,6 +96,7 @@ public sealed partial class GeneralSetting : PageBase
                     var lang = item.Tag as string;
                     _logger.LogInformation("Language change to {lang}", lang);
                     AppConfig.SetLanguage(lang);
+                    _hoYoPlayService.ResetUILanguage();
                     this.Bindings.Update();
                     WeakReferenceMessenger.Default.Send(new LanguageChangedMessage());
                     AppConfig.SaveConfiguration();
@@ -169,27 +173,6 @@ public sealed partial class GeneralSetting : PageBase
         }
         catch { }
     }
-
-
-
-    #endregion
-
-
-
-    #region 游戏账号切换
-
-
-
-    public bool EnableGameAccountSwitcher
-    {
-        get; set
-        {
-            if (SetProperty(ref field, value))
-            {
-                AppConfig.EnableGameAccountSwitcher = value;
-            }
-        }
-    } = AppConfig.EnableGameAccountSwitcher;
 
 
 

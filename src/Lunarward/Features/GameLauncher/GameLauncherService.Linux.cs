@@ -1,4 +1,4 @@
-// Lunarward：Linux 启动路径。
+﻿// Lunarward：Linux 启动路径。
 //
 // 约束（见 docs/linux-port/03-runtime-model.md §"首进程"）：
 //   部分米哈游游戏要求「游戏进程是 wine 的第一个进程」，否则反作弊/保护模块会崩溃。
@@ -500,7 +500,7 @@ internal partial class GameLauncherService
         else
         {
             // B31：运行时配方按「本次启动的游戏」解析，deep link/CLI 启动非当前选中游戏时才是对的。
-            profile = Features.Runtime.ProfileBinding.Resolve(gameBizHint ?? AppConfig.CurrentGameBiz);
+            profile = Features.Runtime.ProfileBinding.Resolve(gameBizHint ?? Helpers.GameIdHelper.CurrentGameBiz());
         }
 
         if (profile is null)

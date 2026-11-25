@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Timers;
 
 namespace Starward;
 
@@ -28,43 +29,17 @@ public static partial class AppConfig
     }
 
 
-    internal static string ReadFirstLine(string path)
-    {
-        try
-        {
-            return File.Exists(path) ? File.ReadLines(path).FirstOrDefault()?.Trim() ?? "" : "";
-        }
-        catch
-        {
-            return "";
-        }
-    }
+    private static Timer? _gcTimer;
 
 
-    internal static string ReadMachineId()
+    public static void StartGCTimer()
     {
-        string machineId = ReadFirstLine("/etc/machine-id");
-        if (!string.IsNullOrWhiteSpace(machineId))
+        if (_gcTimer is null)
         {
-            return machineId;
+            _gcTimer = new(TimeSpan.FromSeconds(60));
+            _gcTimer.Elapsed += (_, _) => GC.Collect();
         }
-        // 退而求其次：本应用自己的持久化标识
-        string file = Path.Combine(UserDataFolder ?? Path.GetTempPath(), "machine_id");
-        try
-        {
-            if (File.Exists(file))
-            {
-                return File.ReadAllText(file).Trim();
-            }
-            var id = Guid.NewGuid().ToString("N");
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            File.WriteAllText(file, id);
-            return id;
-        }
-        catch
-        {
-            return Environment.MachineName;
-        }
+        _gcTimer.Start();
     }
 
 
@@ -84,5 +59,38 @@ public static partial class AppConfig
     #endregion
 
 
+
+}
+
+
+// LUNARWARD-DEVIATION: 上游用注册表 MachineGuid + WMI 固件表拼设备 ID（AppConfig.Common 的 Windows 实现），
+// Linux 侧改为 DMI BIOS 版本 + /etc/machine-id（D128）。
+public static partial class AppConfig
+{
+
+    private static string ReadFirstLine(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                using var reader = new StreamReader(path);
+                return (reader.ReadLine() ?? "").Trim();
+            }
+        }
+        catch { }
+        return "";
+    }
+
+
+    private static string ReadMachineId()
+    {
+        string machineId = ReadFirstLine("/etc/machine-id");
+        if (string.IsNullOrWhiteSpace(machineId))
+        {
+            machineId = ReadFirstLine("/var/lib/dbus/machine-id");
+        }
+        return machineId;
+    }
 
 }

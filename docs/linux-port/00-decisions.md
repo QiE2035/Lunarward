@@ -1,7 +1,7 @@
-# 决策记录（ADR）
+﻿# 决策记录（ADR）
 
-- **状态**：生效中（D0–D124）
-- **最后更新**：2026-11-24
+- **状态**：生效中（D0–D130）
+- **最后更新**：2026-11-25
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
 - **确认方式**：
@@ -2080,3 +2080,138 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - 仍待实测、文档里已标「待复测」：L-86（6.7.359 上 `Activated` 是否自然触发，决定 `WindowEx.Linux.cs:41-58` 的补发消息删留）、L-88（PhotosIcons 对照已不可复现）、L-135（`perf.sh` 基线 key 用 `uname -sr`，内核升级即失效）。
 
 **验证**：`bash scripts/test/lint-doc-status.sh --strict` 全绿（8 项 PASS）；`dotnet build -c Debug` 0 错误；`dotnet test` 379 通过；`lint-ui-thread.sh` / `lint-cli-help.sh` 全绿；`cli-smoke` 40 通过 + 1 跳过、`cli-extra` 32 通过。**确认方式**：用户 m01493「再全面找找还有哪些此前的结论是错误的」、m01632「先修正，然后完整核对整理一下所有文档」、m01662「如有必要，文档文件和内容格式等也可以重新规划」。
+
+## D125 · 覆盖率再加一道「增量行」门：总量对局部稀释不敏感
+
+**背景**：D122 把口径修成「只算链接集的 src」之后，门限本身是可信的，但**总量**这个指标对「本次改动有没有测试」不敏感：批 K（D121）一次加了 147 行零测试代码，总量只从 84.55% 掉到 82.03%——掉了 2.5 个点，可只要有人顺手补两条无关断言，这个数就会被抬回去，CI 对「新写的裸代码」完全没有针对性。用户 m01215 之前提议加棘轮，我在 m01871 汇总里把它列为待拍板项，用户 m01879 回复「5a 按你建议来」。
+
+**决定**：
+
+1. `scripts/test/coverage.sh` 增加增量模式：读 `LW_COVERAGE_DIFF_BASE`，用 `git diff --unified=0 <base>...HEAD -- src/` 取新增行，再与 cobertura 的逐行命中求交，只统计「既是新增行、又是序列点」的部分；阈值 `LW_DIFF_THRESHOLD` 默认同总量阈值（85%）。
+2. 只在「能算」的时候判定：没设 base、base 无效（浅克隆/强制推送的全 0）、新增行全在未链接文件里、新增行里没有序列点（纯注释/空行/using）时，打印原因后跳过。**跳过是明确的例外，不是静默通过**——每种情况都有一行输出说明为什么。
+3. CI 侧：`actions/checkout` 改 `fetch-depth: 0`（diff 需要 base 对象），coverage 步骤传 `LW_COVERAGE_DIFF_BASE: ${{ github.event.before || github.event.pull_request.base.sha }}`。
+4. 先把历史数据跑出来再上线，而不是上线后再看会不会误伤：用 worktree 逐提交实测（阈值 85%）——D120 无可测新增行（改动在 `RuntimeEnvironmentSetting.*`，未链接）、**D121 52.43%（162/309）→ 红**、D122 100%（3/3）、D123 无可测新增行（`VideoBackgroundPlayer.cs` 未链接）、D124 100%（1/1）。
+
+**代价边界**：
+
+- 只覆盖「链接进测试工程的 23 个源文件」。UI code-behind / 窗口 / 播放器这些**永远不会被这道门看见**——它们靠 L1.5 自检与真机，不靠覆盖率。这一点写进了 `19-test-plan.md` 的增量门小节，避免以后误以为「绿了就都测过」。
+- 行号求交依赖 cobertura 的 `<line>` 序列点，注释与 `using` 不算行，所以「新增 5 行只统计 3 行」是正常现象，不是漏算。
+- 基线的选择会影响结果：`event.before` 在合并提交/多人并行推送时可能跨很多提交，diff 变大、判定更严；这种情况可以先看输出里的文件清单再决定要不要 rebase。
+
+**验证**：`LW_COVERAGE_DIFF_BASE=2b86682 bash scripts/test/coverage.sh 85` → 总量 85.30% PASS、增量 100%（1/1，`CliSpec.cs`）；worktree 里 D121 提交实测 52.43%（162/309）FAIL；`dotnet test` 379 通过。**确认方式**：用户 m01215 提议、m01879「5a 按你建议来」。
+
+## D126 · 视频壁纸的帧率改成「量出来的」，去掉写死的 30 fps
+
+**背景**：用户 m01879 指出「3 破坏核心原则『视频播放要和视频本身一致』——这点我怀疑你写死了一些数值，比如这个帧率，理应直接从视频中取」。核实：`AppBackground.Linux.cs:29` 确实是 `LUNARWARD_VIDEO_FPS` 没设时写死 `1000 / 30`，等于替视频决定帧率：24 fps 素材被当成「帧来得慢、不用限」，60 fps 素材被砍掉一半。
+
+**决定**：
+
+1. 先试「从视频里取」：`MediaPlayer.Fps` 在 vmem 输出下恒 0；`Media.Parse` 后 `VideoTrack.FrameRateNum/Den` 对 VP9/WebM 也是 0；`ffprobe` 要 fork 外部进程（UI 线程禁止，硬规则 10）。三条路都不通（细节见 L-176）。
+2. 改成**量帧到达节奏**：vmem 回调里记录 `Environment.TickCount64`（环形缓冲 16 帧），样本 ≥8 帧后取「跨度 /(n-1)」为每帧周期，打 8 折算合成间隔；10–240 fps 之外的异常值直接不设限（暂停恢复的第一帧、掉帧不该拉爆间隔）。
+3. `LUNARWARD_VIDEO_FPS` 保留为显式覆盖（调试用），但默认不再有隐含帧率。
+4. 落定后打一行 Information 日志：`video background: measured {period} ms/frame, composite interval {interval} ms`——真机排障时能直接看到「这个视频被当成多少帧」。
+
+**代价边界**：
+
+- 量的是「libvlc 把帧交给我们的节奏」，理论上受解码速度影响；实测 30 fps 的 VP9 壁纸量出 30.0 ms/帧（=33 fps），比标称略快，说明 vmem 送帧粒度在 1 ms 量级、不是严格的 33.3 ms 节拍。
+- 起播前 8 帧不设限（间隔 0 = 每帧都画），因为那时样本还不可信；这几十毫秒里多画几帧，代价可以忽略。
+- 换 `--rate`（变速播放）时量到的就是变速后的节奏，这正是想要的；但如果以后加了「按 UI 负载动态降帧」的开关，需要区分「源节奏」与「目标节奏」，那时要重新定义这个字段。
+
+**验证**：`dotnet build -c Debug` 0 错误；真机起播后日志出现 `measured 30.0 ms/frame, composite interval 24 ms`；同一 1080p VP9 壁纸 CPU 65–68%（D123 时为 74%，差异来自机器负载与窗口状态，不作为收益结论）。**确认方式**：用户 m01879「帧率理应直接从视频中取」。
+
+## D127 · 背景视频不做 NV12 直出，也不做端到端零拷贝：两条路都被实测挡住
+
+背景（D123 之后）- 硬解已落地，`av:vp9` 线程仍占 42%，其中一大块是 libvlc 自己把 YUV 转成 RV32 再交给我们。于是评估两条更激进的路线：**NV12 直出**（libvlc 只给 3.1 MB 的 YUV，我们自己转 BGRA）与**零拷贝**（帧根本不回 CPU）。两条都做了 POC，结论都是**不做**。
+
+**决定**
+
+1. **不采用 NV12 直出，保留 RV32。** 隔离 POC（`libvlc + vmem`，只解码 + 拷进缓冲，不含转换）里 NV12 硬解确实便宜：RV32 18.4% 核 → NV12 6.1% 核。但真实应用里还要加上「我们自己把 NV12 转成 BGRA」的成本，而 VLC 的 RV32 转换是 SIMD 汇编、我们的转换是标量 C#：Release 实测 RV32 **70%** → NV12 **92%**，反而更贵。POC 的收益来自「省掉 VLC 的转换」，但这笔省下的钱不够付我们自己的转换。
+2. **NV12 的缓冲必须留填充行。** 按 `1.5 × W × H` 分配会稳定段错误——libvlc 的 NV12 输出会在 UV 平面之后多写几行（1080p 实测写到 3,121,920 字节，比 3,110,400 多 11,520 = 6 行解码器对齐的行）。POC 里侥幸没崩，是因为裸控制台没有别的线程在冲这块内存。
+3. **端到端零拷贝不做，但 Skia 侧的能力已证实。** POC（EGL surfaceless + `EGL_NO_CONFIG_KHR` → `GRContext.CreateGl` → `GRBackendTexture` 包外部 GL 纹理 → `SKImage.FromTexture` → 画进 GPU 表面 → 回读校验）在 NVIDIA 硬件 EGL 与 Mesa 软件 EGL 上都跑通，回读像素与上传数据逐值吻合。也就是说「外部 GL 纹理 → Skia 图像」不是我们的瓶颈。
+4. **真正的两处卡点不在 Skia**：①libvlc **3.x 的 `vmem` 回调只给 CPU 内存**，没有 dmabuf / EGLImage 出口（VLC 4 的 `libvlc_video_set_output_callbacks` 才有），拿不到解码器纹理；②Uno 的 Skia 渲染循环没有公开钩子让我们把外部 GPU 图像画进去，要显示仍得 `ReadPixels` 回 CPU 写进 `WriteableBitmap`。也就是说零拷贝能省掉的是「我们自己那次转换」，省不掉「解码器 → CPU → Uno」这一段。
+
+**代价与边界**
+
+- 保持 RV32 意味着继续付 libvlc 的转换成本（约占硬解后总 CPU 的一半），这是当前栈下的地板价。
+- 要真零拷贝，得自己接 VAAPI 解码（`vaExportSurfaceHandle` + `EGL_EXT_image_dma_buf_import`）、改引擎渲染入口、替换 libvlc 播放器——相当于重写背景视频模块，不在本期范围。
+- POC 代码留在 `/tmp` 的实验目录，不进仓库；结论与数字写进 L-177 / L-178。
+- `LUNARWARD_VIDEO_NV12` 之类的开关**没有保留**：一条被实测否掉的路径，留着只会让以后的人重新踩坑。
+
+**验证**：Release 构建同机 10 秒采样：RV32 70%（`measured 31.2 ms/frame`）、NV12 92%（同样帧率）；NV12 在不加填充行时 100% 复现 SIGSEGV（`coredumpctl info` 栈落在 `libvmem_plugin.so` → 我们的回调）。**确认方式**：用户 m01253「试试 VAAPI（或者说硬解码）」、m01879「5b 只做 1…帧率理应直接从视频中取」、m02343「既然你说了要做还有可能的可行方案，就 POC 试一试嘛」。
+
+---
+
+## D128 · 合并上游 0.19.0：切到 .NET 11 + Uno 7，把安装/热更库真移植进来
+
+**背景**：上游 0.19.0（`747ed10b`）不是小版本——把安装/热更新/启动抽成 `src/Starward.GameInstall` 库（依赖 `grpc`/AspNetCore/`HardLinkService`/HPatch）、把 HoYoPlay 客户端改成「一个 LauncherConfig 一个实例」、Background 模型重做成纯 DTO、新增「启动器多配置」、战绩拆成 8 个分游戏客户端、`PageBase`/`WindowEx` 迁到 `Features/` 并改名 `WindowBase`、整体 TFM 推到 .NET 11。移植侧有 28 个文件引用安装库、改造面太大。用户 m03582 的定性是「**我们是移植，不是适配，不是重做，不是仿制；上游怎么改，我们就同步跟进**」，m03655 之后确认连运行时也一起对齐。
+
+**决定**：
+
+1. **运行时对齐上游**：`global.json` 的 `sdk` 10.0.100 → **11.0.100**（`rollForward: latestFeature`），`Uno.Sdk` 6.7.45 → **7.0.22**（Uno.WinUI 7.0.65）；主程序 TFM `net10.0-desktop` → **`net11.0-desktop`**。理由：`Uno.WinUI 6.7.359` 根本没有 net11 资产（L-182），不升 Uno 就上不了 net11；而留在 net10 则要替上游的 `ZstandardStream`/`ReadOnlyMemoryStream` 打两处 BCL 补丁、还要把只发 net11 的 `Starward.HPatch` 反编译进仓库（3952 行）——那是「适配」，不是「移植」。
+2. **`Starward.GameInstall` 真移植**：TFM 由上游 `net11.0-windows` 改 **`net11.0`**（LUNARWARD-DEVIATION）。59 个 `*.cs` 里只有 4 个用 Windows API（`HardLinkService`、`GameInstallRunner` 的一处硬链接、`GenshinHotUpdateService` 的注册表、`GenshinHotUpdateStep` 的硬链接）——**本轮先让整库编译通过并把 UI 接上，这 4 处的 Linux 实现留作下一步**（当前行为：硬链接受限时退回复制、热更新缺少注册表值时的分支仍需验证）。
+3. **安装 UI 改成进程内 facade**：上游 UI 侧 `Features/GameInstall/GameInstallService.cs` 是 gRPC 客户端，配 `GameInstallController`（服务端，`Compile Remove`）。移植侧不起子进程，直接把该文件重写为**进程内 facade**：公开 API 与上游逐字一致（`StartInstallAsync`/`StartUpdateAsync`/`StartRepairAsync`/`StartPredownloadAsync`/`ResumeDownloadAsync`/`PauseTaskAsync`/`ContinueTaskAsync`/`StopTaskAsync`/`StartUninstallAsync`/`UpdateCutsceneAsync`），内部调 `GameInstallRunner` + `SetRateLimiterAsync`。容器里加 `sc.AddStarwardGameInstall()`（该库自带的 `GameInstallServiceCollectionExtensions`）。
+4. **删掉移植自研的 Sophon 管线**：`Features/GameInstall/{GameInstallService.Linux.cs（657 行）, GameInstallShims.cs}`、整个 `Features/GameInstall/Sophon/`（`InstallPipeline`/`UpdateOrchestrator`/`SophonClient`/`InstallDownloadRunner`/`ChunkReuseDownloader`/`SophonLibrary`，共 2663 行）、CLI 的 `--install-run`/`--install-fetch`/`--install-chunk-plan`/`--install-chunk-run`/`--update-run`/`--patch-run`/`--sophon-probe`、依赖 `Hi3Helper.Sophon`/`Hi3Helper.ZstdNet` 与 `Lunarward.csproj` 里为 `Lib/linux-x64` 做 `ln -sf libzstd.so.1` 的构建 hack。安装/更新现在走上游 `GameInstallRunner` + 官方 HoYoPlay API，只有一条实现。
+5. **测试随之调整**：`scripts/test/{chunk-smoke.sh,fake-sophon.py}` 删除（离线假 Sophon 服务没有可注入的 base URL 了），CI 去掉「L2 install smoke」步骤；`cli-extra.sh` 的 T-CL-29..32 标 SKIP（保留 ID 不断档）；5 个针对已删文件的单测一并删除。
+6. **基类跟随上游改名**：`Frameworks/PageBase.cs`→`Features/PageBase.cs`、`Frameworks/WindowEx.cs`→`Features/WindowBase.cs`（类名 `WindowBase`，namespace `Starward.Features`），我们的 Linux 实现只保留 `Features/WindowBase.Linux.cs`；上游 Windows 实现（Vanara 子类化）与 gRPC 服务端、`NamedPipesConnectionFactory` 一样走 `<Compile Remove>`。D94 的 `OnGameChanged()` 页面缓存钩子补回上游版 `PageBase`（`ContentGameId` + `PageEx_Loaded` + `NavigateTo` 比较，标 LUNARWARD-DEVIATION）。
+7. **依赖能更就更**（用户 m03815）：Dapper 2.1.100、Microsoft.Data.Sqlite 11.0.0、MiniExcel 2.0.0、NuGet.Versioning 8.0.0、Serilog.Extensions.Logging 11.0.0、System.IO.Hashing 11.0.0、FusionCache 2.10.0 + `Serialization.SystemTextJson` 2.10.0、5 个 `Microsoft.Extensions.*` 11.0.0、`CommunityToolkit.WinUI.*` 8.2.251219、`CommunityToolkit.HighPerformance` 8.4.2。已是最新、无需动：CommunityToolkit.Mvvm 8.4.2、GirCore 0.8.1、Magick.NET 15.1.0、PeNet 6.1.2、SharpCompress 1.0.0、Tmds.DBus 0.95.2、ValveKeyValue 0.80.0.542、ZstdSharp.Port 0.8.8。
+8. **手写替身让位给真实包**：`Controls/ToolkitControls.cs`、`InteractivityCompat.cs`、`ToolkitCompat.cs` 改名 `.disabled`（它们遮蔽真实 toolkit/WinUI 类型，报的是「属性不存在」这种 XAML 错，L-179）；`Compat/VanaraHotkeyCompat.cs` 保留（Vanara User32 在移植侧没引用），只删掉与 `Vanara.Core 5.0.8` 重复的 `Win32Error`。
+9. **CI 与打包跟着换**：`linux.yml`/`appimage.yml` 用 `dotnet-version: 11.0.x`、所有产物路径 `net10.0-desktop` → `net11.0-desktop`；`packaging/PKGBUILD` 依赖 `dotnet-runtime>=11.0`/`dotnet-sdk>=11.0`；`build-appimage.sh` 的 SDK 提示改 11。
+
+**代价边界**：
+
+- .NET 11 是 STS（EOL 2028-11-14），Arch 官方源还没有，用户装的是 AUR `dotnet-core-bin`（11.0.0.sdk100-1）。PKGBUILD 的依赖下限只能写 `>=11.0`，发行版用户得自己提供 SDK——这条写进 README 的构建前置。
+- Uno 7 是「刚 GA 的大版本」，Skia/X11 后端的行为差异尚未全量回归；本轮只到「编译 + 单测 + 自检 + CLI 冒烟」，「真机 GUI 逐页过一遍」仍是待办。
+- 安装链路的 4 处 Windows API 暂时是「编译通过、行为待验」：硬链接退回复制会让安装体积与耗时变大，热更新的注册表分支在 Linux 上取不到值需要单独确认。
+- `GameInstallRunner` 在进程内跑，任务状态存内存——进程退出后「继续下载」能力与上游（子进程 + gRPC 保持）不完全等价，需实测确认进度恢复路径。
+- 删掉 Sophon 管线后，「离线装一套假游戏」的自动化链路没了；后续要恢复得给官方客户端加 base URL 注入口（相当于偏离上游），本轮不做。
+
+**验证**：`dotnet build Starward.slnx -c Debug` 0 错误（Release 见提交说明）、`dotnet test`、`--selftest-ui`、`lint-ui-thread`/`lint-cli-help`/`lint-doc-status`/`lint-pkgbuild`、`cli-smoke`/`cli-extra` 结果见提交时的实际输出；`src/Starward/` 零改动。**确认方式**：用户 m03582（移植的定性）、m03655（换 net11 的可能性）、m03687/m03730（AUR 装 dotnet 11）、m03815（依赖能更就更 + 复查手写补齐）、m03900「继续」。
+
+### D129　手写补齐实现审计：空壳要让位真实实现，做不到的要说清楚
+
+- **背景**：`tree-54f6243ec933cfa2` 的 shim-audit 环节（用户 m03815 点名「依赖更新后审查我们为缺的部分手写的依赖本身有没有实现」）对 33 个 `*.Linux.cs` + 6 个替身做了全量复核：27 个有实质实现、10 个是空壳（6 个无调用方＝死代码），**4 处用户真的会撞上**，另有 6 处文档与代码不符（L-183）。
+- **决定**：
+  1. `Features/GameRecord/BattleChronicleWindow.Linux.cs` 不再返回空 `Grid`，改成说明页（图标 + 「Linux 版暂时不能打开战绩页面」+ 原因 + 角色信息），消灭「点了弹白窗」；
+  2. `Features/WindowBase.Linux.cs` 的 `SetIcon()` 不再是空实现，复用 `Helpers/AppIcon.Apply(Title)` 的 `_NET_WM_ICON`（每个窗口 ctor 都会调，主窗口之外的窗口也终于有图标）；
+  3. `ShouldAppsUseDarkMode()/ShouldSystemUseDarkMode()` 不再恒 `true`，改读 `Helpers/SystemThemePreference`（GTK `settings.ini` 的 `gtk-application-prefer-dark-theme`/`gtk-theme-name`、KDE `kdeglobals` 的 `ColorScheme`/`BackgroundNormal` 亮度；只读文件、不 fork，硬规则 10；探测失败按浅色）；
+  4. `Features/Update/UpdateWindow.Linux.cs` 的 `IsUpdateNowEnabled` 改为 `true`，「立即更新」可点，`UpdateNow()` 走 `SetErrorMessage(...)` 才会刷新 `x:Bind`（以前灰按钮 + 无解释 + 文案不刷新）；
+  5. `Helpers/XamlRootExtension.Linux.cs` 的 `GetAppWindow()` 先查 `WindowBase` 的窗口登记表（按 `XamlRoot` 引用相等反查真正的 `AppWindow`），查不到才回落主窗口，避免子窗口/对话框拿主窗口 id 算 DPI；
+  6. `docs/linux-port/12-shims-and-gaps.md` 按实测重写：规模 36→**33** 个 `*.Linux.cs`、删掉已随 D128 删除的 4 行 GameInstall 文件、`Frameworks/WindowEx.Linux.cs`→`Features/WindowBase.Linux.cs`、截图查看器由 ✅ 降 🟡（缺缩放/旋转/复制/另存）、补记图标/标题栏/强制深色、`VanaraHotkeyCompat` 的 user32 P/Invoke、`GetAppWindow` 兜底风险；`18-upstream-deviations.md` 同名文件数 88→**80**（同步 0.19.0 后重算）。
+  7. 文档自检脚本 `scripts/test/lint-doc-status.sh` 的「12-shims §3 集合 == `find` 实际集合」用上并全绿；它只能挡「文件改名/删除后文档没跟」，挡不住「文件在、函数体空」——后者靠本决策这类人工审计。
+- **代价边界**：
+  - 深色/浅色只是**推断**：GTK 主题名里不带 "dark" 但实际是暗色主题、或运行时切换主题，都要等下次启动才生效；
+  - `SetIcon` 走 X11 `_NET_WM_ICON`，纯 Wayland 下无效；
+  - 战绩窗口仍是占位（WebKitGTK 承载要等 M2），只是从「白窗」变成「说清楚为什么」；
+  - 「立即更新」点了不会更新，只是给出去包管理器的指引（D5 不变）；
+  - 登记表只覆盖 `WindowBase` 派生窗口，未继承它的 `Window`（如 `MainWindow` 之外的少数）仍走主窗口回落。
+- **验证**：`dotnet build src/Lunarward/Lunarward.csproj -c Debug` 0 错 0 警；`dotnet test Starward.slnx -c Debug` 340 通过；`lint-ui-thread.sh` A/B/C 全 PASS；`lint-doc-status.sh --strict` 全绿。
+- **确认方式**：用户 m03815「依赖更新完再审查一下我们为了缺的部分手动补充的依赖本身有没有实现（例如 hide/show 等等）」（hide/show 经查是 libxcb 真实实现）；m03900「继续」。
+## D130 · 0.19.0 编译收口：Skia 桥、toolkit 包与启动链的三处真修复
+
+**背景**：D128 把运行时切到 .NET 11 + Uno 7 之后，移植侧还有 400+ 编译错误。逐个清零的过程中，有三类问题不是「签名对齐」而是**真的换了实现方式**，另外查出两个会让应用起不来的启动链缺陷。确认方式：m03900「继续」、m03815「依赖能更就更」。
+
+**决定**
+
+1. **不再使用 `SkiaSharp.Views.*`**（Uno 7 下没有可用资产，`UNOB0023`；4.156 的 nupkg 已无 `uno-runtime/`）。视频壁纸呈现改成 `WriteableBitmap` 双缓冲交替贴给 `Image`，两张轮换以绕开 L-71 的「同一实例不重采样」。（L-184）
+2. **`CommunityToolkit.WinUI.*` 不进移植侧 csproj**：在 Uno 工程里它会解析到 WindowsAppSDK 资产，与 Uno 的 WinUI shim 撞成两套 `DependencyObject`（CS0012/CS1503）。恢复手写替身（`ToolkitControls.cs` / `ToolkitCompat.cs` / `InteractivityCompat.cs`），并按 Uno 7 的真实 API 补齐（WrapLayout 真实折行、EqualPanel、Segmented 不设 ItemsPanel、`FindDescendant`）。（L-185）
+3. **SkiaSharp 4 的 API 迁移**：`SKFilterQuality`/`SKPaint.FilterQuality` → `SKSamplingOptions(SKCubicResampler.Mitchell)`（4 个文件）。
+4. **GUI 路径补 `InitEnviroment()`**：`host.Run()` 之前调用，否则 `CacheFolder`/`UserDataFolder` 为 null → 弹欢迎向导 → `Path.Combine(null,"log")` 挂死。（L-186 之一）
+5. **补回移植侧自建服务的 DI 注册**：`CompanionRunner`、`GameRecordService`、`GameAuthLoginService`（`AddHttpClient`）。缺注册时 `async void OnLaunched` 抛异常被 Uno 吞掉，表现为「启动没反应、无窗口」。（L-186 之二）
+6. **碰数据库的 CLI 分支统一先 `InitEnviroment()`**：0.19.0 起安装路径在 SQLite 的 `GameEntry` 表，`LoadConfiguration()` 不建表（`--preflight` 报 `no such table: GameEntry`）。（L-187）
+7. **测试工程 TFM 跟到 `net11.0`**：本机已无 10.0 运行时，`net10.0` 的 testhost 直接起不来；同时删掉 5 个指向已删 Sophon 文件的测试（379 → 340 条）。
+8. **`CachedImage.Linux.cs` 补 `Background` 依赖属性**：上游 `CachedImage` 继承 `ImageEx`，Linux 版继承 `Image`，XAML 里 `Background=` 会 `UXAML0001`；只保存不绘制（占位底色缺失），注释说明。
+
+**代价与边界**
+
+- 视频壁纸每帧要多一次「CPU 像素 → WriteableBitmap 流」的拷贝，比 `SKXamlCanvas` 直上有额外开销；硬解（D123）仍是主要收益来源。
+- 手写 toolkit 替身只覆盖我们实际用到的子集（Segmented / WrapPanel / WrapLayout / EqualPanel / FindDescendant），上游新增控件用法要补实现。
+- `--selftest-ui` 在没有窗口管理器的环境（xvfb）里不会收到 `Activated`，改由 8 秒 `DispatcherQueueTimer` 兜底触发；真实桌面下两条路都会走，用 `_selfTestStarted` 幂等。
+- CLI 的 `init` 与否不再靠「凭感觉」，但要记得**新增**子命令时同样先调 `InitEnviroment()`。
+
+**验证**
+
+- `dotnet build Starward.slnx -c Debug` / `-c Release`：0 错误（274 警告，均为既有 Uno0001 噪音）。
+- `dotnet test Starward.slnx -c Debug`：340 通过。
+- `LUNARWARD_SELFTEST=1 … --selftest-ui`（Xvfb）：11/11 PASS，2553 ms，退出码 0。
+- `cli-smoke.sh` 40 通过 / 0 失败 / 1 跳过；`cli-extra.sh` 28 通过 / 0 失败 / 4 跳过（D128 退役的 4 条）。
+- `lint-ui-thread.sh`、`lint-doc-status.sh --strict`：全绿。

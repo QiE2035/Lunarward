@@ -17,7 +17,8 @@
 
 - 最后更新：2026-11-24（全表复核：§3 补登 4 个漏登文件并纠正 2 处路径、§6 按 csproj 现算 53 条、§7 用 diff 脚本重算 XAML 差异；2026-11-20 的文档整理记录：删 17 份过时文档、D91 打包本地源、D90 CI 产物、D89 SDK 下限、D88 打包依赖单一来源、D87 运行器显示名、D86 注册表改读文件）
 - 对应代码：`src/Lunarward/`（`main` 分支；`git rev-list --count HEAD` = 1485 提交，其中 109 条动过 `src/Lunarward/`；`linux-port` 已于 2026-11-13 停用）
-- 规模：36 个 `*.Linux.cs`、6 个 `*.LinuxAuto.cs`、`Compat/` 兼容层 2 个文件（`VanaraHotkeyCompat.cs`、`NotifyIcon/TaskbarIconCompat.cs`）、53 条 `<Compile Remove>`（2026-11-24 `find` / `grep` 实测）
+- 最后核对：2026-11-25（HEAD = 合并 upstream 0.19.0 + net11 分支工作区）
+- 规模：**33 个** `*.Linux.cs`、6 个 `*.LinuxAuto.cs`、`Compat/` 兼容层 2 个文件（`VanaraHotkeyCompat.cs`、`NotifyIcon/TaskbarIconCompat.cs`）、53 条 `<Compile Remove>`（2026-11-25 `find` / `grep` 实测；对齐上游 0.19.0 后 `GameInstallShims.cs`、`GameInstallService.Linux.cs`、`InstallGameDialog.Linux.cs`、`PreDownloadDialog.Linux.cs` 四个文件已删除，`WindowEx.Linux.cs` 随基类改名 `WindowBase.Linux.cs`）
 
 ---
 
@@ -54,13 +55,13 @@
 | 设置页 9 项 | ✅ | 上游 9 项；「运行环境」已提为 footer 一级页（D80） | D80 |
 | 登录 / 账号 | 🟡 | WebKitGTK 独立窗取 cookie；**未真实登录验证** | 待用户 |
 | 抽卡记录 | 🟡 | 页面与导出可用；真实数据未验证 | 待用户 |
-| 截图 | ✅ | Alt+D 捕获、图库、多选、批量转 JPG、查看器 | HDR 色彩管理 ⬜ M4 |
+| 截图 | 🟡 | Alt+D 捕获、图库、多选、批量转 JPG、查看器（显示/翻页/在文件夹中显示/Esc） | 查看器缺上游的缩放/旋转/复制/另存（`ScreenshotViewerWindow` 只做浏览）；HDR 色彩管理 ⬜ M4 |
 | 壁纸 | ✅ | 静态图 + 视频（LibVLC，缺库自动回退静态） | — |
 | 托盘 | ✅ | StatusNotifierItem 注册、`Properties.GetAll`、DBusMenu 菜单（用户已确认右键可用）、点击唤回、托盘不可用时关闭=退出（D48/D50、L-85/L-91） | 托盘属性不发 `PropertiesChanged` |
 | 全局热键 | 🟡 | X11 轮询（25ms）；唤回走进程内 libxcb（D47，不再依赖 xdotool）；Wayland 会话下给「绑定 `lunarward --show`」提示（D51） | 平台限制：纯 Wayland 无全局热键标准 |
 | URL 协议 / 单实例 | ✅ | `lunarward://` + socket 转发（show/exit/startgame） | — |
 | 自更新 | ✅ | 查 AUR RPC 版本并报告；不下载替换、网络失败当无更新（D5/D33；D51 定论） | — |
-| 游戏安装 / 预下载 / 增量更新 / 修复 | 🟡 | 真实流程（`GameInstallService.Linux.cs`）：Waiting→Downloading→Finish/Error，Pause/Continue/Stop/Uninstall，进度写入 `GameInstallContext`（含 `Progress_Write*`，见 L-65）。增量 = 补丁 + chunk 复用组合编排（`UpdateOrchestrator`，实测 7.1.0→7.2.0 估算 23.81 GB / 省 47%，差分 101 文件全应用且逐文件 MD5 一致）；块级断点续传（`ChunkResume`，临时文件长度=块进度）；修复按**本地版本**清单逐文件校验（D42，实测破坏一个 dll 后被修回、版本不变）。CLI：`--install-plan/-fetch/-run`、`--patch-plan/-run`、`--install-chunk-plan/-run`、`--update-plan/-run`、`--version-status/-write`，Debug 另有 `--dev-install-probe`。**已知偏差**：官方 `stats` 8.34 GB 只是 101 个补丁文件体积，我们 23.81 GB = 补丁 + 其余 1110 文件块下载，语义不同非算错（D51）；补丁阶段无块内续传（`Hi3Helper.Sophon` 无 Range API，D51 接受）；修复要全量读 140 GB（约 210 s） | — |
+| 游戏安装 / 预下载 / 增量更新 / 修复 | 🟡 | `Features/GameInstall/GameInstallService.cs` 是**进程内 facade**，直接调官方 `Starward.GameInstall.GameInstallRunner`（上游 UI 侧是 gRPC 客户端、真正干活的 `GameInstallRunner` 跑在 `Starward.RPC` 子进程里；上游 0.19.0 已删掉整个 RPC 项目，D128）。公开 API 与上游逐字一致：安装/预下载/更新/修复/插件更新/热更新/过场清理/卸载 + Pause/Continue/Stop，进度来自 `GameInstallProgress`（PercentProgress 0–1、网络/磁盘字节、速度、剩余时间、RunnerState）。移植侧自写的 Sophon 管线（`InstallPipeline`/`UpdateOrchestrator`/`ChunkReuseDownloader`/`ChunkResume`，2663 行）随 D128 一并删除；CLI 的 `--install-run/-fetch/-chunk-plan/-chunk-run`/`--update-run`/`--patch-run`/`--sophon-probe` 同时退役（`--install-plan`/`--patch-plan`/`--update-plan`/`--predownload-size`/`--version-status`/`--version-write`/`--install-task` 改走官方 API） | 差分子进程隔离没有了（主进程崩溃会带走安装任务）；离线安装链路的自动化测试（假 Sophon 服务 + `chunk-smoke.sh`）已退役，改为真实网络人工验收 |
 | 悬浮窗（时钟/帧率） | ⬜ | `OpenOverlayWindow()` 恒 false | M4 |
 | 手柄控制 | ⬜ | 空实现 | M4 |
 | RPC 服务 | ⬜ | 恒「未运行」 | M4 |
@@ -75,7 +76,7 @@
 | 文件 | 替代的 Windows 机制 | 状态 | 里程碑 | 说明 |
 |---|---|---|---|---|
 | `Program.Linux.cs` | WinUI 生成入口 | ✅ | M1 | Uno `UnoPlatformHostBuilder`；CLI 子命令（见 §8） |
-| `Frameworks/WindowEx.Linux.cs` | `WindowEx` 标题栏/PInvoke | ✅ | M1 | 基于 `Window.AppWindow`；`CenterInScreen` 先 `Resize` 再 `MoveAndResize`（后者在 X11 空操作）；`SetDragRectangles` 空实现 → Windows 上「自绘标题栏」方案在 Linux 不可用，改用系统标题栏。`Hide()/Show()/ShowFromMinimized()` 走 `Helpers/X11Window`（libxcb unmap/map + `_NET_ACTIVE_WINDOW`），因为 Uno X11 既没有 `HideCore`、`Activate()` 也只发 `XRaiseWindow`（D47、L-84）；`Show()` 统一关掉 `ExtendsContentIntoTitleBar` 并按 `DefaultWindowSizeInDips` + 屏幕钳制摆位（D49） |
+| `Features/WindowBase.Linux.cs` | `WindowBase` 标题栏/PInvoke（上游 0.19.0 把 `Frameworks/WindowEx.cs` 改名 `Features/WindowBase.cs`） | ✅ | M1 | 基于 `Window.AppWindow`；`CenterInScreen` 先 `Resize` 再 `MoveAndResize`（后者在 X11 空操作）；`SetDragRectangles`/`AdaptTitleBarButtonColorToActuallTheme`/`ChangeAccentColor` 空实现 → Windows 上「自绘标题栏」方案在 Linux 不可用，改用系统标题栏。`Hide()/Show()/ShowFromMinimized()` 走 `Helpers/X11Window`（libxcb unmap/map + `_NET_ACTIVE_WINDOW`），因为 Uno X11 既没有 `HideCore`、`Activate()` 也只发 `XRaiseWindow`（D47、L-84）；`Show()` 统一关掉 `ExtendsContentIntoTitleBar` 并按 `DefaultWindowSizeInDips` + 屏幕钳制摆位（D49）；`SetIcon()` 复用 `Helpers/AppIcon` 的 `_NET_WM_ICON`（每个窗口都调，L-183）；`ShouldAppsUseDarkMode/ShouldSystemUseDarkMode` 读 GTK `settings.ini`/`kdeglobals` 推断（以前恒 true，浅色桌面的子窗口被强制深色，L-183）；另维护窗口登记表给 `Helpers/XamlRootExtension.GetAppWindow` 按 `XamlRoot` 反查真正的 `AppWindow`（以前一律回落到主窗口） | X11 下图标/标题栏配色只能尽力而为；纯 Wayland 无 `_NET_WM_ICON` 写入通道 |
 | `Controls/CachedImage.Linux.cs` | `Scighost.WinUI.CachedImage` | 🟡 | M1 | ms-appx/网络/本地（本地读字节 + `SetSourceAsync`）；`CornerRadius` 为矩形裁剪 |
 | `Helpers/FileDialogHelper.Linux.cs` | `FileOpenPicker`/`FileSavePicker` | 🟡 | M1 | **portal 优先**（`Portal.PickFilesAsync`，xdg-desktop-portal）→ 失败才 `kdialog` → `zenity`；沙箱内走 portal，可用（D75） |
 | `Helpers/ClipboardHelper.Linux.cs` | WinRT Clipboard | 🟡 | M1 | wl-copy → xclip → xsel |
@@ -92,11 +93,8 @@
 | `Features/Codec/ImageLoader.Linux.cs` | Win2D `CanvasBitmap` | ✅ | M1 | 尺寸走 SkiaSharp `SKCodec`；解码 PNG/JPG/WebP 走 Skia，**AVIF/JXL/HEIC 走 Magick.NET**（`Helpers/MagickCodec`，`NeedsMagick` 覆盖这 4 个扩展名；原生库缺失时提示不支持，D75） |
 | `Features/Overlay/RunningGameService.Linux.cs` | `SetWinEventHook` | 🟡 | M1 | `Process.HasExited` 判定存活，不感知窗口焦点；`OpenOverlayWindow()` 恒 false |
 | `Features/RPC/RpcService.Linux.cs` | 命名管道 + gRPC 子进程 | ⬜ | M4 | 恒「未运行」；`CreateRpcClient` 抛 NotSupported（D6） |
-| `Features/GameInstall/GameInstallShims.cs` | `Starward.RPC.GameInstall` 契约 | ✅ | M3 | DTO/枚举按上游真实代码复制；`GameInstallService.Linux.cs` 提供 Linux 实现，`Start*Async` 返回真实任务上下文 |
-| `Features/GameInstall/GameInstallService.Linux.cs` | `Starward.RPC.GameInstall` 服务端（gRPC + 命名管道子进程） | 🟡 | M3 | 安装/更新/预下载/修复/卸载直接跑在主进程（上游在 RPC 子进程，D6）；流程在 `InstallPipeline`、增量编排在 `UpdateOrchestrator`、块复用 `ChunkReusePlanner`；中断靠文件级续传（大小 + MD5 命中即跳过），差分分支未在真实更新上验证 |
+| `Features/GameInstall/GameInstallService.cs`（**非** `*.Linux.cs`） | `Starward.RPC.GameInstall` 的 gRPC 客户端包装 | ✅ | M3 | 移植侧改成**进程内 facade**：同名同命名空间（`Starward.Features.GameInstall`），内部直接 `CreateContextAsync` + `StartOrContinueTaskAsync`，不再起子进程（上游 0.19.0 已删 RPC 项目，D128）。`RunOnce`/限速/任务进度订阅与上游一致 | 少了子进程隔离；`GameInstallController`（gRPC 服务端）在 Linux 上不编译 |
 | `Features/GameInstall/GameInstallScanner.Linux.cs` | 注册表枚举已装游戏 | ✅ | M1 | 扫 `~/games`、Steam `common`、`$LUNARWARD_GAME_ROOTS`，`NameMatches` 防国服/B 服同名 exe 误认 |
-| `Features/GameInstall/InstallGameDialog.Linux.cs` | 安装对话框 code-behind | ✅ | M3 | 只保留 `x:Bind` 成员；安装/预下载/更新/修复都从真实服务起任务 |
-| `Features/GameInstall/PreDownloadDialog.Linux.cs` | 预下载对话框（体积/空间） | ✅ | 体积取 `getPatchBuild` 的 stats[本地版本]（增量），无预下载时显示提示并禁用开始；可用空间读安装分区 | M3 |
 | `Features/GameLauncher/GameLauncherService.Linux.cs` | `ProcessStartInfo{Verb="runas"}` + `cmd /c start` | ✅ | M1–M2 | 直 `exec wine`；补 Proton 的 `WINEDLLPATH`/`LD_LIBRARY_PATH`/`PROTONPATH`（L-44）；前缀锁、报告、退出钩子都在这里 |
 | `Features/GameSetting/GenshinHDRLuminanceSettingDialog.Linux.cs` | Win2D HDR 预览 | 🟡 | M3 | `.xaml` 已改名 `*.xaml.disabled`（整页 Win2D 实时预览，D31）；对话框由本文件**代码重建**：3 个 Slider + 数值文本 + 恢复默认 + `Opened` 读 `GameSettingService.GetGenshinHDRLuminanceAsync` / 关闭写回，只能调写入游戏的亮度参数，无预览 |
 | `Features/GamepadControl/GamepadController.Linux.cs` | `SharpGameInput` + `InputSimulator` | ⬜ | M4 | 整体未实现 |
@@ -110,7 +108,7 @@
 | `Features/Screenshot/ImageViewWindow.Linux.cs` | Win2D 看图窗 | 🟡 | M3 | 窗口壳；实际看图走 `ScreenshotViewerWindow` |
 | `Features/Screenshot/ImageConvertItem.Linux.cs` | Win2D 编码 | 🟡 | M3 | 批量转换走 `ScreenshotConverter`（SkiaSharp，JPEG 92） |
 | `Features/Update/UpdateService.Linux.cs` | GitHub Release | 🟡 | M2 | 查 AUR RPC 版本；网络失败按「无更新」 |
-| `Features/Update/UpdateWindow.Linux.cs` | Windows 自更新 UI | 🟡 | M2 | 检查/忽略/提醒可用；「立即更新」提示走包管理器（D5） |
+| `Features/Update/UpdateWindow.Linux.cs` | Windows 自更新 UI | 🟡 | M2 | 检查/忽略/提醒可用；「立即更新」按钮**可点**，点了给出「请用包管理器（AUR/AppImage）升级」的提示（走 `SetErrorMessage` 才会刷新，L-183；以前按钮恒禁用且无解释） |
 | `Features/Update/SetupService.Linux.cs` | Windows 安装器 | ⛔ | — | Linux 不做（D5） |
 | `Features/UrlProtocol/UrlProtocolService.Linux.cs` | 注册表注册 `starward://` | ✅ | M2 | 写 `~/.local/share/applications/lunarward.desktop` + `update-desktop-database` + `xdg-mime` |
 
@@ -127,7 +125,7 @@
 
 | 文件 | 覆盖的类型 | 状态 | 说明 |
 |---|---|---|---|
-| `Compat/VanaraHotkeyCompat.cs` | `Win32Error` / `HotKeyModifiers` / `VK` | 🟡 | 只补常量与 `Succeeded/Failed`；真正注册在 `HotkeyManager.Linux.cs` |
+| `Compat/VanaraHotkeyCompat.cs` | `Win32Error` / `HotKeyModifiers` / `VK` / `User32.*` | 🟡 | 补常量与 `Succeeded/Failed`，另含 `WindowLongFlags` + `SetWindowLong`（x64 → `SetWindowLongPtrW`）真 P/Invoke —— **Linux 上调用会 `DllNotFoundException`**，现有调用点都包在 `OperatingSystem.IsWindows()` 里或本身不编译；真正注册热键在 `HotkeyManager.Linux.cs` |
 | 桌面通知 | `Helpers/DesktopNotification.cs`（无同名上游文件） | ✅ | **D-Bus 直连优先**（Tmds.DBus 调 `org.freedesktop.Notifications.Notify`）→ 失败才 `notify-send` → `gdbus Notify` 兜底；安装/预下载/修复/更新、截图保存各发一条（D50/D75）；无通知服务时静默跳过 |
 | 强调色 | `Helpers/AccentColorHelper.Linux.cs`（无同名上游文件） | 🟡 | 按背景/海报取主色写主题字典并刷新（D50/L-89）；Windows 上还染标题栏/边框（DWM），Linux 交给 WM（D47） |
 | `Compat/NotifyIcon/TaskbarIconCompat.cs` | `H.NotifyIcon.TaskbarIcon` | ⬜ | 占位；真实托盘是 `Features/Tray/StatusNotifierTray.cs` |
@@ -183,7 +181,7 @@
 | `Controls/*` | 1 | `CachedImage.cs` | 依赖 WinUI 控件库 | M1 已替代（`Controls/CachedImage.Linux.cs`） |
 | `Features/GameSetting/*` | 1 | `GenshinHDRLuminanceSettingDialog.xaml.cs` | Win2D 实时预览 | M3 已用代码重建对话框 |
 | `Features/RPC/*` | 1 | `RpcService.cs` | 命名管道 | M4 |
-| `Frameworks/*` | 1 | `WindowEx.cs` | PInvoke 标题栏 | M1 部分替代：拖拽/最小化交给 WM |
+| `Features/WindowBase.cs` | 1 | 上游 Windows 实现（Vanara User32 子类化） | PInvoke 标题栏 | 用 `Features/WindowBase.Linux.cs` 替代，拖拽/最小化交给 WM；上游那份不编译 |
 
 按目录汇总（脚本输出，合计 53）：`Screenshot` 12、`Codec` 8、`Helpers` 8、`GameInstall` 4、`GameRecord` 3、`Overlay` 3、`Update` 3、`Background` 2、`GamepadControl` 2、`Setting` 2、`UrlProtocol` 2、`Controls` 1、`GameSetting` 1、`RPC` 1、`Frameworks` 1。
 

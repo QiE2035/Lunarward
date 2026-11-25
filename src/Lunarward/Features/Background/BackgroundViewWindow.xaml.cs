@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using Starward.Frameworks;
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -13,7 +12,7 @@ using Windows.System;
 namespace Starward.Features.Background;
 
 [INotifyPropertyChanged]
-public sealed partial class BackgroundViewWindow : WindowEx
+public sealed partial class BackgroundViewWindow : WindowBase
 {
 
 
@@ -59,7 +58,7 @@ public sealed partial class BackgroundViewWindow : WindowEx
 
     public override void Show()
     {
-        // 尺寸与「超出屏幕就缩回并居中」由 WindowEx.Show() 统一处理（D49），这里不再自己 Resize，
+        // 尺寸与「超出屏幕就缩回并居中」由 WindowBase.Show() 统一处理（D49），这里不再自己 Resize，
         // 否则两次 Resize 会互相打架（真机表现为窗口突然变大、右/下边被推到屏幕外）。
         base.Show();
     }

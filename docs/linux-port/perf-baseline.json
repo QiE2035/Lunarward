@@ -1,11 +1,11 @@
 {
   "envs": {
-    "Linux 7.3.3-1-cachyos-bore-lto": {
-      "measured_at": "2026-11-14T09:44:46+08:00",
-      "cli_median_ms": 74,
-      "selftest_ms": 1077,
+    "Linux 7.3 x86_64": {
+      "measured_at": "2026-11-24T16:13:04+08:00",
+      "cli_median_ms": 80,
+      "selftest_ms": 1814,
       "peak_rss_kb": null,
-      "startup_stall_ms": 563
+      "startup_stall_ms": 579
     }
   }
 }

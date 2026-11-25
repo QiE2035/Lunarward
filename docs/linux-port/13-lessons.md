@@ -1,4 +1,4 @@
-# 13 · 移植过程中的经验与坑
+﻿# 13 · 移植过程中的经验与坑
 
 > 这里只记「踩过一次就不该再踩」的东西。每条都给出证据位置与处理方式。
 > 目的：让后来者（或几个月后的我们）不用重新发现一遍。
@@ -1195,7 +1195,7 @@ System.ArgumentOutOfRangeException: Index was out of range ... (Parameter 'index
 - 现象：`scripts/test/perf.sh` 的 `--update` 写的是 `{"envs": {"<uname -sr>": {...}}}`，而仓库里的 `perf-baseline.json` 还是早期的扁平结构 `{"list-runners-hot":413,...}`。比较分支只查 `envs[host]`，取不到就打印「本次只记录，不判定」并 `exit 0` —— **CI 里那条 Perf smoke 其实从来没红过**，灯是绿的但没在测。
 - 另一层：脚本依赖 `/usr/bin/time -v` 取峰值 RSS，Arch 默认不装 `time` 包 → 每次都 `self.time` 不存在、`awk` 报错、`peak_rss_kb` 恒为空（同样静默）。
 - 修法：①比较分支兼容扁平基线（`if base is None and "cli_median_ms" in data: base = {...}`）；②`/usr/bin/time` 不存在时只测耗时、RSS 记 n/a；③新增 `startup_stall_ms` 并配**绝对上限 1500 ms**（UX 硬指标不该跟某台机器的基线比）；④基线重新生成，不带 null 的空指标。
-- **残余机制（2026-11-24 复核，尚未修）**：`scripts/test/perf.sh:110` 用 `$(uname -sr)` 当 key（当前基线键 `Linux 7.3.3-1-cachyos-bore-lto`，本机已升到 `Linux 7.3.5-2-cachyos-bore-lto`），`:139` 用同一个 key 去查，`:148-149` 取不到就打印「基线里没有 … 的记录，本次只记录，不判定」并 `exit 0`。所以「基线重新生成」只解决一时，**内核一升级，Perf smoke 又会静默空转**。要么把 key 换成「发行版 + 架构」这类稳定维度，要么取不到基线直接红。
+- **残余机制（2026-11-24 修，见 D125）**：`scripts/test/perf.sh` 原用 `$(uname -sr)` 当 key（当时基线键 `Linux 7.3.3-1-cachyos-bore-lto`，机器已升到 `Linux 7.3.5-2-cachyos-bore-lto`），取不到就打印「本次只记录，不判定」并 `exit 0`——**内核小版本一升，Perf smoke 就静默空转**。修法：①key 改成 `Linux 7.3 x86_64`（`uname -s` + 内核主次版本 + 架构），比较时先精确匹配、再按旧 key、最后按「同名内核主次版本」兜底，命中会打印用的是哪个 key；②`--update` 写新 key 时顺手清掉同系列旧 key，基线不会一台机器两条记录；③`perf-baseline.json` 已按新 key 重建（`kernel` 字段留原始完整版本）；④**失败路径实测过**：把基线 `cli_median_ms` 改成 0.5 再跑，输出 `cli_median_ms 0.5 → 2 +300% REGRESSION` 且退出码 1。
 - 通用规则：任何「有基线就比、没基线就过」的脚本，必须在**第一次落地时**确认它真的会红——制造一次回归（临时把阈值调到 1）验证失败路径，否则绿灯没有意义。
 
 
@@ -1543,4 +1543,130 @@ bool ok = player.TakeSnapshot(0, path);   // 依赖 vout 的渲染面
 | L-160 | **L-174** | wine 注册表文件是「第二份真相」 | 原文排在 `L-161` 之后，错序 |
 | L-162 | **L-175** | 打包清单与源码各写一遍 | 原文排在 `L-163` 之后，错序 |
 
-**已知外部引用尚未同步**（这些文件本轮未改，需负责人统一处理）：`docs/linux-port/00-decisions.md:292` 仍写 L-119 指「Auto 行」；`docs/linux-port/README.md:20`、`docs/linux-port/12-shims-and-gaps.md:155`、`:266` 仍写 L-160；`docs/linux-port/12-shims-and-gaps.md:264` 仍写 L-162。`docs/linux-port/19-test-plan.md:502` 的 L-119 指符号链接条目（保留的编号），无需改。
+**外部引用已同步（D124）**：`00-decisions.md:292`、`CHANGELOG.md:823` 的 L-119 → L-173；`README.md`、`12-shims-and-gaps.md:155/:266` 的 L-160 → L-174；`12-shims-and-gaps.md:264` 的 L-162 → L-175。`19-test-plan.md:502` 的 L-119 指符号链接条目（保留的编号），无需改。`scripts/test/lint-doc-status.sh` 现在会把「L-* 重号」直接判红，同类问题不会再靠人眼发现。
+
+## L-176 libvlc 在 Linux 上拿不到「源帧率」，只能量帧到达节奏
+
+- 现象：想按视频自己的帧率限合成（而不是写死 30 fps），三条路都不通：①`MediaPlayer.Fps` 在 vmem 输出下**恒为 0**（3.10.2 实测，起播 5 秒后仍是 0）；②`Media.Parse(ParseLocal)` 后 `media.Tracks` 有视频轨，但 VP9/WebM 的 `VideoTrack.FrameRateNum / FrameRateDen` **都是 0**（容器里写的是时间基，不是帧率）；③`ffprobe` 能拿到 30 fps，但要 fork 外部进程，UI 线程不许（硬规则 10）。
+- 修法：在 vmem 回调里量帧到达时刻（`Environment.TickCount64`，环形缓冲 16 帧），样本 ≥8 帧后取「跨度 / (n-1)」当每帧周期，打 8 折当合成间隔；异常值用 10–240 fps 上下限挡掉。实测一条标称 30 fps 的 VP9 壁纸量出 `30.0 ms/帧`（libvlc 的 vmem 送帧粒度约 1 ms，比标称 33.3 ms 略快），按实测走反而更贴合真实送帧节奏。
+- 通用规则：**拿不到可靠的元数据时，量实际行为，别退回硬编码常量**——常量在 24 fps 与 60 fps 素材上都会错（一个被无谓限制，一个被砍半）。
+
+### L-177 · 视频壁纸：NV12 直出比 RV32 更贵，且缓冲要留填充行
+
+- 现象：想省掉 libvlc 的 YUV→RV32 转换，改成让它直出 NV12、我们转 BGRA。隔离 POC 里确实赢（RV32 18.4% 核 → NV12 6.1%），接进应用后反而输（Release 同机：RV32 70% → NV12 92%）。
+- 原因：POC 只量「解码 + 拷进缓冲」，没量「我们自己的转换」。VLC 的 RV32 转换是 SIMD 汇编，我们的 NV12→BGRA 是标量 C#（1080p 一帧约 7–10 ms，单核），省下的不够付出去的。
+- 第二个坑：按 `1.5 × W × H` 分配 NV12 缓冲会**稳定段错误**。libvlc 的 NV12 输出会在 UV 平面后多写几行（1080p 实测写到 3,121,920 字节，比 3,110,400 多 11,520 = 6 行）。给 32 行填充余量后立刻正常。POC 里没崩只是因为裸控制台没有别的线程在冲那块内存。
+- 还有个只在应用里出现的坑：`Lock` 回调里用 `Parallel.For` 铺开转换会稳定崩（改成串行就好），而 `Display` 回调里做同样的行并行没问题——vmem 回调线程的栈空间/信号状态不保证，别在里面起并行任务。
+- 教训：**POC 的收益必须把「我们自己那一半」算进去**，否则测的是「换了个更便宜的搬运工」，不是「总成本更低」。
+
+### L-178 · SkiaSharp 能把外部 GL 纹理包成 SKImage（零拷贝的 Skia 侧是可行的）
+
+- 结论：只要线程上有当前 GL 上下文，`GRGlInterface.CreateOpenGl(getProcAddress)` → `GRContext.CreateGl` → `new GRBackendTexture(w, h, mipmapped, new GRGlTextureInfo{ Target, Id, Format })` → `SKImage.FromTexture(gr, btex, GRSurfaceOrigin.TopLeft, SKColorType.Bgra8888, SKAlphaType.Premul)` 就能得到一个 `IsTextureBacked == true` 的图像，直接 `canvas.DrawImage` 画在 GPU 表面上，全程不经 CPU。
+- 上下文怎么来（无窗口场景）：`eglGetPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA, 0, 0)` → `eglInitialize` → `eglBindAPI(EGL_OPENGL_API)` → `eglCreateContext(dpy, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, …)` → `eglMakeCurrent(dpy, 0, 0, ctx)`。**不要**先 `eglChooseConfig`：surfaceless 平台上一个窗口配置也不匹配时它会返回 false 但 `eglGetError() == EGL_SUCCESS`，看起来像「成功但没配置」，走 `EGL_NO_CONFIG_KHR` 才干净。
+- `GRGlGetProcedureAddressDelegate` 只有一个 `string name` 参数，返回 `IntPtr`；先试 `eglGetProcAddress`，返回 0 再用 `NativeLibrary.TryGetExport(libGL, name, out addr)` 兜 GL 1.1 的核心函数（那些不受 EGL 管）。
+- 实测环境：NVIDIA 硬件 EGL（`GRContext.Backend=OpenGL`、`MaxTextureSize=32768`）与 Mesa 软件 EGL（16384）都通过，回读像素与上传值逐值吻合。
+- 边界：这条链只解决「纹理 → Skia」。libvlc 3 的 `vmem` 只给 CPU 内存、Uno 渲染循环没有注入外部图像的公开入口，端到端零拷贝仍不成立（见 D127）。
+
+### L-179 · Uno 版 CommunityToolkit `WrapPanel` 没有 `ItemWidth` / `ItemHeight`
+
+- 现象：从手写替身切到真实 `CommunityToolkit.WinUI.Controls.Primitives`（toolkit 11 / 8.2.251219 的 Uno 构建）后，`BackgroundViewPage.xaml.cs` 的自适应列宽（D56）编译不过：`CS1061 "WrapPanel" 未包含 "ItemWidth" 的定义`，`ItemHeight` 同样。
+- 实测该 dll 的属性只有 `Orientation`、`HorizontalSpacing`、`VerticalSpacing`（`strings` 里连 `ItemWidth` 都没有）。Windows Community Toolkit 的 `WrapPanel` 文档里那些 `ItemWidth/ItemHeight` 在这个 Uno 构建里不存在，别照文档写。
+- 修法：把算好的尺寸写到**每个已实体化的容器**上（`panel.Children` 里的 `ListViewItem` 的 `Width/Height`），再挂 `GridView.ContainerContentChanging` 给滚动中新实体化的项补同样的尺寸；`InvalidateMeasure()` 照旧。
+- 教训：升级依赖后，「替身删掉 → 编译过」不等于「行为等价」。替身提供过的属性要逐个核对，缺失的自己补在容器层。
+- 顺带：手写替身（同名的 `Controls/ToolkitControls.cs`、`InteractivityCompat.cs`、`ToolkitCompat.cs`）会**遮蔽真实包的类型**，报出来的是「属性不存在」这种像 XAML 错的消息（`UXAML0001: Property 'HorizontalSpacing' does not exist on 'WrapLayout'`）。真实包加进来时先把替身改名 `.disabled`，再逐个补回真正缺的能力。
+
+### L-180 · 上游 0.19.0 自带 `ContentDialogBase`，`DialogGate` 与它并存
+
+- `src/Starward/Features/ContentDialogBase.cs` 是 `public abstract partial class ContentDialogBase : ContentDialog`，构造里挂 `Loaded`，把「同一时间只允许一个 ContentDialog」这类公共行为收进基类；`GameLauncherSettingDialog`、`InstallGameDialog`、`PreDownloadDialog` 都继承它。
+- 我们 D120 的 `Helpers/DialogGate.cs`（进程级单锁 + `WaitClosedAsync`）**不要删**：它还管嵌套重开与非 ContentDialog 弹窗；但新建弹窗时要记得继承 `ContentDialogBase`（上游语义），否则行为与上游不一致。
+- 踩过的相关坑：Uno 的 XAML 编译器遇到 `ItemContainerTransitions="{x:Null}"` 会直接崩（`UXAML0001: Processing failed for an unknown reason (BuildLiteralProperties@6614)` + `The type {http://schemas.microsoft.com/winfx/2006/xaml}NullExtension could not be found`），删掉整行即可（`GridView` 在 Uno 上不支持 `TransitionCollection`，语义等价）。
+- XAML 被批量合并拼坏时，别手写标签栈脚本（属性值里有 `>` 会误判）；用 `python3 -c "import xml.etree.ElementTree as ET; ET.parse('...')"`，它直接给出 `mismatched tag: line N, column M`。
+
+### L-181 · 批量三方合并的固定套路（0.19.0 实战）
+
+- 分类驱动：对 `git diff <base>..<merge> -- src/Starward` 的每个文件先判 A/D/M + 「移植侧是否偏差」，再分别处理：
+  - **A（上游新增）**：直接拷进 `src/Lunarward`，然后处理依赖（Windows-only、gRPC、WinRT）。
+  - **DEL（上游删除）**：**不要直接删**本地同名文件。上游删的往往是我们 `*.Linux.cs` 的对照文件（`GameNoticeWindow.xaml`、`ImageViewWindow2.xaml`），本地那份可能是移植资产。先 `git log --oneline -1 -- <path>` 与 `git show <base>:<path>` 确认归属。
+  - **M（改动）**：`git merge-file --diff3` 三方合并；冲突块按「ours==base 取 theirs / theirs==base 取 ours / ours 含 `Lunarward|X11|Skia|wine|Linux|D\d\d|L-\d` 取 ours」启发式处理，剩下的人工过。启发式对 `AppConfig.ServiceProvider.cs` 这类「两边都在同一区加注册」的文件会拼坏，这种文件直接以上游为底重写更快。
+- 提交粒度：批量移植、冲突解决、编译收口分开提交，出问题能单独回退。
+- 坑：`git checkout <csproj>` 会把未提交的 net11 / `ProjectReference` 改动一起冲掉（曾有 `/tmp/csproj.bak` 才救回来）；改过的工程文件回滚前先备份。
+
+### L-182 · net11 迁移：Uno 6.7 只有 net10 资产，必须一起升 Uno 7
+
+- 事实：`Uno.WinUI 6.7.359` 的 `lib/` 只有 `net9.0`/`net10.0`，没有 `net11.0`；`Uno.WinUI 7.0.65`（对应 `Uno.Sdk 7.0.22`）才有 `net11.0` + `net11.0-windows10.0.19041.0`。所以「只把 TFM 改成 net11」一定在引用 Uno 时报不兼容。
+- 连带：`Microsoft.Extensions.*` 要同步升 `11.0.0`，否则 NuGet 报 `NU1605 包降级`（Uno 7 的依赖已经到 11）。
+- 好消息：Uno 7 默认 `SkiaSharpVersion 4.156.0`，但我们的工程实际仍解析到 `SkiaSharp 3.119.2`（没有连带报错）；Uno.Toolkit / Composition 也无需改代码。
+- 判定「某个包只发 net11 资产」的方法：`find ~/.nuget/packages/<id>/<ver>/lib -maxdepth 1 -type d`；只发 net11 资产的包在 net10 下会报 `CS1705 System.Runtime 11.0.0.0 高于 10.0.0.0`（`Starward.HPatch` 就是这样）。
+- AUR：`dotnet-core-bin`（SDK 11.0.100 / runtime 11.0.0，2026-11-12）与 repo 的 `dotnet-*-bin` 同装到 `/usr/share/dotnet`；只升 SDK 不升 host 会报 `You must install or update .NET to run this application. App: /usr/share/dotnet/sdk/11.0.100/dotnet.dll`。
+
+## L-183　「手写替身」审计：空实现看起来像实现
+
+- 现象（2026-11-25 全量复核 33 个 `*.Linux.cs` + 6 个替身）：27 个有实质实现、10 个是空壳，其中 4 处用户真的会撞上——
+  1. `Features/GameRecord/BattleChronicleWindow.Linux.cs` 只 `Content = new Grid()`：点「战绩」弹一个**纯白窗口**，没有任何说明；
+  2. `Features/WindowBase.Linux.cs` 的 `SetIcon()` 空 → 除主窗口外任务栏/Alt-Tab 都是通用方块；`ShouldAppsUseDarkMode()/ShouldSystemUseDarkMode()` 恒 `true` → 浅色桌面的 Gacha/更新/过场子窗口被强制深色；
+  3. `Features/Update/UpdateWindow.Linux.cs` 的 `IsUpdateNowEnabled => false` → 「立即更新」灰掉且无解释；`UpdateNow()` 只赋 `ErrorMessage` 不走 `SetErrorMessage()`，`x:Bind` 根本不刷新；
+  4. `Helpers/XamlRootExtension.Linux.cs` 的 `GetAppWindow()` 兜底 `MainWindow.Current?.AppWindow` → 子窗口/对话框拿到的是**主窗口**的 id（`DisplayInformation.CreateForWindowId` 会按主窗口算 DPI）。
+- 教训：`*.Linux.cs` 里「方法签名补齐、函数体空着」编译得过、跑起来不报错，代码和文档都容易当成已完成。审计时按「有没有调用方 → 用户能不能触达 → 触达后看到什么」三问过一遍，比读实现更有效。
+- 修法（D129）：能真做就真做——`SetIcon` 复用 `Helpers/AppIcon` 的 `_NET_WM_ICON`；深浅色按 GTK `settings.ini`（`gtk-application-prefer-dark-theme`/`gtk-theme-name`）/ KDE `kdeglobals`（`ColorScheme`/`BackgroundNormal` 亮度）推断，写成 `Helpers/SystemThemePreference`（只读文件、不 fork，硬规则 10）；空窗口改成带说明的占位页；「立即更新」改成可点 + 明确文案；`GetAppWindow` 改为查 `WindowBase` 的窗口登记表（按 `XamlRoot` 引用相等反查），查不到才退主窗口。
+- 反面：`Compat/VanaraHotkeyCompat.cs` 里保留着 `[DllImport("user32.dll")] SetWindowLongPtr64/SetWindowLong32`，Linux 上一调就 `DllNotFoundException`。现有调用点都包在 `OperatingSystem.IsWindows()` 里，但这类 P/Invoke 留在移植侧等于埋雷——要么删，要么写清「只有 Windows 语义」。
+- 复核手段：`bash scripts/test/lint-doc-status.sh` 里已有的「12-shims 登记集合 == `find` 实际集合」能挡住「文件改名/删除后文档没跟」，挡不住「文件在、函数体空」——后者只能人工读。
+## L-184　Uno 7 之后没有可用的 SkiaSharp.Views，视频帧改用双缓冲 WriteableBitmap
+
+**现象**：升级到 Uno.Sdk 7.0.22 / net11 后，`SKXamlCanvas` 所在的 `SkiaSharp.Views.Windows` 类型全部找不到（`CS0234 SkiaSharp.Views`），加回 `SkiaSharp.Views.Uno.WinUI` 又报 `UNOB0023: The runtime-enabled package(s) [SkiaSharp.Views.Uno.WinUI] did not provide any runtime assembly for net11.0-desktop … must be updated to a version built for 7.0`。
+
+**原因（实测包内容）**：
+- `SkiaSharp.Views.Uno.WinUI 3.119.2` 有 `uno-runtime/net8.0/skia/SkiaSharp.Views.Windows.dll`，但 Uno 7 只认「为 7.0 构建」的 runtime 资产 → 拒收。
+- `SkiaSharp.Views.Uno.WinUI 4.156.0` 的 nupkg 里**完全没有** `uno-runtime/`，只有 `lib/net10.0/SkiaSharp.Views.Windows.dll` 与 `lib/net10.0-windows10.0.19041.0/_._`（从 4.150 起改了布局，Uno 侧资产没了）。
+- Uno 6 时代我们从来没在 csproj 里引用过它：它是 `Uno.WinUI 6.7.359` 的传递依赖（旧 `bin/Debug/net10.0-desktop/Lunarward.deps.json` 里能看到 `LibVLCSharp 3.9.7.1` 与 `SkiaSharp.Views.Uno.WinUI 3.119.2` 两条），Uno 7 不再带。
+
+**做法**：删掉 SkiaSharp.Views 依赖，视频壁纸的呈现改成「`WriteableBitmap` 双缓冲交替贴给 `Image`」：
+1. `Start()` 里建 A/B 两张 `WriteableBitmap(VideoWidth, VideoHeight)`；
+2. 每帧在锁内拷贝 `byte[]` 到「非当前显示」的那张（`bitmap.PixelBuffer.AsStream().Write(...)`），再 `_videoImage.Source = target`；
+3. 两张轮换 → 每次赋给 `Image` 的都是**新实例**，绕开 L-71 的「同一实例不重新采样」。
+
+**SkiaSharp 4 的 API 迁移**：`SKFilterQuality` 枚举与 `SKPaint.FilterQuality` 都被删，改用 `SKSamplingOptions`：
+```csharp
+canvas.DrawImage(image, destRect, new SKSamplingOptions(SKCubicResampler.Mitchell), paint);
+bitmap.Resize(info, new SKSamplingOptions(SKCubicResampler.Mitchell));
+```
+涉及 `Controls/CachedImage.Linux.cs`、`Helpers/AppIcon.cs`、`Helpers/ImageDecode.cs`、`Features/Tray/StatusNotifierTray.cs`。
+
+**教训**：别把「Uno 的传递依赖」当自己的依赖假设（它随 Uno 大版本消失）；判断某个渲染类包能不能用，先看 nupkg 里有没有 `uno-runtime/<tfm>/`，光看版本号会被 `UNOB0023` 打回来。
+
+## L-185　CommunityToolkit.WinUI.* 在 Uno 工程里会选到 Windows 资产，手写替身反而是必需的
+
+**现象**：按上游 `Starward.csproj` 加了 `CommunityToolkit.WinUI.{Animations,Behaviors,Controls.Primitives,Controls.Segmented,Helpers} 8.2.251219` 后，冒出 41×`CS0012 类型 CoreDispatcher / Color / RadialControllerMenuKnownIcon 在未引用的程序集 Uno, Version=255.255.255.255 中定义`、8×`CS1503 无法从 Microsoft.Xaml.Interactivity.ControlStoryboardAction 转换为 DependencyObject`、`AttachedDropShadow` / `InAppToast` 找不到。
+
+**原因**：这些包在 Uno 项目里解析到 WindowsAppSDK 版本的程序集，于是「Windows 的 DependencyObject」和「Uno 的 DependencyObject」成了两套类型。
+
+**做法**：把这些包从移植侧 csproj 移除，恢复我们自己的替身（`Controls/ToolkitControls.cs`、`Controls/ToolkitCompat.cs`、`Controls/InteractivityCompat.cs`），并按 Uno 7 的实际 API 调整：
+- `WrapPanel`/`WrapLayout`：Uno 版只有 `Orientation` + `HorizontalSpacing`/`VerticalSpacing`，**没有 `ItemWidth`/`ItemHeight`** → 自适应列宽改成给每个 `ListViewItem` 设尺寸 + 挂 `ContainerContentChanging`（L-179）。
+- `Segmented`：不要设 `ItemsPanel`（Uno 7 的 `ItemsPanelTemplate` 只有 `(object, NewFrameworkTemplateBuilder)` 一种构造，Debug/Release 参考程序集还不一致，会 `CS1729`/`CS0234`）→ 在 `OnApplyTemplate` 里把 `ItemsStackPanel.Orientation` 设成 Horizontal。
+- 补 `DependencyObjectExtensions.FindDescendant<T>()`（上游 `LauncherConfigView.xaml.cs` 用它从 GridView 里找 ScrollViewer），注意本项目没开 `Nullable`，泛型返回别写 `T?`（`CS0403`），用 `where T : class`。
+
+**教训**：「上游引了这个包」不等于「移植侧也要引」——先看它在 Uno 下解析到哪套资产。空壳替身比错误引用更安全，但替身必须**真的实现**（L-183）。
+
+## L-186　Uno/Skia 应用起不来时的两处静默失败：漏调 InitEnviroment、漏注册服务
+
+**现象**：`--selftest-ui` 在 xvfb 下 `exit=124`、stdout/stderr 全空、没有任何窗口；日志里只有一行 `Welcome to Lunarward v0.1.0-linux`。
+
+**两个独立原因**（都实测确认）：
+1. **GUI 路径没做环境初始化**。移植侧 `Program.Linux.cs` 的 `InitEnviroment()`（`AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult()`）只在 CLI 子命令分支里调用，`host.Run()` 之前没调 → `AppConfig.CacheFolder`/`UserDataFolder` 为 null → `App.OnLaunched` 判定「首次运行」弹 `WelcomeWindow`（标题也是 `Starward`，容易误以为是主窗口），之后 `BuildServiceProvider()` 里 `Path.Combine(CacheFolder, "log")` 拿到 null 就挂。修法：`host.Run()` 前调用一次 `InitEnviroment()`。
+2. **DI 里漏注册移植侧自建服务**。`CompanionRunner` 没注册（0.19.0 合并把 provider 文件按上游重写时丢了），`App.OnLaunched` 里 `AppConfig.GetService<CompanionRunner>()` 抛 `InvalidOperationException`，但 `OnLaunched` 是 `async void`，异常被 Uno 的 `UnhandledException` 吞掉 → **没有窗口、没有报错、进程挂在消息循环里**。同类还有 `GameRecordService`、`GameAuthLoginService`。
+
+**排查手法**（Console 在这里不可靠，要落文件）：
+- 在关键点 `File.AppendAllText("/tmp/lw-trace.txt", "...")` 打点（GUI 下重定向的 stderr 可能一句都看不到）；
+- `dotnet-stack report -p <pid>` 看主线程是否只在 `X11ApplicationHost.RunLoop()` 的 `Thread.Sleep` 里（说明 UI 已空闲 → OnLaunched 早就异常退出了）；
+- 逐段隔离：先解析一个已知能用的服务（`PlayTimeRecordService`）打点，确认真的是「某个类型解析失败」而不是 DI 整体挂掉。
+
+**教训**：Uno 的 `async void` 生命周期方法里抛异常**不一定会让进程退出**，表现是「启动没反应」；启动链上的每一步都要么能打点、要么能报错，否则排查成本极高（这次花了 1 小时+）。
+
+## L-187　0.19.0 起安装路径进了 SQLite，CLI 子命令必须先做环境初始化
+
+**现象**：`lunarward --preflight hk4e_cn` 抛 `Microsoft.Data.Sqlite.SqliteException: SQLite Error 1: 'no such table: GameEntry'`（`T-CL-07b` 因此失败，输出里没有「结论」行）。
+
+**原因**：0.19.0 把「游戏装在哪」从配置迁移到 SQLite 的 `GameEntry` 表（`GameEntryService.GetFromId` / `GameLauncherService.GetGameInstallPath`）。`--preflight` 分支当时只调了 `AppConfig.LoadConfiguration()`，它只读配置、**不建库建表**；建库在 `AppConfig.CheckEnviromentAsync()` → `DatabaseService.SetDatabase()` → `InitializeDatabase()` 里。
+
+**做法**：所有会碰数据库的 CLI 分支统一先 `InitEnviroment()`（`Program.Linux.cs` 本来就定义了它，只是 branch 里漏调）。
+
+**教训**：`LoadConfiguration()` 和 `CheckEnviromentAsync()` 不是同一件事——前者只读 `config.ini`，后者才有「定位数据目录 + 建库 + 迁移表 + 读配置」。CLI 分支要读任何持久化状态，都走后者。

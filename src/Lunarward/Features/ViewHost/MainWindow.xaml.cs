@@ -1,17 +1,15 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.Windows.AppLifecycle;
 using Starward.Features.Background;
-using Starward.Features.Database;
 using Starward.Features.GameLauncher;
 using Starward.Features.Overlay;
 using Starward.Features.Screenshot;
-using Starward.Frameworks;
 using System;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Vanara.PInvoke;
@@ -21,7 +19,7 @@ using Windows.Graphics;
 namespace Starward.Features.ViewHost;
 
 [INotifyPropertyChanged]
-public sealed partial class MainWindow : WindowEx
+public sealed partial class MainWindow : WindowBase
 {
 
 
@@ -40,6 +38,21 @@ public sealed partial class MainWindow : WindowEx
         if (Environment.GetEnvironmentVariable("LUNARWARD_SELFTEST") is "1")
         {
             this.Activated += OnSelfTestActivated;
+            // 兜底：没有窗口管理器时（CI 的 xvfb-run 就是这种），窗口不会被激活，Activated 永远不来，
+            // 自检会卡到超时。用 UI 线程的 DispatcherQueueTimer 8 秒后无论如何跑一次（L-185）。
+            var selfTestTimer = DispatcherQueue.CreateTimer();
+            selfTestTimer.Interval = TimeSpan.FromSeconds(8);
+            selfTestTimer.IsRepeating = false;
+            selfTestTimer.Tick += (_, _) =>
+            {
+                if (_selfTestStarted)
+                {
+                    return;
+                }
+                _selfTestStarted = true;
+                _ = RunSelfTestAsync();
+            };
+            selfTestTimer.Start();
         }
         App.Current.EnsureSystemTray();
         RunDebugWindowAction();
@@ -107,7 +120,7 @@ public sealed partial class MainWindow : WindowEx
         Title = "Lunarward";
         // Lunarward：不接管标题栏。上游在 Windows 上 ExtendsContentIntoTitleBar = true 后靠
         // AppWindow.TitleBar.SetDragRectangles 提供拖拽区，而 Uno 的 X11 后端没有实现该 API
-        // （WindowEx.SetDragRectangles 只能是空实现），结果就是「拖不动 + 自绘按钮点不动」。
+        // （WindowBase.SetDragRectangles 只能是空实现），结果就是「拖不动 + 自绘按钮点不动」。
         // 改成不扩展内容区，由窗口管理器绘制真正的标题栏（拖拽/最小化/关闭全部免费且可靠）。
         AppWindow.TitleBar.ExtendsContentIntoTitleBar = false;
         AppWindow.TitleBar.IconShowOptions = IconShowOptions.ShowIconAndSystemMenu;
@@ -169,10 +182,17 @@ public sealed partial class MainWindow : WindowEx
             else if (act == "gamesetting")
             {
                 // 开发期直达：打开「游戏设置」对话框（验证布局用，见 12 号表）
+                // 0.19.0 起 AppConfig.CurrentGameId 只存 GameId.Id 字符串，这里按已登记的条目还原成 GameId 对象。
+                Features.GameSelector.GameEntry? entry = Features.GameSelector.GameEntryService.GetAllEntries()
+                    .FirstOrDefault(x => x.GameId == AppConfig.CurrentGameId);
+                if (entry is null)
+                {
+                    Serilog.Log.Warning("[dev] gamesetting: no entry for current game id {id}", AppConfig.CurrentGameId);
+                    return;
+                }
                 var dialog = new Features.GameLauncher.GameLauncherSettingDialog
                 {
-                    CurrentGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(AppConfig.CurrentGameBiz),
-                    CurrentGameBiz = AppConfig.CurrentGameBiz,
+                    CurrentGameId = new Starward.Core.HoYoPlay.GameId(entry.GameId, entry.GameBiz),
                     XamlRoot = (Content as Microsoft.UI.Xaml.FrameworkElement)?.XamlRoot,
                 };
                 _ = dialog.ShowAsync();
@@ -263,20 +283,6 @@ public sealed partial class MainWindow : WindowEx
             }
             if (option is MainWindowCloseOption.Exit)
             {
-                Close();
-                // B13：AppInstance 在 Uno 下是 NotImplemented 的投影桩，必须单独兜住，
-                // 否则备份与退出都会被同一个 try/catch 吞掉。
-                try
-                {
-                    AppInstance.GetCurrent().UnregisterKey();
-                }
-                catch (Exception ex)
-                {
-                    Serilog.Log.Debug(ex, "AppInstance.UnregisterKey is not available on this platform");
-                }
-                Task backupTask = Task.Run(DatabaseService.AutoBackupToAppDataLocal);
-                Task timeTask = Task.Delay(30000);
-                await Task.WhenAny(backupTask, timeTask);
                 App.Current.Exit();
             }
         }

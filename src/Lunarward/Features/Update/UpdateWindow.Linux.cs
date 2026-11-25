@@ -1,4 +1,4 @@
-// Lunarward：D5 —— Linux 版不做自更新安装器（AUR / AppImage / 包管理器负责升级）。
+﻿// Lunarward：D5 —— Linux 版不做自更新安装器（AUR / AppImage / 包管理器负责升级）。
 // 本窗口保留上游结构与交互：检查更新、展示更新内容（WebView2 渲染 changelog）、
 // 「提醒我稍后」「忽略此版本」。区别只在「立即更新」不可用，改成提示用包管理器升级。
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -6,13 +6,13 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Starward.Setup.Core;
-using Starward.Frameworks;
+using Starward.Features;
 using System;
 using System.Threading.Tasks;
 
 namespace Starward.Features.Update;
 
-public sealed partial class UpdateWindow : WindowEx
+public sealed partial class UpdateWindow : WindowBase
 {
     public UpdateWindow()
     {
@@ -31,7 +31,12 @@ public sealed partial class UpdateWindow : WindowEx
 
     public string? ProgressPercentText { get; set; }
 
-    public bool IsUpdateNowEnabled => false;
+    /// <summary>
+    /// Lunarward：Linux 上不能像 Windows 那样下载安装包直接替换，走包管理器（D5）。
+    /// L-183：以前这里恒 false，按钮直接灰掉、也没有任何解释，用户会以为「检查更新没结果」；
+    /// 现在允许点击，点了给出明确说明（见 <see cref="UpdateNow"/>）。
+    /// </summary>
+    public bool IsUpdateNowEnabled => true;
 
     public bool IsUpdateRemindLatterEnabled => true;
 
@@ -44,8 +49,9 @@ public sealed partial class UpdateWindow : WindowEx
     [RelayCommand]
     private void UpdateNow()
     {
-        // Linux：交给包管理器/AUR 助手，不自行替换文件
-        ErrorMessage = "Linux 版通过包管理器（AUR/AppImage）升级，请在系统中完成更新。";
+        // Linux：交给包管理器/AUR 助手，不自行替换文件。
+        // 必须走 SetErrorMessage，否则 ErrorMessage 变了但 x:Bind 不会刷新（L-183）。
+        SetErrorMessage("Linux 版通过包管理器（AUR / AppImage）升级，请在系统里完成更新后重新打开。");
     }
 
     [RelayCommand]

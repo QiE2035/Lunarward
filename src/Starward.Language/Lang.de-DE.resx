@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -59,46 +59,46 @@
             : using a System.ComponentModel.TypeConverter
             : and then encoded with base64 encoding.
     -->
-  <xsd:schema xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata" id="root">
-    <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
     <xsd:element name="root" msdata:IsDataSet="true">
       <xsd:complexType>
         <xsd:choice maxOccurs="unbounded">
           <xsd:element name="metadata">
             <xsd:complexType>
               <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0"/>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
               </xsd:sequence>
-              <xsd:attribute name="name" use="required" type="xsd:string"/>
-              <xsd:attribute name="type" type="xsd:string"/>
-              <xsd:attribute name="mimetype" type="xsd:string"/>
-              <xsd:attribute ref="xml:space"/>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
             </xsd:complexType>
           </xsd:element>
           <xsd:element name="assembly">
             <xsd:complexType>
-              <xsd:attribute name="alias" type="xsd:string"/>
-              <xsd:attribute name="name" type="xsd:string"/>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
             </xsd:complexType>
           </xsd:element>
           <xsd:element name="data">
             <xsd:complexType>
               <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
-                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2"/>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
               </xsd:sequence>
-              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1"/>
-              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3"/>
-              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4"/>
-              <xsd:attribute ref="xml:space"/>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
             </xsd:complexType>
           </xsd:element>
           <xsd:element name="resheader">
             <xsd:complexType>
               <xsd:sequence>
-                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1"/>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
               </xsd:sequence>
-              <xsd:attribute name="name" type="xsd:string" use="required"/>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
             </xsd:complexType>
           </xsd:element>
         </xsd:choice>
@@ -196,7 +196,7 @@
     <value>Abbrechen</value>
   </data>
   <data name="SelectDirectoryPage_FirstUse" xml:space="preserve">
-    <value>Es scheint Ihr erstes Mal mit {Lunarward} zu sein.</value>
+    <value>Es scheint Ihr erstes Mal mit {Starward} zu sein.</value>
   </data>
   <data name="SelectGamePage_GoToLauncher" xml:space="preserve">
     <value>Zum Launcher wechseln</value>
@@ -205,7 +205,7 @@
     <value>Ordner wählen</value>
   </data>
   <data name="SelectGamePage_SomeGame" xml:space="preserve">
-    <value>{Lunarward} unterstützt einige {miHoYo/HoYoverse} Spiele, bitte wählen Sie Ihr Ziel unten aus, Sie können es auch jederzeit nach dem Start ändern.</value>
+    <value>{Starward} unterstützt einige {miHoYo/HoYoverse} Spiele, bitte wählen Sie Ihr Ziel unten aus, Sie können es auch jederzeit nach dem Start ändern.</value>
   </data>
   <data name="SelectGamePage_TheLastStep" xml:space="preserve">
     <value>Letzter Schritt ~</value>
@@ -242,7 +242,7 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Bitte starten Sie als Administrator</value>
   </data>
   <data name="DownloadGamePage_Start" xml:space="preserve">
-    <value>Start</value>
+    <value>Starten</value>
   </data>
   <data name="DownloadGamePage_Preparing" xml:space="preserve">
     <value>Vorbereitung</value>
@@ -320,7 +320,7 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Sync von Miyoushe (Experimentell)</value>
   </data>
   <data name="GachaLogPage_SyncFromMiyousheAll" xml:space="preserve">
-    <value>Sync All from Miyoushe (Experimental)</value>
+    <value>Alle von Miyoushe synchronisieren (Experimentell)</value>
   </data>
   <data name="GachaLogPage_InputURL" xml:space="preserve">
     <value>URL eingeben</value>
@@ -850,7 +850,7 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Spielrolle löschen</value>
   </data>
   <data name="HoyolabToolboxPage_SpiralAbyss" xml:space="preserve">
-    <value>Spiral Abyss</value>
+    <value>Gewundener Abgrund</value>
   </data>
   <data name="HoyolabToolboxPage_TravelersDiary" xml:space="preserve">
     <value>Tagebuch des Reisenden</value>
@@ -938,7 +938,7 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Haftungsausschluss</value>
   </data>
   <data name="HoyolabToolboxPage_DisclaimerContent" xml:space="preserve">
-    <value>Die Funktionen dieser Seite erfordern, dass Sie sich in Ihr Hyperion/HoYoLAB-Konto einloggen, und Lunarward speichert Ihre Anmeldedaten (Cookie) und gibt sich für Sie aus, um Anfragen an den miHoYo-Server zu senden. Diese Methode ist riskant und wir sind nicht dafür verantwortlich, wenn Ihr Konto infolgedessen angegriffen oder gesperrt wird?</value>
+    <value>Die Funktionen dieser Seite erfordern, dass Sie sich in Ihr Hyperion/HoYoLAB-Konto einloggen, und Starward speichert Ihre Anmeldedaten (Cookie) und gibt sich für Sie aus, um Anfragen an den miHoYo-Server zu senden. Diese Methode ist riskant und wir sind nicht dafür verantwortlich, wenn Ihr Konto infolgedessen angegriffen oder gesperrt wird?</value>
   </data>
   <data name="TrailblazeCalendarPage_StellarJadeSources" xml:space="preserve">
     <value>Stellar Jadequellen</value>
@@ -1041,7 +1041,7 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Wähle einen Server</value>
   </data>
   <data name="SettingPage_EnableSystemTrayIcon" xml:space="preserve">
-    <value>System Tray Icon</value>
+    <value>System-Tray-Symbol</value>
   </data>
   <data name="SettingPage_ExitLauncherWhenClosingWindow" xml:space="preserve">
     <value>Launcher beim Schließen beenden</value>
@@ -1176,13 +1176,13 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>URL Protocol (Experimentell)</value>
   </data>
   <data name="SettingPage_URLProtocolDesc" xml:space="preserve">
-    <value>Andere Software kann einige der Funktionen von Lunarward über das URL-Protokoll verwenden.</value>
+    <value>Andere Software kann einige der Funktionen von Starward über das URL-Protokoll verwenden.</value>
   </data>
   <data name="SettingPage_RegisterURLProtocol" xml:space="preserve">
     <value>URL-Protokoll registrieren</value>
   </data>
   <data name="SettingPage_TestURLProtocol" xml:space="preserve">
-    <value>Test URL Protocol</value>
+    <value>URL-Protokoll testen</value>
   </data>
   <data name="LauncherPage_OpenInBrowser" xml:space="preserve">
     <value>Im Browser öffnen</value>
@@ -1276,7 +1276,7 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Netzwerk-Test</value>
   </data>
   <data name="SelectLanguagePage_AreYouAbleToReceiveUpdatesForStarward" xml:space="preserve">
-    <value>Kannst du Updates für Lunarward erhalten?</value>
+    <value>Kannst du Updates für Starward erhalten?</value>
   </data>
   <data name="SelectDirectoryPage_PleaseSelectAFolderToStoreYourPersonalData" xml:space="preserve">
     <value>Bitte wählen Sie einen Ordner, um Ihre persönlichen Daten zu speichern, es ist sehr wichtig!</value>
@@ -1297,7 +1297,7 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Reine Fiktion</value>
   </data>
   <data name="AppearanceSettingPage_HelpUsTranslateStarward" xml:space="preserve">
-    <value>Hilf uns, Lunarward zu übersetzen</value>
+    <value>Hilf uns, Starward zu übersetzen</value>
   </data>
   <data name="FileSettingPage_Cache" xml:space="preserve">
     <value>Cache</value>
@@ -1550,7 +1550,7 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Alle Daten abrufen</value>
   </data>
   <data name="HoyolabToolboxPage_ImaginariumTheater" xml:space="preserve">
-    <value>Imaginarium Theater</value>
+    <value>Imaginariumstheater</value>
   </data>
   <data name="ImaginariumTheaterPage_EasyMode" xml:space="preserve">
     <value>Einfacher Modus</value>
@@ -1786,6 +1786,12 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
   <data name="StartGameButton_Verify" xml:space="preserve">
     <value>Überprüfen</value>
   </data>
+  <data name="StartGameButton_Cleaning" xml:space="preserve">
+    <value>Wird bereinigt</value>
+  </data>
+  <data name="StartGameButton_StepProgress" xml:space="preserve">
+    <value>Schritt {0}/{1}</value>
+  </data>
   <data name="SettingPage_RPCServiceIsNotRunning" xml:space="preserve">
     <value>RPC-Dienst wird nicht ausgeführt</value>
   </data>
@@ -1820,10 +1826,10 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Inkompatibilitätshinweis</value>
   </data>
   <data name="PreDownloadDialog_IncompatibilityNoticeContent" xml:space="preserve">
-    <value>Die Vorinstallationsdateien von Lunarward und HoYoPlay (miHoYo Launcher) sind inkompatibel und können sich nicht gegenseitig erkennen.</value>
+    <value>Die Vorinstallationsdateien von Starward und HoYoPlay (miHoYo Launcher) sind inkompatibel und können sich nicht gegenseitig erkennen.</value>
   </data>
   <data name="WelcomeView_DearPlayerWelcomeToStarward" xml:space="preserve">
-    <value>Liebe Spieler, willkommen bei Lunarward!</value>
+    <value>Liebe Spieler, willkommen bei Starward!</value>
   </data>
   <data name="WelcomeView_WelcomeToStarwardDescription" xml:space="preserve">
     <value>Dies ist ein Launcher, der speziell für HoYoverse-Spiele entwickelt wurde und Ihnen hilft, Ihre Spiele einfach zu verwalten und eine bessere Erfahrung zu genießen.</value>
@@ -1847,16 +1853,16 @@ Wenn Sie das Programm während der Dekomprimierung schließen, wird die Spieldat
     <value>Installiert</value>
   </data>
   <data name="WelcomeView_StarwardStart" xml:space="preserve">
-    <value>Lunarward, starten!</value>
+    <value>Starward, starten!</value>
   </data>
   <data name="GameSelector_ClickToSelectOrSwitchGame" xml:space="preserve">
     <value>Klicken Sie, um ein Spiel auszuwählen oder zu wechseln.</value>
   </data>
   <data name="GameLauncherSettingDialog_UninstallGameUserDataFolderWarning" xml:space="preserve">
-    <value>Der Lunarward-Datenordner befindet sich im Spielordner und wird mit diesem gelöscht. Bitte ändern Sie den Speicherort des Datenordners auf der Einstellungsseite und versuchen Sie es erneut.</value>
+    <value>Der Starward-Datenordner befindet sich im Spielordner und wird mit diesem gelöscht. Bitte ändern Sie den Speicherort des Datenordners auf der Einstellungsseite und versuchen Sie es erneut.</value>
   </data>
   <data name="GameLauncherSettingDialog_UninstallGameStarwardProgramFolderWarning" xml:space="preserve">
-    <value>Das Lunarward-Programm befindet sich im Spielordner und wird zusammen mit dem Spiel gelöscht. Bitte verschieben Sie das Programm aus dem Spielordner und versuchen Sie es erneut.</value>
+    <value>Das Starward-Programm befindet sich im Spielordner und wird zusammen mit dem Spiel gelöscht. Bitte verschieben Sie das Programm aus dem Spielordner und versuchen Sie es erneut.</value>
   </data>
   <data name="CloudGameButton_CloudGame" xml:space="preserve">
     <value>Cloud-Spiel</value>
@@ -2144,7 +2150,7 @@ Sie sind herzlich eingeladen, die exportierten Daten an das folgende Repository 
     <value>Hoher Dynamikbereich</value>
   </data>
   <data name="WelcomeView_IfStarwardTakesALongTimeToStartItIsRecommendedToDisableSmartAppControlInWindowsSecurity" xml:space="preserve">
-    <value>Wenn Lunarward lange zum Starten benötigt, wird empfohlen, die Smart App Control in der Windows-Sicherheit zu deaktivieren.</value>
+    <value>Wenn Starward lange zum Starten benötigt, wird empfohlen, die Smart App Control in der Windows-Sicherheit zu deaktivieren.</value>
   </data>
   <data name="WelcomeView_OpenWindowsSecurity" xml:space="preserve">
     <value>Windows-Sicherheit öffnen</value>
@@ -2153,7 +2159,7 @@ Sie sind herzlich eingeladen, die exportierten Daten an das folgende Repository 
     <value>Mehr erfahren</value>
   </data>
   <data name="WelcomeView_NetworkErrorYouCanContinueUsingStarwardButYouWonTReceiveFutureUpdates" xml:space="preserve">
-    <value>Netzwerkfehler. Sie können Lunarward weiterhin verwenden, erhalten jedoch keine zukünftigen Updates.</value>
+    <value>Netzwerkfehler. Sie können Starward weiterhin verwenden, erhalten jedoch keine zukünftigen Updates.</value>
   </data>
   <data name="MainView_CheckSystemProxy_SystemProxyIsEnabled" xml:space="preserve">
     <value>Systemproxy ist aktiviert.</value>
@@ -2336,7 +2342,7 @@ Sie sind herzlich eingeladen, die exportierten Daten an das folgende Repository 
     <value>Ordner ändern</value>
   </data>
   <data name="HotkeySetting_SingleKeyShortcutsTips" xml:space="preserve">
-    <value>Wenn Sie Einzeltasten-Tastenkombinationen (F1–F12) registrieren, müssen Sie Lunarward mit Administratorrechten ausführen; andernfalls funktionieren die Tastenkombinationen möglicherweise nicht im Spiel.</value>
+    <value>Wenn Sie Einzeltasten-Tastenkombinationen (F1–F12) registrieren, müssen Sie Starward mit Administratorrechten ausführen; andernfalls funktionieren die Tastenkombinationen möglicherweise nicht im Spiel.</value>
   </data>
   <data name="SettingPage_KeyboardShortcuts" xml:space="preserve">
     <value>Tastaturkürzel</value>
@@ -2375,10 +2381,10 @@ Sie sind herzlich eingeladen, die exportierten Daten an das folgende Repository 
     <value>Es werden nur Controller mit Xbox-Protokoll unterstützt. Die Kompatibilität mit anderen Controllertypen ist nicht gewährleistet.</value>
   </data>
   <data name="GamepadControlSetting_SimulateInputDesc" xml:space="preserve">
-    <value>Simuliert Tastatur- und Mauseingaben mit einem Gamecontroller. Diese Funktion erfordert, dass Lunarward mit Administratorrechten ausgeführt wird, um in Spielen korrekt zu funktionieren.</value>
+    <value>Simuliert Tastatur- und Mauseingaben mit einem Gamecontroller. Diese Funktion erfordert, dass Starward mit Administratorrechten ausgeführt wird, um in Spielen korrekt zu funktionieren.</value>
   </data>
   <data name="GamepadControlSetting_LongPressGuideButtonDesc" xml:space="preserve">
-    <value>Halten Sie die Guide-Taste gedrückt, um das Lunarward-Hauptfenster zu öffnen.</value>
+    <value>Halten Sie die Guide-Taste gedrückt, um das Starward-Hauptfenster zu öffnen.</value>
   </data>
   <data name="GamepadControlSetting_BothThumbsticksDesc" xml:space="preserve">
     <value>Drücken Sie beide Daumensticktasten gleichzeitig, um die controllerbasierte Tastatur- und Maussimulation zu aktivieren.</value>
@@ -2390,7 +2396,7 @@ Sie sind herzlich eingeladen, die exportierten Daten an das folgende Repository 
     <value>• Wenn Sie die Guide-Taste zuordnen, wird die Standardtastenkombination der Xbox Game Bar deaktiviert. Andere Software (z. B. der Steam-Big-Picture-Modus) kann ebenfalls auf die Guide-Taste reagieren. Bei Konflikten müssen Sie diese Funktionen manuell deaktivieren.</value>
   </data>
   <data name="GamepadControlSetting_ButtonMappingKeyboardDesc" xml:space="preserve">
-    <value>• Wenn Sie auf Tastaturtasten abbilden, geben Sie die Tastennamen ein, wie sie auf der Tastatur erscheinen, getrennt durch Leerzeichen. Beispiel: Um eine Taste auf "Strg + Alt + F1" abzubilden, geben Sie "Strg Alt F1" ein. Für Nummerntasten fügen Sie vor der Taste "Pad" hinzu, z. B.: Pad8, Pad+. Diese Funktion erfordert, dass Lunarward mit Administratorrechten ausgeführt wird, um in Spielen korrekt zu funktionieren.</value>
+    <value>• Wenn Sie auf Tastaturtasten abbilden, geben Sie die Tastennamen ein, wie sie auf der Tastatur erscheinen, getrennt durch Leerzeichen. Beispiel: Um eine Taste auf "Strg + Alt + F1" abzubilden, geben Sie "Strg Alt F1" ein. Für Nummerntasten fügen Sie vor der Taste "Pad" hinzu, z. B.: Pad8, Pad+. Diese Funktion erfordert, dass Starward mit Administratorrechten ausgeführt wird, um in Spielen korrekt zu funktionieren.</value>
   </data>
   <data name="GamepadControlSetting_ButtonMappingShareDesc" xml:space="preserve">
     <value>• Die Teilen-Taste löst weiterhin Xbox Game Bar-Screenshots aus, und es gibt derzeit keine gute Lösung.</value>
@@ -2793,59 +2799,215 @@ Sie sind herzlich eingeladen, die exportierten Daten an das folgende Repository 
   <data name="PlayTimeStatsDialog_StatsTip" xml:space="preserve">
     <value>Die Statistiken basieren auf der Laufzeit des Spiels, nicht auf der tatsächlichen Spielzeit, und dienen nur als Orientierung.</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Title" xml:space="preserve">
-    <value>Laufzeitumgebung</value>
+  <data name="LauncherConfigView_ViewDetails" xml:space="preserve">
+    <value>Details anzeigen</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
-    <value>Ein Profil besteht aus einem Runner, einem Wine-Prefix und Grafik-Komponenten. Jedes Spiel kann einem Profil zugeordnet werden.</value>
+  <data name="LauncherConfigView_PreRegister" xml:space="preserve">
+    <value>Vorregistrieren</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
-    <value>Neues Profil</value>
+  <data name="GameReservationView_PreRegister" xml:space="preserve">
+    <value>Jetzt vorregistrieren</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
-    <value>Debug-Shell öffnen</value>
+  <data name="LauncherConfigView_InstalledGames" xml:space="preserve">
+    <value>Installierte Spiele</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
-    <value>Konfigurationstext</value>
+  <data name="LauncherConfigSettingDialog_LauncherChannelSetting" xml:space="preserve">
+    <value>Launcher-Kanal-Einstellung</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
-    <value>Schließen</value>
+  <data name="LauncherConfigSettingDialog_AddCustomChannel" xml:space="preserve">
+    <value>Benutzerdefinierten Kanal hinzufügen</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
-    <value>Klonen</value>
+  <data name="LauncherConfigSettingDialog_AuthLogin" xml:space="preserve">
+    <value>Autorisierte Anmeldung</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Components" xml:space="preserve">
-    <value>Erkannte Komponenten</value>
+  <data name="LauncherConfigSettingDialog_BetaServer" xml:space="preserve">
+    <value>Beta-Server</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_ImportGraphics" xml:space="preserve">
-    <value>Grafik importieren…</value>
+  <data name="FindGamesDialog_FindInstalledGames" xml:space="preserve">
+    <value>Installierte Spiele finden</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
-    <value>In Prefix installieren…</value>
+  <data name="FindGamesDialog_ScanAllDrives" xml:space="preserve">
+    <value>Alle Laufwerke durchsuchen</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
-    <value>Prefix-Vorlagen</value>
+  <data name="FindGamesDialog_NoGameFilesWereFound" xml:space="preserve">
+    <value>Es wurden keine Spieldateien gefunden.</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
-    <value>Noch keine Vorlagen. Beim Bearbeiten eines Profils lässt sich eine erstellen.</value>
+  <data name="FindGamesDialog_SelectTheGamesToAdd" xml:space="preserve">
+    <value>Spiele zum Hinzufügen auswählen</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
-    <value>Installiert</value>
+  <data name="FindGamesDialog_AddGames" xml:space="preserve">
+    <value>Spiele hinzufügen</value>
   </data>
-  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
-    <value>Nicht installiert</value>
+  <data name="LauncherConfigSettingDialog_IDNameAndRegionCannotBeEmpty" xml:space="preserve">
+    <value>ID, Name und Region dürfen nicht leer sein.</value>
   </data>
-  <data name="Lunarward_Editor_Title" xml:space="preserve">
-    <value>Profil</value>
+  <data name="LauncherConfigSettingDialog_NoGamesFoundForThisLauncher" xml:space="preserve">
+    <value>Für diesen Launcher wurden keine Spiele gefunden.</value>
   </data>
-  <data name="Lunarward_Editor_UseDetectedRunner" xml:space="preserve">
-    <value>Aus erkannten Runnern wählen</value>
+  <data name="MainView_LogInAgain" xml:space="preserve">
+    <value>Erneut einloggen</value>
   </data>
-  <data name="Lunarward_Editor_PrefixMode" xml:space="preserve">
-    <value>Prefix-Modus</value>
+  <data name="MainView_UseTheCurrentAccountToLogIntoTheGame" xml:space="preserve">
+    <value>Mit dem aktuellen Konto im Spiel anmelden</value>
   </data>
-  <data name="Lunarward_Editor_Shell" xml:space="preserve">
-    <value>Debug-Shell</value>
+  <data name="MainView_LoginFailed" xml:space="preserve">
+    <value>Anmeldung fehlgeschlagen</value>
+  </data>
+  <data name="InstallGameDialog_LoadingDownloadResources" xml:space="preserve">
+    <value>Daten werden heruntergeladen</value>
+  </data>
+  <data name="InstallGameDialog_VoiceoverResources" xml:space="preserve">
+    <value>Audiodaten</value>
+  </data>
+  <data name="InstallGameDialog_DownloadResources" xml:space="preserve">
+    <value>Daten herunterladen</value>
+  </data>
+  <data name="InstallGameDialog_SpaceRequired" xml:space="preserve">
+    <value>Benötigter Speicherplatz</value>
+  </data>
+  <data name="InstallGameDialog_FailedToAcquireDownloadResources" xml:space="preserve">
+    <value>Herunterladen der Daten fehlgeschlagen</value>
+  </data>
+  <data name="InstallGameDialog_GameResourcesDoNotExist" xml:space="preserve">
+    <value>Keine Spieldaten vorhanden</value>
+  </data>
+  <data name="InstallGameDialog_LoginExpiredPleaseLogInAgain" xml:space="preserve">
+    <value>Du wurdest abgemeldet. Bitte melde dich erneut an.</value>
+  </data>
+  <data name="InstallGameDialog_CurrentAccountDoesnTHaveBetaTestingAccess" xml:space="preserve">
+    <value>Das aktuelle Konto hat keine Berechtigung zur Teilnahme am Beta-Test.</value>
+  </data>
+  <data name="InstallGameDialog_GameVersion" xml:space="preserve">
+    <value>Spielversion</value>
+  </data>
+  <data name="GameLauncherSettingDialog_StartupSetting" xml:space="preserve">
+    <value>Starteinstellung</value>
+  </data>
+  <data name="GameLauncherSettingDialog_RenderMode" xml:space="preserve">
+    <value>Render-Modus</value>
+  </data>
+  <data name="StartGameButton_UpdatePlugin" xml:space="preserve">
+    <value>Plugin aktualisieren</value>
+  </data>
+  <data name="Common_LogOut" xml:space="preserve">
+    <value>Abmelden</value>
+  </data>
+  <data name="PlayTimeStatsDialog_DayStartsAt" xml:space="preserve">
+    <value>Tagesbeginn</value>
+  </data>
+  <data name="PlayTimeStatsDialog_SetTheOffsetRelativeToTheLocalTimeZoneToAlignTheServerTime" xml:space="preserve">
+    <value>Legen Sie den Versatz relativ zur lokalen Zeitzone fest, um die Serverzeit abzugleichen.</value>
+  </data>
+  <data name="LauncherConfigView_ShareStorageSpaceWithOtherGamesThroughHardLinks" xml:space="preserve">
+    <value>Speicherplatz durch Hardlinks mit anderen Spielen teilen:</value>
+  </data>
+  <data name="LauncherConfigView_ActualStorageSpaceUsed" xml:space="preserve">
+    <value>Tatsächlich belegter Speicherplatz:</value>
+  </data>
+  <data name="LauncherConfigView_FindInstalledGamesOrAddChannelServers" xml:space="preserve">
+    <value>Installierte Spiele finden oder Kanalserver hinzufügen</value>
+  </data>
+  <data name="FindGamesDialog_QuickSearch" xml:space="preserve">
+    <value>Schnellsuche</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ResourceManagement" xml:space="preserve">
+    <value>Ressourcenverwaltung</value>
+  </data>
+  <data name="GameLauncherSettingDialog_CutsceneResourceManagement" xml:space="preserve">
+    <value>Zwischensequenz-Ressourcenverwaltung</value>
+  </data>
+  <data name="GameLauncherSettingDialog_ManageResource" xml:space="preserve">
+    <value>Ressourcen verwalten</value>
+  </data>
+  <data name="GameLauncherSettingDialog_GameOrInstallTaskIsRunning" xml:space="preserve">
+    <value>Spiel oder Installation wird ausgeführt.</value>
+  </data>
+  <data name="GameLauncherSettingDialog_DeletedResource" xml:space="preserve">
+    <value>Gelöschte Ressourcen</value>
+  </data>
+  <data name="GameLauncherSettingDialog_CutsceneResourceManageDesc" xml:space="preserve">
+    <value>Lösche einige Zwischensequenz-Ressourcen, um Speicherplatz zu sparen. Nach der Aktivierung übernimmt der Launcher die Hot-Updates des Spiels.</value>
+  </data>
+  <data name="GameLauncherSettingDialog_CutsceneResourceManifestIsUnavailable" xml:space="preserve">
+    <value>Das Manifest der Zwischensequenz-Ressourcen ist nicht verfügbar.</value>
+  </data>
+  <data name="StartGameButton_HotUpdate" xml:space="preserve">
+    <value>Hot-Update</value>
+  </data>
+  <data name="StartGameButton_ComingSoon" xml:space="preserve">
+    <value>Demnächst</value>
+  </data>
+  <data name="GameLauncherPage_HotUpdateCheckFailed" xml:space="preserve">
+    <value>Hot-Update-Prüfung fehlgeschlagen</value>
+  </data>
+  <data name="GameLauncherSettingDialog_LocalResource" xml:space="preserve">
+    <value>Lokale Ressourcen</value>
+  </data>
+  <data name="HypLoginWindow_UnofficialAPPPleaseBeMindfulOfYourAccountSecurity" xml:space="preserve">
+    <value>Inoffizielle App. Bitte achte auf die Sicherheit deines Kontos.</value>
+  </data>
+  <data name="Lunarward_Clone_Result" xml:space="preserve">
+    <value>Als „{0}“ geklont.</value>
+  </data>
+  <data name="Lunarward_Companion_Add" xml:space="preserve">
+    <value>Hinzufügen</value>
+  </data>
+  <data name="Lunarward_Companion_Delay" xml:space="preserve">
+    <value>Verzögerung (ms)</value>
+  </data>
+  <data name="Lunarward_Companion_Description" xml:space="preserve">
+    <value>Helfer, die nach dem Start oder Ende des Spiels gestartet werden. Der Companion-Start ist standardmäßig aus und fragt vorher nach.</value>
+  </data>
+  <data name="Lunarward_Companion_DisabledText" xml:space="preserve">
+    <value>Deaktiviert</value>
+  </data>
+  <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
+    <value>Programm nach dem Start bearbeiten</value>
+  </data>
+  <data name="Lunarward_Companion_EditNew" xml:space="preserve">
+    <value>Neues Programm nach dem Start</value>
+  </data>
+  <data name="Lunarward_Companion_Empty" xml:space="preserve">
+    <value>Noch keine Programme nach dem Start.</value>
+  </data>
+  <data name="Lunarward_Companion_LaunchNow" xml:space="preserve">
+    <value>Jetzt starten</value>
+  </data>
+  <data name="Lunarward_Companion_OffText" xml:space="preserve">
+    <value>Companion-Start: aus</value>
+  </data>
+  <data name="Lunarward_Companion_On" xml:space="preserve">
+    <value>Companion-Start</value>
+  </data>
+  <data name="Lunarward_Companion_OnText" xml:space="preserve">
+    <value>Companion-Start: ein</value>
+  </data>
+  <data name="Lunarward_Companion_OpenFolder" xml:space="preserve">
+    <value>Konfigurationsordner öffnen</value>
+  </data>
+  <data name="Lunarward_Companion_Section" xml:space="preserve">
+    <value>Programme nach dem Start</value>
+  </data>
+  <data name="Lunarward_Companion_Trigger" xml:space="preserve">
+    <value>Auslöser</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterDelay" xml:space="preserve">
+    <value>Nach einer Verzögerung</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerAfterStart" xml:space="preserve">
+    <value>Nach dem Spielstart</value>
+  </data>
+  <data name="Lunarward_Companion_TriggerOnExit" xml:space="preserve">
+    <value>Nach dem Spielende</value>
+  </data>
+  <data name="Lunarward_Components_Empty" xml:space="preserve">
+    <value>Keine Runner oder Grafik-Komponenten gefunden.</value>
+  </data>
+  <data name="Lunarward_Delete_Result" xml:space="preserve">
+    <value>„{0}“ gelöscht.</value>
+  </data>
+  <data name="Lunarward_Editor_EnsureGraphics" xml:space="preserve">
+    <value>Komponenten vor dem Start bereitstellen</value>
   </data>
   <data name="Lunarward_Editor_Env" xml:space="preserve">
     <value>Zusätzliche Umgebungsvariablen (eine KEY=VALUE pro Zeile)</value>
@@ -2856,194 +3018,20 @@ Sie sind herzlich eingeladen, die exportierten Daten an das folgende Repository 
   <data name="Lunarward_Editor_KeepPrefixGraphics" xml:space="preserve">
     <value>Behalten, was das Prefix bereits hat</value>
   </data>
-  <data name="Lunarward_Editor_EnsureGraphics" xml:space="preserve">
-    <value>Komponenten vor dem Start bereitstellen</value>
+  <data name="Lunarward_Editor_PrefixMode" xml:space="preserve">
+    <value>Prefix-Modus</value>
   </data>
-  <data name="Lunarward_Companion_Section" xml:space="preserve">
-    <value>Programme nach dem Start</value>
+  <data name="Lunarward_Editor_Shell" xml:space="preserve">
+    <value>Debug-Shell</value>
   </data>
-  <data name="Lunarward_Companion_Description" xml:space="preserve">
-    <value>Helfer, die nach dem Start oder Ende des Spiels gestartet werden. Der Companion-Start ist standardmäßig aus und fragt vorher nach.</value>
+  <data name="Lunarward_Editor_Title" xml:space="preserve">
+    <value>Profil</value>
   </data>
-  <data name="Lunarward_Companion_Add" xml:space="preserve">
-    <value>Hinzufügen</value>
+  <data name="Lunarward_Editor_UseDetectedRunner" xml:space="preserve">
+    <value>Aus erkannten Runnern wählen</value>
   </data>
-  <data name="Lunarward_Companion_OpenFolder" xml:space="preserve">
-    <value>Konfigurationsordner öffnen</value>
-  </data>
-  <data name="Lunarward_Companion_Empty" xml:space="preserve">
-    <value>Noch keine Programme nach dem Start.</value>
-  </data>
-  <data name="Lunarward_Companion_LaunchNow" xml:space="preserve">
-    <value>Jetzt starten</value>
-  </data>
-  <data name="Lunarward_Companion_Trigger" xml:space="preserve">
-    <value>Auslöser</value>
-  </data>
-  <data name="Lunarward_Companion_TriggerAfterStart" xml:space="preserve">
-    <value>Nach dem Spielstart</value>
-  </data>
-  <data name="Lunarward_Companion_TriggerAfterDelay" xml:space="preserve">
-    <value>Nach einer Verzögerung</value>
-  </data>
-  <data name="Lunarward_Companion_TriggerOnExit" xml:space="preserve">
-    <value>Nach dem Spielende</value>
-  </data>
-  <data name="Lunarward_Companion_Delay" xml:space="preserve">
-    <value>Verzögerung (ms)</value>
-  </data>
-  <data name="Lunarward_Preflight_Title" xml:space="preserve">
-    <value>Start nicht möglich: einige Prüfungen sind fehlgeschlagen</value>
-  </data>
-  <data name="Lunarward_Preflight_OK" xml:space="preserve">
-    <value>OK</value>
-  </data>
-  <data name="Lunarward_Output_Title" xml:space="preserve">
-    <value>Laufzeitausgabe</value>
-  </data>
-  <data name="Lunarward_Output_OpenFolder" xml:space="preserve">
-    <value>Protokollordner öffnen</value>
-  </data>
-  <data name="Lunarward_Screenshot_Selected" xml:space="preserve">
-    <value>Ausgewählt</value>
-  </data>
-  <data name="Lunarward_Screenshot_Total" xml:space="preserve">
-    <value>Gesamt</value>
-  </data>
-  <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
-    <value>Im Ordner anzeigen</value>
-  </data>
-  <data name="Lunarward_Login_Title" xml:space="preserve">
-    <value>Über ein separates Fenster anmelden</value>
-  </data>
-  <data name="Lunarward_Login_Description" xml:space="preserve">
-    <value>Lunarward öffnet die Anmeldeseite von miHoYo oder HoYoLAB mit dem System-WebKit und übernimmt anschließend die Cookies.</value>
-  </data>
-  <data name="Lunarward_Login_Open" xml:space="preserve">
-    <value>Anmeldefenster öffnen</value>
-  </data>
-  <data name="Lunarward_Profiles_Empty" xml:space="preserve">
-    <value>Noch keine Profile.</value>
-  </data>
-  <data name="Lunarward_Components_Empty" xml:space="preserve">
-    <value>Keine Runner oder Grafik-Komponenten gefunden.</value>
-  </data>
-  <data name="Lunarward_Template_Create" xml:space="preserve">
-    <value>Dieses Prefix als Vorlage speichern…</value>
-  </data>
-  <data name="Lunarward_Template_Use" xml:space="preserve">
-    <value>Neues Profil daraus erstellen</value>
-  </data>
-  <data name="Lunarward_Clone_Result" xml:space="preserve">
-    <value>Als „{0}“ geklont.</value>
-  </data>
-  <data name="Lunarward_Delete_Result" xml:space="preserve">
-    <value>„{0}“ gelöscht.</value>
-  </data>
-  <data name="Lunarward_Shell_Opened" xml:space="preserve">
-    <value>Debug-Shell für „{0}“ geöffnet.</value>
-  </data>
-  <data name="Lunarward_Shell_NoTerminal" xml:space="preserve">
-    <value>Kein Terminal-Emulator gefunden (konsole/kitty/alacritty/wezterm/gnome-terminal/xterm).</value>
-  </data>
-  <data name="Lunarward_Filter_AllFiles" xml:space="preserve">
-    <value>Alle Dateien</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Template" xml:space="preserve">
-    <value>Vorlagen-Klon (Standard)</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Dedicated" xml:space="preserve">
-    <value>Eigenes</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Shared" xml:space="preserve">
-    <value>Gemeinsam</value>
-  </data>
-  <data name="Lunarward_PrefixMode_External" xml:space="preserve">
-    <value>Extern (direkt verwenden)</value>
-  </data>
-  <data name="Lunarward_PrefixMode_Ephemeral" xml:space="preserve">
-    <value>Flüchtig (bei jedem Start neu)</value>
-  </data>
-  <data name="Lunarward_Graphics_KeepExisting" xml:space="preserve">
-    <value>Behalten, was das Prefix bereits hat</value>
-  </data>
-  <data name="Lunarward_Toast_Imported" xml:space="preserve">
-    <value>{0} „{1}“ importiert.</value>
-  </data>
-  <data name="Lunarward_Field_Name" xml:space="preserve">
-    <value>Name</value>
-  </data>
-  <data name="Lunarward_Field_Path" xml:space="preserve">
-    <value>Pfad</value>
-  </data>
-  <data name="Lunarward_Field_Arguments" xml:space="preserve">
-    <value>Argumente</value>
-  </data>
-  <data name="Lunarward_Companion_On" xml:space="preserve">
-    <value>Companion-Start</value>
-  </data>
-  <data name="Lunarward_Companion_OnText" xml:space="preserve">
-    <value>Companion-Start: ein</value>
-  </data>
-  <data name="Lunarward_Companion_OffText" xml:space="preserve">
-    <value>Companion-Start: aus</value>
-  </data>
-  <data name="Lunarward_Companion_DisabledText" xml:space="preserve">
-    <value>Deaktiviert</value>
-  </data>
-  <data name="Lunarward_Launch_Failed" xml:space="preserve">
-    <value>Start fehlgeschlagen:</value>
-  </data>
-  <data name="Lunarward_Output_View" xml:space="preserve">
-    <value>Aktuelle Ausgabe ansehen…</value>
-  </data>
-  <data name="Lunarward_Output_Empty" xml:space="preserve">
-    <value>Noch keine Ausgabe.</value>
-  </data>
-  <data name="Lunarward_Screenshot_Count" xml:space="preserve">
-    <value>Gesamt {0}</value>
-  </data>
-  <data name="Lunarward_Screenshot_SelectedCount" xml:space="preserve">
-    <value>{0} von {1} ausgewählt</value>
-  </data>
-  <data name="Lunarward_Viewer_Prev" xml:space="preserve">
-    <value>Zurück</value>
-  </data>
-  <data name="Lunarward_Viewer_Next" xml:space="preserve">
-    <value>Weiter</value>
-  </data>
-  <data name="Lunarward_Viewer_Close" xml:space="preserve">
-    <value>Schließen</value>
-  </data>
-  <data name="Lunarward_Companion_EditNew" xml:space="preserve">
-    <value>Neues Programm nach dem Start</value>
-  </data>
-  <data name="Lunarward_Companion_EditExisting" xml:space="preserve">
-    <value>Programm nach dem Start bearbeiten</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
-    <value>Prefix-Vorlagen</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
-    <value>Runner und Grafik (DXVK / VKD3D) werden in Systemordnern, in Steam und in ~/.local/share/lunarward/components gesucht. Der Launcher lädt nichts automatisch herunter.</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
-    <value>Noch keine Vorlagen. In einem Profil über „Dieses Prefix als Vorlage speichern…“ ein vorbereitetes Prefix ablegen.</value>
-  </data>
-  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
-    <value>template / ephemeral klonen das Prefix (Reflink auf demselben Datenträger, 650 MB in unter 0,2 s); external verwendet den angegebenen Ordner unverändert.</value>
-  </data>
-  <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
-    <value>Standard ({0})</value>
-  </data>
-  <data name="Lunarward_Profile_DefaultNameNoWine" xml:space="preserve">
-    <value>Standard (kein Wine gefunden)</value>
-  </data>
-  <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
-    <value>Versionsinformationen nicht abrufbar (Netzwerk- oder API-Fehler).</value>
-  </data>
-  <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
-    <value>Manifest nicht verfügbar: </value>
+  <data name="Lunarward_Error_InstallDirInvalid" xml:space="preserve">
+    <value>Der Installationsordner ist ungültig.</value>
   </data>
   <data name="Lunarward_Error_InstallFailed" xml:space="preserve">
     <value>Download fehlgeschlagen: </value>
@@ -3051,28 +3039,193 @@ Sie sind herzlich eingeladen, die exportierten Daten an das folgende Repository 
   <data name="Lunarward_Error_LaunchFailed" xml:space="preserve">
     <value>Start fehlgeschlagen: </value>
   </data>
-  <data name="Lunarward_Error_InstallDirInvalid" xml:space="preserve">
-    <value>Der Installationsordner ist ungültig.</value>
+  <data name="Lunarward_Error_ManifestUnavailable" xml:space="preserve">
+    <value>Manifest nicht verfügbar: </value>
+  </data>
+  <data name="Lunarward_Error_NoVersionInfo" xml:space="preserve">
+    <value>Versionsinformationen nicht abrufbar (Netzwerk- oder API-Fehler).</value>
   </data>
   <data name="Lunarward_Error_PrefixLocked" xml:space="preserve">
     <value>Dieses Prefix wird bereits verwendet: </value>
   </data>
-  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
-    <value>Globale Hotkeys unter Linux werden durch Abfragen des X11-Tastaturstatus umgesetzt; Root-Rechte sind nicht nötig. Sie funktionieren in X11-/XWayland-Sitzungen. In einer reinen Wayland-Sitzung nicht verfügbar – binde stattdessen den Befehl `lunarward --show` an eine Systemtastenkombination.</value>
+  <data name="Lunarward_Field_Arguments" xml:space="preserve">
+    <value>Argumente</value>
   </data>
-  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
-    <value>Noch nicht unterstützt</value>
+  <data name="Lunarward_Field_Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="Lunarward_Field_Path" xml:space="preserve">
+    <value>Pfad</value>
+  </data>
+  <data name="Lunarward_Filter_AllFiles" xml:space="preserve">
+    <value>Alle Dateien</value>
   </data>
   <data name="Lunarward_Gamepad_NotSupported_Message" xml:space="preserve">
     <value>Die Gamepad-Zuordnung ist im Linux-Build nicht implementiert; diese Seite ist ein Platzhalter, der Schalter unten hat keine Wirkung.</value>
   </data>
-  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
-    <value>Noch kein Konto und keine Figur</value>
+  <data name="Lunarward_Gamepad_NotSupported_Title" xml:space="preserve">
+    <value>Noch nicht unterstützt</value>
+  </data>
+  <data name="Lunarward_Graphics_KeepExisting" xml:space="preserve">
+    <value>Behalten, was das Prefix bereits hat</value>
+  </data>
+  <data name="Lunarward_Hotkey_Description" xml:space="preserve">
+    <value>Globale Hotkeys unter Linux werden durch Abfragen des X11-Tastaturstatus umgesetzt; Root-Rechte sind nicht nötig. Sie funktionieren in X11-/XWayland-Sitzungen. In einer reinen Wayland-Sitzung nicht verfügbar – binde stattdessen den Befehl `lunarward --show` an eine Systemtastenkombination.</value>
+  </data>
+  <data name="Lunarward_Launch_Failed" xml:space="preserve">
+    <value>Start fehlgeschlagen:</value>
+  </data>
+  <data name="Lunarward_Login_Description" xml:space="preserve">
+    <value>Lunarward öffnet die Anmeldeseite von miHoYo oder HoYoLAB mit dem System-WebKit und übernimmt anschließend die Cookies.</value>
+  </data>
+  <data name="Lunarward_Login_Open" xml:space="preserve">
+    <value>Anmeldefenster öffnen</value>
+  </data>
+  <data name="Lunarward_Login_Title" xml:space="preserve">
+    <value>Über ein separates Fenster anmelden</value>
+  </data>
+  <data name="Lunarward_Output_Empty" xml:space="preserve">
+    <value>Noch keine Ausgabe.</value>
+  </data>
+  <data name="Lunarward_Output_OpenFolder" xml:space="preserve">
+    <value>Protokollordner öffnen</value>
+  </data>
+  <data name="Lunarward_Output_Title" xml:space="preserve">
+    <value>Laufzeitausgabe</value>
+  </data>
+  <data name="Lunarward_Output_View" xml:space="preserve">
+    <value>Aktuelle Ausgabe ansehen…</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Dedicated" xml:space="preserve">
+    <value>Eigenes</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Ephemeral" xml:space="preserve">
+    <value>Flüchtig (bei jedem Start neu)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_External" xml:space="preserve">
+    <value>Extern (direkt verwenden)</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Shared" xml:space="preserve">
+    <value>Gemeinsam</value>
+  </data>
+  <data name="Lunarward_PrefixMode_Template" xml:space="preserve">
+    <value>Vorlagen-Klon (Standard)</value>
+  </data>
+  <data name="Lunarward_Preflight_OK" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="Lunarward_Preflight_Title" xml:space="preserve">
+    <value>Start nicht möglich: einige Prüfungen sind fehlgeschlagen</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultName" xml:space="preserve">
+    <value>Standard ({0})</value>
+  </data>
+  <data name="Lunarward_Profile_DefaultNameNoWine" xml:space="preserve">
+    <value>Standard (kein Wine gefunden)</value>
+  </data>
+  <data name="Lunarward_Profiles_Empty" xml:space="preserve">
+    <value>Noch keine Profile.</value>
   </data>
   <data name="Lunarward_Record_Empty_Description" xml:space="preserve">
     <value>Melde dich mit deinem HoYoLAB-/miHoYo-Konto an, dann erscheinen die Aufzeichnungen hier.</value>
   </data>
   <data name="Lunarward_Record_Empty_Login" xml:space="preserve">
     <value>Anmelden</value>
+  </data>
+  <data name="Lunarward_Record_Empty_Title" xml:space="preserve">
+    <value>Noch kein Konto und keine Figur</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Clone" xml:space="preserve">
+    <value>Klonen</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Close" xml:space="preserve">
+    <value>Schließen</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Components" xml:space="preserve">
+    <value>Erkannte Komponenten</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ComponentsNote" xml:space="preserve">
+    <value>Runner und Grafik (DXVK / VKD3D) werden in Systemordnern, in Steam und in ~/.local/share/lunarward/components gesucht. Der Launcher lädt nichts automatisch herunter.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Description" xml:space="preserve">
+    <value>Ein Profil besteht aus einem Runner, einem Wine-Prefix und Grafik-Komponenten. Jedes Spiel kann einem Profil zugeordnet werden.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_ImportGraphics" xml:space="preserve">
+    <value>Grafik importieren…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_InstallToPrefix" xml:space="preserve">
+    <value>In Prefix installieren…</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Installed" xml:space="preserve">
+    <value>Installiert</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_New" xml:space="preserve">
+    <value>Neues Profil</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NoTemplates" xml:space="preserve">
+    <value>Noch keine Vorlagen. Beim Bearbeiten eines Profils lässt sich eine erstellen.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_NotInstalled" xml:space="preserve">
+    <value>Nicht installiert</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_OpenShell" xml:space="preserve">
+    <value>Debug-Shell öffnen</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_PrefixModeNote" xml:space="preserve">
+    <value>template / ephemeral klonen das Prefix (Reflink auf demselben Datenträger, 650 MB in unter 0,2 s); external verwendet den angegebenen Ordner unverändert.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates" xml:space="preserve">
+    <value>Prefix-Vorlagen</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TemplatesNote" xml:space="preserve">
+    <value>Noch keine Vorlagen. In einem Profil über „Dieses Prefix als Vorlage speichern…“ ein vorbereitetes Prefix ablegen.</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Templates_Title" xml:space="preserve">
+    <value>Prefix-Vorlagen</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_TextView" xml:space="preserve">
+    <value>Konfigurationstext</value>
+  </data>
+  <data name="Lunarward_RuntimeEnv_Title" xml:space="preserve">
+    <value>Laufzeitumgebung</value>
+  </data>
+  <data name="Lunarward_Screenshot_Count" xml:space="preserve">
+    <value>Gesamt {0}</value>
+  </data>
+  <data name="Lunarward_Screenshot_Selected" xml:space="preserve">
+    <value>Ausgewählt</value>
+  </data>
+  <data name="Lunarward_Screenshot_SelectedCount" xml:space="preserve">
+    <value>{0} von {1} ausgewählt</value>
+  </data>
+  <data name="Lunarward_Screenshot_Total" xml:space="preserve">
+    <value>Gesamt</value>
+  </data>
+  <data name="Lunarward_Shell_NoTerminal" xml:space="preserve">
+    <value>Kein Terminal-Emulator gefunden (konsole/kitty/alacritty/wezterm/gnome-terminal/xterm).</value>
+  </data>
+  <data name="Lunarward_Shell_Opened" xml:space="preserve">
+    <value>Debug-Shell für „{0}“ geöffnet.</value>
+  </data>
+  <data name="Lunarward_Template_Create" xml:space="preserve">
+    <value>Dieses Prefix als Vorlage speichern…</value>
+  </data>
+  <data name="Lunarward_Template_Use" xml:space="preserve">
+    <value>Neues Profil daraus erstellen</value>
+  </data>
+  <data name="Lunarward_Toast_Imported" xml:space="preserve">
+    <value>{0} „{1}“ importiert.</value>
+  </data>
+  <data name="Lunarward_Viewer_Close" xml:space="preserve">
+    <value>Schließen</value>
+  </data>
+  <data name="Lunarward_Viewer_Next" xml:space="preserve">
+    <value>Weiter</value>
+  </data>
+  <data name="Lunarward_Viewer_Prev" xml:space="preserve">
+    <value>Zurück</value>
+  </data>
+  <data name="Lunarward_Viewer_ShowInFolder" xml:space="preserve">
+    <value>Im Ordner anzeigen</value>
   </data>
 </root>

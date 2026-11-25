@@ -27,6 +27,27 @@ public sealed partial class RuntimeEnvironmentSetting
     private IReadOnlyList<RuntimeProfile> _profiles = Array.Empty<RuntimeProfile>();
 
 
+    /// <summary>
+    /// 绑定表里可选的正式区服。
+    /// LUNARWARD-DEVIATION: 上游 0.19.0 把 GameBiz 从枚举改成 record struct 并删掉了 <c>GameBiz.AllGameBizs</c>，
+    /// 这里把原来那份清单（11 个正式区服，不含 bh3_os/jp/kr/asia 与已注释的 clgm）原样搬过来。
+    /// </summary>
+    private static readonly GameBiz[] BindableGameBizs =
+    [
+        GameBiz.bh3_cn,
+        GameBiz.bh3_global,
+        GameBiz.hk4e_cn,
+        GameBiz.hk4e_global,
+        GameBiz.hk4e_bilibili,
+        GameBiz.hkrpg_cn,
+        GameBiz.hkrpg_global,
+        GameBiz.hkrpg_bilibili,
+        GameBiz.nap_cn,
+        GameBiz.nap_global,
+        GameBiz.nap_bilibili,
+    ];
+
+
     /// <summary>右栏正在看哪一份（删掉/改名之后按 Id 校验）。</summary>
     private string? _selectedProfileId;
 
@@ -720,7 +741,7 @@ public sealed partial class RuntimeEnvironmentSetting
         var body = new StackPanel { Spacing = 8 };
         body.Children.Add(new TextBlock { Text = Lang.Lunarward_RuntimeEnv_BindingsHint, FontSize = 12, Opacity = 0.75, TextWrapping = TextWrapping.Wrap });
         var rows = new List<(GameBiz Biz, ComboBox Combo)>();
-        foreach (GameBiz biz in GameBiz.AllGameBizs)
+        foreach (GameBiz biz in BindableGameBizs)
         {
             var combo = new ComboBox { MinWidth = 240 };
             combo.Items.Add(Lang.Lunarward_RuntimeEnv_BindingsUnbound);

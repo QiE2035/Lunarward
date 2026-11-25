@@ -1,7 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <RootNamespace>Lunarward.Tests</RootNamespace>
@@ -11,12 +11,6 @@
 
   <ItemGroup>
     <Compile Include="*.cs" />
-    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/ProtoReader.cs" Link="Linked/ProtoReader.cs" />
-    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/SophonChunkManifest.cs" Link="Linked/SophonChunkManifest.cs" />
-    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/InstallPlanner.cs" Link="Linked/InstallPlanner.cs" />
-    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/ChunkResume.cs" Link="Linked/ChunkResume.cs" />
-    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/ChunkReusePlanner.cs" Link="Linked/ChunkReusePlanner.cs" />
-    <Compile Include="../../src/Lunarward/Features/GameInstall/Sophon/GameVersionMarker.cs" Link="Linked/GameVersionMarker.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/PrefixPath.cs" Link="Linked/PrefixPath.cs" />
     <Compile Include="../../src/Lunarward/Helpers/JsonFile.cs" Link="Linked/JsonFile.cs" />
     <Compile Include="../../src/Lunarward/Features/GameAccount/RegistryFormat.cs" Link="Linked/RegistryFormat.cs" />

@@ -1,4 +1,4 @@
-# AGENTS.md · Lunarward（Starward 的 Linux 移植）
+﻿# AGENTS.md · Lunarward（Starward 的 Linux 移植）
 
 给在这个仓库里干活的人 / Agent 的操作手册。**先读第 1、2 节再动手**；其余按需查。
 
@@ -6,7 +6,7 @@
 
 ## 1. 项目定位
 
-- **Lunarward** = [Starward](https://github.com/Scighost/Starward) 的 **Linux 移植**（C# / .NET 10 / [Uno Platform](https://platform.uno/) + Skia，`net10.0-desktop`）。
+- **Lunarward** = [Starward](https://github.com/Scighost/Starward) 的 **Linux 移植**（C# / .NET 11 / [Uno Platform](https://platform.uno/) 7 + Skia，`net11.0-desktop`）。
 - 目标：在 Linux 上**尽量还原上游 Windows 版**的功能、排版与操作逻辑；引擎能力缺口记作「软差异」，不改上游 XAML 去硬凑。
 - 在这之上新增 **Linux 专属模块**：运行环境（wine / Proton / DXVK / VKD3D / 前缀）、伴随启动、一次性运行、调试 Shell、托盘、热键、X11 窗口显隐。
 - 上游 `src/Starward/` **一个字节都不改**；上游同步方式：`git fetch upstream && git merge upstream/main`（2026-11-21 起 `main` 与上游历史已连通，merge base = `df8ae07`，是普通三方合并；见 D93）。
@@ -61,18 +61,18 @@ Lunarward 是 Uno/Skia 应用，**不发布 AT-SPI 树**：`cu_a11y_find` / `cu_
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 379 条）
+# 单元测试（当前 340 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）
-./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward
+./src/Lunarward/bin/Debug/net11.0-desktop/Lunarward
 
 # 进程内 UI 自检（11 条断言，CI 里跑在 xvfb 上）
-LUNARWARD_SELFTEST=1 ./src/Lunarward/bin/Debug/net10.0-desktop/Lunarward --selftest-ui
+LUNARWARD_SELFTEST=1 ./src/Lunarward/bin/Debug/net11.0-desktop/Lunarward --selftest-ui
 
 # L2 CLI 冒烟（cli-smoke 41 例 = 40 通过 + 1 跳过；cli-extra 32 例；假 wine/假前缀/假 DXVK，全部走临时 XDG 目录）
-LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-smoke.sh
-LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/cli-extra.sh
+LW_BIN=$PWD/src/Lunarward/bin/Debug/net11.0-desktop/Lunarward bash scripts/test/cli-smoke.sh
+LW_BIN=$PWD/src/Lunarward/bin/Debug/net11.0-desktop/Lunarward bash scripts/test/cli-extra.sh
 
 # 静态规则检查（UI 线程不许同步阻塞 / 不许留空 stub / 命令白名单，秒级、不启动应用）
 bash scripts/test/lint-ui-thread.sh
@@ -80,22 +80,22 @@ bash scripts/test/lint-ui-thread.sh
 # 文档状态一致性（L-*/T-* 编号唯一、12-shims 的替身清单与排除条数、
 # 18 的同名文件数、README/AGENTS 的文档份数；秒级、不构建）
 bash scripts/test/lint-doc-status.sh
-LW_BIN=$PWD/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward bash scripts/test/lint-cli-help.sh
+LW_BIN=$PWD/src/Lunarward/bin/Debug/net11.0-desktop/Lunarward bash scripts/test/lint-cli-help.sh
 
 # Arch 打包：三份 PKGBUILD 的 depends 与源码里的原生依赖是否对得上（秒级、不联网）
 # （packaging/PKGBUILD 默认就地构建本地工作区：软链源码、复用 obj/，含未提交改动；
 #  按远端 main 构建：LUNARWARD_SOURCE=remote makepkg -f。D91/D92）
 bash scripts/test/lint-pkgbuild.sh
 
-# 离线安装链路（假 Sophon 服务 + zstd 分块）
-bash scripts/test/chunk-smoke.sh
+# 注：安装/更新的离线链路（假 Sophon 服务 + `chunk-smoke.sh`）随自研 Sophon 管线一并退役（D128），
+# 现在安装走上游 `Starward.GameInstall.GameInstallRunner` + 官方 HoYoPlay API，只能真实网络验收。
 ```
 
 **环境坑（踩过，别再踩）**
 
 | 坑 | 现象 | 处理 |
 | --- | --- | --- |
-| 根 `global.json` 钉 SDK `10.0.100` + `msbuild-sdks` | 在错误目录执行 dotnet 会报 `MSB4236 找不到 SDK "Uno.Sdk"`；SDK 低于下限时报 `A compatible .NET SDK was not found` | 一律**在仓库根**执行；子目录另有 `global.json` 时以最近者为准；下限只写 `x.y.100`，别钉具体 feature band（D89 / L-163） |
+| 根 `global.json` 钉 SDK `11.0.100` + `Uno.Sdk 7.0.22` | 在错误目录执行 dotnet 会报 `MSB4236 找不到 SDK "Uno.Sdk"`；SDK 低于下限时报 `A compatible .NET SDK was not found` | 一律**在仓库根**执行；子目录另有 `global.json` 时以最近者为准；下限只写 `x.y.100`，别钉具体 feature band（D89 / L-163） |
 | `api.nuget.org` 在本机大包 EOF | `restore` 卡死/失败 | 用 `src/Lunarward/NuGet.config` 的华为云镜像（已配置 `<clear/>` 单源） |
 | X 授权文件会轮换 | `Authorization required` / `xdpyinfo` 失败 | `export XAUTHORITY=$(ls /run/user/1000/xauth_* \| head -1) DISPLAY=:0` |
 | Wayland 会话 | 全局热键不可用、`xdotool` 部分失效 | 热键是 X11 轮询；Wayland 下用 `lunarward --show` 绑系统快捷键 |
@@ -109,13 +109,13 @@ bash scripts/test/chunk-smoke.sh
 ```
 App.xaml(.cs)                 应用启动、单实例、托盘、深链、语言
 Program.Linux.cs              CLI 入口（60+ 开关/子命令，headless 可用）
-Frameworks/                   平台底座：WindowEx.Linux（窗口 chrome/尺寸/显隐）
+Features/WindowBase.Linux.cs  平台底座：窗口 chrome/尺寸/显隐（上游 0.19.0 起基类改名为 WindowBase）
 Helpers/                      X11Window(libxcb)、AppIcon、OpenUrl、JsonFile(原子写)、
                               DesktopNotification、DiagnosticBundle、ProcessQuery、Housekeeping、X11KeyState
 Features/
   ViewHost/                   MainWindow、MainView、导航、页面缓存
   GameLauncher/               启动器页、游戏设置页、公告/资讯、预检与启动
-  GameInstall/                Sophon 安装/更新/修复/预下载（InstallPipeline、UpdateOrchestrator、Chunk*）
+  GameInstall/                安装/更新/修复/预下载（0.19.0 起是 Starward.GameInstall.GameInstallRunner 进程内 facade）
   Runtime/                    运行环境：ComponentStore、PrefixManager、GraphicsInstaller、LaunchRecipe、
                               EnvironmentResolver（D73 阶段 2/3）、
                               ComponentManifest/ComponentDownloader/ComponentSources/
@@ -138,7 +138,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 | --- | --- | --- | --- |
 | L1 | xunit 纯逻辑 | `dotnet test Starward.slnx` | 算法/解析/路径/原子写 |
 | L1.5 | 进程内 UI 断言 | `--selftest-ui` | 窗口/导航/资源/布局存在性 |
-| L2 | CLI + 夹具 | `scripts/test/cli-smoke.sh`、`cli-extra.sh`、`chunk-smoke.sh`、`lint-ui-thread.sh`、`lint-cli-help.sh`、`lint-pkgbuild.sh`、`perf.sh` | 子命令、预检、安装管线、离线 Sophon、静态规则、启动卡顿 |
+| L2 | CLI + 夹具 | `scripts/test/cli-smoke.sh`、`cli-extra.sh`、`lint-ui-thread.sh`、`lint-cli-help.sh`、`lint-doc-status.sh`、`lint-pkgbuild.sh`、`perf.sh` | 子命令、预检、静态规则、启动卡顿（离线 Sophon 链路已退役，D128）|
 | L3 | 真机 GUI | 人工 + `cu_*` 工具 | 排版、交互、性能、视觉 |
 
 覆盖率现实：测试工程**链接源码**而非引用程序集，所以 `tests/coverlet.runsettings` 必须开 `IncludeTestAssembly`（否则 line-rate 恒 0），并用 `ExcludeByFile` 排除测试文件自身——**分母 = 链接进测试工程的 src 文件**，不含 `tests/`、也不含没链接的主程序 UI/服务代码（D122）。门限 85%（`scripts/test/coverage.sh 85`），2026-11-24 实测 85.30%。覆盖率只代表「可单测的那部分」。
@@ -152,9 +152,9 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 活跃文档**共 14 份**（2026-11-21 增补 `25`/`26`/`27`，2026-11-23 增补 `28`/`29`）：
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D124 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D130 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-175 坑与复现方法（唯一；编号勘误见文末）
+- `13-lessons.md` — L-01…L-187 坑与复现方法（唯一；编号勘误见文末）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`scripts/list-deviations.sh` 生成；逐点以 `25` 为准）
 - `19-test-plan.md` — 测试计划（唯一，237 条：225 T-* + 12 RG-*，按表内唯一 ID 统计）
 - `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 九字段 / 四层检查 / 页面）
@@ -182,7 +182,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 
 - 悬浮窗、手柄映射、RPC 服务、云游戏/战绩/BBS 桥 → **M4 占位，明确暂不做**。
 - 公告窗改为「浏览器打开」（`GameNoticeWindow` 已删除）。
-- 引擎能力差异（记软差异，不改上游 XAML）：无 DWM 丙烯（只铺不透明底色，部分页面壁纸透字）、Uno 拦截 `Segoe Fluent Icons` / `Segoe MDL2 Assets` 族名导致随包字体不加载（L-15；与路径、空格无关——含空格路径、`%20`、无空格别名都试过，图标已改 Uno Symbols + 码位替换，L-88）、`PipsPager` 模板不响应、`Window.Hide()` 空实现（已用 libxcb 补）、`AppWindow.Id` 恒 `0x1`。
+- 引擎能力差异（记软差异，不改上游 XAML）：无 DWM 丙烯（只铺不透明底色，部分页面壁纸透字）、Uno 拦截 `Segoe Fluent Icons` / `Segoe MDL2 Assets` 族名导致随包字体不加载（L-15；与路径、空格无关——含空格路径、`%20`、无空格别名都试过，图标已改 Uno Symbols + 码位替换，L-88）、`PipsPager` 模板不响应、`Window.Hide()` 在 Uno 原生为空，`Features/WindowBase.Linux.cs` 已用 libxcb 补齐、`AppWindow.Id` 恒 `0x1`。
 - 真机待验收：原神/绝区零真实启动、真实登录回填、游玩时长记录。
 
 ---

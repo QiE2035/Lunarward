@@ -17,6 +17,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${LW_BIN:?需要 LW_BIN=/path/to/Lunarward}"
 BIN="$LW_BIN"
 BASELINE="${PERF_BASELINE:-$HERE/../../docs/linux-port/perf-baseline.json}"
+# 主机 key 只取「发行内核主次版本 + 架构」：uname -sr 带完整小版本，
+# 内核一升级（7.3.3 → 7.3.5）基线就查不到，比较分支会静默变成「只记录」（L-135）。
+HOST_KEY="${PERF_HOST_KEY:-$(uname -s) $(uname -r | cut -d. -f1,2) $(uname -m)}"
 THRESHOLD="${PERF_THRESHOLD:-20}"   # 允许变差 20%
 
 UPDATE=0
@@ -107,9 +110,9 @@ echo "结果：cli_median_ms=$now_cli selftest_ms=${now_selftest:-n/a} peak_rss_
 
 if [ "$UPDATE" = "1" ]; then
     mkdir -p "$(dirname "$BASELINE")"
-    python3 - "$BASELINE" "$(uname -sr)" "$now_cli" "${now_selftest:-}" "${now_rss:-}" "${now_startup:-}" <<'PY'
+    python3 - "$BASELINE" "$HOST_KEY" "$(uname -sr)" "$now_cli" "${now_selftest:-}" "${now_rss:-}" "${now_startup:-}" <<'PY'
 import json, os, sys
-path, host, cli, selftest, rss, startup = sys.argv[1:7]
+path, host, legacy, cli, selftest, rss, startup = sys.argv[1:8]
 data = {"envs": {}}
 if os.path.exists(path):
     try:
@@ -117,6 +120,17 @@ if os.path.exists(path):
     except Exception:
         data = {"envs": {}}
 data.setdefault("envs", {})
+
+def series_of(key):
+    """「发行版 + 内核主次版本」；'Linux 7.3.3-1-cachyos-bore-lto' → ('Linux', '7.3')"""
+    parts = str(key).split()
+    if len(parts) < 2:
+        return None
+    return (parts[0], ".".join(parts[1].split(".")[:2]))
+
+# 旧 key（完整 uname -sr）在写入新 key 时一并清掉，避免同一台机器两条记录
+for k in [k for k in list(data["envs"]) if k != host and series_of(k) == series_of(host)]:
+    data["envs"].pop(k, None)
 data["envs"][host] = {
     "measured_at": __import__("datetime").datetime.now().astimezone().isoformat(timespec="seconds"),
     "cli_median_ms": int(cli),
@@ -136,11 +150,26 @@ if [ ! -f "$BASELINE" ]; then
     exit 0
 fi
 
-python3 - "$BASELINE" "$now_cli" "$now_selftest" "$now_rss" "$THRESHOLD" "$(uname -sr)" "${now_startup:-}" <<'PY'
+python3 - "$BASELINE" "$now_cli" "$now_selftest" "$now_rss" "$THRESHOLD" "$HOST_KEY" "$(uname -sr)" "${now_startup:-}" <<'PY'
 import json, sys
-baseline_path, cli, selftest, rss, threshold, host, startup = sys.argv[1:8]
+baseline_path, cli, selftest, rss, threshold, host, legacy, startup = sys.argv[1:9]
 data = json.load(open(baseline_path))
-base = data.get("envs", {}).get(host)
+envs = data.get("envs", {})
+base = envs.get(host)
+if base is None and legacy in envs:
+    base = envs[legacy]
+    print(f"（基线 key 是旧的完整内核版本 {legacy}，已按新 key {host} 匹配）")
+if base is None:
+    # 兼容 7.3.3 → 7.3.5 这类小版本漂移：只比「发行内核主次版本」
+    def series_of(key):
+        parts = str(key).split()
+        if len(parts) < 2:
+            return None
+        return (parts[0], ".".join(parts[1].split(".")[:2]))
+    same_series = [k for k in envs if series_of(k) == series_of(host)]
+    if same_series:
+        base = envs[same_series[0]]
+        print(f"（按主次版本匹配到基线 key：{same_series[0]}）")
 if base is None and "cli_median_ms" in data:
     # 兼容 2026-11-14 之前的扁平基线（当时直接写在根上，且比较逻辑恒为「只记录」）
     base = {k: v for k, v in data.items() if isinstance(v, (int, float))}

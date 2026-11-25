@@ -1,8 +1,14 @@
-using Dapper;
+﻿using Dapper;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
+using Starward.Core.DeviceFp;
 using Starward.Core.GameRecord;
+using Starward.Core.GameRecord.BH3;
+using Starward.Core.GameRecord.Genshin;
+using Starward.Core.GameRecord.StarRail;
+using Starward.Core.GameRecord.ZZZ;
+using Starward.Core.Passport;
 using Starward.Core.GameRecord.BH3.DailyNote;
 using Starward.Core.GameRecord.Genshin.DailyNote;
 using Starward.Core.GameRecord.Genshin.ImaginariumTheater;
@@ -37,16 +43,49 @@ internal class GameRecordService
 
     private readonly ILogger<GameRecordService> _logger;
 
-    private readonly HyperionClient _hyperionClient;
+    // 上游 0.19.0（D128 同步）把原来的 HyperionClient/HoyolabClient 拆成「region × 游戏」的四组客户端，
+    // 这里保留移植侧单一门面（23 处调用方不受影响），只是内部改按新接口分发。
+    private readonly HyperionGenshinClient _hyperionGenshin;
+    private readonly HoyolabGenshinClient _hoyolabGenshin;
+    private readonly HyperionStarRailClient _hyperionStarRail;
+    private readonly HoyolabStarRailClient _hoyolabStarRail;
+    private readonly HyperionZZZClient _hyperionZZZ;
+    private readonly HoyolabZZZClient _hoyolabZZZ;
+    private readonly HyperionBH3Client _hyperionBH3;
+    private readonly HoyolabBH3Client _hoyolabBH3;
 
-    private readonly HoyolabClient _hoyolabClient;
+    private readonly DeviceFpClient _deviceFpClient;
 
-    private GameRecordClient _gameRecordClient;
+    private readonly PassportClient _passportClient;
+
+    private readonly IGameRecordClient[] _allClients;
 
     private readonly IMemoryCache _memoryCache;
 
 
-    public string Language { get => _hoyolabClient.Language; set => _hoyolabClient.Language = value; }
+    public string Language
+    {
+        get => _hoyolabGenshin.Language;
+        set
+        {
+            foreach (var client in _allClients)
+            {
+                client.Language = value;
+            }
+        }
+    }
+
+
+    private IGameRecordGenshinClient GenshinClient => IsHoyolab ? _hoyolabGenshin : _hyperionGenshin;
+
+    private IGameRecordStarRailClient StarRailClient => IsHoyolab ? _hoyolabStarRail : _hyperionStarRail;
+
+    private IGameRecordZZZClient ZZZClient => IsHoyolab ? _hoyolabZZZ : _hyperionZZZ;
+
+    private IGameRecordBH3Client BH3Client => IsHoyolab ? _hoyolabBH3 : _hyperionBH3;
+
+    /// <summary>当前 region 下任选一个客户端即可的能力（账号列表、头像、BBS UA）。</summary>
+    private IGameRecordClient CurrentClient => IsHoyolab ? _hoyolabGenshin : _hyperionGenshin;
 
 
     private bool isHoyolab;
@@ -55,26 +94,46 @@ internal class GameRecordService
         get => isHoyolab;
         set
         {
-            if (value)
-            {
-                _gameRecordClient = _hoyolabClient;
-            }
-            else
-            {
-                _gameRecordClient = _hyperionClient;
-            }
             isHoyolab = value;
+            ApplyDeviceInfo();
         }
     }
 
 
-    public GameRecordService(ILogger<GameRecordService> logger, HyperionClient hyperionClient, HoyolabClient hoyolabClient, IMemoryCache memoryCache)
+    public GameRecordService(
+        ILogger<GameRecordService> logger,
+        HyperionGenshinClient hyperionGenshin,
+        HoyolabGenshinClient hoyolabGenshin,
+        HyperionStarRailClient hyperionStarRail,
+        HoyolabStarRailClient hoyolabStarRail,
+        HyperionZZZClient hyperionZZZ,
+        HoyolabZZZClient hoyolabZZZ,
+        HyperionBH3Client hyperionBH3,
+        HoyolabBH3Client hoyolabBH3,
+        DeviceFpClient deviceFpClient,
+        PassportClient passportClient,
+        IMemoryCache memoryCache)
     {
         _logger = logger;
-        _hyperionClient = hyperionClient;
-        _hoyolabClient = hoyolabClient;
-        _gameRecordClient = hyperionClient;
+        _hyperionGenshin = hyperionGenshin;
+        _hoyolabGenshin = hoyolabGenshin;
+        _hyperionStarRail = hyperionStarRail;
+        _hoyolabStarRail = hoyolabStarRail;
+        _hyperionZZZ = hyperionZZZ;
+        _hoyolabZZZ = hoyolabZZZ;
+        _hyperionBH3 = hyperionBH3;
+        _hoyolabBH3 = hoyolabBH3;
+        _deviceFpClient = deviceFpClient;
+        _passportClient = passportClient;
         _memoryCache = memoryCache;
+        _allClients =
+        [
+            _hyperionGenshin, _hoyolabGenshin,
+            _hyperionStarRail, _hoyolabStarRail,
+            _hyperionZZZ, _hoyolabZZZ,
+            _hyperionBH3, _hoyolabBH3,
+        ];
+        ApplyDeviceInfo();
     }
 
 
@@ -82,31 +141,130 @@ internal class GameRecordService
 
 
     /// <summary>
-    /// 更新设备指纹信息
+    /// 更新设备指纹信息。
     /// </summary>
-    /// <param name="forceUpdate"></param>
-    /// <returns></returns>
+    /// <remarks>
+    /// LUNARWARD-DEVIATION: 上游 0.19.0 把设备指纹收进 GameRecordServiceBase（按 region 各缓存一份，
+    /// JSON 存在 <see cref="AppConfig.AndroidDeviceInfo"/>），原来的 HyperionDeviceId/HyperionDeviceFp/
+    /// HyperionDeviceFpLastUpdateTime 设置已 [Obsolete(..., true)] 删除。移植侧门面不是 GameRecordServiceBase 的
+    /// 子类（它要同时持有两个 region 的客户端），所以在这里照同样的规则实现一遍。
+    /// </remarks>
     public async Task UpdateDeviceFpAsync(bool forceUpdate = false, CancellationToken cancellationToken = default)
     {
-        if (IsHoyolab)
+        ServerRegion region = IsHoyolab ? ServerRegion.HoYoverse : ServerRegion.miHoYo;
+        if (forceUpdate)
         {
-            return;
+            if (region is ServerRegion.HoYoverse)
+            {
+                _deviceInfoHoYoverse = null;
+            }
+            else
+            {
+                _deviceInfoMiHoYo = null;
+            }
         }
-        string? id = AppConfig.HyperionDeviceId;
-        string? fp = AppConfig.HyperionDeviceFp;
-        DateTimeOffset lastUpdateTime = AppConfig.HyperionDeviceFpLastUpdateTime;
-        if (!forceUpdate && !string.IsNullOrWhiteSpace(id) && !string.IsNullOrWhiteSpace(fp))
+        try
         {
-            _gameRecordClient.DeviceId = id;
-            _gameRecordClient.DeviceFp = fp;
+            AndroidDeviceInfo deviceInfo = await GetDeviceInfoAsync(region, cancellationToken);
+            ApplyDeviceInfo(deviceInfo);
         }
-        if (forceUpdate || DateTimeOffset.Now - lastUpdateTime > TimeSpan.FromDays(3))
+        catch (Exception ex)
         {
-            await _gameRecordClient.GetDeviceFpAsync(cancellationToken);
-            AppConfig.HyperionDeviceId = _gameRecordClient.DeviceId;
-            AppConfig.HyperionDeviceFp = _gameRecordClient.DeviceFp;
-            AppConfig.HyperionDeviceFpLastUpdateTime = DateTimeOffset.Now;
+            // 拿不到指纹不该阻断战绩查询：旧的 id/fp 继续用，下次再试。
+            _logger.LogWarning(ex, "Update device fp failed");
         }
+    }
+
+
+    /// <summary>清掉缓存与持久化的设备指纹，下次查询时会重新申请（对应上游 GameRecordServiceBase.ResetDeviceInfo）。</summary>
+    public void ResetDeviceInfo()
+    {
+        AppConfig.AndroidDeviceInfo = null;
+        _deviceInfoMiHoYo = null;
+        _deviceInfoHoYoverse = null;
+    }
+
+
+    private AndroidDeviceInfo? _deviceInfoMiHoYo;
+
+    private AndroidDeviceInfo? _deviceInfoHoYoverse;
+
+
+    private async Task<AndroidDeviceInfo> GetDeviceInfoAsync(ServerRegion region, CancellationToken cancellationToken = default)
+    {
+        if (region is ServerRegion.HoYoverse)
+        {
+            return _deviceInfoHoYoverse ??= await CreateDeviceInfoAsync(region, cancellationToken);
+        }
+        return _deviceInfoMiHoYo ??= await CreateDeviceInfoAsync(region, cancellationToken);
+    }
+
+
+    private async Task<AndroidDeviceInfo> CreateDeviceInfoAsync(ServerRegion region, CancellationToken cancellationToken)
+    {
+        AndroidDeviceInfo deviceInfo = LoadDeviceInfo();
+        try
+        {
+            DeviceFpResult fpResult = await _deviceFpClient.GetDeviceFpAsync(region, deviceInfo, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fpResult.DeviceFp))
+            {
+                if (region is ServerRegion.HoYoverse)
+                {
+                    deviceInfo.HoyolabDeviceFp = fpResult.DeviceFp;
+                }
+                else
+                {
+                    deviceInfo.DeviceFp = fpResult.DeviceFp;
+                    deviceInfo.BbsDeviceFp = fpResult.DeviceFp;
+                }
+                AppConfig.AndroidDeviceInfo = JsonSerializer.Serialize(deviceInfo, DeviceFpJsonContext.Default.AndroidDeviceInfo);
+            }
+        }
+        catch (Exception ex)
+        {
+            // 设备指纹接口偶发失败时用随机生成的设备信息兜底，和上游一致。
+            _logger.LogWarning(ex, "Get device fp failed");
+        }
+        return deviceInfo;
+    }
+
+
+    private static AndroidDeviceInfo LoadDeviceInfo()
+    {
+        AndroidDeviceInfo? deviceInfo = null;
+        try
+        {
+            string? json = AppConfig.AndroidDeviceInfo;
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                deviceInfo = JsonSerializer.Deserialize<AndroidDeviceInfo>(json, DeviceFpJsonContext.Default.AndroidDeviceInfo);
+            }
+        }
+        catch { }
+        return deviceInfo ?? AndroidDeviceInfo.CreateRandom();
+    }
+
+
+    /// <summary>把当前 region 的设备信息推给该 region 的客户端（请求头 x-rpc-device-*）。</summary>
+    private void ApplyDeviceInfo(AndroidDeviceInfo deviceInfo)
+    {
+        ServerRegion region = IsHoyolab ? ServerRegion.HoYoverse : ServerRegion.miHoYo;
+        foreach (var client in _allClients.OfType<GameRecordClientBase>())
+        {
+            if (client.ServerRegion == region)
+            {
+                client.DeviceInfo = deviceInfo;
+            }
+        }
+    }
+
+
+    /// <summary>同步版：构造函数和切换 region 时用已持久化（或随机生成）的设备信息，不发网络请求。</summary>
+    private void ApplyDeviceInfo()
+    {
+        ServerRegion region = IsHoyolab ? ServerRegion.HoYoverse : ServerRegion.miHoYo;
+        AndroidDeviceInfo deviceInfo = (region is ServerRegion.HoYoverse ? _deviceInfoHoYoverse : _deviceInfoMiHoYo) ?? LoadDeviceInfo();
+        ApplyDeviceInfo(deviceInfo);
     }
 
 
@@ -119,7 +277,13 @@ internal class GameRecordService
 
     public async Task<GameRecordUser> AddRecordUserAsync(string cookie, CancellationToken cancellationToken = default)
     {
-        var user = await _gameRecordClient.GetGameRecordUserAsync(cookie, cancellationToken);
+        long? aid = ParseAid(cookie);
+        if (aid is null)
+        {
+            throw new miHoYoApiException(-1, "Cookie 里找不到账号 id（ltuid/account_id/stuid），请重新登录。");
+        }
+        var user = await _passportClient.GetBbsUserInfoAsync(IsHoyolab ? ServerRegion.HoYoverse : ServerRegion.miHoYo, aid.Value, cancellationToken);
+        user.Cookie = cookie;
         using var dapper = DatabaseService.CreateConnection();
         dapper.Execute("""
             INSERT OR REPLACE INTO GameRecordUser (Uid, IsHoyolab, Nickname, Avatar, Introduce, Gender, AvatarUrl, Pendant, Cookie)
@@ -128,6 +292,29 @@ internal class GameRecordService
         return user;
     }
 
+
+
+    /// <summary>从 cookie 里取账号 id：国内 ltuid/account_id/stuid，国际服 ltuid_v2/account_id_v2/ltmid_v2。</summary>
+    private static long? ParseAid(string? cookie)
+    {
+        if (string.IsNullOrWhiteSpace(cookie))
+        {
+            return null;
+        }
+        string[] keys = ["ltuid_v2", "ltuid", "account_id_v2", "account_id", "stuid", "mid"];
+        foreach (string key in keys)
+        {
+            string? value = cookie.Split(';')
+                .Select(x => x.Trim())
+                .FirstOrDefault(x => x.StartsWith(key + "=", StringComparison.OrdinalIgnoreCase))?
+                [(key.Length + 1)..];
+            if (long.TryParse(value, out long aid))
+            {
+                return aid;
+            }
+        }
+        return null;
+    }
 
 
     public List<GameRecordUser> GetRecordUsers()
@@ -141,7 +328,19 @@ internal class GameRecordService
 
     public async Task<List<GameRecordRole>> AddGameRolesAsync(string cookie, CancellationToken cancellationToken = default)
     {
-        var list = await _gameRecordClient.GetAllGameRolesAsync(cookie, cancellationToken);
+        var list = new List<GameRecordRole>();
+        foreach (GameBiz biz in (GameBiz[])[GameBiz.hk4e, GameBiz.hkrpg, GameBiz.nap, GameBiz.bh3])
+        {
+            try
+            {
+                list.AddRange(await CurrentClient.GetGameRolesAsync(biz, cookie, cancellationToken));
+            }
+            catch (miHoYoApiException ex) when (ex.ReturnCode is -100 or -101 or -10001)
+            {
+                // 这个 cookie 下没有这个游戏的账号，跳过即可。
+                _logger.LogDebug("No game role for {biz}: {message}", biz, ex.Message);
+            }
+        }
         using var dapper = DatabaseService.CreateConnection();
         using var t = dapper.BeginTransaction();
         dapper.Execute("""
@@ -247,7 +446,7 @@ internal class GameRecordService
         string key = $"game_record_role_head_icon_{role.GameBiz}_{role.Region}_{role.Uid}";
         if (!_memoryCache.TryGetValue(key, out bool _))
         {
-            role = await _gameRecordClient.UpdateGameRoleHeadIconAsync(role);
+            role.HeadIcon = await CurrentClient.GetGameRoleHeadIconAsync(role);
             using var dapper = DatabaseService.CreateConnection();
             dapper.Execute("""
                 INSERT OR REPLACE INTO GameRecordRole (Uid, GameBiz, Nickname, Level, Region, RegionName, Cookie, HeadIcon)
@@ -300,7 +499,7 @@ internal class GameRecordService
     /// <returns></returns>
     public async Task<SpiralAbyssInfo> RefreshSpiralAbyssInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetSpiralAbyssInfoAsync(role, schedule);
+        var info = await GenshinClient.GetSpiralAbyssInfoAsync(role, schedule);
         var obj = new
         {
             info.Uid,
@@ -369,7 +568,7 @@ internal class GameRecordService
 
     public async Task<TravelersDiarySummary> GetTravelersDiarySummaryAsync(GameRecordRole role, int month = 0)
     {
-        var summary = await _gameRecordClient.GetTravelsDiarySummaryAsync(role, month);
+        var summary = await GenshinClient.GetTravelsDiarySummaryAsync(role, month);
         if (summary.MonthData is null)
         {
             return summary;
@@ -399,7 +598,7 @@ internal class GameRecordService
 
     public async Task<int> GetTravelersDiaryDetailAsync(GameRecordRole role, int month, int type, int limit = 100)
     {
-        var detail = await _gameRecordClient.GetTravelsDiaryDetailAsync(role, month, type, limit);
+        var detail = await GenshinClient.GetTravelsDiaryDetailAsync(role, month, type, limit);
         if (detail.List is null || detail.List.Count == 0)
         {
             return 0;
@@ -450,7 +649,7 @@ internal class GameRecordService
     /// <returns></returns>
     public async Task RefreshImaginariumTheaterInfoAsync(GameRecordRole role, CancellationToken cancellationToken = default)
     {
-        var infos = await _gameRecordClient.GetImaginariumTheaterInfosAsync(role, cancellationToken);
+        var infos = await GenshinClient.GetImaginariumTheaterInfosAsync(role, cancellationToken);
         if (infos.Count == 0)
         {
             return;
@@ -524,7 +723,7 @@ internal class GameRecordService
 
     public async Task<SimulatedUniverseInfo> GetSimulatedUniverseInfoAsync(GameRecordRole role, bool detail)
     {
-        var info = await _gameRecordClient.GetSimulatedUniverseInfoAsync(role, detail);
+        var info = await StarRailClient.GetSimulatedUniverseInfoAsync(role, detail);
         if (detail)
         {
             using var dapper = DatabaseService.CreateConnection();
@@ -600,7 +799,7 @@ internal class GameRecordService
 
     public async Task<ForgottenHallInfo> RefreshForgottenHallInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetForgottenHallInfoAsync(role, schedule);
+        var info = await StarRailClient.GetForgottenHallInfoAsync(role, schedule);
         var obj = new
         {
             info.Uid,
@@ -665,7 +864,7 @@ internal class GameRecordService
 
     public async Task<PureFictionInfo> RefreshPureFictionInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetPureFictionInfoAsync(role, schedule);
+        var info = await StarRailClient.GetPureFictionInfoAsync(role, schedule);
         if (info.ScheduleId == 0)
         {
             return info;
@@ -734,7 +933,7 @@ internal class GameRecordService
 
     public async Task<ApocalypticShadowInfo> RefreshApocalypticShadowInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetApocalypticShadowInfoAsync(role, schedule);
+        var info = await StarRailClient.GetApocalypticShadowInfoAsync(role, schedule);
         if (info.ScheduleId == 0)
         {
             return info;
@@ -806,7 +1005,7 @@ internal class GameRecordService
 
     public async Task<TrailblazeCalendarSummary> GetTrailblazeCalendarSummaryAsync(GameRecordRole role, string month = "")
     {
-        var summary = await _gameRecordClient.GetTrailblazeCalendarSummaryAsync(role, month);
+        var summary = await StarRailClient.GetTrailblazeCalendarSummaryAsync(role, month);
         if (summary.MonthData is null)
         {
             return summary;
@@ -835,7 +1034,7 @@ internal class GameRecordService
 
     public async Task<int> GetTrailblazeCalendarDetailAsync(GameRecordRole role, string month, int type)
     {
-        int total = (await _gameRecordClient.GetTrailblazeCalendarDetailByPageAsync(role, month, type, 1, 1)).Total;
+        int total = (await StarRailClient.GetTrailblazeCalendarDetailByPageAsync(role, month, type, 1, 1)).Total;
         if (total == 0)
         {
             return 0;
@@ -846,7 +1045,7 @@ internal class GameRecordService
         {
             return 0;
         }
-        var detail = await _gameRecordClient.GetTrailblazeCalendarDetailAsync(role, month, type);
+        var detail = await StarRailClient.GetTrailblazeCalendarDetailAsync(role, month, type);
         var list = detail.List;
         using var t = dapper.BeginTransaction();
         dapper.Execute($"DELETE FROM StarRailTrailblazeCalendarDetailItem WHERE Uid = @Uid AND Month = @Month AND Type = @Type;", list.FirstOrDefault(), t);
@@ -880,7 +1079,7 @@ internal class GameRecordService
 
     public async Task<InterKnotReportSummary> GetInterKnotReportSummaryAsync(GameRecordRole role, string month = "")
     {
-        var summary = await _gameRecordClient.GetInterKnotReportSummaryAsync(role, month);
+        var summary = await ZZZClient.GetInterKnotReportSummaryAsync(role, month);
         using var dapper = DatabaseService.CreateConnection();
         var obj = new
         {
@@ -926,7 +1125,7 @@ internal class GameRecordService
 
     public async Task<int> GetInterKnotReportDetailAsync(GameRecordRole role, string month, string type)
     {
-        int total = (await _gameRecordClient.GetInterKnotReportDetailByPageAsync(role, month, type, 1, 1)).Total;
+        int total = (await ZZZClient.GetInterKnotReportDetailByPageAsync(role, month, type, 1, 1)).Total;
         if (total == 0)
         {
             return 0;
@@ -937,7 +1136,7 @@ internal class GameRecordService
         {
             return 0;
         }
-        var detail = await _gameRecordClient.GetInterKnotReportDetailAsync(role, month, type);
+        var detail = await ZZZClient.GetInterKnotReportDetailAsync(role, month, type);
         var list = detail.List;
         using var t = dapper.BeginTransaction();
         dapper.Execute($"DELETE FROM ZZZInterKnotReportDetailItem WHERE Uid = @Uid AND DataMonth = @DataMonth AND DataType = @DataType;", list.FirstOrDefault(), t);
@@ -975,7 +1174,7 @@ internal class GameRecordService
         {
             await UpdateDeviceFpAsync(cancellationToken: cancellationToken);
         }
-        return await _gameRecordClient.GetZZZGachaRecordAsync(role, gachaType, endId, language, cancellationToken);
+        return await ZZZClient.GetZZZGachaRecordAsync(role, gachaType, endId, language, cancellationToken);
     }
 
 
@@ -992,7 +1191,7 @@ internal class GameRecordService
 
     public async Task<ShiyuDefenseWrapper> RefreshShiyuDefenseInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var wrapper = await _gameRecordClient.GetShiyuDefenseInfoAsync(role, schedule);
+        var wrapper = await ZZZClient.GetShiyuDefenseInfoAsync(role, schedule);
         if (wrapper.HadalVer is "v1" && wrapper.InfoV1 is not null)
         {
             var info = wrapper.InfoV1;
@@ -1099,7 +1298,7 @@ internal class GameRecordService
 
     public async Task<DeadlyAssaultInfo> RefreshDeadlyAssaultInfoAsync(GameRecordRole role, int schedule, CancellationToken cancellationToken = default)
     {
-        var info = await _gameRecordClient.GetDeadlyAssaultInfoAsync(role, schedule);
+        var info = await ZZZClient.GetDeadlyAssaultInfoAsync(role, schedule);
         if (!info.HasData)
         {
             return info;
@@ -1181,7 +1380,7 @@ internal class GameRecordService
         string key = $"{nameof(BH3DailyNote)}_{role.Region}_{role.Uid}";
         if (forceUpdate || !_memoryCache.TryGetValue(key, out BH3DailyNote? note))
         {
-            note = await _gameRecordClient.GetBH3DailyNoteAsync(role, cancellationToken);
+            note = await BH3Client.GetBH3DailyNoteAsync(role, cancellationToken);
             _memoryCache.Set(key, note, TimeSpan.FromMinutes(5));
         }
         return note!;
@@ -1194,7 +1393,7 @@ internal class GameRecordService
         string key = $"{nameof(GenshinDailyNote)}_{role.Region}_{role.Uid}";
         if (forceUpdate || !_memoryCache.TryGetValue(key, out GenshinDailyNote? note))
         {
-            note = await _gameRecordClient.GetGenshinDailyNoteAsync(role, cancellationToken);
+            note = await GenshinClient.GetGenshinDailyNoteAsync(role, cancellationToken);
             _memoryCache.Set(key, note, TimeSpan.FromMinutes(5));
         }
         return note!;
@@ -1207,7 +1406,7 @@ internal class GameRecordService
         string key = $"{nameof(StarRailDailyNote)}_{role.Region}_{role.Uid}";
         if (forceUpdate || !_memoryCache.TryGetValue(key, out StarRailDailyNote? note))
         {
-            note = await _gameRecordClient.GetStarRailDailyNoteAsync(role, cancellationToken);
+            note = await StarRailClient.GetStarRailDailyNoteAsync(role, cancellationToken);
             _memoryCache.Set(key, note, TimeSpan.FromMinutes(5));
         }
         return note!;
@@ -1219,7 +1418,7 @@ internal class GameRecordService
         string key = $"{nameof(ZZZDailyNote)}_{role.Region}_{role.Uid}";
         if (forceUpdate || !_memoryCache.TryGetValue(key, out ZZZDailyNote? note))
         {
-            note = await _gameRecordClient.GetZZZDailyNoteAsync(role, cancellationToken);
+            note = await ZZZClient.GetZZZDailyNoteAsync(role, cancellationToken);
             _memoryCache.Set(key, note, TimeSpan.FromMinutes(5));
         }
         return note!;
@@ -1238,7 +1437,7 @@ internal class GameRecordService
 
     public async Task<List<StygianOnslaughtInfo>> RefreshStygianOnslaughtInfosAsync(GameRecordRole role, CancellationToken cancellationToken = default)
     {
-        var infos = await _gameRecordClient.GetStygianOnslaughtInfosAsync(role, cancellationToken);
+        var infos = await GenshinClient.GetStygianOnslaughtInfosAsync(role, cancellationToken);
         if (infos.Count == 0)
         {
             return infos;
@@ -1323,7 +1522,7 @@ internal class GameRecordService
     {
         using var dapper = DatabaseService.CreateConnection();
 
-        var data = await _gameRecordClient.GetStarRailChallengePeakDataAsync(role, 1, cancellationToken);
+        var data = await StarRailClient.GetStarRailChallengePeakDataAsync(role, 1, cancellationToken);
         if (data.ChallengePeakRecords?.Count == 1)
         {
             var record = data.ChallengePeakRecords[0];
@@ -1343,7 +1542,7 @@ internal class GameRecordService
                 """, obj);
         }
 
-        data = await _gameRecordClient.GetStarRailChallengePeakDataAsync(role, 3, cancellationToken);
+        data = await StarRailClient.GetStarRailChallengePeakDataAsync(role, 3, cancellationToken);
         foreach (var record in data.ChallengePeakRecords.ToList())
         {
             data.ChallengePeakRecords.Clear();

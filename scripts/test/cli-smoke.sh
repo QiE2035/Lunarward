@@ -9,7 +9,7 @@ REPO=$(cd "$HERE/../.." && pwd)
 KEEP=${1:-}
 
 ROOT=${LW_TEST_ROOT:-$(mktemp -d /tmp/lw-l2-XXXXXX)}
-BIN=${LW_BIN:-$REPO/src/Lunarward/bin/Debug/net10.0-desktop/Lunarward}
+BIN=${LW_BIN:-$REPO/src/Lunarward/bin/Debug/net11.0-desktop/Lunarward}
 export LUNARWARD_FAKE_LOG="$ROOT/logs/wine.log"
 mkdir -p "$ROOT/logs"
 

@@ -1,4 +1,52 @@
-# Changelog
+﻿# Changelog
+
+## 2026-11-25 —— 0.19.0 编译收口：Skia 桥、toolkit 替身与启动链修复（D130）
+
+- **视频壁纸换渲染桥**：Uno 7 下 `SkiaSharp.Views.*` 没有可用资产（`UNOB0023`），改用 `WriteableBitmap` 双缓冲交替贴给 `Image`；同时迁移 SkiaSharp 4 的 `SKSamplingOptions` API。
+- **toolkit 包不再引用**：`CommunityToolkit.WinUI.*` 在 Uno 工程里会选到 Windows 资产导致两套 `DependencyObject`，恢复手写替身并补齐 `WrapLayout`（真折行）/`EqualPanel`/`Segmented`/`FindDescendant`。
+- **修复「启动没反应」**：GUI 路径补 `InitEnviroment()`（此前只有 CLI 分支调用，导致每次启动弹欢迎向导且日志目录为 null）；补回 `CompanionRunner`/`GameRecordService`/`GameAuthLoginService` 的 DI 注册。
+- **修复 `--preflight` 报 `no such table: GameEntry`**：碰数据库的 CLI 分支统一先做环境初始化（0.19.0 起安装路径在 SQLite 里）。
+- **测试工程跟到 net11**：`dotnet test` 340 通过（删掉 5 个指向已删 Sophon 文件的用例）；`--selftest-ui` 在 xvfb 下 11/11 PASS。
+
+## 2026-11-25 —— 手写补齐实现审计：空壳让位真实实现（D129）
+
+- **战绩窗口不再空白**：点「战绩」以前弹一个纯白窗口；现在显示「Linux 版暂时不能打开战绩页面」+ 原因 + 当前角色（`BattleChronicleWindow.Linux.cs`）。
+- **所有窗口都有图标**：`WindowBase.SetIcon()` 从空实现改为复用主窗口那套 libxcb `_NET_WM_ICON` 写入（`Helpers/AppIcon`），任务栏/Alt-Tab 不再是通用方块。
+- **深浅色跟随桌面**：`ShouldAppsUseDarkMode()`/`ShouldSystemUseDarkMode()` 以前恒 `true`（浅色桌面的 Gacha/更新/过场窗口被强制深色），改为读 GTK `settings.ini` / KDE `kdeglobals` 推断（新文件 `Helpers/SystemThemePreference.cs`，只读文件、不 fork）。
+- **「立即更新」可点且有解释**：按钮以前恒禁用、点了也没反应；现在点击给出「请用包管理器（AUR / AppImage）升级」，并且走 `SetErrorMessage` 才会真正刷新界面。
+- **子窗口 DPI 不再算错**：`XamlRootExtension.GetAppWindow()` 以前一律回落到主窗口，现在先按 `XamlRoot` 从 `WindowBase` 的窗口登记表反查真正的 `AppWindow`。
+- 文档按实测重写：`12-shims-and-gaps.md` 的替身规模 36→33、删掉 D128 已删的 4 行、基类路径改名、截图查看器降级为 🟡、补记 user32 P/Invoke 与兜底风险；`18-upstream-deviations.md` 同名差异文件 88→80（L-183）。
+
+---
+
+## 2026-11-25 —— 合并上游 0.19.0：切到 .NET 11 + Uno 7（D128）
+
+- **运行时对齐上游**：SDK 11.0.100（`rollForward latestFeature`）、Uno.Sdk 7.0.22、TFM `net11.0-desktop`；`Microsoft.Extensions.*` 等一批依赖跟到 11.0.0。留在 net10 要给上游的 `ZstandardStream`/`ReadOnlyMemoryStream` 打 BCL 补丁、还要反编译只发 net11 资产的 HPatch，属于「适配」而非「移植」。
+- **安装/热更改成上游实现**：`Starward.GameInstall` 库 TFM 钉 `net11.0` 真移植进来，UI 侧 `GameInstallService` 重写为**进程内 facade**（公开 API 与上游逐字一致），插进 `AddStarwardGameInstall()`。
+- **删掉移植自研 Sophon 管线**（`Features/GameInstall/Sophon/*` 2663 行 + `GameInstallService.Linux.cs` 657 行 + `Hi3Helper.Sophon`/`ZstdNet` 依赖 + `libzstd.so` 构建 hack），CLI 同步删掉 `--install-run` 等 7 个开关；离线假 Sophon 服务（`chunk-smoke.sh`/`fake-sophon.py`）与 CI 步骤一并退役。
+- 基类跟随上游：`Frameworks/PageBase.cs`→`Features/PageBase.cs`、`Frameworks/WindowEx.cs`→`Features/WindowBase.cs`（类名 `WindowBase`），D94 的 `OnGameChanged()` 页面缓存钩子补回上游版 `PageBase`。
+- 背景、战绩、选择器、公告、设置页按 0.19.0 新模型重做（`GameBackgroundModel`、启动器多配置、8 个分游戏战绩客户端、`ContentDialogBase`）；手写替身 `ToolkitControls`/`InteractivityCompat`/`ToolkitCompat` 停用，改吃真实 toolkit 包（L-179）。
+- 修掉迁移期踩到的真 bug：`WrapPanel` 无 `ItemWidth/ItemHeight` 导致背景页不再自适应列宽、`ItemContainerTransitions="{x:Null}"` 让 Uno XAML 编译器崩、`git checkout csproj` 冲掉未提交改动（L-181/L-182）。
+- 新增 Linux 版设备指纹 `Features/Passport/WindowsDeviceFpService.cs`（machine-id + `/sys/class/dmi/id` + `/proc/cpuinfo` + NVIDIA/Vulkan 探测，替代上游 DXGI/注册表实现）。
+
+## 2026-11-24 —— 评估 NV12 直出与零拷贝：两条都不做（D127）
+
+- NV12 直出（libvlc 给 YUV、我们转 BGRA）在隔离 POC 里省一半解码 CPU，但接进应用后更贵：VLC 的 RV32 转换是 SIMD 汇编，我们的是标量 C#，Release 同机实测 RV32 70% → NV12 92%。代码已回退，不留开关（D127）。
+- 顺带查出 libvlc 的 NV12 会写超 `1.5 × W × H`（1080p 多 6 行），按理论大小分配会稳定段错误，记进 L-177。
+- 零拷贝 POC：SkiaSharp 用 `GRContext.CreateGl` + `GRBackendTexture` + `SKImage.FromTexture` 能直接包外部 GL 纹理（`IsTextureBacked=True`），NVIDIA 与 Mesa 两套 EGL 都跑通；但 libvlc 3 的 `vmem` 没有 dmabuf 出口、Uno 渲染循环也没有注入外部图像的入口，端到端仍要回读，所以不做（L-178 / D127）。
+
+## 2026-11-24 —— 背景视频的帧率改成「量出来的」，去掉写死的 30 fps（D126）
+
+- 以前没设 `LUNARWARD_VIDEO_FPS` 就按 `1000 / 30` 限帧，等于替视频决定帧率：24 fps 素材被当成「帧来得慢、不用限」，60 fps 素材被砍掉一半。用户指出这违背「视频播放要和视频本身一致」。
+- 试过直接从 libvlc 取：`MediaPlayer.Fps` 在 vmem 输出下恒 0；`Media.Parse` 之后 VP9/WebM 的 `VideoTrack.FrameRateNum/Den` 也是 0；`ffprobe` 要 fork 外部进程，UI 线程不许。结论写进 L-176。
+- 改成量 vmem 帧到达节奏：环形缓冲 16 帧，样本 ≥8 帧后取「跨度 /(n-1)」当每帧周期，打 8 折当合成间隔，10–240 fps 之外当作异常不限帧。落定后打一行 `video background: measured {period} ms/frame` 便于排障。
+- `LUNARWARD_VIDEO_FPS` 仍可显式覆盖。真机 1920×1080 VP9 壁纸：量出 30.0 ms/帧，CPU 65–68%（与 D123 的 74% 同量级，不作为收益结论）。
+
+## 2026-11-24 —— 覆盖率再加一道「增量行」门（D125）
+
+- 总量门限对局部稀释不敏感：D121 一次加 147 行零测试代码，总量只掉 2.5pp，补两条无关断言就能抬回绿色。`coverage.sh` 因此增加增量模式：`LW_COVERAGE_DIFF_BASE` + `git diff --unified=0` 取本次新增行，与 cobertura 逐行命中求交，只判「新增行里被覆盖的比例」（阈值默认同总量 85%）。
+- 先跑历史数据再上线：D121 批 K 命中 **52.43%（162/309）→ 红**（正是要拦的），D120/D123 的改动都在未链接文件里（明确打印「无可测新增行」后跳过），D122/D124 为 100%。
+- CI：`actions/checkout` 改 `fetch-depth: 0`，coverage 步骤传 `github.event.before || pull_request.base.sha`。局限写进测试计划：不在这 23 个链接文件里的改动永远逃过两道门。
 
 ## 2026-11-24 —— 文档全量校准：40 余处错误结论与漂移的数字（D124）
 
@@ -126,6 +174,20 @@
 - 运行器段标题行只留「添加运行器…」与「更多（设为新方案默认）」；图形层段标题行只留「添加图形层…」、筛选与「更多（导入/暂存区/清理）」。
 - 两段标题带数量；「新建方案」从页头移到方案段顶部，去掉重复的内联入口。
 
+## 2026-11-23 —— 组件页撤回页内分段，恢复单页并修正列表宽度（D114 修订）
+
+- 组件页恢复「运行器在上、图形层在下」的单页结构，「添加组件…」「管理下载源」不再藏在分段里（用户反馈分段又把按钮路径弄回反直觉）。
+- 修正图形层列表宽度：原先按「当前可见页签的视口宽度」钉宽度，切页签时会拿到上一个页签的值（784），列表缩窄并偏向一侧；现在只认组件页自己的视口，切页签后下一帧重算。
+- 动作按钮从清单里提到组件页顶部工具条：「添加路径…」「添加组件…」「管理下载源」「更多」属于整页，不再读成图形层的子控件；两个清单只留标题、说明与列表。
+
+## 2026-11-23 —— 组件页改页内分段（D114，已由上方修订撤回）
+
+- 运行器与图形层不再上下堆叠，改为页内分段切换，首屏只出现一组清单。
+- 分段选中态改用不透明度 + 字重（避开 Uno 运行时替换 Style 不刷新 Background 的问题）。
+- 每段只留一个主操作，其余动作收进「更多」；行内「检查」降级为文字按钮。
+
+本文件按日期记录实现层面的关键变更（对用户可见的行为变化为主）。版本号尚未发布，当前处于 WIP 阶段。
+
 ## 2026-11-23 —— 运行环境页面视觉收口（D113）
 
 - 编辑入口统一为一个「修改」；绑定行加标签；chip 数字格式统一（运行器 6/6、图形层 6 个、前缀 1 个 · 体积）。
@@ -199,8 +261,6 @@
 - 图形层识别 `x32/`，按条目位数安装；跳过/删除以实际文件为准（R17/R37）。
 - 组件导入先写清单再整体改名，避免中间态（R33）。
 
-## 2026-11-23 —— 运行环境审查修复批 A：启动链（D104）
-
 ## 2026-11-23 —— 运行环境审查修复批 B：持久化（D105）
 
 - 保存/删除运行环境失败时会明确报错，不再无条件弹「已保存」（R07）。
@@ -216,6 +276,8 @@
 - `WINEARCH` 真正传给 wineboot 并落进前缀侧写；预检读真实前缀架构，配置不一致时警告（R04）。
 - 前缀锁改为按前缀分槽，启动失败即释放，占用时直接拒绝启动（R05）。
 - 新默认配方不再指向 `~/.wine`，默认带 `WINEDLLOVERRIDES`（R06）。
+
+## 2026-11-23 —— 运行环境审查修复批 A：启动链（D104）
 
 ## 2026-11-22 —— 背景图库缩略图不再弹出 VLC 窗口（L-166）
 
@@ -571,45 +633,6 @@
 - **`23-runtime-env-design.md`**：§12 里「系统 `tar` 解压」改为 `ArchiveExtractor`；「尚未做：下载取消按钮与磁盘空间预检」改为已了结（§13.8 / 24 号 P1），只剩「自检时机 + 源编辑界面」。
 - **`AGENTS.md`**：分支改 `main`；CLI 冒烟示例 34/25 → 37/32；§5 的 L2 入口补齐 `cli-extra` / `lint-ui-thread` / `perf`。
 
-## 2026-11-14（十四）——登录窗换成「本程序 + WebKitGTK 6.0」
-
-- **登录不再依赖 python3**（D76）：新增 `--webkit-login --url <登录页> --output <cookies.json> [--timeout 秒]`（`Features/GameRecord/WebKitLoginHost.cs`，GirCore 0.8.1 + GTK4 + WebKitGTK 6.0），`WebLoginService.LoginAsync` 用 `Environment.ProcessPath` 拉起自己；**没有 `libwebkitgtk-6.0` 时自动退回原 python3 助手**，输出格式不变。
-- **cookie 取法**：`CookieManager.SetPersistentStorage` + 每 2 秒读 WebKit 的 `moz_cookies`（GirCore 只生成了 `*Finish`，没有异步 cookie API）；命中登录标记即导出关窗，关窗与超时也导出。
-- **撤回一条旧结论**：D32/D75 曾以「本机没有 `libwebkitgtk-6.0`」判定登录窗不改 GirCore——`extra/webkitgtk-6.0` 一直在仓库里，是论据本身错了（D46）。A/B 两个 spike 都跑通，选 A（独立进程）以避免 Uno 自带 GTK3 与 GTK4 同进程并存、以及 GTK 标题栏跟系统配色走的观感问题。
-- 实测：本地起带 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，开窗后 2 秒内导出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0。**真实米游社登录待验收**。
-- **打包**：`packaging/PKGBUILD` 把 `webkitgtk-6.0` 并入 `depends`（pkgrel 1 → 2），`webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
-- 文档：新增 D76、L-149；24 号「登录窗」一行由「不改（有据）」改为已落地并写清撤回原因。
-
-## 2026-11-14（十三）——外部能力走 portal、图片格式补齐、弹层实底
-
-- **打开链接 / 选文件 / 桌面通知改走 xdg-desktop-portal**（D75）：`OpenUrl` 先发 `org.freedesktop.portal.OpenURI`，`FileDialogHelper` 先发 `FileChooser`（filters / 多选 / 目录 / 保存建议名），`DesktopNotification` 直接 D-Bus `org.freedesktop.Notifications`；外部命令（`xdg-open` / `kdialog` / `zenity` / `notify-send`）全部降级为兜底。
-- **截图 portal 兜底**：`spectacle` / `grim` / `gnome-screenshot` 都不在时走 `org.freedesktop.portal.Screenshot`，出图后搬进截图目录。
-- **AVIF / JXL / HEIC 支持**：新增 `Helpers/MagickCodec.cs`（Magick.NET）与 `Helpers/ImageDecode.cs`（Skia 优先，AVIF/JXL 走 Magick）；壁纸、缩略图、取色、截图转换、`GetImagePixelSizeAsync` 全部统一到这个入口。新增 `--image-info <图片>` 自检。
-- **弹层与对话框改成实底**（L-148）：`ContentDialog` / `FlyoutPresenter` / `MenuFlyoutPresenter` / 游戏设置对话框用新的 `LunarwardSurfaceBrush`（Dark `#FF202020` / Light `#FFF3F3F3`），不再让壁纸文字透上来。
-- **Esc 只退一层**（L-147）：选择层或下拉浮层打开时 Esc 先关它们，都关掉才把窗口隐藏到托盘。
-- **顺手项**：`xdotool` 唤醒窗口改用进程内 xcb（`X11Window.Activate`，EWMH `_NET_ACTIVE_WINDOW`），`xdotool` 仅兜底；`ProcessQuery` 不再 fork `fuser`/`lsof`，改为扫 `/proc/*/fd`。
-- 测试：`cli-extra` 24 → 25（新增 `T-CL-44`）；单测 142 不变；lint 三绿。文档：24 号执行记录、D75、L-145～L-148。
-
-## 2026-11-14（十二）——解压换库 + 组件下载/导入入口（24 号 P1）
-
-- 解压不再 fork `tar`/`xz`：新增 `ArchiveExtractor`（BCL `TarReader` + `GZipStream` + `ZstdSharp` + `SharpCompress` 处理 `.tar.xz` + `ZipFile`），支持 `.tar` / `.tar.gz` / `.tgz` / `.tar.zst` / `.tar.xz` / `.zip`，可取消、有进度、解压前拦路径逃逸（L-144）。
-- 运行环境页新增「下载组件…」：选源 → 列版本 → 下载（显示已下/总量/连接数/速度，**取消 = 暂停**，分片保留可续传）→ 自动解压导入；下载前做磁盘空间预检。
-- 新增「导入归档…」：选本地压缩包（`kdialog`），选「运行器 / 图形层」后导入，不新增概念。
-- GitHub API 匿名限流（403）不再伪装成「源里没有归档」：改为抛 `ComponentSourceException`，界面与 `--component-list` 都显示「限流 + 设 `LUNARWARD_GITHUB_TOKEN` 或配镜像前缀 + 原文」（L-143）；顺带支持 `GITHUB_TOKEN` / `GH_TOKEN`。
-- 新增 CLI `--component-list <源 id>`（名称 / MB / 版本）。
-- 测试：单测 142、`cli-extra` 24（新增 T-CL-42/43）。
-
-## 2026-11-14（十一）——组件健康进页面
-
-- 运行环境页的每一行组件（受管/外部运行器、图形层）右侧加「检查」按钮：后台跑 `ComponentHealth`，弹「健康检查 · <名字>」对话框，给一句概括 + 退出码/耗时/路径 + 等宽只读可复制的原文，按钮「复制原文 / 关闭」。
-- 不做发行版包名映射（m21977 口径），只呈现原文，避免映射丢信息。
-- 实测系统 Wine：`可用 (wine-11.19-1-g78e32ba1d3d (Staging))`、`退出码 0 · 耗时 4 ms`。
-## 2026-11-14（十）——运行环境页真机复检：配置文本渲染、前缀状态文案
-
-- 「配置文本（只读）」原来用运行时 `TextBox` 显示 JSON，Skia 后端只画出第一行（实测只剩一个 `{`，而「复制」拿到的是完整内容）→ 改为 `ScrollViewer` + 可选中 `TextBlock`，14 行 JSON 完整可见（L-141）。
-- 前缀卡片里的图形层状态由「未安装」改为「图形层：未安装」，避免和前缀本身的状态混淆。
-- 真机复检其余部分：方案卡片（状态灯 / 前缀占用 370.7 MB / 上次启动 / 按钮组）、组件区「受管（1 组）/ 外部（2 组）」、编辑器「启动预览」`/opt/spritz-wine-tkg/bin/wine '<游戏>.exe'`、高级折叠与保存/取消 均正常。
-- 记录 L-142：截图物理像素与逻辑坐标的换算、以及滚动优先用键盘而不是滚轮。
 ## 2026-11-14（九）——运行环境阶段 2/3：前缀只是路径、环境八字段、页面重做（D74）
 
 - 「前缀模式」整个取消：`PrefixPath` 空 = 默认路径（首次启动创建），有值 = 用那个路径；`template` / `ephemeral` / `shared` 一并移除，旧配置自动迁移（旧目录改名 `profiles.migrated-<时间戳>`）。
@@ -678,6 +701,52 @@
 - 顺带修复：`--page`（DEBUG 调试入口）被上一轮加的「未知命令」守卫拦掉。
 
 
+## 2026-11-14（八）— 组件层覆盖率补齐
+
+- 修：`Coverage (L1)` 从 74.42% 回到 **87.44% 行 / 66.16% 分支**（34 个类），CI 恢复绿。
+- 加：`ComponentDownloadMath`（分片算术 / `.part.<n>` 命名 / 镜像前缀拼接）从下载器抽出，测试工程改为链接它与 `ComponentSources`，下载编排不再进覆盖率口径（靠 `--component-download` 手工实测 + `cli-extra` 兜）。
+- 加：`ComponentSources` 单测 11 条（默认源排序、同 id 覆盖、新 id 追加、损坏文件回落、归档判定、zstd 偏好、版本抠取）；单测总数 85 → 104。
+- 顺带：`ComponentDownloader.cs` 补回被脚本误删的 `ProbeAsync` 与 `RangeRejectedException`（L-137）。
+
+## 2026-11-14（十四）——登录窗换成「本程序 + WebKitGTK 6.0」
+
+- **登录不再依赖 python3**（D76）：新增 `--webkit-login --url <登录页> --output <cookies.json> [--timeout 秒]`（`Features/GameRecord/WebKitLoginHost.cs`，GirCore 0.8.1 + GTK4 + WebKitGTK 6.0），`WebLoginService.LoginAsync` 用 `Environment.ProcessPath` 拉起自己；**没有 `libwebkitgtk-6.0` 时自动退回原 python3 助手**，输出格式不变。
+- **cookie 取法**：`CookieManager.SetPersistentStorage` + 每 2 秒读 WebKit 的 `moz_cookies`（GirCore 只生成了 `*Finish`，没有异步 cookie API）；命中登录标记即导出关窗，关窗与超时也导出。
+- **撤回一条旧结论**：D32/D75 曾以「本机没有 `libwebkitgtk-6.0`」判定登录窗不改 GirCore——`extra/webkitgtk-6.0` 一直在仓库里，是论据本身错了（D46）。A/B 两个 spike 都跑通，选 A（独立进程）以避免 Uno 自带 GTK3 与 GTK4 同进程并存、以及 GTK 标题栏跟系统配色走的观感问题。
+- 实测：本地起带 `Set-Cookie: ltuid_v2 / cookie_token_v2` 的 http 服务，开窗后 2 秒内导出 `{"Cookies":{"ltuid_v2":"123456789","cookie_token_v2":"tok_abc"},"Time":"2026-11-14T21:16:50"}`，退出码 0。**真实米游社登录待验收**。
+- **打包**：`packaging/PKGBUILD` 把 `webkitgtk-6.0` 并入 `depends`（pkgrel 1 → 2），`webkit2gtk-4.1` / `python-gobject` 降为 `optdepends` 并注明「仅在没有 webkitgtk-6.0 时需要」。
+- 文档：新增 D76、L-149；24 号「登录窗」一行由「不改（有据）」改为已落地并写清撤回原因。
+
+## 2026-11-14（十三）——外部能力走 portal、图片格式补齐、弹层实底
+
+- **打开链接 / 选文件 / 桌面通知改走 xdg-desktop-portal**（D75）：`OpenUrl` 先发 `org.freedesktop.portal.OpenURI`，`FileDialogHelper` 先发 `FileChooser`（filters / 多选 / 目录 / 保存建议名），`DesktopNotification` 直接 D-Bus `org.freedesktop.Notifications`；外部命令（`xdg-open` / `kdialog` / `zenity` / `notify-send`）全部降级为兜底。
+- **截图 portal 兜底**：`spectacle` / `grim` / `gnome-screenshot` 都不在时走 `org.freedesktop.portal.Screenshot`，出图后搬进截图目录。
+- **AVIF / JXL / HEIC 支持**：新增 `Helpers/MagickCodec.cs`（Magick.NET）与 `Helpers/ImageDecode.cs`（Skia 优先，AVIF/JXL 走 Magick）；壁纸、缩略图、取色、截图转换、`GetImagePixelSizeAsync` 全部统一到这个入口。新增 `--image-info <图片>` 自检。
+- **弹层与对话框改成实底**（L-148）：`ContentDialog` / `FlyoutPresenter` / `MenuFlyoutPresenter` / 游戏设置对话框用新的 `LunarwardSurfaceBrush`（Dark `#FF202020` / Light `#FFF3F3F3`），不再让壁纸文字透上来。
+- **Esc 只退一层**（L-147）：选择层或下拉浮层打开时 Esc 先关它们，都关掉才把窗口隐藏到托盘。
+- **顺手项**：`xdotool` 唤醒窗口改用进程内 xcb（`X11Window.Activate`，EWMH `_NET_ACTIVE_WINDOW`），`xdotool` 仅兜底；`ProcessQuery` 不再 fork `fuser`/`lsof`，改为扫 `/proc/*/fd`。
+- 测试：`cli-extra` 24 → 25（新增 `T-CL-44`）；单测 142 不变；lint 三绿。文档：24 号执行记录、D75、L-145～L-148。
+
+## 2026-11-14（十二）——解压换库 + 组件下载/导入入口（24 号 P1）
+
+- 解压不再 fork `tar`/`xz`：新增 `ArchiveExtractor`（BCL `TarReader` + `GZipStream` + `ZstdSharp` + `SharpCompress` 处理 `.tar.xz` + `ZipFile`），支持 `.tar` / `.tar.gz` / `.tgz` / `.tar.zst` / `.tar.xz` / `.zip`，可取消、有进度、解压前拦路径逃逸（L-144）。
+- 运行环境页新增「下载组件…」：选源 → 列版本 → 下载（显示已下/总量/连接数/速度，**取消 = 暂停**，分片保留可续传）→ 自动解压导入；下载前做磁盘空间预检。
+- 新增「导入归档…」：选本地压缩包（`kdialog`），选「运行器 / 图形层」后导入，不新增概念。
+- GitHub API 匿名限流（403）不再伪装成「源里没有归档」：改为抛 `ComponentSourceException`，界面与 `--component-list` 都显示「限流 + 设 `LUNARWARD_GITHUB_TOKEN` 或配镜像前缀 + 原文」（L-143）；顺带支持 `GITHUB_TOKEN` / `GH_TOKEN`。
+- 新增 CLI `--component-list <源 id>`（名称 / MB / 版本）。
+- 测试：单测 142、`cli-extra` 24（新增 T-CL-42/43）。
+
+## 2026-11-14（十一）——组件健康进页面
+
+- 运行环境页的每一行组件（受管/外部运行器、图形层）右侧加「检查」按钮：后台跑 `ComponentHealth`，弹「健康检查 · <名字>」对话框，给一句概括 + 退出码/耗时/路径 + 等宽只读可复制的原文，按钮「复制原文 / 关闭」。
+- 不做发行版包名映射（m21977 口径），只呈现原文，避免映射丢信息。
+- 实测系统 Wine：`可用 (wine-11.19-1-g78e32ba1d3d (Staging))`、`退出码 0 · 耗时 4 ms`。
+## 2026-11-14（十）——运行环境页真机复检：配置文本渲染、前缀状态文案
+
+- 「配置文本（只读）」原来用运行时 `TextBox` 显示 JSON，Skia 后端只画出第一行（实测只剩一个 `{`，而「复制」拿到的是完整内容）→ 改为 `ScrollViewer` + 可选中 `TextBlock`，14 行 JSON 完整可见（L-141）。
+- 前缀卡片里的图形层状态由「未安装」改为「图形层：未安装」，避免和前缀本身的状态混淆。
+- 真机复检其余部分：方案卡片（状态灯 / 前缀占用 370.7 MB / 上次启动 / 按钮组）、组件区「受管（1 组）/ 外部（2 组）」、编辑器「启动预览」`/opt/spritz-wine-tkg/bin/wine '<游戏>.exe'`、高级折叠与保存/取消 均正常。
+- 记录 L-142：截图物理像素与逻辑坐标的换算、以及滚动优先用键盘而不是滚轮。
 ## 2026-11-13（十一）
 
 - 修掉每次切换游戏必现的 `ArgumentOutOfRangeException`（`Pivot.SynchronizeSelectedItem` 拿旧索引索引未重建的 header 容器，L-126/D71）：赋值 `PostGroups` 前把 `Pivot_Posts.SelectedIndex` 置 `-1`，赋值后再设回 0。真机切 4 次游戏，异常 0 次（修复前每次必现），资讯区不再停留在上一个游戏的状态。
@@ -686,6 +755,40 @@
 
 - 视频壁纸看门狗从 2 秒放宽到 5 秒。VP9 1080p 首帧正常需要 2–3 秒（VLC 缓冲 ~1.0 s + 解码 + 8 MB 帧拷贝），旧阈值把正常起播也报成 `video started but no frame`，导致 F-21 被误判为回归；真机复测三次帧差 39.70%–48.13%，视频一直正常。
 - 教训 L-125：超时阈值按「正常路径最慢值 × 1.5」定。
+
+## 2026-11-13 — 文档整理与协作约定
+
+- 重写 `docs/linux-port/README.md`：能力快照（12 个模块状态）、文档清单与状态（区分「当前/参考/历史」）、阅读路径、8 条强制工作流程。
+- 给 `09` / `11` / `15` 加「历史」状态横幅，避免被当成现行设计；`12` 加「最后校准 2026-11-12」与指向 `21`/`22` 的说明。
+- `22-port-verification.md`：更正缩放误判（按 1:1 处理并标注待确认），撤回 P1-1，P1-2/P2-2 降级为待复核。
+- 新增仓库根 `AGENTS.md`：项目定位、构建与测试命令、环境坑、代码/文档地图、协作规则与工具约定。
+
+## 2026-11-13（四）── 视频壁纸「静止」定性与加固
+
+- 定性 F-21：不是渲染缺陷。上游 `GetSuggestedGameBackgroundAsync` 在「背景列表无新增」时复用上次背景并置 `StopVideo = true`（看过的背景不自动播视频）；强制视频路径实测 CPU 0.96 核、帧正常。
+- 加固：建议背景超时 1.5 s → 4 s 并重试一次；拿不到背景时保持现有画面（不再被兜底图覆盖）；失败缓存 30 s；调试入口记状态；新增「起播 2 秒无帧」看门狗日志。
+- 修正 20 号 L3 报告里对 F-21 的定性，新增 D68 / L-120。
+
+## 2026-11-13（三）── 测试面补齐
+
+- 覆盖率可度量：新增 `tests/coverlet.runsettings`（`IncludeTestAssembly=true`）与 `scripts/test/coverage.sh`，行覆盖 **90.39%**（800/885）、分支 **77.95%**；CI 出 cobertura 并设 85% 阈值。
+- L2 补充命令面：新增 `scripts/test/cli-extra.sh`（13 条），覆盖 `--shell-plan/--url-plan/--companion-*/--prefix-*/--runner-check/--convert-screenshots` 与假 Sophon 的 `--install-plan/--patch-plan/--install-fetch/--update-run`；已接入 CI。
+- 修 bug：不完整/未知的子命令不再静默进 GUI（`--companion-run` 少一个参数就会「命令没反应、反而弹窗口」），现在打印「未知命令或不完整」并返回 1。
+- 修 bug：`--install-fetch/--install-run` 新增 `--install-dir`，不必先让启动器把安装路径写进设置。
+- L3 补跑：切换游戏（选择层）、打开图库、1000px 断点均通过；发现 **F-21**（视频壁纸起播后画面不推进，0.00% 帧差、CPU 0.01 核）。
+- 修 bug：`--preflight` 结论为「不要启动」时返回 1（F-22），脚本可当门禁。
+- 上游同步支撑：新增 `scripts/list-deviations.sh`（81 个同名文件偏差）与 `scripts/sync-upstream.sh`（冲突时对「已偏差文件」默认保留本仓），文档 `18-upstream-deviations.md`。
+
+## 2026-11-13（二）— 游戏设置页布局重叠
+
+- 修：`GameSettingPage` 内容 Grid 在异步初始化后显式 `InvalidateMeasure()`，解决「运行配置」与 HDR 分区重叠（D67 / L-173 / `22` P0-2）。
+- 更正记录：`22` 的 P0-2 原判断「右列横向溢出」经像素测量否掉；P1-2 澄清为视口边缘的正常半行。
+
+
+## 2026-11-12——切换页面不再卡
+
+- 页面加 `NavigationCacheMode`：启动器 / 游戏设置 / 截图 / 抽卡 / 战绩 / 自助查询 / 设置 再进都不再重建（实测 1729 ms → 24–46 ms）。
+- 游戏设置页的注册表读取（分辨率 / 帧率 / 语音语言）挪到后台线程：首次进入 1729 ms → 216 ms。
 
 ## 2026-11-12（三）——UI 复审后的 9 处修复（D61）
 
@@ -699,24 +802,11 @@
 - 游戏设置页：绑定失效时顶部告警，并可直接重新选运行环境。
 - 手柄增强页：顶部提示「暂未支持」并置灰开关。
 
-## 2026-11-23 —— 组件页撤回页内分段，恢复单页并修正列表宽度（D114 修订）
+## 2026-11-12（四）
 
-- 组件页恢复「运行器在上、图形层在下」的单页结构，「添加组件…」「管理下载源」不再藏在分段里（用户反馈分段又把按钮路径弄回反直觉）。
-- 修正图形层列表宽度：原先按「当前可见页签的视口宽度」钉宽度，切页签时会拿到上一个页签的值（784），列表缩窄并偏向一侧；现在只认组件页自己的视口，切页签后下一帧重算。
-- 动作按钮从清单里提到组件页顶部工具条：「添加路径…」「添加组件…」「管理下载源」「更多」属于整页，不再读成图形层的子控件；两个清单只留标题、说明与列表。
-
-## 2026-11-23 —— 组件页改页内分段（D114，已由上方修订撤回）
-
-- 运行器与图形层不再上下堆叠，改为页内分段切换，首屏只出现一组清单。
-- 分段选中态改用不透明度 + 字重（避开 Uno 运行时替换 Style 不刷新 Background 的问题）。
-- 每段只留一个主操作，其余动作收进「更多」；行内「检查」降级为文字按钮。
-
-本文件按日期记录实现层面的关键变更（对用户可见的行为变化为主）。版本号尚未发布，当前处于 WIP 阶段。
-
-## 2026-11-12——切换页面不再卡
-
-- 页面加 `NavigationCacheMode`：启动器 / 游戏设置 / 截图 / 抽卡 / 战绩 / 自助查询 / 设置 再进都不再重建（实测 1729 ms → 24–46 ms）。
-- 游戏设置页的注册表读取（分辨率 / 帧率 / 语音语言）挪到后台线程：首次进入 1729 ms → 216 ms。
+- 修：切换游戏后左下角公告/资讯仍是上一个游戏的内容（新增 `CurrentGameChangedMessage`、页面与 banner 属性 setter 重载、Pivot 先置空再赋值）。
+- 修：从其它页切回「启动器」卡几秒（背景层加同游戏守卫、先用本地图秒出画面、建议背景超时 1.5 s）。
+- 开发入口：`LUNARWARD_DEV_SWITCH_GAME=<biz>`（DEBUG）按真实选服路径切游戏，便于复现。
 
 ## 2026-11-11（三）——可观测性与打包
 
@@ -748,6 +838,14 @@
   前缀 manifest 与生命周期、`overlay` 注入默认、**可达性 GC（pnpm 式标记-清扫，不是计数器）**、`missing`/`broken` 一等状态、provider 多来源市场
 - §8 措辞校准：refcount → 可达性 GC；补 `--verify-store`（↔ `pnpm store status`）、删除显式触发（↔ `pnpm store prune`）、共享 inode 的三种空间口径
 - §2.4/§4/§7.2 范围校准：只管启动器自己造的（受管），外部组件（pacman/Steam/手动）只发现、只展示版本、只查存在；外部漂移视为预期行为，不告警不拦截；砍掉外部的哈希/校验/保留/配方/GC
+
+## 2026-11-11
+
+- 图库与游戏选择层改为按可用宽度均分（D56），去掉无效的横向滚动；
+- 组件扫描改为特征探测 + 可配扫描根，覆盖 `/opt`、Steam `compatibilitytools.d`、Flatpak 与第三方启动器；新增 `--list-components`；
+- 游戏扫描支持配置根与 24 小时增量缓存；
+- `~/.local/share/Lunarward` 合并为指向 `lunarward` 的符号链接，`WelcomeWindow` 默认值改小写；
+- 背景图库的视频条目改用 libVLC 抽首帧做缩略图（不再黑块）。
 
 ## 2026-11-06
 
@@ -784,53 +882,3 @@
 - 安装 / 更新：Sophon 分块下载、差分补丁、chunk 级复用、断点续传、暂停/继续/停止
 - 运行环境：Profile（wine/Proton/umu/custom + 前缀 5 模式）、组件探测、伴随启动、输出捕获、游玩时长
 - 界面：主窗口、游戏页、截图图库与查看器、背景图库、设置页、单实例与深链
-
-## 2026-11-11
-
-- 图库与游戏选择层改为按可用宽度均分（D56），去掉无效的横向滚动；
-- 组件扫描改为特征探测 + 可配扫描根，覆盖 `/opt`、Steam `compatibilitytools.d`、Flatpak 与第三方启动器；新增 `--list-components`；
-- 游戏扫描支持配置根与 24 小时增量缓存；
-- `~/.local/share/Lunarward` 合并为指向 `lunarward` 的符号链接，`WelcomeWindow` 默认值改小写；
-- 背景图库的视频条目改用 libVLC 抽首帧做缩略图（不再黑块）。
-
-## 2026-11-12（四）
-
-- 修：切换游戏后左下角公告/资讯仍是上一个游戏的内容（新增 `CurrentGameChangedMessage`、页面与 banner 属性 setter 重载、Pivot 先置空再赋值）。
-- 修：从其它页切回「启动器」卡几秒（背景层加同游戏守卫、先用本地图秒出画面、建议背景超时 1.5 s）。
-- 开发入口：`LUNARWARD_DEV_SWITCH_GAME=<biz>`（DEBUG）按真实选服路径切游戏，便于复现。
-
-## 2026-11-13 — 文档整理与协作约定
-
-- 重写 `docs/linux-port/README.md`：能力快照（12 个模块状态）、文档清单与状态（区分「当前/参考/历史」）、阅读路径、8 条强制工作流程。
-- 给 `09` / `11` / `15` 加「历史」状态横幅，避免被当成现行设计；`12` 加「最后校准 2026-11-12」与指向 `21`/`22` 的说明。
-- `22-port-verification.md`：更正缩放误判（按 1:1 处理并标注待确认），撤回 P1-1，P1-2/P2-2 降级为待复核。
-- 新增仓库根 `AGENTS.md`：项目定位、构建与测试命令、环境坑、代码/文档地图、协作规则与工具约定。
-
-## 2026-11-13（四）── 视频壁纸「静止」定性与加固
-
-- 定性 F-21：不是渲染缺陷。上游 `GetSuggestedGameBackgroundAsync` 在「背景列表无新增」时复用上次背景并置 `StopVideo = true`（看过的背景不自动播视频）；强制视频路径实测 CPU 0.96 核、帧正常。
-- 加固：建议背景超时 1.5 s → 4 s 并重试一次；拿不到背景时保持现有画面（不再被兜底图覆盖）；失败缓存 30 s；调试入口记状态；新增「起播 2 秒无帧」看门狗日志。
-- 修正 20 号 L3 报告里对 F-21 的定性，新增 D68 / L-120。
-
-## 2026-11-13（三）── 测试面补齐
-
-- 覆盖率可度量：新增 `tests/coverlet.runsettings`（`IncludeTestAssembly=true`）与 `scripts/test/coverage.sh`，行覆盖 **90.39%**（800/885）、分支 **77.95%**；CI 出 cobertura 并设 85% 阈值。
-- L2 补充命令面：新增 `scripts/test/cli-extra.sh`（13 条），覆盖 `--shell-plan/--url-plan/--companion-*/--prefix-*/--runner-check/--convert-screenshots` 与假 Sophon 的 `--install-plan/--patch-plan/--install-fetch/--update-run`；已接入 CI。
-- 修 bug：不完整/未知的子命令不再静默进 GUI（`--companion-run` 少一个参数就会「命令没反应、反而弹窗口」），现在打印「未知命令或不完整」并返回 1。
-- 修 bug：`--install-fetch/--install-run` 新增 `--install-dir`，不必先让启动器把安装路径写进设置。
-- L3 补跑：切换游戏（选择层）、打开图库、1000px 断点均通过；发现 **F-21**（视频壁纸起播后画面不推进，0.00% 帧差、CPU 0.01 核）。
-- 修 bug：`--preflight` 结论为「不要启动」时返回 1（F-22），脚本可当门禁。
-- 上游同步支撑：新增 `scripts/list-deviations.sh`（81 个同名文件偏差）与 `scripts/sync-upstream.sh`（冲突时对「已偏差文件」默认保留本仓），文档 `18-upstream-deviations.md`。
-
-## 2026-11-14（八）— 组件层覆盖率补齐
-
-- 修：`Coverage (L1)` 从 74.42% 回到 **87.44% 行 / 66.16% 分支**（34 个类），CI 恢复绿。
-- 加：`ComponentDownloadMath`（分片算术 / `.part.<n>` 命名 / 镜像前缀拼接）从下载器抽出，测试工程改为链接它与 `ComponentSources`，下载编排不再进覆盖率口径（靠 `--component-download` 手工实测 + `cli-extra` 兜）。
-- 加：`ComponentSources` 单测 11 条（默认源排序、同 id 覆盖、新 id 追加、损坏文件回落、归档判定、zstd 偏好、版本抠取）；单测总数 85 → 104。
-- 顺带：`ComponentDownloader.cs` 补回被脚本误删的 `ProbeAsync` 与 `RangeRejectedException`（L-137）。
-
-## 2026-11-13（二）— 游戏设置页布局重叠
-
-- 修：`GameSettingPage` 内容 Grid 在异步初始化后显式 `InvalidateMeasure()`，解决「运行配置」与 HDR 分区重叠（D67 / L-173 / `22` P0-2）。
-- 更正记录：`22` 的 P0-2 原判断「右列横向溢出」经像素测量否掉；P1-2 澄清为视口边缘的正常半行。
-

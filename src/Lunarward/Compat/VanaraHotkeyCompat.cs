@@ -1,4 +1,4 @@
-// Lunarward：上游大量页面通过 Vanara.PInvoke 使用「全局热键」相关常量与错误码。
+﻿// Lunarward：上游大量页面通过 Vanara.PInvoke 使用「全局热键」相关常量与错误码。
 // 这里只补最小的一组类型（热键的修饰键/虚拟键/Win32Error），让页面源码保持原样；
 // 真正的原生调用（XGrabKey / portal GlobalShortcuts）在 Helpers/HotkeyManager.Linux.cs。
 // 注意：这是有意的「名字兼容层」，范围仅限热键，不覆盖 Vanara 其它 API。
@@ -7,35 +7,44 @@ using System;
 namespace Vanara.PInvoke;
 
 /// <summary>仅保留热键路径需要的错误码语义。</summary>
-public readonly struct Win32Error : IEquatable<Win32Error>
-{
-    public static readonly Win32Error ERROR_SUCCESS = new(0);
-
-    public static readonly Win32Error ERROR_HOTKEY_ALREADY_REGISTERED = new(1409);
-
-    public Win32Error(int value) => ErrorCode = value;
-
-    public int ErrorCode { get; }
-
-    public bool Succeeded => ErrorCode == 0;
-
-    public bool Failed => ErrorCode != 0;
-
-    public bool Equals(Win32Error other) => ErrorCode == other.ErrorCode;
-
-    public override bool Equals(object? obj) => obj is Win32Error other && Equals(other);
-
-    public override int GetHashCode() => ErrorCode;
-
-    public static bool operator ==(Win32Error left, Win32Error right) => left.Equals(right);
-
-    public static bool operator !=(Win32Error left, Win32Error right) => !left.Equals(right);
-
-    public override string ToString() => $"Win32Error {ErrorCode}";
-}
+// Win32Error 由 Vanara.Core（上游传递引用）提供，这里不再重复定义。
 
 public static class User32
 {
+    /// <summary>
+    /// 窗口样式索引。上游用 Vanara 的同一组常量；这里只补移植侧代码引用到的项。
+    /// </summary>
+    [Flags]
+    public enum WindowLongFlags : int
+    {
+        GWL_EXSTYLE = -20,
+        GWL_HWNDPARENT = -8,
+        GWL_STYLE = -16,
+    }
+
+
+    /// <summary>
+    /// 仅 Windows 分支会调用（移植侧用 <c>OperatingSystem.IsWindows()</c> 守卫）；
+    /// Linux 下不会被命中，因此这里保留真 P/Invoke 而不做假实现。
+    /// </summary>
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    private static extern nint SetWindowLongPtr64(nint hWnd, int nIndex, nint dwNewLong);
+
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
+    private static extern int SetWindowLong32(nint hWnd, int nIndex, int dwNewLong);
+
+
+    public static nint SetWindowLong(nint hWnd, WindowLongFlags nIndex, nint dwNewLong)
+    {
+        if (IntPtr.Size == 8)
+        {
+            return SetWindowLongPtr64(hWnd, (int)nIndex, dwNewLong);
+        }
+        return SetWindowLong32(hWnd, (int)nIndex, (int)dwNewLong);
+    }
+
+
     [Flags]
     public enum HotKeyModifiers : uint
     {

@@ -1,7 +1,7 @@
-<Project Sdk="Uno.Sdk">
+﻿<Project Sdk="Uno.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-desktop</TargetFramework>
+    <TargetFramework>net11.0-desktop</TargetFramework>
     <RootNamespace>Starward</RootNamespace>
     <AssemblyName>Lunarward</AssemblyName>
     <!-- 版本号参与 User-Agent，为空会产生非法 header（见 13-lessons L-26） -->
@@ -26,6 +26,15 @@
 
   <!-- 上游 Starward.Assets 里的图片/字体/模板：直接从 vendor 镜像链接进输出，不再复制一份进仓库 -->
   <ItemGroup>
+    <!-- 上游 0.19.0 新增：gRPC 服务端（GameInstallController）与命名管道 RPC 在移植侧不拆进程，
+         安装/更新直接调 Starward.GameInstall.GameInstallRunner（见 Features/GameInstall/GameInstallService.cs，D128）。 -->
+    <!-- 上游的 Windows 实现（Vanara User32 子类化 / AppWindow 图标与拖拽区），Linux 下由
+         Features/WindowBase.Linux.cs 提供同名 partial 实现。文件保留作对照，不参与编译。 -->
+    <Compile Remove="Features/WindowBase.cs" />
+    <Compile Remove="Features/GameInstall/GameInstallController.cs" />
+    <Compile Remove="Features/RPC/NamedPipesConnectionFactory.cs" />
+    <Compile Remove="Features/RPC/RpcRunner.cs" />
+
     <Content Include="../../vendor/upstream/large-resource/Starward.Assets/Assets/**/*" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -36,14 +45,19 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageReference Include="Dapper" Version="2.1.89" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
-    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.12" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="10.0.12" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Ini" Version="10.0.14" />
-    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.14" />
-    <PackageReference Include="MiniExcel" Version="1.46.0" />
+    <!-- LUNARWARD-DEVIATION（D128）：LibVLCSharp 在 Uno 6 时代是 Uno.WinUI 的传递依赖，Uno 7 不再带，
+         移植侧的视频壁纸（vmem 回调取帧）要显式引用。SkiaSharp.Views 不再需要：
+         Uno 7 没有 Uno 版运行时程序集（UNOB0023），视频帧改走双缓冲 WriteableBitmap（L-184）。 -->
+    <PackageReference Include="LibVLCSharp" Version="3.10.2" />
+    <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.2" />
+    <PackageReference Include="Dapper" Version="2.1.100" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Ini" Version="11.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0" />
+    <PackageReference Include="MiniExcel" Version="2.0.0" />
     <PackageReference Include="Tmds.DBus" Version="0.95.2" />
     <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
     <PackageReference Include="Hi3Helper.Sophon" Version="1.7.1" />
@@ -51,13 +65,14 @@
          GtkSharp 3.24（GTK3）区分，否则 Gtk.Application / WebView 会 CS0433 撞名。 -->
     <PackageReference Include="GirCore.Gtk-4.0" Version="0.8.1" Aliases="gir" />
     <PackageReference Include="GirCore.WebKit-6.0" Version="0.8.1" Aliases="gir" />
-    <PackageReference Include="NuGet.Versioning" Version="7.9.0" />
-    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="NuGet.Versioning" Version="8.0.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="11.0.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
     <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.1.0" />
     <PackageReference Include="SharpCompress" Version="1.0.0" />
-    <PackageReference Include="System.IO.Hashing" Version="10.0.14" />
-    <PackageReference Include="ZiggyCreatures.FusionCache" Version="2.9.0" />
+    <PackageReference Include="System.IO.Hashing" Version="11.0.0" />
+    <PackageReference Include="ZiggyCreatures.FusionCache" Version="2.10.0" />
+    <PackageReference Include="ZiggyCreatures.FusionCache.Serialization.SystemTextJson" Version="2.10.0" />
     <!-- D78：Steam 自定义库（libraryfolders.vdf）解析，补 Proton/兼容工具漏扫 -->
     <PackageReference Include="ValveKeyValue" Version="0.80.0.542" />
     <!-- D78：预检「游戏架构」读 PE machine 字段 -->
@@ -65,6 +80,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- LUNARWARD-DEVIATION: 上游 0.19.0 把安装/热更新/服务抽进 Starward.GameInstall；移植侧同样引用它（D128）。 -->
+    <ProjectReference Include="..\Starward.GameInstall\Starward.GameInstall.csproj" />
     <ProjectReference Include="..\Starward.Core\Starward.Core.csproj" />
     <ProjectReference Include="..\Starward.Language\Starward.Language.csproj" />
     <ProjectReference Include="..\Starward.Setup.Core\Starward.Setup.Core.csproj" />
@@ -90,11 +107,7 @@
     <Compile Remove="Features/Codec/SrgbGammaEffect.cs" />
     <Compile Remove="Features/Codec/UhdrGainmapEffect.cs" />
     <Compile Remove="Features/Codec/VP9Helper.cs" />
-    <Compile Remove="Features/GameInstall/GameInstallService.cs" />
     <Compile Remove="Features/GameSetting/GenshinHDRLuminanceSettingDialog.xaml.cs" />
-    <Compile Remove="Features/GameInstall/GameInstallTaskStartedMessage.cs" />
-    <Compile Remove="Features/GameInstall/InstallGameDialog.xaml.cs" />
-    <Compile Remove="Features/GameInstall/PreDownloadDialog.xaml.cs" />
     <Compile Remove="Features/GameRecord/BBSWebBridge.xaml.cs" />
     <Compile Remove="Features/GameRecord/BattleChronicleWindow.xaml.cs" />
     <Compile Remove="Features/GameRecord/LoginPage.xaml.cs" />
