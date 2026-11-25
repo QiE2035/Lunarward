@@ -22,8 +22,8 @@ license=('MIT')
 #   libxcb          X11Window 的 P/Invoke（libxcb.so.1）
 #   xdg-utils       OpenUrl 走 xdg-open
 #   webkitgtk-6.0   登录窗（D76）
-depends=('dotnet-runtime>=10.0' 'fontconfig' 'libx11' 'libxcb' 'xdg-utils' 'webkitgtk-6.0')
-makedepends=('dotnet-sdk>=10.0' 'git')
+depends=('dotnet-runtime>=11.0' 'fontconfig' 'libx11' 'libxcb' 'xdg-utils' 'webkitgtk-6.0')
+makedepends=('dotnet-sdk>=11.0' 'git')
 optdepends=(
   'wine: 使用系统 wine 作为运行器'
   'proton: 用 Proton 作为运行器'
