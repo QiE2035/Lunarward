@@ -1616,6 +1616,27 @@ internal class LunarwardProgram
         // 再拿 CacheFolder 拼日志目录就是 null → 启动即挂（0.19.0 合并后漏掉了这次调用）。
         InitEnviroment();
 
+        // D134：AppImage 没有安装步骤，桌面关联（x-scheme-handler/lunarward）只能运行时补。
+        // 以前要用户手动跑 `--register-protocol`，否则网页点深链毫无反应；这里只在没注册时做一次，
+        // 且扔到后台（update-desktop-database / xdg-mime 都是 fork，硬规则 10 不许占 UI 线程）。
+        if (Environment.GetEnvironmentVariable("APPIMAGE") is { Length: > 0 })
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    if (!Starward.Features.UrlProtocol.UrlProtocolService.IsProtocolRegistered())
+                    {
+                        Starward.Features.UrlProtocol.UrlProtocolService.RegisterProtocol();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Debug(ex, "AppImage protocol registration failed");
+                }
+            });
+        }
+
         var host = UnoPlatformHostBuilder.Create()
             .App(() => new Starward.App())
             .UseX11()

@@ -29,7 +29,15 @@ internal static class UrlProtocolService
         }
     }
 
-    private static string ExecutablePath => Environment.ProcessPath ?? "lunarward";
+    /// <summary>
+    /// D134：AppImage 运行时进程路径是挂载点里的临时副本（/tmp/.mount_XXXX/...），
+    /// 写进 .desktop 后 AppImage 一退出就成了死路径，深链永远唤不起来。
+    /// appimagetool 会导出 `$APPIMAGE`，指向磁盘上那个真正可执行的 .AppImage，优先用它。
+    /// </summary>
+    private static string ExecutablePath =>
+        Environment.GetEnvironmentVariable("APPIMAGE") is { Length: > 0 } appImage
+            ? appImage
+            : Environment.ProcessPath ?? "lunarward";
 
     public static void RegisterProtocol()
     {
