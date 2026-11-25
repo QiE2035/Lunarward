@@ -29,6 +29,7 @@
     <Compile Include="../../src/Lunarward/Features/Runtime/RunnerNaming.cs" Link="Linked/RunnerNaming.cs" />
     <Compile Include="../../src/Lunarward/Helpers/CliSpec.cs" Link="Linked/CliSpec.cs" />
     <Compile Include="../../src/Starward.GameInstall/Service/HardLinkCompat.cs" Link="Linked/HardLinkCompat.cs" />
+    <Compile Include="../../src/Starward.GameInstall/Service/WinePrefixRegistry.cs" Link="Linked/WinePrefixRegistry.cs" />
   </ItemGroup>
 
   <ItemGroup>

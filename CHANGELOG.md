@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-25 —— 热更新的两块 Windows-only 依赖补齐：wine 前缀注册表 + 跨平台硬链接（D132）
+
+- **热更新在 Linux 上不再被整体关掉**：删掉 `CheckUpdateAsync` 开头的 `if (!OperatingSystem.IsWindows()) return false;`，按用户口径「先接通，能不能用等真踩到再说」。
+- **服务器名改从 wine 前缀读**：`selectedServerName` 在 Linux 上没有注册表，新增 `WinePrefixRegistry` 直接解析 `<prefix>/user.reg`（处理 wine 的折行与 `\xNNNN` 转义），从安装目录往上回溯找前缀；读不到时退化成 region 列表第一项，与上游「注册表里没这个值」一致。
+- **打补丁的硬链接跨平台**：`GenshinHotUpdateStep` 里 `Kernel32.CreateHardLink` 改成 `HardLinkCompat.TryCreate`，失败照旧回退 `File.Copy`；顺手去掉该文件唯一的 Vanara 依赖。
+- 新增 `WinePrefixRegistryTests` 6 条（前缀回溯、`hex:` 解析、折行拼接、转义键名、缺键/`hex(2)` 兜底），`dotnet test` **358 通过**。
+
 ## 2026-11-25 —— 上游 GameInstall 库的三处 Windows-only 代码移植到 Linux（D131）
 
 - **更新时不再白下载**：硬链接复用以前在 Linux 上直接判「不支持」（上游只认 NTFS/ReFS），现在按文件系统判断（ext4/btrfs/xfs 等可用），用 `.NET 11` 内建的 `File.CreateHardLink` 建链接；失败一律回退下载，最坏情况与之前相同。

@@ -159,7 +159,7 @@
 | `Helpers/OneShotHints.cs` | 一次性提示 | ✅ | M1 | SQLite `Setting` 表的 `hint_<name>`，替代进程级 `static bool`（D86） |
 | `Features/Runtime/RunnerNaming.cs` | 运行器显示名 | ✅ | M1 | PATH 里的 wine 只有装在 `/usr`、`/bin`、`/sbin` 才叫「系统 Wine」，其余用目录名；重名才加来源后缀（D87/L-161） |
 
-### 5.1 · 上游库 `src/Starward.GameInstall/` 里的偏差（D128 / D131）
+### 5.1 · 上游库 `src/Starward.GameInstall/` 里的偏差（D128 / D131 / D132）
 
 > 这个库不是 UI 代码，但 0.19.0 把安装/热更新整体搬进来了，Linux 侧必须能编译能跑。改动全部带 `// LUNARWARD-DEVIATION:` 注释。
 
@@ -169,7 +169,9 @@
 | `Service/HardLinkCompat.cs`（新增） | 跨平台 `IsSupported` / `TryCreate` | 上游只认 NTFS/ReFS（`DriveInfo.DriveFormat`），Linux 的 ext4/btrfs/xfs 同样支持；`.NET 11` 已内建 `File.CreateHardLink` | D131 |
 | `Service/HardLinkService.cs` | 3 处改用上面的兼容层；文件 ID 的 `Kernel32` 调用只留 Windows 分支 | 文件 ID 两列在库里只建索引、无人读取，Linux 填 0 即可 | D131 |
 | `GameInstallRunner.cs` | 截图备份的同卷判断改成「文件系统是否支持硬链接」，跨卷交给 `TryCreate` 失败回退复制 | Linux 上所有路径的根都是 `/`，「根相同」恒真 | D131 |
-| `HotUpdate/GenshinHotUpdateService.cs` | 11 处 `@"Persistent\X"` / `@"StreamingAssets\X"` 拆成多段 `Path.Combine`；`CheckUpdateAsync` 在非 Windows 直接返回 false | 反斜杠在 Linux 上是普通字符（L-188）；热更新还缺服务器名（注册表）与打补丁硬链接，半可用状态更危险 | D131 |
+| `HotUpdate/GenshinHotUpdateService.cs` | 11 处 `@"Persistent\X"` / `@"StreamingAssets\X"` 拆成多段 `Path.Combine`；`GetServerName` 双平台（Windows 读注册表，Linux 读 wine 前缀 `user.reg`）；`GetDispatchRegionInfoAsync` 多一个 `installPath` 参数；不再按平台关闭热更新 | 反斜杠在 Linux 上是普通字符（L-188）；Linux 没有注册表，但 wine 把值落在 `<prefix>/user.reg`；`!OperatingSystem.IsWindows()` 门禁按 D132 解除 | D131 / D132 |
+| `Service/WinePrefixRegistry.cs`（新增） | 从安装目录回溯找 wine 前缀，流式解析 `user.reg` 里的 REG_BINARY（折行 + `\xNNNN` 转义） | 库不能反向依赖 Lunarward 的 `WineRegistryFiles`（internal + 命名空间），自带窄读取器 | D132 |
+| `HotUpdate/GenshinHotUpdateStep.cs` | `Kernel32.CreateHardLink` 改 `HardLinkCompat.TryCreate`，删掉唯一一处 `using Vanara.PInvoke` | Linux 上没有 Kernel32；失败仍回退 `File.Copy` | D132 |
 
 ---
 

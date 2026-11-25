@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D131）
+- **状态**：生效中（D0–D132）
 - **最后更新**：2026-11-25
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -2242,3 +2242,32 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - `dotnet test Starward.slnx -c Debug`：**352 通过**（新增 `HardLinkCompatTests` 7 条：空路径/临时目录判断、共享 inode、已存在链接、目标缺失、跨文件系统）。
 - 真机 `DriveInfo("/home").DriveFormat` = `btrfs`、`/tmp` = `tmpfs`（所以在 Linux 上确实能进硬链接分支）。
 
+## D132 · 热更新的两块 Windows-only 依赖补上：Wine 前缀注册表 + 跨平台硬链接
+
+**背景**：D131 第 5 条把热更新在 Linux 上整体关掉了，条件是「服务器名要读 Wine 前缀的注册表」「打补丁要能建硬链接」两块补齐后再开。用户 m05854 改了口径：「我的意思是先做，能不能用先不管，等真遇到 bug 了再修」——即不再等真机验证，先把两条链路接上，遇到问题再修。确认方式：m05743「先全做吧，3+5 等真遇到 bug 了再修」、m05854。
+
+**决定**
+
+1. **新增 `src/Starward.GameInstall/Service/WinePrefixRegistry.cs`**：`FindPrefix(installPath)` 从安装目录往上回溯最多 16 层，找同时有 `drive_c/` 与 `user.reg` 的那层；`ReadUserRegBinary(prefix, keyPath, valueName)` 流式扫 `user.reg`，命中 `[键]` 段后读 REG_BINARY（`hex:`），处理 wine 的折行（行尾 `\` + 缩进续行）与转义（`\\`、`\xNNNN` 写非 ASCII 键名、`\n\r\t\0\"`）。其它类型（`hex(2)`/`dword:`）一律返回 null。
+2. **`GetServerName` 双平台**：Windows 保持 `Registry.GetValue(...)` 原样；Linux 走 `WinePrefixRegistry.FindPrefix(installPath)` + `ReadUserRegBinary`，拿到同一串字节后照旧 `JsonNode.Parse` 取 `selectedServerName`。都取不到时返回 null，退化成上游的「用 region 列表第一项」。
+3. **`GetDispatchRegionInfoAsync` 增加 `string installPath` 参数**（放在 `GameId` 之后、`CancellationToken` 之前），两个调用方同步：`CheckUpdateAsync`（本来就有 `installPath`）、`GenshinHotUpdateStep.PrepareAsync`（传 `_context.InstallPath`）。
+4. **删掉 `CheckUpdateAsync` 开头的 `if (!OperatingSystem.IsWindows()) return false;`**，改写过时的 deviation 注释。
+5. **`GenshinHotUpdateStep.cs:173` 的 `Kernel32.CreateHardLink(ctable_dat, ctable_streaming_data)` 改成 `HardLinkCompat.TryCreate(...)`**，失败仍回退 `File.Copy(..., overwrite: true)`；顺手删掉该文件唯一一处 `using Vanara.PInvoke;`。
+
+**为什么不复用 `src/Lunarward/Features/GameAccount/WineRegistryFiles.cs`**
+
+那个读取器（D86/L-160）更完整——通用键值解析、`hex(2)` 转字符串、命中不了还能回落 `wine reg query`。但它是 `internal` 且命名空间在 `Starward.Features.GameAccount`，而 `Starward.GameInstall` 是**被 Lunarward 引用**的上游库，反向依赖不成立；测试项目又是按文件路径 `<Compile Include>` 链接的，搬迁它要同时改 `WineRegistry.cs:191`、`tests/Lunarward.Tests/Lunarward.Tests.csproj` 的链接路径和 `12-shims` 登记，收益不抵风险。所以库内自带一个只服务「单键单值」场景的窄读取器，接受少量重复（登记在 `12-shims-and-gaps.md` §5.1）。
+
+**代价与边界**
+
+- 前缀发现靠目录特征回溯，游戏装在**前缀之外**（比如直接装进 `~/.local/share/...` 或用系统 wine 的默认前缀）时找不到，`GetServerName` 返回 null → 退化成 region 列表第一项，和上游「注册表里没这个值」的行为一致，不会崩。
+- 只认 REG_BINARY。真游戏写的是 `hex:`（REG_BINARY），但若哪天 miHoYo 改成字符串值，这里会读不到、静默退化成第一项。
+- 不处理 `[键]` 段里 `@=`（默认值）与跨文件（`system.reg`）；热更新需要的键固定在 `user.reg` 的 `Software\miHoYo\Genshin Impact`。
+- **热更新在 Linux 上仍然只是「接线完成」**：`GenshinHotUpdateStep` 之后还要用 `StandaloneWindows64` 的 patch 数据覆盖文件、重启写 `Persistent` 目录，这条链路没有任何真机验证。按用户口径先接通、等真踩到再修。
+- 全部改动带 `// LUNARWARD-DEVIATION:` 注释。
+
+**验证**
+
+- `dotnet build src/Starward.GameInstall/Starward.GameInstall.csproj -c Debug`：0 错误。
+- `dotnet build Starward.slnx -c Debug`：0 错误。
+- `dotnet test Starward.slnx -c Debug`：**358 通过**（新增 `WinePrefixRegistryTests` 6 条：从前缀深处回溯、无标记返回 null、`hex:` 解析、折行拼接、转义键名 + 大小写不敏感、缺键/`hex(2)`/空参返回 null）。

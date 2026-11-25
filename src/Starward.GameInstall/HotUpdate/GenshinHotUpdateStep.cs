@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -6,7 +6,6 @@ using Starward.GameInstall.Service;
 using Starward.GameInstall.Step;
 using System.Security.Cryptography;
 using System.Text.Json;
-using Vanara.PInvoke;
 
 namespace Starward.GameInstall.HotUpdate;
 
@@ -70,7 +69,7 @@ internal class GenshinHotUpdateStep : StepBase
             return;
         }
         _gameBranch = (await _hoYoPlayService.GetGameBranchAsync(_context.GameId, cancellation)).EnsureNotNull(_context.GameId);
-        _regionInfo = await _genshinHotUpdateService.GetDispatchRegionInfoAsync(_context.GameId, cancellation);
+        _regionInfo = await _genshinHotUpdateService.GetDispatchRegionInfoAsync(_context.GameId, _context.InstallPath, cancellation);
         _serverRegion = _context.GameId.GameBiz.Value switch
         {
             GameBiz.hk4e_cn => ServerRegion.miHoYo,
@@ -170,7 +169,8 @@ internal class GenshinHotUpdateStep : StepBase
         {
             string ctable_dat = Path.Combine(_persistentFolder, "ctable.dat");
             DeleteFileIfExists(ctable_dat);
-            if (!Kernel32.CreateHardLink(ctable_dat, ctable_streaming_data))
+            // LUNARWARD-DEVIATION: 上游直接调 Kernel32（Windows-only）；Linux 上用 .NET 11 内建的 File.CreateHardLink（D132）
+            if (!HardLinkCompat.TryCreate(ctable_dat, ctable_streaming_data))
             {
                 File.Copy(ctable_streaming_data, ctable_dat, true);
             }

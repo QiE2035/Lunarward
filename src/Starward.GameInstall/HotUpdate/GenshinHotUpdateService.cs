@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
+using Starward.GameInstall.Service;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -10,6 +11,7 @@ namespace Starward.GameInstall.HotUpdate;
 
 // LUNARWARD-DEVIATION: 上游把子目录和文件名写成单个字面量（@"Persistent\ChannelName"、"@"StreamingAssets\res_versions_streaming"），
 // 在 Windows 上反斜杠恰好仍是路径分隔符；Linux 上会变成文件名的一部分，永远匹配不到（L-188）。这里统一拆成多段 Path.Combine。
+// 另外服务器名（selectedServerName）在 Linux 上没有注册表可读，改为解析 wine 前缀的 user.reg（WinePrefixRegistry，D132）。
 
 public class GenshinHotUpdateService
 {
@@ -35,13 +37,6 @@ public class GenshinHotUpdateService
 
     public async Task<bool> CheckUpdateAsync(GameId gameId, string installPath, CancellationToken cancellation = default)
     {
-        // LUNARWARD-DEVIATION: Linux 上热更新还缺两块——服务器名要读 Wine 前缀的注册表（GetServerName 目前返回 null），
-        // 打补丁要能在 Linux 上建硬链接（GenshinHotUpdateStep 仍直接调 Kernel32.CreateHardLink）。
-        // 在补齐之前整体不启用，避免「路径修对了」就触发一次写错区域的热更新（D131）。
-        if (!OperatingSystem.IsWindows())
-        {
-            return false;
-        }
         ServerRegion region = gameId.GameBiz.Value switch
         {
             GameBiz.hk4e_cn => ServerRegion.miHoYo,
@@ -49,7 +44,7 @@ public class GenshinHotUpdateService
             _ => throw new NotSupportedException($"GameId ({gameId}) is not supported."),
         };
         GameBranch branch = (await _hoYoPlayService.GetGameBranchAsync(gameId, cancellation)).EnsureNotNull(gameId);
-        var regionInfo = await GetDispatchRegionInfoAsync(gameId, cancellation);
+        var regionInfo = await GetDispatchRegionInfoAsync(gameId, installPath, cancellation);
         bool success = await CheckChannelNameAndScriptVersionAsync(region, installPath, branch.Main.Tag, cancellation)
                        && await CheckBaseResVersionHashAsync(region, installPath, cancellation)
                        && await CheckDownloadPrefAsync(region, installPath, branch.Main.Tag, cancellation)
@@ -60,7 +55,7 @@ public class GenshinHotUpdateService
 
 
 
-    internal async Task<RegionInfo> GetDispatchRegionInfoAsync(GameId gameId, CancellationToken cancellation = default)
+    internal async Task<RegionInfo> GetDispatchRegionInfoAsync(GameId gameId, string installPath, CancellationToken cancellation = default)
     {
         ServerRegion region = gameId.GameBiz.Value switch
         {
@@ -78,7 +73,7 @@ public class GenshinHotUpdateService
         }
 
         var regionList = await _dispatchClient.QueryRegionListAsync(region, branch.Main.Tag, cancellation);
-        string? serverName = GetServerName(region);
+        string? serverName = GetServerName(region, installPath);
         RegionSimpleInfo? regionSimple = regionList.RegionList.FirstOrDefault(x => x.Name == serverName) ?? regionList.RegionList.FirstOrDefault();
         if (regionSimple is null)
         {
@@ -90,18 +85,22 @@ public class GenshinHotUpdateService
 
 
 
-    private static string? GetServerName(ServerRegion region)
+    private static string? GetServerName(ServerRegion region, string installPath)
     {
+        if (region is not ServerRegion.HoYoverse)
+        {
+            return null;
+        }
         try
         {
-            if (region is ServerRegion.HoYoverse)
+            byte[]? bytes = OperatingSystem.IsWindows()
+                ? Registry.GetValue(@"HKEY_CURRENT_USER\Software\miHoYo\Genshin Impact", "GENERAL_DATA_h2389025596", null) as byte[]
+                // LUNARWARD-DEVIATION: Linux 上从 wine 前缀的 user.reg 读同一个值（D132）；找不到前缀就是 null，等价于上游「读不到」
+                : WinePrefixRegistry.ReadUserRegBinary(WinePrefixRegistry.FindPrefix(installPath), @"Software\miHoYo\Genshin Impact", "GENERAL_DATA_h2389025596");
+            if (bytes is not null)
             {
-                var bytes = Registry.GetValue(@"HKEY_CURRENT_USER\Software\miHoYo\Genshin Impact", "GENERAL_DATA_h2389025596", null) as byte[];
-                if (bytes is not null)
-                {
-                    var node = JsonNode.Parse(bytes);
-                    return node?["selectedServerName"]?.ToString();
-                }
+                var node = JsonNode.Parse(bytes);
+                return node?["selectedServerName"]?.ToString();
             }
         }
         catch { }

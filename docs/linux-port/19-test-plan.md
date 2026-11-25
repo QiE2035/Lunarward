@@ -6,7 +6,7 @@
 
 - 最后更新：2026-11-24（用例计数按表内唯一 ID 重算为 **237 条** = 225 `T-*` + 12 `RG-*`，并修掉 `T-UI-30/31/33` 的重号；覆盖率口径按 D122 落实；D87 运行器命名 12 例、D88 `lint-pkgbuild.sh` 静态检查、D89 SDK 下限防回归）
 - 对应代码：`src/Lunarward`（`main`），单头 Linux，不改 `src/Starward/`
-- 现状（2026-11-24 实测）：L1 单测数量以 `dotnet test Starward.slnx -c Debug` 的实际输出为准（2026-11-25 为 **352 条**）；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **41 例（40 通过 + 1 跳过）** + `cli-extra.sh` **32 例（含 4 条退役 SKIP）** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
+- 现状（2026-11-24 实测）：L1 单测数量以 `dotnet test Starward.slnx -c Debug` 的实际输出为准（2026-11-25 为 **358 条**）；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **41 例（40 通过 + 1 跳过）** + `cli-extra.sh` **32 例（含 4 条退役 SKIP）** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
 
 ### 覆盖率口径（D122，2026-11-24）
 
