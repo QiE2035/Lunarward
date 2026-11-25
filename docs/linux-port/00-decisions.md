@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D133）
+- **状态**：生效中（D0–D134）
 - **最后更新**：2026-11-25
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -2293,3 +2293,36 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 **验证**：`dotnet build Starward.slnx -c Debug` 0 错误；`dotnet test` **365 通过**；`--selftest-ui` **12/12 通过**（含新增的 `ScreenshotSetting` 那条）；`lint-doc-status.sh --strict` 全绿；`git status --porcelain src/Starward` 0 行。
 
 **确认方式**：用户 2026-11-25 要求把全部文档重新核对整理、并允许调整文档文件与格式（改版前先修正错误结论）。
+
+
+---
+
+## D134　可避免偏离：按「优先对齐上游」批量回改（2026-11-25）
+
+**背景**：`25-deviation-register.md` 按 0.19.0 重算出 99 条 `avoidable`（可避免）偏离。用户确定处理方向为「优先对齐上游」——能改回上游语义的就改，不登记成例外。本轮按模块分批推进，先做启动器（3.1）、安装（3.2）、游戏设置（3.3）、外壳（3.4）、截图（3.5）。
+
+**决定**
+
+1. **删掉同名遮蔽的本地模型**：`Features/GameLauncher/GameConfigIni.cs` 与上游 `Starward.GameInstall.Model.GameConfigIni` 同名，调用方为了消歧只能写全限定名；删本地文件后回归短名（A1）。
+2. **删死代码而不是留着「以后可能用」**：`GameLauncherService.SetGenshinEnableHDR`（启动前重放已由 `SetGenshinEnableHDRAsync` 承担）、`GameNoticeService.GetGameNoticeUrl(GameBiz)` 同步包装、`GameBannerAndPost` 里的 `#if DEBUG` 自动链接钩子、`App.HandleStartupAsync`、`App.ApplyAcrylicFallback`、`ScreenshotPage` 里两个 XAML 已无绑定的事件处理器（A1/A4/A5）。
+3. **热键/文案与上游一致**：预检动作文案 7 条硬编码中文改回 `Lang.Lunarward_Preflight_Action_*`；HDR 对话框标题与「预览不可用」说明改 `Lang.Lunarward_GenshinHDRLuminance_*`（A1/A3）。
+4. **扫描根不再读环境变量**：`GameInstallScanner.Linux.cs` 删 `LUNARWARD_GAME_ROOTS`，只保留设置页里的根列表 + `Serilog` 调试行；`docs/user/faq.md` 同步改为「在设置里改扫描根」（A2）。
+5. **安装任务表不再泄漏**：`GameInstallService.AddOrUpdateProgress` 在 `Stop`/`Finish` 后把任务从 `_tasks` 移除；`StartUpdateTaskProgress` 的 finally 补回上游的 1 秒退避（A2）。
+6. **读也走游戏前缀**：`GameAccountService.GetGameAccountFromRegistryAsync` 传入 `GameSettingService.GetGameWinePrefix(biz)`；`GameSettingService` 新增 `TryGetReadPrefix`，四个读 getter 不再回落 `~/.wine`，前缀缺失时返回默认值而不是读别人的注册表（A3）。
+7. **写入失败要报错**：`SetGenshinEnableHDRAsync` 改走返回 bool 的 `WineRegistry.SetValuesAsync`，失败抛 `Lunarward_Error_SetGameSettingFailed`；分辨率写入改 `await SetGameResolutionSettingAsync`，不在 UI 线程同步等 wine（A3，硬规则 10 同类）。
+8. **补上游 CLI 子命令**：`Program.Linux.cs` 增加 `playtime`（云游戏按钮以 `lunarward playtime --biz … --pid …` 拉起本程序记账，原来会被当成无参数去开主窗口）与 `rpc`（移植侧无 RPC 实现，显式拒绝并退 2，M4 占位）（A4）。
+9. **还原上游写法**：`SystemTrayWindow` 的激活判断回枚举模式匹配、`WelcomeWindow.SetDragRectangles` 回构造器写法（A4）。
+10. **截图页补三处**：缩略图补 `IsThumbnail="True"`（否则一屏 30 张按原图解码）；截图文件名改 `Lunarward_yyyyMMdd_HHmmssff.png`（老格式命不中 `ScreenshotItem.TryParseCreationTime`，排序与分组全退到文件系统时间）；批量转换要求先勾选（原来非多选模式等于整库转换，一次点击在库里多出一倍 .jpg）（A5）。
+11. **补右键菜单**：信息/打开/复制文件/复制为 JPG/在文件夹中显示/用默认应用打开/删除，与上游 `ScreenshotPage.xaml:121-213` 一一对应。Uno 的 `Grid` 没有 `ContextFlyout`（CS0117），改为 `RightTapped` 时现造同构 `MenuFlyout`；「打开方式」不搬（Windows 专有对话框，「用默认应用打开」覆盖同一需求）。
+12. **页面缓存不退订事件**：`PageBase.PageEx_Unloaded` 不再退订 `Loaded`/`Unloaded`——移植侧页面实例是复用的（D94），退订后同实例再进入时 `OnLoaded` 不执行，页面停在旧状态。
+
+**代价与边界**
+
+- 右键菜单是代码里现造的（不是 XAML），样式不再受 XAML 资源与设计器预览约束；`MenuFlyout` 的图标字形仍复用上游码位（L-88 的既有风险不变）。
+- 截图文件名换了格式，**旧文件仍能被扫到**（图库按目录枚举，不依赖命名），只是旧文件的排序仍走文件系统时间。
+- `rpc` 子命令现在直接退出：如果有外部脚本依赖「`lunarward rpc` 打开主窗口」这种副作用，会变成静默退出（本来也不是设计意图）。
+- `playtime` 记账走 `InitEnviroment()` 同步初始化（与其它 CLI 分支一致），首次运行会比纯 GUI 启动多一次环境检查耗时。
+
+**验证**：`dotnet build Starward.slnx -c Debug/Release` 0 错误；`dotnet test` 365 通过；`--selftest-ui` 12/12；`lint-ui-thread.sh`、`lint-cli-help.sh`、`lint-doc-status.sh --strict` 全绿；`cli-smoke` 40 通过 + 1 跳过；`src/Starward/` 零改动。
+
+**确认方式**：用户 message「优先对齐上游」（2026-11-25）。

@@ -1,4 +1,13 @@
-# Changelog
+﻿# Changelog
+
+## 2026-11-25 · D134 可避免偏离批量回改（对齐上游）
+
+- 启动器：删同名遮蔽的 `GameConfigIni`、`SetGenshinEnableHDR` 死方法、公告同步包装、`#if DEBUG` 自动链接钩子；预检动作文案改 7 个 `Lang` 键。
+- 安装：扫描根不再读 `LUNARWARD_GAME_ROOTS`；任务表在 Stop/Finish 后移除；恢复 1 秒退避。
+- 游戏设置：读注册表也走游戏前缀（新增 `TryGetReadPrefix`）；HDR 写入失败改为报错；分辨率写入改异步。
+- 外壳：补 `playtime` 子命令（游玩时长不再丢记录）、`rpc` 显式拒绝；删 `HandleStartupAsync`/`ApplyAcrylicFallback`；托盘激活判断与欢迎窗拖拽区还原上游写法。
+- 截图：补右键菜单（打开/复制文件/复制为 JPG/在文件夹中显示/默认应用打开/删除）；缩略图补 `IsThumbnail`；文件名改 `Lunarward_yyyyMMdd_HHmmssff.png`；批量转换要求先勾选。
+- 视图底座：页面缓存实例不再退订 `Loaded`/`Unloaded`（否则 `OnLoaded` 不再执行）。
 
 ## 2026-11-25 —— 全部文档按 0.19.0 重算，并修掉 5 处审计中撞见的缺陷（D133）
 
