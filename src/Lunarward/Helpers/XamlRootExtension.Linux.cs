@@ -8,6 +8,19 @@ public static class XamlRootExtension
 {
     public static nint GetWindowHandle(this XamlRoot? xamlRoot) => 0;
 
+    /// <summary>D134：上游用 `GetDpiForWindow` 算缩放；Linux 侧按 XamlRoot 的 RasterizationScale 取。</summary>
+    public static float GetUIScaleFactor(this XamlRoot? xamlRoot)
+    {
+        try
+        {
+            return (float)(xamlRoot?.RasterizationScale ?? 1.0);
+        }
+        catch (Exception)
+        {
+            return 1f;
+        }
+    }
+
     /// <summary>Linux 上 AppWindow 仍由 Uno 提供（窗口装饰/尺寸），从 XamlRoot 反查。</summary>
     public static Microsoft.UI.Windowing.AppWindow? GetAppWindow(this XamlRoot? xamlRoot)
     {

@@ -4379,4 +4379,7 @@
   <data name="Lunarward_Login_PleaseSignIn" xml:space="preserve">
     <value>请先点击「打开登录窗口」完成登录。</value>
   </data>
+  <data name="Lunarward_FileDialog_NoTool" xml:space="preserve">
+    <value>没有可用的文件选择对话框：请安装 kdialog 或 zenity（portal 回退也不可用）。</value>
+  </data>
 </root>

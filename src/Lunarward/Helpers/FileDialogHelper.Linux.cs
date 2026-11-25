@@ -18,7 +18,21 @@ public static partial class FileDialogHelper
 {
     private static string? _dialogTool;
 
-    private static string? DialogTool => _dialogTool ??= DetectTool();
+    private static bool _toolDetected;
+
+    // D134：探测失败也要记住（以前 `??=` 在返回 null 时每次调用都重新 fork 两个进程探测）。
+    private static string? DialogTool
+    {
+        get
+        {
+            if (!_toolDetected)
+            {
+                _dialogTool = DetectTool();
+                _toolDetected = true;
+            }
+            return _dialogTool;
+        }
+    }
 
     private static string? DetectTool()
     {
@@ -168,7 +182,9 @@ public static partial class FileDialogHelper
     {
         if (DialogTool is null)
         {
+            // 以前只 Debug.WriteLine，用户点了「选择文件」毫无反应；给它一个明确的提示。
             Debug.WriteLine("[FileDialogHelper] neither kdialog nor zenity is available");
+            Helpers.InAppToast.MainWindow?.Warning((string?)null, Starward.Language.Lang.Lunarward_FileDialog_NoTool, 5000);
             return null;
         }
         try

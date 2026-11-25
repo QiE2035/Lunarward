@@ -93,6 +93,7 @@ public partial class Lang
         public static string Lunarward_Login_Title => ResourceManager.GetString("Lunarward_Login_Title", resourceCulture) ?? "Lunarward_Login_Title";
         public static string Lunarward_Login_Description => ResourceManager.GetString("Lunarward_Login_Description", resourceCulture) ?? "Lunarward_Login_Description";
         public static string Lunarward_Login_Open => ResourceManager.GetString("Lunarward_Login_Open", resourceCulture) ?? "Lunarward_Login_Open";
+        public static string Lunarward_FileDialog_NoTool => ResourceManager.GetString("Lunarward_FileDialog_NoTool", resourceCulture) ?? "Lunarward_FileDialog_NoTool";
         public static string Lunarward_Login_OpeningWindow => ResourceManager.GetString("Lunarward_Login_OpeningWindow", resourceCulture) ?? "Lunarward_Login_OpeningWindow";
         public static string Lunarward_Login_NoCookie => ResourceManager.GetString("Lunarward_Login_NoCookie", resourceCulture) ?? "Lunarward_Login_NoCookie";
         public static string Lunarward_Login_FetchingRoles => ResourceManager.GetString("Lunarward_Login_FetchingRoles", resourceCulture) ?? "Lunarward_Login_FetchingRoles";

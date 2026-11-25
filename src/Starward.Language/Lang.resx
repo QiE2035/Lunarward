@@ -4379,4 +4379,7 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   <data name="Lunarward_Login_PleaseSignIn" xml:space="preserve">
     <value>Please click “Open login window” to sign in first.</value>
   </data>
+  <data name="Lunarward_FileDialog_NoTool" xml:space="preserve">
+    <value>No file dialog available: install kdialog or zenity (the portal fallback was unavailable too).</value>
+  </data>
 </root>
