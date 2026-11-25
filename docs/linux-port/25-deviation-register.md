@@ -41,8 +41,8 @@
 
 ## 2 · 结论（需拍板的三件事）
 
-1. **must 158 条** = 移植骨架，去掉任一条就直接失去对应功能，不应回退：X11/Wayland 窗口与托盘（3.4）、Uno/Skia 引擎缺口（3.5/3.7 的图像解码与视频帧）、wine 前缀与注册表（3.3/3.9）、进程与会话观察（3.9）、文件对话框与 portal（3.9）。
-2. **avoidable 99 条** = 与平台无关、本可照上游写；清单见附录 B。建议逐条二选一：改回上游语义，或在 §3 对应条目里写明「有意保留」的理由。2026-11-25 已按此原则顺手修掉 5 条可复现缺陷（见 §2.1）。
+1. **must 160 条** = 移植骨架，去掉任一条就直接失去对应功能，不应回退：X11/Wayland 窗口与托盘（3.4）、Uno/Skia 引擎缺口（3.5/3.7 的图像解码与视频帧）、wine 前缀与注册表（3.3/3.9）、进程与会话观察（3.9）、文件对话框与 portal（3.9）。
+2. **avoidable 97 条** = 与平台无关、本可照上游写；清单见附录 B。建议逐条二选一：改回上游语义，或在 §3 对应条目里写明「有意保留」的理由。2026-11-25 已按此原则顺手修掉 5 条可复现缺陷（见 §2.1），并按「优先对齐上游」批量回改了一批（D134，见 §2.3）；其中 2 条经 CI 的 `dotnet publish -r linux-x64` 实测**不是**可避免的（`RectInt32` 4 参构造器、`WindowActivationState` 同名双类型），已改判 must。
 3. **可回流上游 12 条**（附录 C）全是「上游自己也有这个毛病」的修正，值得单独提 PR；风险最低的是 `Helpers/PointerCursor.cs`、`Features/Setting/FileManageSetting.xaml.cs` 手工备份、`Features/GameInstall` 的图标码位替换。
 
 ### 2.1 本次重算顺带修掉的（已在工作区/已提交）
@@ -72,6 +72,21 @@
 | 3.7 | 视频壁纸音量滑块无效（播放器恒 `--no-audio`） | `Features/Background/AppBackground.Linux.cs:479-497` |
 | 3.6 | BBS 战绩页退化为说明页（WebView2 桥裁到 26 行） | `Features/GameRecord/BattleChronicleWindow.Linux.cs:64` |
 | 3.6 | 登录成功后战绩页不刷新（`GameRecordRoleChangedMessage` 无人订阅） | `Features/GameRecord/GameRecordPage.xaml.cs:56` |
+
+### 2.3 D134：可避免偏离的批量回改（2026-11-25）
+
+按「优先对齐上游」逐模块回改，本节只记结论；逐条的「上游 / 移植 / 理由」仍看 §3 对应条目。
+
+| 模块 | 回改条目 | 处置 |
+| --- | --- | --- |
+| 3.1 启动器 | 同名遮蔽的 `GameConfigIni`、`SetGenshinEnableHDR` 死方法、公告同步包装、`#if DEBUG` 自动链接钩子、预检动作文案 | 删死代码 / 改走 `Lang` |
+| 3.2 安装 | 扫描根 `LUNARWARD_GAME_ROOTS`、任务表不清理、finally 缺 1 秒退避 | 删环境变量 / 补清理与退避 |
+| 3.3 游戏设置 | 读注册表回落 `~/.wine`、HDR 写入静默失败、分辨率同步等待、HDR 对话框文案 | 走游戏前缀 / 抛错 / 改异步 / 走 `Lang` |
+| 3.4 外壳 | `App.HandleStartupAsync`、`ApplyAcrylicFallback`、缺 `playtime`/`rpc` 子命令 | 删死代码 / 补子命令（托盘激活与拖拽区两点还原后编不过，不改） |
+| 3.5 截图 | 右键菜单、缩略图 `IsThumbnail`、截图文件名、批量转换整库、两个死处理器 | 补菜单（`RightTapped` 现造）/ 补属性 / 改格式 / 要求先勾选 / 删 |
+| 视图底座 | `PageBase` 在 `Unloaded` 退订 `Loaded`（缓存页面再进入时 `OnLoaded` 不执行） | 不再退订 |
+
+**仍保留的 avoidable 项（下一轮）**：`GameLauncherPage` 内联 `BackgroundSwitcher`（约 270 行，需截图验证）、截图外部目录管理与「格式/质量」设置开关、`ImageViewWindow` 死窗口三件套、`ImageConvertItem` 孤立模型、`LoginPage` 残留（上游 0.19.0 已删）、BBS 桥裁剪、托盘主题/更新窗重试/深链等 3.8/3.9 条目。
 
 ## 3 · 逐模块偏离点
 
@@ -958,10 +973,10 @@
   - 上游：`Kernel32.GetModuleHandle(null)` + `User32.LoadIcon(hInstance, "#32512")` → `System.Drawing.Icon.FromHandle` 赋给 `trayIcon.Icon`
   - 移植：删掉图标加载，只设 `trayIcon.ToolTipText = "Lunarward";`
   - 理由：`System.Drawing.Icon.FromHandle` 依赖 GDI+ 的 Win32 图标句柄；Linux 托盘走 `org.kde.StatusNotifierItem`，图标由 `IconPixmap`/桌面主题提供（M2），`H.NotifyIcon` 这条路径整体不可用。
-- **第 76 行（激活状态判断）**｜eng 工程性｜avoidable
+- **第 76 行（激活状态判断）**｜eng 工程性｜must 必需
   - 上游：`if (args.WindowActivationState is WindowActivationState.Deactivated)`
   - 移植：`if (args.WindowActivationState.ToString() == "Deactivated")`
-  - 理由：字符串比较替代枚举模式匹配，可读性与性能都更差，怀疑是为了绕过 Uno 里 `WindowActivationState` 的类型/命名差异（未核实：Uno 的 `Microsoft.UI.Xaml.WindowActivationState` 是否与 WinUI 同名同值）。若枚举确实一致，这行应还原成上游写法。
+  - 理由：**不是可避免的**——2026-11-25 实测：还原成 `is WindowActivationState.Deactivated` 后，本地 Debug/Release 构建通过，但 CI 的 `dotnet publish -r linux-x64 --self-contained` 报 `error CS0266: Cannot implicitly convert type 'Microsoft.UI.Xaml.WindowActivationState' to 'Windows.UI.Core.CoreWindowActivationState'`。同一个属性在不同 target/projection 下解析成两套同名枚举，字符串比较是唯一两边都成立写法（D134）。
 - **第 88-101 行（托盘菜单定位）**｜api 平台 API｜must
   - 上游：`User32.GetCursorPos` + `User32.CalculatePopupWindowPosition(point, size, TPM_RIGHTALIGN|TPM_BOTTOMALIGN|TPM_WORKAREA, ...)` + `User32.MoveWindow`
   - 移植：`RootGrid.Measure(...)` 算尺寸后，用 `DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea` 把窗口贴到**工作区右上角**
@@ -975,10 +990,10 @@
   - 上游：`#if DEBUG` → `%LocalAppData%\Starward`；`#else` → `MyDocuments\Starward`
   - 移植：`#if DEBUG` → `%LocalAppData%\lunarward`（目录名改品牌）；`#else` 分支未改，仍是 `MyDocuments\Starward`（`:122`）
   - 理由：与 `AppConfig.Configuration.cs` 的 `LinuxDataHome/lunarward` 保持一致。但 Release 分支没跟着改，一旦这个窗口重新启用，Release 下会建出 `~/Documents/Starward`，与真正的数据目录 `~/.local/share/lunarward` 并存（旧总账没有记这条）。**整体前提**：D22 起 Linux 首跑不再弹 WelcomeWindow（`AppConfig.Configuration.cs:170-177`），本文件在 Linux 上是死代码——`GameFileDatabase.SetDatabase` 的唯一残留调用点（`:261-262`）也因此不可达。
-- **第 46 行（SetDragRectangles 调用写法）**｜cosmetic 外观文案｜avoidable
+- **第 46 行（SetDragRectangles 调用写法）**｜cosmetic 外观文案｜must 必需
   - 上游：`SetDragRectangles(new RectInt32(0, 0, 100000, (int)(48 * UIScale)))`
   - 移植：`SetDragRectangles(new RectInt32 { X = 0, Y = 0, Width = 100000, Height = (int)(48 * UIScale) })`
-  - 理由：纯语法替换（构造器 → 对象初始化器），行为完全相同；大概是 Uno 下 `RectInt32` 构造器重载解析有问题时的临时改法，属纯格式差异，可还原。
+  - 理由：2026-11-25 实测：4 参构造器只在 Windows 目标下存在，CI 的 `dotnet publish -r linux-x64` 报 `error CS1729: RectInt32 does not contain a constructor that takes 4 arguments`；对象初始化器两边都能编（D134）。原判据：纯语法替换（构造器 → 对象初始化器），行为完全相同；大概是 Uno 下 `RectInt32` 构造器重载解析有问题时的临时改法，属纯格式差异，可还原。
 
 #### `Features/WindowBase.Linux.cs`
 
@@ -2609,7 +2624,7 @@
 
 > 为什么整份排除：Windows 专属 API 或 M4 占位功能。逐项实现状态见 `12-shims-and-gaps.md` §6。
 
-## 附录 B · `avoidable` 清单（99 条，需要逐条决定）
+## 附录 B · `avoidable` 清单（97 条，需要逐条决定）
 
 > 2026-11-25 全量重算后按新类别重新生成。规则：这些与平台无关，本可以照上游写。
 

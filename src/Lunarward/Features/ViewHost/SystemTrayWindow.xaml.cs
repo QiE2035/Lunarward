@@ -73,7 +73,11 @@ public sealed partial class SystemTrayWindow : WindowBase
 
     private void SystemTrayWindow_Activated(object sender, WindowActivatedEventArgs args)
     {
-        if (args.WindowActivationState is WindowActivationState.Deactivated)
+        // LUNARWARD-DEVIATION: D134。CI 的 publish（-r linux-x64）下 WindowActivatedEventArgs.WindowActivationState
+        // 解析成 Windows.UI.Core.CoreWindowActivationState，本地 Debug/Release 构建解析成
+        // Microsoft.UI.Xaml.WindowActivationState——同一个枚举名两套类型，写 `is` 模式匹配会在其中一侧
+        // 报 CS0266。用 ToString() 比较对两边都成立。
+        if (args.WindowActivationState.ToString() == "Deactivated")
         {
             Hide();
         }

@@ -43,7 +43,9 @@ public sealed partial class WelcomeWindow : WindowBase
         AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
         CenterInScreen(1200, 676);
         AdaptTitleBarButtonColorToActuallTheme();
-        SetDragRectangles(new RectInt32(0, 0, 100000, (int)(48 * UIScale)));
+        // LUNARWARD-DEVIATION: D134。RectInt32 的 4 参构造器只在 Windows 目标下存在，
+        // linux-x64 publish 时用的是另一套 projection（CI 报 CS1729），对象初始化器两边都能编。
+        SetDragRectangles(new RectInt32 { X = 0, Y = 0, Width = 100000, Height = (int)(48 * UIScale) });
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.IsMaximizable = false;
