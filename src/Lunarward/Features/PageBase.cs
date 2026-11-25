@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using Starward.Core;
@@ -37,7 +37,7 @@ public abstract partial class PageBase : Page
 
     // LUNARWARD-DEVIATION: D94。上游每次导航都新建页面实例，Lunarward 缓存页面后同一实例会反复
     // Loaded/Unloaded，也必须能在切换到另一个游戏时把内容整套重载，否则页面会停在第一次的数据上。
-    private string? ContentGameId;
+    protected string? ContentGameId;
 
 
     private void PageEx_Unloaded(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)

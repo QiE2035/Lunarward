@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -66,65 +66,33 @@ internal class LunarwardProgram
             return;
         }
 
-                // 未变更文件的搬运：先硬链接（同分区零成本），失败退复制
-        static bool LinkOrCopy(string srcRoot, string dstRoot, string relative)
+        // 0.19.0 整体删除了移植侧自写的 Sophon 管线（Starward.Features.GameInstall.Sophon），
+        // 只服务 --install-chunk-* 的 LinkOrCopy / LocalCopyMatches / GetBuildForTest 随之删除；
+        // 安装/更新改由上游 Starward.GameInstall.GameInstallRunner（CLI 走 `--install-task`）承担。
+
+        // 体积打印：上游没有现成格式化函数，CLI 里统一在这里转一次。
+        static string FormatSize(long bytes)
         {
-            try
+            string[] units = new[] { "B", "KB", "MB", "GB", "TB" };
+            double value = bytes;
+            int unit = 0;
+            while (value >= 1024 && unit < units.Length - 1)
             {
-                string src = System.IO.Path.Combine(srcRoot, relative);
-                string dst = System.IO.Path.Combine(dstRoot, relative);
-                if (!System.IO.File.Exists(src) || System.IO.File.Exists(dst))
-                {
-                    return false;
-                }
-                string? dir = System.IO.Path.GetDirectoryName(dst);
-                if (!string.IsNullOrEmpty(dir))
-                {
-                    System.IO.Directory.CreateDirectory(dir);
-                }
-                try
-                {
-                    System.IO.File.CreateSymbolicLink(dst, src);
-                }
-                catch
-                {
-                    System.IO.File.Copy(src, dst, overwrite: true);
-                }
-                return true;
+                value /= 1024;
+                unit++;
             }
-            catch
-            {
-                return false;
-            }
+            return unit == 0 ? $"{bytes} B" : $"{value:F2} {units[unit]}";
         }
 
-        // 本地已有同尺寸文件才算「可以跳过」（符号链接要解析到目标，见 InstallPipeline.LocalFileMatches）
-        static bool LocalCopyMatches(string root, Starward.Features.GameInstall.Sophon.SophonChunkFile file)
-            => Starward.Features.GameInstall.Sophon.InstallPipeline.LocalFileMatches(root, file);
+        // 环境检查：移植侧是 async 的 `CheckEnviromentAsync()`（Linux 要异步弹 NoPermissionWindow），
+        // 上游 0.19.0 是同步 `CheckEnviroment()`；这里按移植侧版本直接调（LUNARWARD-DEVIATION，D128）。
+        static void InitEnviroment() => AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
 
-// 离线/联调：`LUNARWARD_SOPHON_DIRECT=1` 时跳过 HoYoPlay 的 branch 查询，直接构造一个假 package，
-        // 让安装链路可以指向 `LUNARWARD_SOPHON_BASE` 指定的假服务（L2 用）。
-        static Starward.Features.GameInstall.Sophon.SophonBuildInfo? GetBuildForTest(
-            Starward.Features.GameInstall.Sophon.SophonClient client,
-            Starward.Core.HoYoPlay.GameId gameId,
-            bool preDownload,
-            List<string> fields,
-            string? tag)
-        {
-            if (Environment.GetEnvironmentVariable("LUNARWARD_SOPHON_DIRECT") == "1")
-            {
-                var package = new Starward.Core.HoYoPlay.GameBranchPackage
-                {
-                    PackageId = Environment.GetEnvironmentVariable("LUNARWARD_SOPHON_PACKAGE") ?? "fake-package",
-                    Branch = preDownload ? "predownload" : "main",
-                    Password = "fake-password",
-                    Tag = tag ?? Environment.GetEnvironmentVariable("LUNARWARD_SOPHON_TAG") ?? "9.9.9",
-                };
-                var branch = new Starward.Core.HoYoPlay.GameBranch { GameId = gameId, Main = package };
-                return client.GetBuildInfoForPackageAsync(branch, package, preDownload, fields, default, tag).GetAwaiter().GetResult();
-            }
-            return client.GetBuildInfoAsync(gameId, preDownload, fields, default, tag).GetAwaiter().GetResult();
-        }
+
+        // `--profile-ensure` 不带 biz 时的缺省值：0.19.0 删了 AppConfig.CurrentGameBiz（Obsolete 且当真），
+        // 只剩 CurrentGameId（HoYoPlay 的 GameId.Id），反查交给 Helpers.GameIdHelper。
+        static Starward.Core.GameBiz? GetCurrentGameBiz() => Helpers.GameIdHelper.CurrentGameBiz();
+
 
         // 登录助手（D76）：登录窗是独立进程，实现换成「本程序 + WebKitGTK 6.0」，不再依赖 python3。
         if (args.Length >= 1 && args[0] is "--webkit-login")
@@ -181,8 +149,14 @@ internal class LunarwardProgram
         if (args.Length >= 1 && args[0] is "--profile-ensure")
         {
             AppConfig.LoadConfiguration();
-            Starward.Core.GameBiz ensureBiz = args.Length > 1 ? new Starward.Core.GameBiz(args[1]) : AppConfig.CurrentGameBiz;
-            (Features.Runtime.RuntimeProfile? ensured, bool created, bool newlyBound) = Features.Runtime.ProfileBinding.EnsureFor(ensureBiz);
+            Starward.Core.GameBiz? ensureBiz = args.Length > 1 ? new Starward.Core.GameBiz(args[1]) : GetCurrentGameBiz();
+            if (ensureBiz is null)
+            {
+                Console.WriteLine("没有指名游戏，也没有当前游戏：请用 `--profile-ensure <biz>`（biz 列表见 --help）。");
+                Environment.ExitCode = 1;
+                return;
+            }
+            (Features.Runtime.RuntimeProfile? ensured, bool created, bool newlyBound) = Features.Runtime.ProfileBinding.EnsureFor(ensureBiz.Value);
             if (ensured is null)
             {
                 Console.WriteLine("没有可用的运行环境，也没有可复制的模板。");
@@ -419,59 +393,16 @@ internal class LunarwardProgram
             return;
         }
 
-        // 实际下载：`lunarward --install-run <gameKey> [--predownload] [--target <dir>] [--limit-mb N|--all] [--parallel N] [--write-version]`
-        //           `lunarward --install-fetch <gameKey> <相对路径> [--predownload] [--target <dir>]`
-        if (args.Length >= 2 && args[0] is "--install-run" or "--install-fetch")
-        {
-            if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz dlBiz))
-            {
-                Console.WriteLine($"未知游戏：{args[1]}");
-                Environment.ExitCode = 1;
-                return;
-            }
-            bool dlFetch = args[0] is "--install-fetch";
-            string? dlOnlyFile = dlFetch ? (args.Length >= 3 ? args[2] : null) : null;
-            if (dlFetch && dlOnlyFile is null)
-            {
-                Console.WriteLine("用法：--install-fetch <gameKey> <相对路径> [--predownload] [--target <dir>]");
-                return;
-            }
-            bool dlPre = Array.IndexOf(args, "--predownload") >= 0;
-            bool dlAll = Array.IndexOf(args, "--all") >= 0;
-            long dlLimitMb = 200;
-            int dlLimitIndex = Array.IndexOf(args, "--limit-mb");
-            if (dlLimitIndex >= 0 && args.Length > dlLimitIndex + 1 && long.TryParse(args[dlLimitIndex + 1], out long parsedLimit))
-            {
-                dlLimitMb = parsedLimit;
-            }
-            int dlParallel = 4;
-            int dlParallelIndex = Array.IndexOf(args, "--parallel");
-            if (dlParallelIndex >= 0 && args.Length > dlParallelIndex + 1 && int.TryParse(args[dlParallelIndex + 1], out int parsedParallel) && parsedParallel > 0)
-            {
-                dlParallel = parsedParallel;
-            }
-            string? dlTargetDir = null;
-            int dlTargetAt = Array.IndexOf(args, "--target");
-            if (dlTargetAt >= 0 && args.Length > dlTargetAt + 1)
-            {
-                dlTargetDir = args[dlTargetAt + 1];
-            }
-            // 安装目录覆盖：命令行排错/离线测试时不必先让启动器把路径写进设置（与 --install-dir 的其它命令一致）。
-            string? dlInstallDir = null;
-            int dlInstallAt = Array.IndexOf(args, "--install-dir");
-            if (dlInstallAt >= 0 && args.Length > dlInstallAt + 1)
-            {
-                dlInstallDir = args[dlInstallAt + 1];
-            }
-            Starward.Features.GameInstall.Sophon.InstallDownloadRunner.RunAsync(dlBiz, dlOnlyFile, dlPre, dlAll, dlLimitMb, dlParallel, dlTargetDir, args.Contains("--write-version"), dlInstallDir)
-                                                                .GetAwaiter()
-                                                                .GetResult();
-            return;
-        }
+        // `--install-run` / `--install-fetch` 已删除：它们直接驱动移植侧自写的 Sophon 下载管线
+        // （InstallDownloadRunner，支持「只下单个文件」「限 N MB 就停」「--parallel」「--target」），
+        // 0.19.0 把安装/更新整体收进上游 Starward.GameInstall.GameInstallRunner，没有这些细粒度开关。
+        // 现在要真下载请用 `--install-task <gameKey> [--predownload] [--run-seconds N]`。
 
 #if DEBUG
         // 开发期：不经过鼠标，直接跑一次安装/更新并按 UI 读取的字段打印进度（真机联调用，Release 不含）。
-        // 用法：--dev-install-probe <gameKey> [--limit-mb N] [--pause-after N]
+        // 用法：--dev-install-probe <gameKey> [--pause-after N] [--op-repair]
+        // 0.19.0 起任务由进程内 facade Starward.Features.GameInstall.GameInstallService 驱动（RPC 服务已删除），
+        // 进度字段换成上游的 GameInstallProgress（网络/写入字节、PercentProgress、NetworkDownloadSpeed）。
         if (args.Length >= 2 && args[0] is "--dev-install-probe")
         {
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz probeBiz))
@@ -480,25 +411,27 @@ internal class LunarwardProgram
                 Environment.ExitCode = 1;
                 return;
             }
-            int limitIndex = Array.IndexOf(args, "--limit-mb");
-            if (limitIndex >= 0 && limitIndex + 1 < args.Length)
+            InitEnviroment();
+            Starward.Core.HoYoPlay.GameId? probeGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(probeBiz);
+            if (probeGameId is null)
             {
-                Environment.SetEnvironmentVariable("LUNARWARD_DEV_INSTALL_LIMIT_MB", args[limitIndex + 1]);
+                Console.WriteLine($"这个游戏没有对应的 HoYoPlay 条目：{probeBiz.Value}");
+                Environment.ExitCode = 1;
+                return;
             }
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            Starward.RPC.GameInstall.GameInstallService service = AppConfig.GetService<Starward.RPC.GameInstall.GameInstallService>();
-            string? probePath = AppConfig.GetGameInstallPath(probeBiz);
+            string? probePath = Features.GameLauncher.GameLauncherService.GetGameInstallPath(probeGameId);
             if (string.IsNullOrEmpty(probePath))
             {
                 Console.WriteLine("这个游戏没有配置安装路径");
                 return;
             }
-            Starward.Core.HoYoPlay.GameId probeGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(probeBiz);
-            Starward.Core.AudioLanguage probeAudio = Starward.Core.AudioLanguage.Chinese;
+            Starward.Features.GameInstall.GameInstallService service = AppConfig.GetService<Starward.Features.GameInstall.GameInstallService>();
             bool probeRepair = args.Contains("--op-repair");
-            var probeTask = probeRepair
-                ? service.StartRepairAsync(probeGameId, probePath, probeAudio).GetAwaiter().GetResult()
-                : service.StartUpdateAsync(probeGameId, probePath, probeAudio).GetAwaiter().GetResult();
+            var probeTask = (probeRepair
+                                ? service.StartRepairAsync(probeGameId, probePath, default)
+                                : service.StartUpdateAsync(probeGameId, probePath, default))
+                           .GetAwaiter()
+                           .GetResult();
             if (probeTask is null)
             {
                 Console.WriteLine("任务没能启动");
@@ -515,23 +448,19 @@ internal class LunarwardProgram
             for (int i = 0; i < 600; i++)
             {
                 Thread.Sleep(500);
-                long total = probeTask.Progress_DownloadTotalBytes;
-                long finish = probeTask.Progress_DownloadFinishBytes;
-                long writeTotal = probeTask.Progress_WriteTotalBytes;
-                long writeFinish = probeTask.Progress_WriteFinishBytes;
-                double percent = writeTotal > 0 ? (double) writeFinish / writeTotal : (total > 0 ? (double) finish / total : 0);
-                var liveTask = service.GetGameInstallTask(probeGameId);
-                Console.WriteLine($"state={probeTask.State} live={liveTask?.State} {finish}/{total} B ({percent:P1}, ctx {probeTask.Progress_Percent:P1}) speed={probeTask.NetworkDownloadSpeed / 1048576.0:F2}MB/s remain={probeTask.RemainTimeSeconds}s err={probeTask.ErrorMessage}");
-                if (pauseAfter >= 0 && !paused && finish > pauseAfter * 1048576L)
+                // 进度对象是快照，必须每轮重新取一次实时任务
+                Starward.GameInstall.GameInstallProgress live = service.GetGameInstallTask(probeGameId) ?? probeTask;
+                Console.WriteLine($"state={live.State} step={live.Step} {live.NetworkFinishedBytes}/{live.NetworkTotalBytes} B (网络 {live.PercentProgress:P1}) 磁盘 {live.StorageFinishedBytes}/{live.StorageTotalBytes} B speed={live.NetworkDownloadSpeed / 1048576.0:F2}MB/s remain={live.RemainTimeSeconds}s err={live.ErrorMessage}");
+                if (pauseAfter >= 0 && !paused && live.NetworkFinishedBytes > pauseAfter * 1048576L)
                 {
-                    service.PauseTaskAsync(probeTask).GetAwaiter().GetResult();
+                    service.PauseTaskAsync(live).GetAwaiter().GetResult();
                     paused = true;
                     Thread.Sleep(2000);
-                    Console.WriteLine($"paused state={probeTask.State}");
-                    service.ContinueTaskAsync(probeTask).GetAwaiter().GetResult();
-                    Console.WriteLine($"continued state={probeTask.State}");
+                    Console.WriteLine($"paused state={service.GetGameInstallTask(probeGameId)?.State}");
+                    service.ContinueTaskAsync(live).GetAwaiter().GetResult();
+                    Console.WriteLine($"continued state={service.GetGameInstallTask(probeGameId)?.State}");
                 }
-                if (probeTask.State is Starward.RPC.GameInstall.GameInstallState.Finish or Starward.RPC.GameInstall.GameInstallState.Stop or Starward.RPC.GameInstall.GameInstallState.Error or Starward.RPC.GameInstall.GameInstallState.Paused)
+                if (live.State is Starward.GameInstall.RunnerState.Finish or Starward.GameInstall.RunnerState.Stop or Starward.GameInstall.RunnerState.Error or Starward.GameInstall.RunnerState.Paused)
                 {
                     break;
                 }
@@ -542,188 +471,37 @@ internal class LunarwardProgram
         // 开发期：把某个游戏的安装路径写进配置（用于真机联调，Release 不含）。
         if (args.Length >= 3 && args[0] is "--dev-set-install-path" && Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz devBiz))
         {
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            AppConfig.SetGameInstallPath(devBiz, args[2]);
-            AppConfig.SaveConfiguration();
-            Console.WriteLine($"install_path_{devBiz}={AppConfig.GetGameInstallPath(devBiz)}");
+            InitEnviroment();
+            Starward.Core.HoYoPlay.GameId? devGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(devBiz);
+            if (devGameId is null)
+            {
+                Console.WriteLine($"这个游戏没有对应的 HoYoPlay 条目：{devBiz.Value}");
+                Environment.ExitCode = 1;
+                return;
+            }
+            try
+            {
+                // 0.19.0 删除了 AppConfig.SetGameInstallPath（Obsolete(true)），安装路径改存进游戏条目
+                Starward.Features.GameLauncher.GameLauncherService launcher = AppConfig.GetService<Starward.Features.GameLauncher.GameLauncherService>();
+                launcher.ChangeGameInstallPath(devGameId, args[2]);
+                AppConfig.SaveConfiguration();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"写入失败：{ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
+                return;
+            }
+            Console.WriteLine($"install_path_{devBiz}={Features.GameLauncher.GameLauncherService.GetGameInstallPath(devGameId)}");
             return;
         }
 #endif
-
-        // chunk 级复用估算：`lunarward --install-chunk-plan <gameKey> [--predownload] [--local <ver>]`
-        if (args.Length >= 2 && args[0] is "--install-chunk-plan")
-        {
-            if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz cpBiz))
-            {
-                Console.WriteLine($"未知游戏：{args[1]}");
-                Environment.ExitCode = 1;
-                return;
-            }
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            var cpGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(cpBiz);
-            string cpInstall = AppConfig.GetGameInstallPath(cpBiz) ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", cpBiz.Value);
-            int cpDirIndex = Array.IndexOf(args, "--install-dir");
-            if (cpDirIndex >= 0 && cpDirIndex + 1 < args.Length)
-            {
-                cpInstall = args[cpDirIndex + 1];
-            }
-            var cpFields = new List<string> { "game" };
-            cpFields.AddRange(Starward.Features.GameInstall.Sophon.SophonClient.DetectInstalledAudioFields(cpInstall));
-            int cpLocalIndex = Array.IndexOf(args, "--local");
-            string? cpLocal = cpLocalIndex >= 0 && cpLocalIndex + 1 < args.Length ? args[cpLocalIndex + 1] : Starward.Features.GameInstall.Sophon.SophonClient.TryReadLocalVersion(cpInstall);
-            if (string.IsNullOrEmpty(cpLocal))
-            {
-                Console.WriteLine("读不到本地版本（可用 --local 指定）");
-                Environment.ExitCode = 1;
-                return;
-            }
-            var cpHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
-            var cpSophon = new Starward.Features.GameInstall.Sophon.SophonClient(cpHyp);
-            var cpNew = GetBuildForTest(cpSophon, cpGameId, args.Contains("--predownload"), cpFields, null);
-            var cpOld = GetBuildForTest(cpSophon, cpGameId, false, cpFields, cpLocal);
-            if (cpNew is null || cpOld is null)
-            {
-                Console.WriteLine($"拿不到清单：new={cpNew is not null} old={cpOld is not null}（本地版本 {cpLocal}）");
-                Environment.ExitCode = 1;
-                return;
-            }
-            var cpIndex = Starward.Features.GameInstall.Sophon.ChunkReusePlanner.BuildIndex(cpOld.Manifests.Values.SelectMany(x => x));
-            var cpStats = Starward.Features.GameInstall.Sophon.ChunkReusePlanner.Measure(cpIndex, cpNew.Manifests.Values.SelectMany(x => x), cpInstall);
-            Console.WriteLine($"本地版本 {cpLocal} → 目标 {cpNew.Package.Tag}；索引块 {cpIndex.Count}");
-            Console.WriteLine($"新版本解压体积 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(cpStats.NewTotalBytes)}（{cpStats.NewChunks + cpStats.ReusedChunks} 块）");
-            Console.WriteLine($"可复用 {cpStats.ReusedChunks} 块 / {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(cpStats.ReusableBytes)}");
-            Console.WriteLine($"需下载 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(cpStats.DownloadBytes)}（{cpStats.NewChunks} 块）");
-            foreach (var worst in cpStats.WorstFiles)
-            {
-                Console.WriteLine($"  {worst.Path}  新 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(worst.NewBytes)}  → 下载 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(worst.DownloadBytes)}");
-            }
-            return;
-        }
-
-        // chunk 级复用实测：`lunarward --install-chunk-run <gameKey> [--predownload] [--local <ver>] [--install-dir <旧安装>] [--target <目录>] [--limit-mb N]`
-        if (args.Length >= 2 && args[0] is "--install-chunk-run")
-        {
-            if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz crBiz))
-            {
-                Console.WriteLine($"未知游戏：{args[1]}");
-                Environment.ExitCode = 1;
-                return;
-            }
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            var crGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(crBiz);
-            string crInstall = AppConfig.GetGameInstallPath(crBiz) ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", crBiz.Value);
-            int crDirIndex = Array.IndexOf(args, "--install-dir");
-            if (crDirIndex >= 0 && crDirIndex + 1 < args.Length)
-            {
-                crInstall = args[crDirIndex + 1];
-            }
-            int crTargetIndex = Array.IndexOf(args, "--target");
-            string crTarget = crTargetIndex >= 0 && crTargetIndex + 1 < args.Length
-                ? args[crTargetIndex + 1]
-                : crInstall + "-chunktarget";
-            int crLimitIndex = Array.IndexOf(args, "--limit-mb");
-            long crLimit = crLimitIndex >= 0 && crLimitIndex + 1 < args.Length && long.TryParse(args[crLimitIndex + 1], out long crLimitMb) ? crLimitMb * 1024 * 1024 : 0;
-            var crFields = new List<string> { "game" };
-            crFields.AddRange(Starward.Features.GameInstall.Sophon.SophonClient.DetectInstalledAudioFields(crInstall));
-            int crLocalIndex = Array.IndexOf(args, "--local");
-            string? crLocal = crLocalIndex >= 0 && crLocalIndex + 1 < args.Length ? args[crLocalIndex + 1] : Starward.Features.GameInstall.Sophon.SophonClient.TryReadLocalVersion(crInstall);
-            if (string.IsNullOrEmpty(crLocal))
-            {
-                Console.WriteLine("读不到本地版本（可用 --local 指定）");
-                Environment.ExitCode = 1;
-                return;
-            }
-            var crHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
-            var crSophon = new Starward.Features.GameInstall.Sophon.SophonClient(crHyp);
-            var crNew = GetBuildForTest(crSophon, crGameId, args.Contains("--predownload"), crFields, null);
-            var crOld = GetBuildForTest(crSophon, crGameId, false, crFields, crLocal);
-            if (crNew is null || crOld is null)
-            {
-                Console.WriteLine($"拿不到清单：new={crNew is not null} old={crOld is not null}");
-                Environment.ExitCode = 1;
-                return;
-            }
-            var crIndex = Starward.Features.GameInstall.Sophon.ChunkReusePlanner.BuildIndex(crOld.Manifests.Values.SelectMany(x => x));
-            var crOldHash = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var f in crOld.Manifests.Values.SelectMany(x => x))
-            {
-                if (!f.IsFolder)
-                {
-                    crOldHash[f.File] = f.MD5;
-                }
-            }
-            Console.WriteLine($"本地 {crLocal} → 目标 {crNew.Package.Tag}；写入 {crTarget}");
-            using var crHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-            long crTotalDownload = 0, crTotalReuse = 0, crFiles = 0, crFailed = 0;
-            var crClock = System.Diagnostics.Stopwatch.StartNew();
-            foreach (var (field, fileList) in crNew.Manifests)
-            {
-                if (!crNew.ChunkUrlPrefixes.TryGetValue(field, out string? prefix) || string.IsNullOrEmpty(prefix))
-                {
-                    Console.WriteLine($"[{field}] 没有 chunk 下载前缀，跳过");
-                    continue;
-                }
-                // 内容完全没变的文件整份跳过（复用比例的分母不含它们）。
-                int crOnly = Array.IndexOf(args, "--only-file");
-                string? crOnlyFile = crOnly >= 0 && crOnly + 1 < args.Length ? args[crOnly + 1] : null;
-                var need = new List<Starward.Features.GameInstall.Sophon.SophonChunkFile>();
-                foreach (var f in fileList)
-                {
-                    if (f.IsFolder)
-                    {
-                        continue;
-                    }
-                    // 清单说没变、且本地（crInstall）确实有这个文件才跳过；
-                    // 否则会把「本地缺文件」当成「不用下」，--target 指向新目录时产出残缺树（F-11）。
-                    bool crUnchanged = crOldHash.TryGetValue(f.File, out string? oldHash)
-                                       && string.Equals(oldHash, f.MD5, StringComparison.OrdinalIgnoreCase);
-                    if (crUnchanged && LocalCopyMatches(crInstall, f))
-                    {
-                        continue;
-                    }
-                    if (crOnlyFile is not null && !string.Equals(f.File, crOnlyFile, StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-                    need.Add(f);
-                }
-                // 未变更的文件不会进入 need：如果 target 是另一个目录，要把它们链接/复制过去，
-                // 否则 --target 会得到一个残缺的树（F-11，离线假服务测试发现）。
-                int crLinked = 0;
-                if (!string.Equals(System.IO.Path.GetFullPath(crInstall), System.IO.Path.GetFullPath(crTarget), StringComparison.Ordinal))
-                {
-                    foreach (var f in fileList)
-                    {
-                        if (!f.IsFolder && !need.Contains(f))
-                        {
-                            if (LinkOrCopy(crInstall, crTarget, f.File))
-                            {
-                                crLinked++;
-                            }
-                        }
-                    }
-                }
-                Console.WriteLine($"[{field}] 待处理 {need.Count} 个文件 → {prefix}"
-                                  + (crLinked > 0 ? $"，链接 {crLinked} 个未变更文件" : ""));
-                var part = Starward.Features.GameInstall.Sophon.ChunkReuseDownloader.RunAsync(
-                    crHttp, need, crIndex, crInstall, crTarget, prefix, crLimit,
-                    (done, total) => Task.CompletedTask, default).GetAwaiter().GetResult();
-                crTotalDownload += part.DownloadedBytes;
-                crTotalReuse += part.ReusedBytes;
-                crFiles += part.Files;
-                crFailed += part.FailedFiles;
-                Console.WriteLine($"[{field}] 完成 {part.Files} 文件，下载 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(part.DownloadedBytes)}，复用 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(part.ReusedBytes)}，续传 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(part.ResumedBytes)}，失败 {part.FailedFiles}");
-                foreach (var (file, error) in part.Errors)
-                {
-                    Console.WriteLine($"  FAIL {file}: {error}");
-                }
-            }
-            crClock.Stop();
-            Console.WriteLine($"合计：{crFiles} 文件，下载 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(crTotalDownload)}，复用 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(crTotalReuse)}，失败 {crFailed}，耗时 {crClock.Elapsed.TotalSeconds:F1}s");
-            return;
-        }
-
-        // 组合编排估算（不下东西）：`lunarward --update-plan <gameKey> [--predownload] [--local <ver>] [--install-dir <目录>]`
+        // `--install-chunk-plan` / `--install-chunk-run` 已删除：块级复用估算与实测都建立在移植侧自写的
+        // Sophon 链路上（ChunkReusePlanner / InstallDownloadRunner），0.19.0 上游没有对应实现。
+        // 想看体积请用 `--install-plan` / `--predownload-size`（改走官方 chunk 清单统计）。
+        // 更新估算（只读，不下载）：`lunarward --update-plan <gameKey> [--predownload] [--local <ver>] [--install-dir <目录>]`
+        // 0.19.0 上游没有独立「计划器」，这里只按官方接口算：目标版本、整包体积、以及从本地版本起的差分包体积；
+        // 真正下载由安装器按块复用决定（`--install-task`）。
         if (args.Length >= 2 && args[0] is "--update-plan")
         {
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz upBiz))
@@ -732,117 +510,106 @@ internal class LunarwardProgram
                 Environment.ExitCode = 1;
                 return;
             }
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            var upGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(upBiz);
-            string upInstall = AppConfig.GetGameInstallPath(upBiz) ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", upBiz.Value);
+            InitEnviroment();
+            Starward.Core.HoYoPlay.GameId? upGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(upBiz);
+            if (upGameId is null)
+            {
+                Console.WriteLine($"这个游戏没有对应的 HoYoPlay 条目：{upBiz.Value}");
+                Environment.ExitCode = 1;
+                return;
+            }
+            string upInstall = Features.GameLauncher.GameLauncherService.GetGameInstallPath(upGameId)
+                               ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", upBiz.Value);
             int upDir = Array.IndexOf(args, "--install-dir");
             if (upDir >= 0 && upDir + 1 < args.Length)
             {
                 upInstall = args[upDir + 1];
             }
-            var upFields = new List<string> { "game" };
-            upFields.AddRange(Starward.Features.GameInstall.Sophon.SophonClient.DetectInstalledAudioFields(upInstall));
-            int upLocalIndex = Array.IndexOf(args, "--local");
-            string? upLocal = upLocalIndex >= 0 && upLocalIndex + 1 < args.Length ? args[upLocalIndex + 1] : Starward.Features.GameInstall.Sophon.SophonClient.TryReadLocalVersion(upInstall);
-            if (string.IsNullOrEmpty(upLocal))
-            {
-                Console.WriteLine("读不到本地版本（可用 --local 指定）");
-                Environment.ExitCode = 1;
-                return;
-            }
-            var upHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
-            var upBranch = upHyp.GetGameBranchAsync(Starward.Core.HoYoPlay.LauncherId.FromGameId(upGameId)!, "zh-cn", upGameId, default).GetAwaiter().GetResult();
-            var upPackage = args.Contains("--predownload") ? upBranch?.PreDownload : upBranch?.Main;
-            if (upBranch is null || upPackage is null)
-            {
-                Console.WriteLine("拿不到 branch/package");
-                Environment.ExitCode = 1;
-                return;
-            }
-            using var upHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+            bool upPreDownload = args.Contains("--predownload");
             var upClock = System.Diagnostics.Stopwatch.StartNew();
-            var upPlan = Starward.Features.GameInstall.Sophon.UpdateOrchestrator.PlanAsync(
-                upHttp, upBranch, upPackage, upFields, upInstall, args.Contains("--predownload"), upLocal, default).GetAwaiter().GetResult();
-            upClock.Stop();
-            if (upPlan is null)
+            try
             {
-                Console.WriteLine("清单不可用");
-                Environment.ExitCode = 1;
-                return;
-            }
-            Console.WriteLine($"本地 {upLocal} → 目标 {upPackage.Tag}；变更 {upPlan.ChangedFiles} 文件 / 整文件 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(upPlan.FullFileBytes)}");
-            Console.WriteLine($"补丁覆盖 {upPlan.PatchFiles} 文件 / {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(upPlan.PatchBytes)}");
-            Console.WriteLine($"其余 {upPlan.ReuseFiles} 文件：块下载 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(upPlan.ReuseDownloadBytes)}，块复用 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(upPlan.ReuseReusedBytes)}");
-            Console.WriteLine($"合计需要下载 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(upPlan.TotalDownloadBytes)}（整文件是 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(upPlan.FullFileBytes)}）；估算耗时 {upClock.Elapsed.TotalSeconds:F1}s");
-            return;
-        }
-
-        // 组合编排实测：`lunarward --update-run <gameKey> [--predownload] [--local <ver>] [--install-dir <目录>] [--limit-mb N]`
-        if (args.Length >= 2 && args[0] is "--update-run")
-        {
-            if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz urBiz))
-            {
-                Console.WriteLine($"未知游戏：{args[1]}");
-                Environment.ExitCode = 1;
-                return;
-            }
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            var urGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(urBiz);
-            string urInstall = AppConfig.GetGameInstallPath(urBiz) ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", urBiz.Value);
-            int urDir = Array.IndexOf(args, "--install-dir");
-            if (urDir >= 0 && urDir + 1 < args.Length)
-            {
-                urInstall = args[urDir + 1];
-            }
-            int urLimitIndex = Array.IndexOf(args, "--limit-mb");
-            long urLimit = urLimitIndex >= 0 && urLimitIndex + 1 < args.Length && long.TryParse(args[urLimitIndex + 1], out long urLimitMb) ? urLimitMb * 1024 * 1024 : long.MaxValue;
-            var urFields = new List<string> { "game" };
-            urFields.AddRange(Starward.Features.GameInstall.Sophon.SophonClient.DetectInstalledAudioFields(urInstall));
-            int urLocalIndex = Array.IndexOf(args, "--local");
-            string? urLocal = urLocalIndex >= 0 && urLocalIndex + 1 < args.Length ? args[urLocalIndex + 1] : Starward.Features.GameInstall.Sophon.SophonClient.TryReadLocalVersion(urInstall);
-            if (string.IsNullOrEmpty(urLocal))
-            {
-                Console.WriteLine("读不到本地版本（可用 --local 指定）");
-                Environment.ExitCode = 1;
-                return;
-            }
-            var urHyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
-            var urBranch = urHyp.GetGameBranchAsync(Starward.Core.HoYoPlay.LauncherId.FromGameId(urGameId)!, "zh-cn", urGameId, default).GetAwaiter().GetResult();
-            var urPackage = args.Contains("--predownload") ? urBranch?.PreDownload : urBranch?.Main;
-            if (urBranch is null || urPackage is null)
-            {
-                Console.WriteLine("拿不到 branch/package");
-                Environment.ExitCode = 1;
-                return;
-            }
-            using var urHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-            var urClock = System.Diagnostics.Stopwatch.StartNew();
-            var urResult = Starward.Features.GameInstall.Sophon.UpdateOrchestrator.RunAsync(
-                urHttp, urBranch, urPackage, urFields, urInstall, args.Contains("--predownload"), urLocal,
-                onProgress: p =>
+                // 取数与上游安装/预下载对话框一致：branch → 场景/语音 → 本地版本 → 官方 chunk 清单
+                Starward.GameInstall.HoYoPlayService upHoYoPlay = AppConfig.GetService<Starward.GameInstall.HoYoPlayService>();
+                Starward.GameInstall.GameConfigService upConfig = AppConfig.GetService<Starward.GameInstall.GameConfigService>();
+                Starward.GameInstall.GameResourceService upResource = AppConfig.GetService<Starward.GameInstall.GameResourceService>();
+                Starward.Core.HoYoPlay.GameBranch? upBranch = upHoYoPlay.GetGameBranchAsync(upGameId, default).GetAwaiter().GetResult();
+                if (upBranch is null)
                 {
-                    Console.WriteLine($"  进度 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(p.FinishedBytes)} / {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(p.TotalBytes)}  files {p.FinishedFiles}/{p.TotalFiles}  failed {p.FailedFiles}");
-                },
-                isPaused: null,
-                limitBytes: urLimit,
-                cancellationToken: default).GetAwaiter().GetResult();
-            urClock.Stop();
-            if (urResult is null)
-            {
-                Console.WriteLine("清单不可用，需退回整文件下载");
-                Environment.ExitCode = 1;
-                return;
+                    Console.WriteLine("官方接口没有返回 branch 信息（离线或接口变更）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                Starward.Core.HoYoPlay.GameBranchPackage? upPackage = upPreDownload ? upBranch.PreDownload : upBranch.Main;
+                if (upPackage is null)
+                {
+                    Console.WriteLine("当前没有预下载（该版本可能未开放预下载）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                Starward.Core.AudioLanguage upAudio = upConfig.GetAudioLanguageAsync(upGameId, upInstall, default).GetAwaiter().GetResult();
+                string upScenario = upConfig.GetCategoryScenarioAsync(upGameId, upInstall, default).GetAwaiter().GetResult() ?? Starward.Core.HoYoPlay.CategoryScenario.CATEGORY_SCENARIO_FULL;
+                int upLocalIndex = Array.IndexOf(args, "--local");
+                string? upLocal = upLocalIndex >= 0 && upLocalIndex + 1 < args.Length
+                                      ? args[upLocalIndex + 1]
+                                      : Starward.GameInstall.GameConfigService.GetGameConfigIniAsync(upInstall, default).GetAwaiter().GetResult()?.GameVersion?.ToString();
+                Console.WriteLine($"安装目录：{upInstall}");
+                Console.WriteLine($"本地版本：{upLocal ?? "(未知)"}  目标版本：{upPackage.Tag}  语音：{upAudio}  场景：{upScenario}");
+                Starward.Core.HoYoPlay.GameSophonChunkBuild? upBuild = upHoYoPlay.GetGameSophonChunkBuildAsync(upGameId, upPackage, null, default).GetAwaiter().GetResult();
+                if (upBuild is null)
+                {
+                    Console.WriteLine("清单不可用（官方接口没有返回 chunk build）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                var upSizes = Starward.GameInstall.GameResourceService.GetChunkDownloadPackageSize(upPackage, upBuild, upScenario, upAudio);
+                long upFullBytes = upSizes.CompressedGameBytes + upSizes.CompressedAudioBytes;
+                long upFullUnzip = upSizes.UncompressedGameBytes + upSizes.UncompressedAudioBytes;
+                Console.WriteLine($"整包：需要下载 {FormatSize(upFullBytes)}，解压后共 {FormatSize(upFullUnzip)}");
+                // 差分包：只有本地版本在官方 DiffTags 里才有
+                if (upLocal is not null && upPackage.DiffTags is { } upDiffTags && upDiffTags.Contains(upLocal))
+                {
+                    var upPatches = upResource.GetGameSophonPatchManifestsAsync(upGameId, upPackage, upInstall, upScenario, upAudio, default).GetAwaiter().GetResult();
+                    long upPatchBytes = 0;
+                    bool upHasPatch = false;
+                    foreach (var upPatch in upPatches)
+                    {
+                        if (upPatch.Stats is not null && upPatch.Stats.TryGetValue(upLocal, out var upStats) && upStats is not null)
+                        {
+                            upHasPatch = true;
+                            upPatchBytes += upStats.CompressedSize;
+                        }
+                    }
+                    if (upHasPatch)
+                    {
+                        Console.WriteLine($"差分：从 {upLocal} 起需要下载 {FormatSize(upPatchBytes)}（比整包省 {FormatSize(upFullBytes - upPatchBytes)}）");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"差分：官方列出从 {upLocal} 起的差分包，但清单里没有对应统计（按整包 {FormatSize(upFullBytes)} 估）");
+                    }
+                }
+                else if (upLocal is null)
+                {
+                    Console.WriteLine("差分：读不到本地版本（可用 --local 指定），只能给整包体积");
+                }
+                else
+                {
+                    string upTags = upPackage.DiffTags is { Count: > 0 } upTagList ? string.Join(", ", upTagList) : "无";
+                    Console.WriteLine($"差分：官方没有从 {upLocal} 起的差分包（官方列出：{upTags}）");
+                }
+                Console.WriteLine($"耗时 {upClock.ElapsedMilliseconds} ms（只读估算；实际下载量由安装器按块复用决定）");
             }
-            Console.WriteLine($"补丁 {urResult.PatchedFiles} 文件 / {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(urResult.PatchedBytes)}");
-            Console.WriteLine($"复用 {urResult.ReuseFiles} 文件 / 下载 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(urResult.DownloadedBytes)} / 复用 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(urResult.ReusedBytes)}");
-            Console.WriteLine($"失败 {urResult.FailedFiles}；合计下载 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(urResult.TotalDownloadBytes)}；耗时 {urClock.Elapsed.TotalSeconds:F1}s");
-            foreach (string err in urResult.Errors)
+            catch (Exception ex)
             {
-                Console.WriteLine($"  ERR {err}");
+                Console.WriteLine($"失败（{upClock.ElapsedMilliseconds} ms）：{ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
             }
             return;
         }
 
+        // `--update-run` 已删除：它把「补丁 + 块复用 + 下载」串起来实跑，属于自研 UpdateOrchestrator；
+        // 上游等价能力是 Starward.GameInstall.GameInstallRunner（CLI 走 `--install-task`）。只读估算保留在 `--update-plan`。
         // 预下载体积（诊断用）：`lunarward --predownload-size <gameKey>`
         if (args.Length >= 2 && args[0] is "--predownload-size")
         {
@@ -852,39 +619,88 @@ internal class LunarwardProgram
                 Environment.ExitCode = 1;
                 return;
             }
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            var pdsGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(pdsBiz);
-            string pdsPath = AppConfig.GetGameInstallPath(pdsBiz) ?? "";
-            var fields = new List<string> { "game" };
-            fields.AddRange(Starward.Features.GameInstall.Sophon.SophonClient.DetectInstalledAudioFields(pdsPath));
-            var swPds = System.Diagnostics.Stopwatch.StartNew();
+            InitEnviroment();
+            Starward.Core.HoYoPlay.GameId? pdsGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(pdsBiz);
+            if (pdsGameId is null)
+            {
+                Console.WriteLine($"这个游戏没有对应的 HoYoPlay 条目：{pdsBiz.Value}");
+                Environment.ExitCode = 1;
+                return;
+            }
+            string pdsInstall = Features.GameLauncher.GameLauncherService.GetGameInstallPath(pdsGameId)
+                                ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", pdsBiz.Value);
+            var pdsClock = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                var hyp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
-                var sophon = new Starward.Features.GameInstall.Sophon.SophonClient(hyp);
-                var info = sophon.GetBuildInfoAsync(pdsGameId, preDownload: true, fields, default).GetAwaiter().GetResult();
-                Console.WriteLine($"耗时 {swPds.ElapsedMilliseconds} ms");
-                if (info is null)
+                // 取数与上游 PreDownloadDialog 一致：branch → 场景/语音 → 本地版本 → 官方 chunk 清单
+                Starward.GameInstall.HoYoPlayService pdsHoYoPlay = AppConfig.GetService<Starward.GameInstall.HoYoPlayService>();
+                Starward.GameInstall.GameConfigService pdsConfig = AppConfig.GetService<Starward.GameInstall.GameConfigService>();
+                Starward.GameInstall.GameResourceService pdsResource = AppConfig.GetService<Starward.GameInstall.GameResourceService>();
+                Starward.Core.HoYoPlay.GameBranch? pdsBranch = pdsHoYoPlay.GetGameBranchAsync(pdsGameId, default).GetAwaiter().GetResult();
+                if (pdsBranch is null)
                 {
-                    Console.WriteLine("没有预下载清单（该版本可能未开放预下载）");
+                    Console.WriteLine("官方接口没有返回 branch 信息（离线或接口变更）");
+                    Environment.ExitCode = 1;
                     return;
                 }
-                Console.WriteLine($"整包 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(info.TotalCompressedBytes)} / 解压后 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(info.TotalUncompressedBytes)} / 类别 {string.Join(",", info.Manifests.Keys)}");
-                string? lv = Starward.Features.GameInstall.Sophon.SophonClient.TryReadLocalVersion(pdsPath);
-                long? delta = sophon.GetPatchDownloadBytesAsync(pdsGameId, lv ?? "", fields, preDownload: true).GetAwaiter().GetResult();
-                Console.WriteLine(delta is > 0
-                    ? $"本地 {lv} → 预下载实际下载 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(delta.Value)}"
-                    : "没有可用的补丁体积（本地版本缺失或无 stats）");
+                Starward.Core.HoYoPlay.GameBranchPackage? pdsPre = pdsBranch.PreDownload;
+                if (pdsPre is null)
+                {
+                    Console.WriteLine("当前没有预下载（该版本可能未开放预下载）");
+                    return;
+                }
+                Starward.Core.AudioLanguage pdsAudio = pdsConfig.GetAudioLanguageAsync(pdsGameId, pdsInstall, default).GetAwaiter().GetResult();
+                string pdsScenario = pdsConfig.GetCategoryScenarioAsync(pdsGameId, pdsInstall, default).GetAwaiter().GetResult() ?? Starward.Core.HoYoPlay.CategoryScenario.CATEGORY_SCENARIO_FULL;
+                string? pdsLocal = Starward.GameInstall.GameConfigService.GetGameConfigIniAsync(pdsInstall, default).GetAwaiter().GetResult()?.GameVersion?.ToString();
+                Console.WriteLine($"安装目录：{pdsInstall}");
+                Console.WriteLine($"本地版本：{pdsLocal ?? "(未知)"}  语音：{pdsAudio}  场景：{pdsScenario}");
+                long pdsPatchBytes = 0;
+                bool pdsHasPatch = false;
+                if (pdsLocal is not null && pdsPre.DiffTags is { } pdsDiffTags && pdsDiffTags.Contains(pdsLocal))
+                {
+                    // 有差分包：直接查「从本地版本起」的补丁体积（与 PreDownloadDialog 的分支一致）
+                    var pdsPatches = pdsResource.GetGameSophonPatchManifestsAsync(pdsGameId, pdsPre, pdsInstall, pdsScenario, pdsAudio, default).GetAwaiter().GetResult();
+                    foreach (var pdsPatch in pdsPatches)
+                    {
+                        if (pdsPatch.Stats is not null && pdsPatch.Stats.TryGetValue(pdsLocal, out var pdsStats) && pdsStats is not null)
+                        {
+                            pdsHasPatch = true;
+                            pdsPatchBytes += pdsStats.CompressedSize;
+                        }
+                    }
+                }
+                long pdsFull = 0;
+                Starward.Core.HoYoPlay.GameSophonChunkBuild? pdsBuild = pdsHoYoPlay.GetGameSophonChunkBuildAsync(pdsGameId, pdsPre, null, default).GetAwaiter().GetResult();
+                if (pdsBuild is not null)
+                {
+                    var pdsSizes = Starward.GameInstall.GameResourceService.GetChunkDownloadPackageSize(pdsPre, pdsBuild, pdsScenario, pdsAudio);
+                    pdsFull = pdsSizes.CompressedGameBytes + pdsSizes.CompressedAudioBytes;
+                    Console.WriteLine($"预下载版本 {pdsPre.Tag}：整包下载 {FormatSize(pdsFull)}");
+                }
+                Console.WriteLine($"耗时 {pdsClock.ElapsedMilliseconds} ms");
+                if (pdsHasPatch)
+                {
+                    Console.WriteLine($"本地 {pdsLocal} → 预下载实际下载 {FormatSize(pdsPatchBytes)}（差分）");
+                }
+                else if (pdsLocal is not null)
+                {
+                    long pdsOnly = pdsResource.GetPredownloadResourceSizeAsync(pdsGameId, pdsBranch, pdsInstall, pdsScenario, pdsAudio, pdsLocal, default).GetAwaiter().GetResult();
+                    Console.WriteLine($"本地 {pdsLocal} → 预下载实际下载 {FormatSize(pdsOnly)}");
+                }
+                else
+                {
+                    Console.WriteLine($"预下载需要下载 {FormatSize(pdsFull)}");
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"失败（{swPds.ElapsedMilliseconds} ms）：{ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine($"失败（{pdsClock.ElapsedMilliseconds} ms）：{ex.GetType().Name}: {ex.Message}");
                 Environment.ExitCode = 1;
             }
             return;
         }
 
-        // 走安装服务（与 UI 同一路径）：`lunarward --install-task <gameKey> <目录> [--predownload] [--audio Chinese]`
+        // 走安装服务（与 UI 同一路径）：`lunarward --install-task <gameKey> <目录> [--predownload] [--run-seconds N]`
         if (args.Length >= 3 && args[0] is "--install-task")
         {
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz itBiz))
@@ -895,18 +711,21 @@ internal class LunarwardProgram
             }
             string itDir = args[2];
             bool itPre = args.Contains("--predownload");
-            var itAudio = Starward.Core.AudioLanguage.Chinese;
-            int itAudioAt = Array.IndexOf(args, "--audio");
-            if (itAudioAt >= 0 && args.Length > itAudioAt + 1 && Enum.TryParse(args[itAudioAt + 1], true, out Starward.Core.AudioLanguage parsedAudio))
+            InitEnviroment();
+            Starward.Core.HoYoPlay.GameId? itGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(itBiz);
+            if (itGameId is null)
             {
-                itAudio = parsedAudio;
+                Console.WriteLine($"这个游戏没有对应的 HoYoPlay 条目：{itBiz.Value}");
+                Environment.ExitCode = 1;
+                return;
             }
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            var itService = AppConfig.GetService<Starward.RPC.GameInstall.GameInstallService>();
-            var itGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(itBiz);
-            var itTask = itPre
-                ? itService.StartPredownloadAsync(itGameId, itDir, itAudio).GetAwaiter().GetResult()
-                : itService.StartUpdateAsync(itGameId, itDir, itAudio).GetAwaiter().GetResult();
+            // 0.19.0：任务由进程内 facade 驱动；语音/场景由服务自己从 config.ini 读（不再有 --audio）
+            Starward.Features.GameInstall.GameInstallService itService = AppConfig.GetService<Starward.Features.GameInstall.GameInstallService>();
+            var itTask = (itPre
+                              ? itService.StartPredownloadAsync(itGameId, itDir, default)
+                              : itService.StartUpdateAsync(itGameId, itDir, default))
+                         .GetAwaiter()
+                         .GetResult();
             if (itTask is null)
             {
                 Console.WriteLine("任务没有启动（安装目录为空？）");
@@ -919,21 +738,25 @@ internal class LunarwardProgram
                 itStopAfter = parsedStop;
             }
             var itWatch = System.Diagnostics.Stopwatch.StartNew();
-            while (itTask.State is Starward.RPC.GameInstall.GameInstallState.Waiting
-                   or Starward.RPC.GameInstall.GameInstallState.Downloading
-                   or Starward.RPC.GameInstall.GameInstallState.Verifying
-                   or Starward.RPC.GameInstall.GameInstallState.Merging)
+            while (true)
             {
+                // 进度对象是快照，每轮重新取实时任务
+                Starward.GameInstall.GameInstallProgress itLive = itService.GetGameInstallTask(itGameId) ?? itTask;
+                if (itLive.State is not (Starward.GameInstall.RunnerState.Running or Starward.GameInstall.RunnerState.Queue))
+                {
+                    break;
+                }
                 if (itWatch.Elapsed.TotalSeconds >= itStopAfter)
                 {
                     Console.WriteLine($"已跑 {itStopAfter} 秒，主动停止（验证用，避免整包下载）。");
-                    itService.StopTaskAsync(itTask).GetAwaiter().GetResult();
+                    itService.StopTaskAsync(itLive).GetAwaiter().GetResult();
                     break;
                 }
-                Console.WriteLine($"状态={itTask.State} 进度={itTask.Progress_Percent:P1} 已下={Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(itTask.Progress_DownloadFinishBytes)}/{Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(itTask.Progress_DownloadTotalBytes)} 速度={itTask.NetworkDownloadSpeed / 1024} KB/s 剩余={itTask.RemainTimeSeconds}s");
+                Console.WriteLine($"状态={itLive.State} 进度={itLive.PercentProgress:P1} 已下={FormatSize(itLive.NetworkFinishedBytes)}/{FormatSize(itLive.NetworkTotalBytes)} 速度={itLive.NetworkDownloadSpeed / 1024} KB/s 剩余={itLive.RemainTimeSeconds}s");
                 Thread.Sleep(3000);
             }
-            Console.WriteLine($"结束：状态={itTask.State} 错误={itTask.ErrorMessage ?? "(无)"}");
+            Starward.GameInstall.GameInstallProgress itDone = itService.GetGameInstallTask(itGameId) ?? itTask;
+            Console.WriteLine($"结束：状态={itDone.State} 错误={itDone.ErrorMessage ?? "(无)"}");
             return;
         }
 
@@ -957,12 +780,23 @@ internal class LunarwardProgram
                 return;
             }
             System.IO.File.Copy(vwConfig, vwConfig + ".bak", overwrite: true);
-            var vw = Starward.Features.GameInstall.Sophon.GameVersionMarker.WriteAll(vwDir, vwVersion);
-            Console.WriteLine(vw.Count == 0 ? "没有写入任何标记" : $"已写入：{string.Join("，", vw)}（原文件备份为 config.ini.bak）");
+            // 0.19.0 删除了 Sophon.GameVersionMarker：版本号就写在 config.ini 的 [General] game_version
+            Starward.GameInstall.Model.GameConfigIni? vwIni = Starward.GameInstall.GameConfigService.GetGameConfigIniAsync(vwDir, default).GetAwaiter().GetResult();
+            if (vwIni is null)
+            {
+                Console.WriteLine($"拒绝：读不出 {vwConfig}（不是游戏安装目录？）");
+                Environment.ExitCode = 1;
+                return;
+            }
+            vwIni.GameVersion = System.Version.Parse(vwVersion);
+            Starward.GameInstall.GameConfigService.SetGameConfigIniAsync(vwDir, vwIni, default).GetAwaiter().GetResult();
+            Console.WriteLine($"已写入：config.ini game_version={vwVersion}（原文件备份为 config.ini.bak）");
             return;
         }
 
-        // 安装/预下载规划（只算不下）：`lunarward --install-plan <gameKey> [--predownload] [--md5]`
+        // 安装/预下载规划（只算不下）：`lunarward --install-plan <gameKey> [--predownload] [--install-dir <目录>]`
+        // 0.19.0：自研 SophonClient / InstallPlanner 已删除，这里改成官方 chunk 清单的体积统计，
+        // 取数与上游 InstallGameDialog / PreDownloadDialog 一致（不再有 --md5 / 逐文件计划）。
         if (args.Length >= 2 && args[0] is "--install-plan")
         {
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz ipBiz))
@@ -971,131 +805,63 @@ internal class LunarwardProgram
                 Environment.ExitCode = 1;
                 return;
             }
-            bool preDownload = args.Contains("--predownload");
-            bool checkMD5 = args.Contains("--md5");
-            try
+            InitEnviroment();
+            Starward.Core.HoYoPlay.GameId? ipGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(ipBiz);
+            if (ipGameId is null)
             {
-                AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"初始化环境失败：{ex.GetType().Name}: {ex.Message}");
+                Console.WriteLine($"这个游戏没有对应的 HoYoPlay 条目：{ipBiz.Value}");
                 Environment.ExitCode = 1;
+                return;
             }
-            string? configured = AppConfig.GetGameInstallPath(ipBiz);
-            string installPath = configured ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", ipBiz.Value);
+            bool ipPreDownload = args.Contains("--predownload");
+            string ipInstallPath = Features.GameLauncher.GameLauncherService.GetGameInstallPath(ipGameId)
+                                   ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", ipBiz.Value);
             int ipDirIndex = Array.IndexOf(args, "--install-dir");
             if (ipDirIndex >= 0 && ipDirIndex + 1 < args.Length)
             {
-                installPath = args[ipDirIndex + 1];
+                ipInstallPath = args[ipDirIndex + 1];
             }
-            Console.WriteLine($"安装目录：{installPath}");
-            if (Starward.Core.HoYoPlay.GameId.FromGameBiz(ipBiz) is not Starward.Core.HoYoPlay.GameId ipGameId)
-            {
-                Console.WriteLine($"无法映射到 GameId：{ipBiz.Value}");
-                Environment.ExitCode = 1;
-                return;
-            }
-            var audio = Starward.Features.GameInstall.Sophon.SophonClient.DetectInstalledAudioFields(installPath);
-            Console.WriteLine($"已装语音包：{(audio.Count == 0 ? "(无)" : string.Join(", ", audio))}");
+            Console.WriteLine($"安装目录：{ipInstallPath}");
+            Starward.GameInstall.GameConfigService ipConfig = AppConfig.GetService<Starward.GameInstall.GameConfigService>();
+            Starward.GameInstall.HoYoPlayService ipHoYoPlay = AppConfig.GetService<Starward.GameInstall.HoYoPlayService>();
+            Starward.Core.AudioLanguage ipAudio = ipConfig.GetAudioLanguageAsync(ipGameId, ipInstallPath, default).GetAwaiter().GetResult();
+            string ipScenario = ipConfig.GetCategoryScenarioAsync(ipGameId, ipInstallPath, default).GetAwaiter().GetResult() ?? Starward.Core.HoYoPlay.CategoryScenario.CATEGORY_SCENARIO_FULL;
+            Console.WriteLine($"已装语音包：{ipAudio}（场景 {ipScenario}）");
             try
             {
-                var httpClient = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
-                var sophon = new Starward.Features.GameInstall.Sophon.SophonClient(httpClient, AppConfig.GetLogger<App>());
-                var info = sophon.GetBuildInfoAsync(ipGameId, preDownload, audio).GetAwaiter().GetResult();
-                if (info is null)
+                Starward.Core.HoYoPlay.GameBranch? ipBranch = ipHoYoPlay.GetGameBranchAsync(ipGameId, default).GetAwaiter().GetResult();
+                if (ipBranch is null)
                 {
-                    Console.WriteLine(preDownload ? "官方接口没有预下载清单（当前无预下载）。" : "官方接口没有返回清单。");
+                    Console.WriteLine("官方接口没有返回 branch 信息（离线或接口变更）");
+                    Environment.ExitCode = 1;
                     return;
                 }
-                Console.WriteLine($"版本：{info.Package.Tag}（{(preDownload ? "预下载" : "当前")}）  build={info.Build.BuildId}");
-                Console.WriteLine($"清单类别：{string.Join(", ", info.Manifests.Select(x => $"{x.Key}({x.Value.Count})"))}");
-                var files = info.Manifests.Values.SelectMany(x => x).ToList();
-                Console.WriteLine($"按清单，解压后共 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(info.TotalUncompressedBytes)}");
-                var plan = Starward.Features.GameInstall.Sophon.InstallPlanner.CreateAsync(files, installPath, checkMD5).GetAwaiter().GetResult();
-                Console.WriteLine(Starward.Features.GameInstall.Sophon.InstallPlanner.Describe(plan));
+                Starward.Core.HoYoPlay.GameBranchPackage? ipPackage = ipPreDownload ? ipBranch.PreDownload : ipBranch.Main;
+                if (ipPackage is null)
+                {
+                    Console.WriteLine(ipPreDownload ? "官方接口没有预下载清单（当前无预下载）。" : "官方接口没有返回清单。");
+                    return;
+                }
+                Starward.Core.HoYoPlay.GameSophonChunkBuild? ipBuild = ipHoYoPlay.GetGameSophonChunkBuildAsync(ipGameId, ipPackage, null, default).GetAwaiter().GetResult();
+                if (ipBuild is null)
+                {
+                    Console.WriteLine("没有返回 chunk 清单。");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                var ipSizes = Starward.GameInstall.GameResourceService.GetChunkDownloadPackageSize(ipPackage, ipBuild, ipScenario, ipAudio);
+                Console.WriteLine($"版本：{ipPackage.Tag}（{(ipPreDownload ? "预下载" : "当前")}）  build={ipBuild.BuildId}");
+                Console.WriteLine($"清单类别：{string.Join(", ", ipBuild.Manifests.Select(x => x.MatchingField))}");
+                Console.WriteLine($"按清单，需要下载 {FormatSize(ipSizes.CompressedGameBytes + ipSizes.CompressedAudioBytes)}，解压后共 {FormatSize(ipSizes.UncompressedGameBytes + ipSizes.UncompressedAudioBytes)}（语音 {ipAudio}）");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"规划失败：{ex}");
+                Console.WriteLine($"规划失败：{ex.GetType().Name}: {ex.Message}");
                 Environment.ExitCode = 1;
             }
             return;
         }
 
-        // 探针：用 Hi3Helper.Sophon 拉同一份清单，与自研解析结果对照：`lunarward --sophon-probe <gameKey>`
-        if (args.Length >= 2 && args[0] is "--sophon-probe")
-        {
-            if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz spBiz))
-            {
-                Console.WriteLine($"未知游戏：{args[1]}");
-                Environment.ExitCode = 1;
-                return;
-            }
-            try
-            {
-                AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"初始化环境失败：{ex.GetType().Name}: {ex.Message}");
-                Environment.ExitCode = 1;
-            }
-            if (Starward.Core.HoYoPlay.GameId.FromGameBiz(spBiz) is not Starward.Core.HoYoPlay.GameId spGameId)
-            {
-                Console.WriteLine($"无法映射到 GameId：{spBiz.Value}");
-                Environment.ExitCode = 1;
-                return;
-            }
-            string? spConfigured = AppConfig.GetGameInstallPath(spBiz);
-            string spInstallPath = spConfigured ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", spBiz.Value);
-            var spAudio = Starward.Features.GameInstall.Sophon.SophonClient.DetectInstalledAudioFields(spInstallPath);
-            try
-            {
-                var spHttp = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
-                var spSophon = new Starward.Features.GameInstall.Sophon.SophonClient(spHttp, AppConfig.GetLogger<App>());
-                var spInfo = spSophon.GetBuildInfoAsync(spGameId, false, spAudio).GetAwaiter().GetResult();
-                if (spInfo is null)
-                {
-                    Console.WriteLine("没有清单。");
-                    return;
-                }
-                var spPackage = spInfo.Package;
-                string spUrl = $"https://downloader-api.mihoyo.com/downloader/sophon_chunk/api/getBuild?branch={spPackage.Branch}&package_id={spPackage.PackageId}&password={spPackage.Password}&tag={spPackage.Tag}";
-                Console.WriteLine($"build url: {spUrl.Replace(spPackage.Password ?? "", "***")}");
-                using var spClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(10) };
-                var spPair = Hi3Helper.Sophon.SophonManifest.CreateSophonChunkManifestInfoPair(spClient, spUrl, "game", CancellationToken.None).GetAwaiter().GetResult();
-                Console.WriteLine($"pair: found={spPair.IsFound} code={spPair.ReturnCode} msg={spPair.ReturnMessage} files={spPair.ChunksInfo.FilesCount} chunks={spPair.ChunksInfo.ChunksCount}");
-                long spTotal = 0;
-                int spCount = 0;
-                var spEnumerator = Hi3Helper.Sophon.SophonManifest.EnumerateAsync(spClient, spPair, null, CancellationToken.None).GetAsyncEnumerator();
-                try
-                {
-                    while (spEnumerator.MoveNextAsync().AsTask().GetAwaiter().GetResult())
-                    {
-                        var asset = spEnumerator.Current;
-                        if (asset is null || asset.IsDirectory) continue;
-                        spCount++;
-                        spTotal += asset.AssetSize;
-                    }
-                }
-                finally
-                {
-                    spEnumerator.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                }
-                Console.WriteLine($"Hi3Helper.Sophon：{spCount} 个文件，解压后 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(spTotal)}");
-                var spFiles = spInfo.Manifests["game"];
-                Console.WriteLine($"自研解析：{spFiles.Count(x => !x.IsFolder)} 个文件，解压后 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(spFiles.Where(x => !x.IsFolder).Sum(x => x.Size))}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"探针失败：{ex}");
-                Environment.ExitCode = 1;
-            }
-            return;
-        }
-
-        // 应用补丁（写 target 目录，不碰安装目录）：`lunarward --patch-run <gameKey> --target <dir> [--local <ver>] [--only-slice] [--limit-files N]`
         // 打印本地版本标记：`lunarward --version-status <gameKey>`
         if (args.Length >= 2 && args[0] is "--version-status")
         {
@@ -1105,164 +871,116 @@ internal class LunarwardProgram
                 Environment.ExitCode = 1;
                 return;
             }
-            string? vsConfigured = AppConfig.GetGameInstallPath(vsBiz);
-            string vsInstall = vsConfigured ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", vsBiz.Value);
+            InitEnviroment();
+            Starward.Core.HoYoPlay.GameId? vsGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(vsBiz);
+            string vsInstall = (vsGameId is null ? null : Features.GameLauncher.GameLauncherService.GetGameInstallPath(vsGameId))
+                               ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", vsBiz.Value);
             Console.WriteLine($"安装目录：{vsInstall}");
-            Console.WriteLine(Starward.Features.GameInstall.Sophon.GameVersionMarker.Describe(vsInstall));
+            Starward.GameInstall.Model.GameConfigIni? vsIni = Starward.GameInstall.GameConfigService.GetGameConfigIniAsync(vsInstall, default).GetAwaiter().GetResult();
+            if (vsIni is null)
+            {
+                Console.WriteLine($"没有 config.ini（{System.IO.Path.Combine(vsInstall, "config.ini")}）");
+                return;
+            }
+            Console.WriteLine(vsIni.GameVersion is null ? "config.ini 里没有版本号" : $"本地版本：{vsIni.GameVersion}");
+            if (!string.IsNullOrWhiteSpace(vsIni.GameBiz))
+            {
+                Console.WriteLine($"config.ini game_biz：{vsIni.GameBiz}");
+            }
             return;
         }
 
-        // 差分更新（Hi3Helper.Sophon 的 SophonPatch 链路）：
-        //   `--patch-plan <gameKey> [--local <ver>]`                        只读：枚举可用差分包
-        //   `--patch-run <gameKey> --target <dir> [--local <ver>] [--limit N] [--apply-to-install]`
-        //                                                       默认只下载差分数据到 --target，不碰安装目录
-        if (args.Length >= 2 && args[0] is "--patch-plan" or "--patch-run")
+        // 差分更新（只读：枚举官方差分包，不再下载/应用）：
+        //   `--patch-plan <gameKey> [--local <ver>] [--predownload] [--install-dir <目录>]`
+        // 0.19.0 删除了 Hi3Helper.Sophon 的 SophonPatch 链路，`--patch-run` 一并删除；
+        // 真正修复/更新走上游 GameInstallRunner（CLI：`--install-task`）。
+        if (args.Length >= 2 && args[0] is "--patch-plan")
         {
-            bool ptApply = args[0] is "--patch-run" && args.Contains("--apply-to-install");
-            bool ptPreDownload = args.Contains("--predownload");
-            int ptFromIndex = Array.IndexOf(args, "--from");
-            if (ptFromIndex >= 0 && ptFromIndex + 1 < args.Length)
-            {
-                // 兼容写法：--from 等价于 --local
-            }
             if (!Starward.Core.GameBiz.TryParse(args[1], out Starward.Core.GameBiz ptBiz))
             {
                 Console.WriteLine($"未知游戏：{args[1]}");
                 Environment.ExitCode = 1;
                 return;
             }
-            try
+            InitEnviroment();
+            Starward.Core.HoYoPlay.GameId? ptGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(ptBiz);
+            if (ptGameId is null)
             {
-                AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"初始化环境失败：{ex.GetType().Name}: {ex.Message}");
-                Environment.ExitCode = 1;
-            }
-            string? ptConfigured = AppConfig.GetGameInstallPath(ptBiz);
-            string ptInstall = ptConfigured ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", ptBiz.Value);
-            int ptLocalIndex = Array.IndexOf(args, "--local");
-            string? ptLocal = ptLocalIndex >= 0 && ptLocalIndex + 1 < args.Length ? args[ptLocalIndex + 1] : Starward.Features.GameInstall.Sophon.SophonClient.TryReadLocalVersion(ptInstall);
-            int ptTargetIndex = Array.IndexOf(args, "--target");
-            string? ptTarget = ptTargetIndex >= 0 && ptTargetIndex + 1 < args.Length ? args[ptTargetIndex + 1] : null;
-            // 安全测试用：允许把「安装目录」指到别处（比如 reflink 克隆的副本），不动真实安装。
-            int ptInstallDirIndex = Array.IndexOf(args, "--install-dir");
-            if (ptInstallDirIndex >= 0 && ptInstallDirIndex + 1 < args.Length)
-            {
-                ptInstall = args[ptInstallDirIndex + 1];
-            }
-            int ptLimit = -1;
-            int ptLimitIndex = Array.IndexOf(args, "--limit");
-            if (ptLimitIndex >= 0 && ptLimitIndex + 1 < args.Length)
-            {
-                _ = int.TryParse(args[ptLimitIndex + 1], out ptLimit);
-            }
-            if (string.IsNullOrEmpty(ptLocal))
-            {
-                Console.WriteLine("读不到本地版本（可用 --local 指定）");
+                Console.WriteLine($"这个游戏没有对应的 HoYoPlay 条目：{ptBiz.Value}");
                 Environment.ExitCode = 1;
                 return;
             }
-            if (Starward.Core.HoYoPlay.GameId.FromGameBiz(ptBiz) is not Starward.Core.HoYoPlay.GameId ptGameId)
+            bool ptPreDownload = args.Contains("--predownload");
+            string ptInstall = Features.GameLauncher.GameLauncherService.GetGameInstallPath(ptGameId)
+                               ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", ptBiz.Value);
+            int ptDirIndex = Array.IndexOf(args, "--install-dir");
+            if (ptDirIndex >= 0 && ptDirIndex + 1 < args.Length)
             {
-                Console.WriteLine($"无法映射到 GameId：{ptBiz.Value}");
-                Environment.ExitCode = 1;
-                return;
+                ptInstall = args[ptDirIndex + 1];
             }
+            var ptClock = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                var ptHoYo = AppConfig.GetService<Starward.Core.HoYoPlay.HoYoPlayClient>();
-                string ptLauncher = Starward.Core.HoYoPlay.LauncherId.FromGameId(ptGameId)!;
-                var ptBranch = ptHoYo.GetGameBranchAsync(ptLauncher, "zh-cn", ptGameId, CancellationToken.None).GetAwaiter().GetResult();
-                Starward.Core.HoYoPlay.GameBranchPackage? ptSelected = ptPreDownload ? ptBranch?.PreDownload : ptBranch?.Main;
-                if (ptSelected is not Starward.Core.HoYoPlay.GameBranchPackage ptPackage)
+                Starward.GameInstall.GameConfigService ptConfig = AppConfig.GetService<Starward.GameInstall.GameConfigService>();
+                Starward.GameInstall.HoYoPlayService ptHoYoPlay = AppConfig.GetService<Starward.GameInstall.HoYoPlayService>();
+                Starward.GameInstall.GameResourceService ptResource = AppConfig.GetService<Starward.GameInstall.GameResourceService>();
+                Starward.Core.AudioLanguage ptAudio = ptConfig.GetAudioLanguageAsync(ptGameId, ptInstall, default).GetAwaiter().GetResult();
+                string ptScenario = ptConfig.GetCategoryScenarioAsync(ptGameId, ptInstall, default).GetAwaiter().GetResult() ?? Starward.Core.HoYoPlay.CategoryScenario.CATEGORY_SCENARIO_FULL;
+                int ptLocalIndex = Array.IndexOf(args, "--local");
+                string? ptLocal = ptLocalIndex >= 0 && ptLocalIndex + 1 < args.Length
+                    ? args[ptLocalIndex + 1]
+                    : Starward.GameInstall.GameConfigService.GetGameConfigIniAsync(ptInstall, default).GetAwaiter().GetResult()?.GameVersion?.ToString();
+                if (string.IsNullOrEmpty(ptLocal))
                 {
-                    Console.WriteLine("拿不到 branch package");
+                    Console.WriteLine("读不到本地版本（可用 --local 指定）");
+                    Environment.ExitCode = 1;
                     return;
                 }
-                using var ptHttp = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-                var ptFields = new List<string> { "game" };
-                ptFields.AddRange(Starward.Features.GameInstall.Sophon.SophonClient.DetectInstalledAudioFields(ptInstall));
-                var ptAssets = new List<Hi3Helper.Sophon.SophonPatchAsset>();
-                foreach (string ptField in ptFields)
+                Starward.Core.HoYoPlay.GameBranch? ptBranch = ptHoYoPlay.GetGameBranchAsync(ptGameId, default).GetAwaiter().GetResult();
+                if (ptBranch is null)
                 {
-                    var ptPatchPair = Starward.Features.GameInstall.Sophon.SophonLibrary.GetPatchPairAsync(ptHttp, ptPackage, ptField, ptLocal, CancellationToken.None).GetAwaiter().GetResult();
-                    Console.WriteLine($"[{ptField}] 补丁清单：found={ptPatchPair.IsFound} code={ptPatchPair.ReturnCode} files={ptPatchPair.ChunksInfo.FilesCount} chunks={ptPatchPair.ChunksInfo.ChunksCount}");
-                    if (!ptPatchPair.IsFound)
+                    Console.WriteLine("官方接口没有返回 branch 信息（离线或接口变更）");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                Starward.Core.HoYoPlay.GameBranchPackage? ptPackage = ptPreDownload ? ptBranch.PreDownload : ptBranch.Main;
+                if (ptPackage is null)
+                {
+                    Console.WriteLine("官方接口没有返回清单。");
+                    Environment.ExitCode = 1;
+                    return;
+                }
+                Console.WriteLine($"本地 {ptLocal} → 目标 {ptPackage.Tag}（{(ptPreDownload ? "预下载" : "当前")}）");
+                if (ptPackage.DiffTags is { Count: > 0 } ptDiffTags && !ptDiffTags.Contains(ptLocal))
+                {
+                    Console.WriteLine($"没有从 {ptLocal} 起的差分包（官方列出：{string.Join(", ", ptDiffTags)}）");
+                    return;
+                }
+                var ptPatches = ptResource.GetGameSophonPatchManifestsAsync(ptGameId, ptPackage, ptInstall, ptScenario, ptAudio, default).GetAwaiter().GetResult();
+                long ptBytes = 0;
+                int ptFields = 0;
+                foreach (var ptPatch in ptPatches)
+                {
+                    if (ptPatch.Stats is null || !ptPatch.Stats.TryGetValue(ptLocal, out var ptStats) || ptStats is null)
                     {
                         continue;
                     }
-                    var ptMainPair = Starward.Features.GameInstall.Sophon.SophonLibrary.GetChunkPairAsync(ptHttp, ptPackage, ptField, false, CancellationToken.None).GetAwaiter().GetResult();
-                    var ptEnum = Hi3Helper.Sophon.SophonPatch.EnumerateUpdateAsync(ptHttp, ptPatchPair, ptMainPair, ptLocal, null, CancellationToken.None).GetAsyncEnumerator();
-                    try
-                    {
-                        while (ptEnum.MoveNextAsync().AsTask().GetAwaiter().GetResult())
-                        {
-                            if (ptEnum.Current is { } ptAsset)
-                            {
-                                ptAssets.Add(ptAsset);
-                                if (ptLimit > 0 && ptAssets.Count >= ptLimit)
-                                {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        ptEnum.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                    }
-                    if (ptLimit > 0 && ptAssets.Count >= ptLimit)
-                    {
-                        break;
-                    }
+                    ptFields++;
+                    ptBytes += ptStats.CompressedSize;
+                    Console.WriteLine($"  [{ptPatch.MatchingField}] {ptStats.FileCount} 文件 / {ptStats.ChunkCount} 块：下载 {FormatSize(ptStats.CompressedSize)}，解压后 {FormatSize(ptStats.UncompressedSize)}");
                 }
-                // 只保留真正需要下补丁的条目（库自带去重：旧版本里没变、或已被新文件覆盖的条目会被剔除）
-                ptAssets = Hi3Helper.Sophon.SophonPatch.EnsureOnlyGetDedupPatchAssets(ptAssets).ToList();
-                long ptTotal = ptAssets.Sum(x => x.PatchSize);
-                Console.WriteLine($"可用补丁：{ptAssets.Count} 个条目，差分数据 {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(ptTotal)}");
-                foreach (var ptAsset in ptAssets.Take(10))
+                if (ptFields == 0)
                 {
-                    Console.WriteLine($"  {ptAsset.TargetFilePath}  {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(ptAsset.PatchSize)}  {ptAsset.PatchMethod}");
-                }
-                if (!ptApply)
-                {
-                    Console.WriteLine(ptTarget is null ? "（只读模式；加 --patch-run --target <dir> --apply-to-install 才会真正修复/更新）" : $"（只读模式；补丁数据目录 {ptTarget}）");
+                    Console.WriteLine($"没有从 {ptLocal} 起的差分包");
                     return;
                 }
-                if (ptTarget is null)
-                {
-                    Console.WriteLine("--apply-to-install 需要 --target 指定补丁数据目录");
-                    return;
-                }
-                System.IO.Directory.CreateDirectory(ptTarget);
-                int ptApplied = 0;
-                foreach (var ptAsset in ptAssets)
-                {
-                    try
-                    {
-                        ptAsset.DownloadPatchAsync(ptHttp, ptTarget, true, null, null, CancellationToken.None).GetAwaiter().GetResult();
-                        ptAsset.ApplyPatchUpdateAsync(ptHttp, ptInstall, ptTarget, false, null, null, null, CancellationToken.None).GetAwaiter().GetResult();
-                        ptApplied++;
-                        string ptTargetFile = System.IO.Path.Combine(ptInstall, ptAsset.TargetFilePath);
-                        string ptExpected = ptAsset.MainAssetInfo?.AssetHash ?? "";
-                        string ptActual = System.IO.File.Exists(ptTargetFile)
-                            ? Convert.ToHexString(System.Security.Cryptography.MD5.HashData(System.IO.File.ReadAllBytes(ptTargetFile)))
-                            : "";
-                        bool ptHashOk = string.IsNullOrEmpty(ptExpected) || string.Equals(ptExpected, ptActual, StringComparison.OrdinalIgnoreCase);
-                        Console.WriteLine($"  {(ptHashOk ? "OK " : "MISMATCH")}  {ptAsset.TargetFilePath}  md5={ptActual}  expect={ptExpected}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"  ERR {ptAsset.TargetFilePath}: {ex.GetType().Name}: {ex.Message}");
-                    }
-                }
-                Console.WriteLine($"应用完成：{ptApplied} / {ptAssets.Count}");
+                Console.WriteLine($"可用补丁：{ptFields} 个类别，共需下载 {FormatSize(ptBytes)}（耗时 {ptClock.ElapsedMilliseconds} ms）");
+                Console.WriteLine("（只读；真正修复/更新请用 `--install-task`）");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"补丁链路失败：{ex}");
+                Console.WriteLine($"补丁链路失败（{ptClock.ElapsedMilliseconds} ms）：{ex.GetType().Name}: {ex.Message}");
+                Environment.ExitCode = 1;
             }
             return;
         }
@@ -1273,7 +991,7 @@ internal class LunarwardProgram
         // 在某个方案的环境里跑一次程序（D64）：与游戏启动共用同一套 env，便于跑补丁/安装器
         if (args.Length >= 3 && args[0] is "--run-once")
         {
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            InitEnviroment();
             string wanted = args[1];
             string exe = args[2];
             // R50：--game <biz> 从附加参数里摘出来，它的值才是这次启动用的游戏 key
@@ -1319,7 +1037,7 @@ internal class LunarwardProgram
         // 图形层的前缀侧操作：给脚本/排错用（D63 §5）
         if (args.Length >= 2 && args[0] is "--graphics-install" or "--graphics-verify" or "--graphics-remove")
         {
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            InitEnviroment();
             string prefix = args[1];
             if (!Directory.Exists(prefix))
             {
@@ -1406,7 +1124,7 @@ internal class LunarwardProgram
         // 受管组件（D73 阶段 1）：清单 / 健康 / 导入 / 下载
         if (args.Length >= 1 && args[0] is "--component-scan" or "--component-list" or "--component-health" or "--component-import" or "--component-download")
         {
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            InitEnviroment();
             string kindOf(string[] argv)
             {
                 for (int i = 0; i < argv.Length - 1; i++)
@@ -1603,7 +1321,7 @@ internal class LunarwardProgram
 
         if (args.Length >= 1 && args[0] is "--list-components")
         {
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            InitEnviroment();
             Console.WriteLine($"扫描根：{string.Join(", ", Starward.Features.Runtime.ComponentStore.ScanRoots)}");
             Console.WriteLine("运行器：");
             foreach (Starward.Features.Runtime.Component runner in Starward.Features.Runtime.ComponentStore.GetRunners(true))
@@ -1621,7 +1339,7 @@ internal class LunarwardProgram
         // 运行器可用性一览（D58）：只做无副作用检查，不建前缀
         if (args.Length >= 1 && args[0] is "--list-runners")
         {
-            AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+            InitEnviroment();
             var runners = Starward.Features.Runtime.ComponentStore.GetRunners(true);
             if (args.Contains("--json"))
             {
@@ -1663,7 +1381,7 @@ internal class LunarwardProgram
             }
             try
             {
-                AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+                InitEnviroment();
                 string fullPath = Path.GetFullPath(backupTarget);
                 Starward.Features.Database.DatabaseService.BackupToArchive(fullPath);
                 Console.WriteLine($"已备份到 {fullPath}（{new FileInfo(fullPath).Length} 字节）");
@@ -1681,7 +1399,7 @@ internal class LunarwardProgram
         {
             try
             {
-                AppConfig.CheckEnviromentAsync().GetAwaiter().GetResult();
+                InitEnviroment();
                 string? outDir = null;
                 int outIndex = Array.IndexOf(args, "--out");
                 if (outIndex >= 0 && outIndex + 1 < args.Length)
@@ -1714,26 +1432,27 @@ internal class LunarwardProgram
                 Environment.ExitCode = 1;
                 return;
             }
-            // CLI 下也要先读配置（安装路径存在 SQLite 设置表里）
+            // CLI 下也要先做环境初始化：安装路径 0.19.0 起存在 SQLite 的 GameEntry 表里，
+            // 只调 LoadConfiguration 不会建库建表，查询会报 no such table: GameEntry。
             try
             {
-                AppConfig.LoadConfiguration();
+                InitEnviroment();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"读取配置失败：{ex.GetType().Name}: {ex.Message}");
             }
             string? exeName = Starward.Features.GameLauncher.GameLauncherService.GetGameExeName(pfBiz);
-            string? installPath = AppConfig.GetGameInstallPath(pfBiz);
-            // 显式给路径时优先用它；否则用配置里的安装路径；再不行按常见布局猜一个（只为排错）
+            // 0.19.0：安装路径存在游戏条目里（AppConfig.GetGameInstallPath 已 Obsolete(true)，会编译报错）
+            Starward.Core.HoYoPlay.GameId? pfGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(pfBiz);
+            string? installPath = pfGameId is null ? null : Starward.Features.GameLauncher.GameLauncherService.GetGameInstallPath(pfGameId);
+            // 显式给路径时优先用它；否则用游戏条目里的安装路径；再不行按常见布局猜一个（只为排错）
             string exe = args.Length >= 3
                 ? args[2]
-                : (installPath is null || exeName is null
-                    ? System.IO.Path.Combine(AppConfig.GetGameInstallPath(pfBiz) ?? "", exeName ?? "")
-                    : System.IO.Path.Combine(installPath, exeName));
+                : System.IO.Path.Combine(installPath ?? "", exeName ?? "");
             if ((exe.Length == 0 || !System.IO.File.Exists(exe)) && exeName is not null)
             {
-                string guess = System.IO.Path.Combine(AppConfig.GetGameInstallPath(pfBiz) ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", pfBiz.Value), exeName);
+                string guess = System.IO.Path.Combine(installPath ?? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", pfBiz.Value), exeName);
                 if (System.IO.File.Exists(guess))
                 {
                     exe = guess;
@@ -1855,6 +1574,11 @@ internal class LunarwardProgram
             Environment.SetEnvironmentVariable("LUNARWARD_SELFTEST", "1");
         }
 
+
+        // GUI 路径同样要先跑一次环境检查：CacheFolder / UserDataFolder / config 都在里面初始化。
+        // 少了这一步，App.OnLaunched 会看到 UserDataFolder 为 null，弹出欢迎向导，之后
+        // 再拿 CacheFolder 拼日志目录就是 null → 启动即挂（0.19.0 合并后漏掉了这次调用）。
+        InitEnviroment();
 
         var host = UnoPlatformHostBuilder.Create()
             .App(() => new Starward.App())

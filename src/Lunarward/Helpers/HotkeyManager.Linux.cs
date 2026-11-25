@@ -1,4 +1,4 @@
-// Lunarward：全局热键在 Linux 需要 portal（org.freedesktop.portal.GlobalShortcuts）
+﻿// Lunarward：全局热键在 Linux 需要 portal（org.freedesktop.portal.GlobalShortcuts）
 // 或 X11 XGrabKey；M2 落地。这里提供与上游同签名的空实现：
 // 注册一律返回 ERROR_HOTKEY_ALREADY_REGISTERED 之外的普通失败码，UI 会显示「注册失败」提示。
 using System;
@@ -211,7 +211,7 @@ internal static class HotkeyManager
 
     public static HotkeyInfo? GetHotkeyInfo(int id) => _hotkeys.TryGetValue(id, out var info) ? info : null;
 
-    /// <summary>每 100ms 看一次键盘状态：组合键「从松开到按下」的那一下触发一次，避免长按连发。</summary>
+    /// <summary>每 25ms（`X11KeyState.PollIntervalMs`）看一次键盘状态：组合键「从松开到按下」的那一下触发一次，避免长按连发。</summary>
     internal static void PollOnce()
     {
         foreach (HotkeyInfo info in _hotkeys.Values.ToArray())

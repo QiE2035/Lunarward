@@ -241,7 +241,7 @@ public static class DiagnosticBundle
     {
         try
         {
-            string? folder = GameLauncherService.GetGameInstallPath(biz);
+            string? folder = GameLauncherService.GetGameInstallPath(Starward.Core.HoYoPlay.GameId.FromGameBiz(biz)!);
             if (folder is null)
             {
                 return "游戏未安装或安装路径未设置。";

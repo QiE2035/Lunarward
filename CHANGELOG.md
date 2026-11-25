@@ -1,4 +1,33 @@
-# Changelog
+﻿# Changelog
+
+## 2026-11-25 —— 0.19.0 编译收口：Skia 桥、toolkit 替身与启动链修复（D130）
+
+- **视频壁纸换渲染桥**：Uno 7 下 `SkiaSharp.Views.*` 没有可用资产（`UNOB0023`），改用 `WriteableBitmap` 双缓冲交替贴给 `Image`；同时迁移 SkiaSharp 4 的 `SKSamplingOptions` API。
+- **toolkit 包不再引用**：`CommunityToolkit.WinUI.*` 在 Uno 工程里会选到 Windows 资产导致两套 `DependencyObject`，恢复手写替身并补齐 `WrapLayout`（真折行）/`EqualPanel`/`Segmented`/`FindDescendant`。
+- **修复「启动没反应」**：GUI 路径补 `InitEnviroment()`（此前只有 CLI 分支调用，导致每次启动弹欢迎向导且日志目录为 null）；补回 `CompanionRunner`/`GameRecordService`/`GameAuthLoginService` 的 DI 注册。
+- **修复 `--preflight` 报 `no such table: GameEntry`**：碰数据库的 CLI 分支统一先做环境初始化（0.19.0 起安装路径在 SQLite 里）。
+- **测试工程跟到 net11**：`dotnet test` 340 通过（删掉 5 个指向已删 Sophon 文件的用例）；`--selftest-ui` 在 xvfb 下 11/11 PASS。
+
+## 2026-11-25 —— 手写补齐实现审计：空壳让位真实实现（D129）
+
+- **战绩窗口不再空白**：点「战绩」以前弹一个纯白窗口；现在显示「Linux 版暂时不能打开战绩页面」+ 原因 + 当前角色（`BattleChronicleWindow.Linux.cs`）。
+- **所有窗口都有图标**：`WindowBase.SetIcon()` 从空实现改为复用主窗口那套 libxcb `_NET_WM_ICON` 写入（`Helpers/AppIcon`），任务栏/Alt-Tab 不再是通用方块。
+- **深浅色跟随桌面**：`ShouldAppsUseDarkMode()`/`ShouldSystemUseDarkMode()` 以前恒 `true`（浅色桌面的 Gacha/更新/过场窗口被强制深色），改为读 GTK `settings.ini` / KDE `kdeglobals` 推断（新文件 `Helpers/SystemThemePreference.cs`，只读文件、不 fork）。
+- **「立即更新」可点且有解释**：按钮以前恒禁用、点了也没反应；现在点击给出「请用包管理器（AUR / AppImage）升级」，并且走 `SetErrorMessage` 才会真正刷新界面。
+- **子窗口 DPI 不再算错**：`XamlRootExtension.GetAppWindow()` 以前一律回落到主窗口，现在先按 `XamlRoot` 从 `WindowBase` 的窗口登记表反查真正的 `AppWindow`。
+- 文档按实测重写：`12-shims-and-gaps.md` 的替身规模 36→33、删掉 D128 已删的 4 行、基类路径改名、截图查看器降级为 🟡、补记 user32 P/Invoke 与兜底风险；`18-upstream-deviations.md` 同名差异文件 88→80（L-183）。
+
+---
+
+## 2026-11-25 —— 合并上游 0.19.0：切到 .NET 11 + Uno 7（D128）
+
+- **运行时对齐上游**：SDK 11.0.100（`rollForward latestFeature`）、Uno.Sdk 7.0.22、TFM `net11.0-desktop`；`Microsoft.Extensions.*` 等一批依赖跟到 11.0.0。留在 net10 要给上游的 `ZstandardStream`/`ReadOnlyMemoryStream` 打 BCL 补丁、还要反编译只发 net11 资产的 HPatch，属于「适配」而非「移植」。
+- **安装/热更改成上游实现**：`Starward.GameInstall` 库 TFM 钉 `net11.0` 真移植进来，UI 侧 `GameInstallService` 重写为**进程内 facade**（公开 API 与上游逐字一致），插进 `AddStarwardGameInstall()`。
+- **删掉移植自研 Sophon 管线**（`Features/GameInstall/Sophon/*` 2663 行 + `GameInstallService.Linux.cs` 657 行 + `Hi3Helper.Sophon`/`ZstdNet` 依赖 + `libzstd.so` 构建 hack），CLI 同步删掉 `--install-run` 等 7 个开关；离线假 Sophon 服务（`chunk-smoke.sh`/`fake-sophon.py`）与 CI 步骤一并退役。
+- 基类跟随上游：`Frameworks/PageBase.cs`→`Features/PageBase.cs`、`Frameworks/WindowEx.cs`→`Features/WindowBase.cs`（类名 `WindowBase`），D94 的 `OnGameChanged()` 页面缓存钩子补回上游版 `PageBase`。
+- 背景、战绩、选择器、公告、设置页按 0.19.0 新模型重做（`GameBackgroundModel`、启动器多配置、8 个分游戏战绩客户端、`ContentDialogBase`）；手写替身 `ToolkitControls`/`InteractivityCompat`/`ToolkitCompat` 停用，改吃真实 toolkit 包（L-179）。
+- 修掉迁移期踩到的真 bug：`WrapPanel` 无 `ItemWidth/ItemHeight` 导致背景页不再自适应列宽、`ItemContainerTransitions="{x:Null}"` 让 Uno XAML 编译器崩、`git checkout csproj` 冲掉未提交改动（L-181/L-182）。
+- 新增 Linux 版设备指纹 `Features/Passport/WindowsDeviceFpService.cs`（machine-id + `/sys/class/dmi/id` + `/proc/cpuinfo` + NVIDIA/Vulkan 探测，替代上游 DXGI/注册表实现）。
 
 ## 2026-11-24 —— 评估 NV12 直出与零拷贝：两条都不做（D127）
 

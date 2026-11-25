@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -7,7 +7,6 @@ using Starward.Features.GameInstall;
 using Starward.GameInstall;
 using System;
 using System.Windows.Input;
-using Starward.RPC.GameInstall;
 
 
 namespace Starward.Features.GameLauncher;
@@ -310,15 +309,7 @@ public sealed partial class StartGameButton : UserControl
 
         if (task.State is RunnerState.Running or RunnerState.Paused or RunnerState.Error)
         {
-            long total = task.Progress_DownloadTotalBytes;
-            long finish = task.Progress_DownloadFinishBytes;
-            // 总量还没出来时按 0 处理，避免 NaN% 和越界进度环（L-65）。
-            double progress = total > 0 ? (double)finish / total : 0;
-            DownloadSpeedText = ToSpeedText(task.NetworkDownloadSpeed);
-            InstallSpeedText = ToSpeedText(task.StorageWriteSpeed);
-            VerifySpeedText = ToSpeedText(task.StorageReadSpeed);
-            RemainTimeText = ToRemainTimeText(task.RemainTimeSeconds);
-            if (task.Operation is GameInstallOperation.Update && task.DownloadMode is GameInstallDownloadMode.Chunk)
+            if (task.ProgressDisplay.HasFlag(ProgressDisplay.NetworkBytes))
             {
                 DownloadBytesText = GameInstallProgressDisplay.ToBytesText(task.NetworkFinishedBytes, task.NetworkTotalBytes);
             }

@@ -11,7 +11,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Starward.Features.HoYoPlay;
+using Starward.GameInstall;
 
 namespace Starward.Features.PlayTime;
 

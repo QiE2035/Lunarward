@@ -1,4 +1,4 @@
-// Lunarward：上游用 GetDriveTypeW 等 Win32 接口判断盘符；Linux 侧改读 /proc/mounts 与 statvfs。
+﻿// Lunarward：上游用 GetDriveTypeW 等 Win32 接口判断盘符；Linux 侧改读 /proc/mounts 与 statvfs。
 using System;
 using System.IO;
 using System.Linq;
@@ -133,4 +133,92 @@ public static class DriveHelper
         }
         return mount;
     }
+
+
+    /// <summary>
+    /// 判断目标路径所在磁盘是否有寻道开销：true = 机械盘（HDD），false = 固态（SSD），null = 判断不出来。
+    /// 不 fork 外部命令（硬规则 10）：读 <c>/proc/self/mounts</c> 找最长匹配挂载点，
+    /// 再从 <c>/sys/block/&lt;设备&gt;/queue/rotational</c> 取 0/1；dm 设备尽力往下看一层 slaves。
+    /// </summary>
+    public static bool? IsDeviceSeekPenalty(string path)
+    {
+        try
+        {
+            string full = Path.GetFullPath(path);
+            string? device = null;
+            int best = -1;
+            foreach (string line in File.ReadLines("/proc/self/mounts"))
+            {
+                string[] parts = line.Split(' ', 4);
+                if (parts.Length < 2 || !parts[1].StartsWith('/'))
+                {
+                    continue;
+                }
+                string mountPoint = parts[1].Replace("\\040", " ");
+                if (full.Equals(mountPoint, StringComparison.Ordinal)
+                    || (full.StartsWith(mountPoint, StringComparison.Ordinal) && mountPoint.EndsWith('/'))
+                    || (mountPoint == "/" && full.StartsWith('/')))
+                {
+                    if (mountPoint.Length > best)
+                    {
+                        best = mountPoint.Length;
+                        device = parts[0];
+                    }
+                }
+            }
+            if (device is null || !device.StartsWith("/dev/"))
+            {
+                return null;
+            }
+            string name = Path.GetFileName(device);
+            bool? result = ReadRotational($"/sys/block/{name}/queue/rotational");
+            if (result is not null)
+            {
+                return result;
+            }
+            // dm/LVM/md：看第一层子设备
+            string slaves = $"/sys/block/{name}/slaves";
+            if (Directory.Exists(slaves))
+            {
+                foreach (string slave in Directory.EnumerateFileSystemEntries(slaves))
+                {
+                    result = ReadRotational($"/sys/block/{Path.GetFileName(slave)}/queue/rotational");
+                    if (result is not null)
+                    {
+                        return result;
+                    }
+                }
+            }
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "IsDeviceSeekPenalty failed: {path}", path);
+            return null;
+        }
+    }
+
+
+    private static bool? ReadRotational(string file)
+    {
+        try
+        {
+            if (!File.Exists(file))
+            {
+                return null;
+            }
+            string text = File.ReadAllText(file).Trim();
+            return text switch
+            {
+                "1" => true,
+                "0" => false,
+                _ => null,
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
 }

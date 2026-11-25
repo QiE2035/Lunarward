@@ -120,9 +120,9 @@
                                    Visibility="{x:Bind ScenarioPackageInfo, Converter={StaticResource ObjectToVisibilityReversedConverter}}" />
                     </StackPanel>
                     <!--  资源选择  -->
+                    <!-- LUNARWARD-DEVIATION: Uno 的 GridView 不支持 TransitionCollection，{x:Null} 会让 XAML 编译器崩（UXAML0001），D128 -->
                     <GridView x:Name="GridView_CategoryScenario"
                               Margin="0,4,0,-12"
-                              ItemContainerTransitions="{x:Null}"
                               SelectedIndex="0"
                               SelectionChanged="GridView_CategoryScenario_SelectionChanged"
                               Visibility="{x:Bind ScenarioPackageInfo, Converter={StaticResource ObjectToVisibilityConverter}}">

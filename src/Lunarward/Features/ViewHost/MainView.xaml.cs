@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
@@ -65,14 +65,6 @@ public sealed partial class MainView : UserControl
         Current = this;
         this.InitializeComponent();
         InitializeMainView();
-        // Lunarward：Uno 的 TeachingTip 不会自动消失，切到非启动器页时手动收起引导浮层
-        MainView_Frame.Navigated += (_, _) =>
-        {
-            if (MainView_Frame.SourcePageType != typeof(Features.GameLauncher.GameLauncherPage))
-            {
-                GameSelector?.HideSelectGameTip();
-            }
-        };
     }
 
 
@@ -133,11 +125,6 @@ public sealed partial class MainView : UserControl
             if (Microsoft.UI.Xaml.Media.VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).FirstOrDefault() is Microsoft.UI.Xaml.Controls.Primitives.Popup popup)
             {
                 popup.IsOpen = false;
-                return true;
-            }
-            if (GameSelector is not null && GameSelector.FullBackgroundVisible)
-            {
-                GameSelector.CloseLayer();
                 return true;
             }
         }
@@ -213,10 +200,10 @@ public sealed partial class MainView : UserControl
                     await Task.Delay(3000);
                     try
                     {
-                        var service = AppConfig.GetService<Starward.RPC.GameInstall.GameInstallService>();
+                        var service = AppConfig.GetService<Features.GameInstall.GameInstallService>();
                         // 别写 /tmp：那里在不少机器上是 tmpfs，这种调试下载会直接把内存写满（L-63）。
                         string devTarget = System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), "games", "lw-ui-progress");
-                        var task = await service.StartPredownloadAsync(CurrentGameId, devTarget, Starward.Core.AudioLanguage.Chinese);
+                        var task = await service.StartPredownloadAsync(CurrentGameId, devTarget, System.Threading.CancellationToken.None);
                         Serilog.Log.Information("dev installprogress started: {state}", task?.State);
                         await Task.Delay(45000);
                         if (task is not null)
@@ -240,17 +227,16 @@ public sealed partial class MainView : UserControl
                     await Task.Delay(2500);
                     try
                     {
-                        Starward.Core.GameBiz dbgBiz = AppConfig.CurrentGameBiz;
-                        if (string.IsNullOrEmpty(dbgBiz.Value) || CurrentGameId is null)
+                        if (CurrentGameId is null)
                         {
                             Serilog.Log.Warning("[dev] predownload/install: no current game selected");
                             return;
                         }
-                        string? installPath = AppConfig.GetGameInstallPath(dbgBiz)
-                                              ?? System.IO.Path.Combine(AppConfig.UserDataFolder!, "Games", dbgBiz.Value);
+                        string? installPath = Features.GameLauncher.GameLauncherService.GetGameInstallPath(CurrentGameId, out _)
+                                              ?? System.IO.Path.Combine(AppConfig.UserDataFolder!, "Games", CurrentGameId.Id);
                         if (DevSwitches.Page == "predownload")
                         {
-                            var dialog = new Features.GameInstall.PreDownloadDialog { CurrentGameId = CurrentGameId, InstallationPath = installPath, XamlRoot = XamlRoot };
+                            var dialog = new Features.GameInstall.PreDownloadDialog { CurrentGameId = CurrentGameId, InstallPath = installPath, XamlRoot = XamlRoot };
                             await dialog.ShowAsync();
                         }
                         else
@@ -372,7 +358,8 @@ public sealed partial class MainView : UserControl
             await Task.Delay(6000);
             if (Starward.Core.GameBiz.TryParse(biz, out Starward.Core.GameBiz target))
             {
-                GameSelector.DevSelectGame(target);
+                // 0.19.0 的 GameSwitcher 没有「指定当前游戏」的公开 API，调试钩子退化为直接写配置。
+                AppConfig.CurrentGameId = biz;
             }
         }
         catch (Exception ex)
@@ -673,7 +660,7 @@ public sealed partial class MainView : UserControl
     } = AppConfig.AuthLoginGameByPassportAccount;
 
 
-    private void InitializePassportUser()
+    private async void InitializePassportUser()
     {
         try
         {

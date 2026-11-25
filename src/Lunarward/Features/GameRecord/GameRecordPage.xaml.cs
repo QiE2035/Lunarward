@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
@@ -77,8 +77,8 @@ public sealed partial class GameRecordPage : PageBase
                 // 切换游戏后必须先把上一款游戏的页签与内容清掉：
                 // InitializeNavigationViewItemVisibility 只负责「本游戏要显示哪些」，不重置旧的可见项。
                 InitializeNavigationViewItemVisibility();
-                _gameRecordService.IsHoyolab = CurrentGameBiz.IsGlobalServer();
-                _gameRecordService.Language = System.Globalization.CultureInfo.CurrentUICulture.Name;
+                // 上游 0.19.0 的 GameRecordRoleService 不再有 IsHoyolab / Language（region 由 passport 带，
+                // 语言由各分游戏 service 自己按当前 culture 取），这里不再设置。
                 CurrentRole = null;
                 GameRoleList = null!;
                 NavigateTo(typeof(BlankPage));
@@ -95,6 +95,70 @@ public sealed partial class GameRecordPage : PageBase
             }
         });
     }
+
+
+    /// <summary>
+    /// LUNARWARD-DEVIATION: 上游 0.19.0 起战绩工具不再弹免责声明（接口侧不再要求），但移植侧
+    /// 保留了 AppConfig.AcceptHoyolabToolboxAgreement 与这段 5 秒倒计时对话框（D61 定下的交互），
+    /// 这里补回被上游同步覆盖掉的实现。
+    /// </summary>
+    private async Task<bool> CheckAgreementAsync()
+    {
+        try
+        {
+            if (!AppConfig.AcceptHoyolabToolboxAgreement)
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = Lang.Common_Disclaimer,
+                    Content = Lang.HoyolabToolboxPage_DisclaimerContent,
+                    PrimaryButtonText = Lang.Common_Accept + " (5s)",
+                    SecondaryButtonText = Lang.Common_Reject,
+                    IsPrimaryButtonEnabled = false,
+                    DefaultButton = ContentDialogButton.Secondary,
+                    XamlRoot = this.XamlRoot,
+                };
+                var resultTask = dialog.ShowAsync();
+                bool cancel = false;
+                for (int i = 0; i < 5; i++)
+                {
+                    for (int j = 0; j < 10; j++)
+                    {
+                        await Task.Delay(100);
+                        if (resultTask.Status is Windows.Foundation.AsyncStatus.Completed)
+                        {
+                            cancel = true;
+                            break;
+                        }
+                    }
+                    if (cancel)
+                    {
+                        break;
+                    }
+                    dialog.PrimaryButtonText = Lang.Common_Accept + $" ({4 - i}s)";
+                }
+                dialog.PrimaryButtonText = Lang.Common_Accept;
+                dialog.IsPrimaryButtonEnabled = true;
+                var result = await resultTask;
+                if (result is ContentDialogResult.Primary)
+                {
+                    AppConfig.AcceptHoyolabToolboxAgreement = true;
+                }
+                else
+                {
+                    WeakReferenceMessenger.Default.Send(new MainViewNavigateMessage(typeof(GameLauncherPage)));
+                    return false;
+                }
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Check agreement.");
+            return false;
+        }
+    }
+
 
 
     protected override void OnUnloaded()
@@ -431,6 +495,17 @@ public sealed partial class GameRecordPage : PageBase
     }
 
 
+    /// <summary>
+    /// LUNARWARD-DEVIATION: 空态「登录」入口（移植侧 XAML 独有，上游 0.19.0 不会走到没有角色态的页面）。
+    /// Linux 的 LoginPage 用进程内 WebKitGTK 登录助手取 cookie（D29/D32），参数仍是 GameBiz。
+    /// </summary>
+    [RelayCommand]
+    private void WebLogin()
+    {
+        NavigateTo(typeof(LoginPage), CurrentGameBiz);
+    }
+
+
     [RelayCommand]
     private async Task UpdateGameRolesCookieAsync()
     {
@@ -516,10 +591,61 @@ public sealed partial class GameRecordPage : PageBase
 
     private async void NavigationViewItem_UpdateDeviceInfo_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
     {
-        GameRecordServiceBase.ResetDeviceInfo();
-        InAppToast.MainWindow?.Success(Lang.HoyolabToolboxPage_TheDeviceFingerprintIsAlreadyUpdated);
+        await UpdateDeviceInfoAsync(true);
     }
 
+
+    // LUNARWARD-DEVIATION: 上游同步把这个入口连同方法一起覆盖成了空壳（只清缓存、不再重取指纹），
+    // 移植侧照旧在点击后重新申请一次并给成功提示，所以这里补回 UpdateDeviceInfoAsync。
+    private async Task UpdateDeviceInfoAsync(bool forceUpdate = false)
+    {
+        try
+        {
+            ServerRegion region = CurrentGameBiz.IsGlobalServer() ? ServerRegion.HoYoverse : ServerRegion.miHoYo;
+            // 0.19.0 起设备指纹由 WindowsDeviceFpService 持有（AppConfig.HyperionDeviceId/DeviceFp 已 [Obsolete]，
+            // D128）；它的 Linux 实现自己维护 MIHOYOSDK_DEVICE_FP，不读注册表/DXGI/SMBIOS。
+            WindowsDeviceFpService deviceFpService = AppConfig.GetService<WindowsDeviceFpService>();
+            if (forceUpdate)
+            {
+                // 先让 GameRecordServiceBase 丢掉缓存，否则拿回来的还是旧指纹
+                GameRecordServiceBase.ResetDeviceInfo();
+                await deviceFpService.InitializeDeviceFpAsync(region);
+            }
+            _logger.LogDebug("Device fp: {deviceFp}", deviceFpService.GetDeviceFp());
+            // 重新生成含新指纹的 AndroidDeviceInfo（写回 AppConfig.AndroidDeviceInfo），各分游戏客户端随后取用
+            await _gameRecordService.GetDeviceInfoAsync(region);
+            if (forceUpdate)
+            {
+                InAppToast.MainWindow?.Success(Lang.HoyolabToolboxPage_TheDeviceFingerprintIsAlreadyUpdated);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Update device info");
+            if (forceUpdate)
+            {
+                InAppToast.MainWindow?.Error(ex);
+            }
+        }
+    }
+
+
+
+    /// <summary>切换游戏后台刷新一次当前角色的头像（失败不提示）。上游同步时被覆盖删除，此处补回。</summary>
+    private async Task RefreshGameRoleHeadIconSilentlyAsync()
+    {
+        try
+        {
+            if (CurrentRole is not null)
+            {
+                await _gameRecordService.UpdateGameRoleAsync(CurrentRole);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Update game role head icon silently ({gameBiz}, {uid}).", CurrentRole?.GameBiz, CurrentRole?.Uid);
+        }
+    }
 
 
     #endregion

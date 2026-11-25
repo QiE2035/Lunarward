@@ -30,6 +30,22 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
     private readonly ILogger<RuntimeEnvironmentSetting> _logger = AppConfig.GetLogger<RuntimeEnvironmentSetting>();
 
+
+    /// <summary>
+    /// 传给 RunOnceService / ProfileShellService 的 gameKey。
+    /// LUNARWARD-DEVIATION: 上游 0.19.0 把 <c>AppConfig.CurrentGameBiz</c> 标成 <c>[Obsolete(..., true)]</c>
+    /// （GameBiz 从枚举改成 record struct，当前游戏改由 GameSwitcher 通过 <see cref="AppConfig.CurrentGameId"/> 维护），
+    /// 这里改用非 obsolete 的 CurrentGameId。
+    /// gameKey 在 <c>RuntimeEnvironment.Assemble</c> 里只用于「有没有当前游戏」的判定：非空才走
+    /// <c>PrefixManager.TryGetExistingPrefix</c> 按方案解析出真正的前缀（L-62：dedicated/template/ephemeral 的路径
+    /// 不是 <c>profile.PrefixPath</c>），为空则退回按 PrefixPath 的朴素路径；它不写进任何环境变量文本。
+    /// 注意这同时修回了一处旧行为：obsolete 的 CurrentGameBiz 在移植侧从没被写过，取到的永远是空串，
+    /// 于是「立即运行/调试 Shell」一直按朴素路径算前缀；现在选了游戏就按方案解析。
+    /// </summary>
+    private static string? CurrentGameKey => AppConfig.CurrentGameId;
+
+
+
     /// <summary>R23：ContentDialog 同一时间只允许一个；连点检查类按钮时第二次 ShowAsync 会直接抛。</summary>
     private bool _dialogOpen;
     private bool _shortcutsAttached;
@@ -305,8 +321,23 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
 
 
     /// <summary>D108：体积一律走同一个格式化函数，避免 chip 与卡片出现 370.7 / 370.71 两种写法。</summary>
+    /// <remarks>
+    /// LUNARWARD-DEVIATION: 上游 0.19.0 用 <c>src/Starward.GameInstall/**</c> 取代了移植侧自写的 Sophon 管线，
+    /// 原来的 <c>Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize</c> 随该目录一起删除。
+    /// 这里保留移植侧原来的实现（与删除前逐字一致，输出格式不变）。
+    /// </remarks>
     private static string FormatSize(long bytes)
-        => Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(bytes);
+    {
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double value = bytes;
+        int unit = 0;
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+        return unit == 0 ? $"{bytes} B" : $"{value:0.##} {units[unit]}";
+    }
 
 
     private void Button_RepairBindings_Click(object sender, RoutedEventArgs e)
@@ -677,7 +708,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             {
                 return;
             }
-            var process = Starward.Features.Runtime.RunOnceService.Start(profile, file, argsBox.Text, _logger, AppConfig.CurrentGameBiz.Value);
+            var process = Starward.Features.Runtime.RunOnceService.Start(profile, file, argsBox.Text, _logger, CurrentGameKey);
             if (process is null)
             {
                 Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_RuntimeEnv_Failed);
@@ -898,7 +929,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
             : Lang.Lunarward_RuntimeEnv_Healthy;
 
         string sizeText = prefix.Exists && prefix.SizeBytes > 0
-            ? Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(prefix.SizeBytes)
+            ? FormatSize(prefix.SizeBytes)
             : "—";
 
         List<string> owners = profiles
@@ -2461,7 +2492,7 @@ public sealed partial class RuntimeEnvironmentSetting : PageBase
         {
             return;
         }
-        if (ProfileShellService.TryOpenShell(profile, _logger, AppConfig.CurrentGameBiz.Value))
+        if (ProfileShellService.TryOpenShell(profile, _logger, CurrentGameKey))
         {
             Helpers.InAppToast.MainWindow?.Success((string?)null, string.Format(Lang.Lunarward_Shell_Opened, profile.Name), 3000);
         }

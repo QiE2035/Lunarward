@@ -1,4 +1,4 @@
-// Lunarward：统一的图像解码入口（24 号 P4）。
+﻿// Lunarward：统一的图像解码入口（24 号 P4）。
 //
 // Linux 上图像解码有两条路：
 //   1. SkiaSharp —— PNG / JPEG / WebP / GIF / BMP / ICO，快，项目本来就有；
@@ -98,8 +98,9 @@ internal static class ImageDecode
         var result = new SKBitmap(info);
         using var canvas = new SKCanvas(result);
         using var image = SKImage.FromBitmap(source);
-        using var paint = new SKPaint { FilterQuality = SKFilterQuality.High };
-        canvas.DrawImage(image, new SKRect(0, 0, width, height), paint);
+        // SkiaSharp 4：采样质量由 SKSamplingOptions 表达（SKPaint.FilterQuality 已删，L-184）。
+        canvas.DrawImage(image, new SKRect(0, 0, width, height),
+            new SKSamplingOptions(SKCubicResampler.Mitchell), null);
         source.Dispose();
         return result;
     }

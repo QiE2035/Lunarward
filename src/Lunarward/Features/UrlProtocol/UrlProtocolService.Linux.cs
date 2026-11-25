@@ -1,4 +1,4 @@
-// Lunarward：Windows 上通过注册表注册 starward:// 协议；Linux 走 .desktop + xdg-mime。
+﻿// Lunarward：Windows 上通过注册表注册 starward:// 协议；Linux 走 .desktop + xdg-mime。
 //
 // 需要三样东西才能真的「点网页里的 lunarward:// 就唤起启动器」：
 //   1. ~/.local/share/applications/lunarward.desktop（带 MimeType=x-scheme-handler/lunarward 与 Exec）
@@ -62,6 +62,20 @@ internal static class UrlProtocolService
             Serilog.Log.Warning(ex, "Register protocol failed");
         }
     }
+
+    /// <summary>
+    /// Lunarward：上游 0.19.0 的 Hyperion 登录回调协议（Windows 写注册表，Linux 走同一个 lunarward.desktop）。
+    /// 移植侧的登录回调已经由 `lunarward://hyperion-login/` 走单实例管道处理，因此这里复用同一个注册项：
+    /// 注册协议时一个 .desktop 就涵盖全部 scheme，注销同理（D128）。
+    /// </summary>
+    public static void RegisterHypLoginProtocol() => RegisterProtocol();
+
+
+    public static void UnregisterHypLoginProtocol()
+    {
+        // 与 RegisterProtocol 共用 .desktop，注销交给 UnregisterProtocol，避免把主协议一起删掉。
+    }
+
 
     public static void UnregisterProtocol()
     {

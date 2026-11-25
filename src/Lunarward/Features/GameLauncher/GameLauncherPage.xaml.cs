@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using Starward.Language;
 using Starward.Features.Runtime;
 using CommunityToolkit.Mvvm.Input;
@@ -30,9 +30,8 @@ using Windows.Storage;
 using Windows.System;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Starward.Features.HoYoPlay;
+using Starward.GameInstall;
 using Starward.Features;
-using Starward.RPC.GameInstall;
 using System.Timers;
 
 
@@ -118,9 +117,8 @@ public sealed partial class GameLauncherPage : PageBase
             GameServers = null;
             SelectedGameServer = null;
             _gameInstallTask = null;
-            _dxConfig = null;
+            DXConfig = null;
             Button_CloudGame.Visibility = Visibility.Collapsed;
-            EnableGameAccountSwitcher = false;
             BackgroundImages = null!;
             currentBackgroundImageIndex = 0;
             OnPropertyChanged(nameof(CurrentBackgroundImageIndex));
@@ -960,12 +958,12 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            string? folder = GameLauncherService.GetGameInstallPath(CurrentGameBiz);
+            string? folder = GameLauncherService.GetGameInstallPath(Starward.Core.HoYoPlay.GameId.FromGameBiz(CurrentGameBiz)!);
             if (string.IsNullOrWhiteSpace(folder))
             {
                 return null;
             }
-            string name = await _gameLauncherService.GetGameExeNameAsync(CurrentGameId);
+            string name = await _gameLauncherService.GetGameExeNameAsync(CurrentGameId, CancellationToken.None);
             string exe = Path.Combine(folder, name);
             return File.Exists(exe) ? exe : null;
         }
@@ -1357,7 +1355,8 @@ public sealed partial class GameLauncherPage : PageBase
     private const string PauseIcon = "\uE769";
 
 
-    public List<GameBackground> BackgroundImages { get; set => SetProperty(ref field, value); }
+    /// <summary>当前游戏可选的背景（0.19.0 起是 GameBackgroundModel：Id / Type / Last / GameBackground）。</summary>
+    public List<GameBackgroundModel> BackgroundImages { get; set => SetProperty(ref field, value); }
 
     public bool CanStopVideo { get; set => SetProperty(ref field, value); }
 
@@ -1436,10 +1435,17 @@ public sealed partial class GameLauncherPage : PageBase
 
     private void OnBackgroundChanged(object _, BackgroundChangedMessage message)
     {
-        if (message.GameBackground is null)
-        {
-            _ = InitializeBackgameImageSwitcherAsync();
-        }
+        // 0.19.0：换自定义壁纸/换游戏时消息不带具体背景，重读 AppBackground 的状态即可。
+        _ = InitializeBackgameImageSwitcherAsync();
+    }
+
+
+    /// <summary>视频按钮状态统一从 AppBackground 同步（0.19.0 的 IsVideoPlaying / CurrentGameBackground）。</summary>
+    private void UpdateVideoButtonState()
+    {
+        GameBackgroundModel? current = AppBackground.Current.CurrentGameBackground;
+        CanStopVideo = current is not null && current.GameBackground.Type is GameBackground.BACKGROUND_TYPE_VIDEO;
+        StartStopButtonIcon = AppBackground.Current.IsVideoPlaying ? PauseIcon : PlayIcon;
     }
 
 
@@ -1448,23 +1454,27 @@ public sealed partial class GameLauncherPage : PageBase
         try
         {
             CanStopVideo = false;
-            BackgroundImages = await _backgroundService.GetGameBackgroundsAsync(CurrentGameId);
+            StartStopButtonIcon = PauseIcon;
+            // LUNARWARD-DEVIATION: 上游 0.19.0 把内联切换器整个换成了 BackgroundSwitcher 控件，
+            // 这里保留旧的圆点切换条（GameLauncherPage.xaml 不在本次授权范围），
+            // 但列表与选中项统一从 AppBackground 读，避免两套状态。
+            await AppBackground.Current.UpdateBackgroundAsync();
+            BackgroundImages = AppBackground.Current.GameBackgrounds?.ToList() ?? new List<GameBackgroundModel>();
             if (BackgroundImages.Count > 1)
             {
                 Border_SwitchBackgroundImage.Visibility = Visibility.Visible;
                 RebuildBackgroundDots();
-                GameBackground? currentBackground = await _backgroundService.GetSuggestedGameBackgroundAsync(CurrentGameId);
-                if (currentBackground != null && BackgroundImages.FirstOrDefault(x => x.Id == currentBackground.Id) is GameBackground current)
+                GameBackgroundModel? current = AppBackground.Current.CurrentGameBackground;
+                if (current is not null)
                 {
-                    currentBackgroundImageIndex = Math.Clamp(BackgroundImages.IndexOf(current), 0, BackgroundImages.Count - 1);
-                    OnPropertyChanged(nameof(CurrentBackgroundImageIndex));
-                    CanStopVideo = current.Type is GameBackground.BACKGROUND_TYPE_VIDEO;
-                    if (CanStopVideo)
+                    int index = BackgroundImages.IndexOf(current);
+                    if (index >= 0)
                     {
-                        current.StopVideo = currentBackground.StopVideo;
-                        StartStopButtonIcon = current.StopVideo ? PlayIcon : PauseIcon;
+                        currentBackgroundImageIndex = Math.Clamp(index, 0, BackgroundImages.Count - 1);
+                        OnPropertyChanged(nameof(CurrentBackgroundImageIndex));
                     }
                 }
+                UpdateVideoButtonState();
             }
             else
             {
@@ -1474,7 +1484,7 @@ public sealed partial class GameLauncherPage : PageBase
             // 开发期验证背景切换（没有可用的合成点击）：LUNARWARD_DEV_BG_CYCLE=1 时 6 秒后切到下一张
             if (Environment.GetEnvironmentVariable("LUNARWARD_DEV_BG_CYCLE") == "1")
             {
-                _logger.LogInformation("[dev] backgrounds: {List}", string.Join(" | ", BackgroundImages.Select((x, i) => $"{i}:{x.Type}:{Path.GetFileName(x.Background.Url)}{(x.Video is null ? "" : "+video")}")));
+                _logger.LogInformation("[dev] backgrounds: {List}", string.Join(" | ", BackgroundImages.Select((x, i) => $"{i}:{x.Type}:{Path.GetFileName(x.GameBackground.Background?.Url)}{(x.GameBackground.Video is null ? "" : "+video")}")));
             }
             if (Environment.GetEnvironmentVariable("LUNARWARD_DEV_BG_CYCLE") == "1" && BackgroundImages.Count > 1)
             {
@@ -1497,7 +1507,7 @@ public sealed partial class GameLauncherPage : PageBase
     }
 
 
-    private void ChangeBackgroundImageIndex(int index)
+    private async void ChangeBackgroundImageIndex(int index)
     {
         try
         {
@@ -1505,15 +1515,14 @@ public sealed partial class GameLauncherPage : PageBase
             {
                 return;
             }
-            GameBackground current = BackgroundImages[index];
-            WeakReferenceMessenger.Default.Send(new BackgroundChangedMessage(current));
-            CanStopVideo = current.Type is GameBackground.BACKGROUND_TYPE_VIDEO;
-            if (CanStopVideo)
-            {
-                StartStopButtonIcon = current.StopVideo ? PlayIcon : PauseIcon;
-            }
+            await AppBackground.Current.ChangeCurrentBackgroundIndexAsync(index);
+            UpdateVideoButtonState();
+            UpdateBackgroundDots();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Change background image {GameBiz}", CurrentGameBiz);
+        }
     }
 
 
@@ -1567,28 +1576,7 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            string? path = null;
-            GameBackground? background = AppBackground.Current.CurrentGameBackground;
-            if (background?.Type is GameBackground.BACKGROUND_TYPE_CUSTOM)
-            {
-                path = background.Background.Url;
-            }
-            else if (background?.Type is GameBackground.BACKGROUND_TYPE_VIDEO && !background.StopVideo)
-            {
-                string name = Path.GetFileName(background.Video.Url);
-                path = BackgroundService.GetBgFilePath(name);
-            }
-            else if (background is not null)
-            {
-                string name = Path.GetFileName(background.Background.Url);
-                path = BackgroundService.GetBgFilePath(name);
-            }
-            if (File.Exists(path))
-            {
-                var file = await StorageFile.GetFileFromPathAsync(path);
-                ClipboardHelper.SetStorageItems(DataPackageOperation.Copy, file);
-                InAppToast.MainWindow?.Information(Lang.Common_CopiedToClipboard);
-            }
+            await AppBackground.Current.CopyCurrentBackgroundAsync();
         }
         catch (Exception ex)
         {
@@ -1602,34 +1590,7 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            string? path = null;
-            GameBackground? background = AppBackground.Current.CurrentGameBackground;
-            if (background?.Type is GameBackground.BACKGROUND_TYPE_CUSTOM)
-            {
-                path = background.Background.Url;
-            }
-            else if (background?.Type is GameBackground.BACKGROUND_TYPE_VIDEO && !background.StopVideo)
-            {
-                string name = Path.GetFileName(background.Video.Url);
-                path = BackgroundService.GetBgFilePath(name);
-            }
-            else if (background is not null)
-            {
-                string name = Path.GetFileName(background.Background.Url);
-                path = BackgroundService.GetBgFilePath(name);
-            }
-            if (File.Exists(path))
-            {
-                var savePath = await FileDialogHelper.OpenSaveFileDialogAsync(this.XamlRoot, Path.GetFileName(path));
-                if (!string.IsNullOrWhiteSpace(savePath))
-                {
-                    File.Copy(path, savePath, true);
-                    var file = await StorageFile.GetFileFromPathAsync(savePath);
-                    var options = new FolderLauncherOptions();
-                    options.ItemsToSelect.Add(file);
-                    await Launcher.LaunchFolderAsync(await file.GetParentAsync(), options);
-                }
-            }
+            await AppBackground.Current.SaveCurrentBackgroundAsync();
         }
         catch (Exception ex)
         {
@@ -1643,15 +1604,14 @@ public sealed partial class GameLauncherPage : PageBase
     {
         try
         {
-            GameBackground current = BackgroundImages[CurrentBackgroundImageIndex];
-            if (current.Type is GameBackground.BACKGROUND_TYPE_VIDEO)
-            {
-                current.StopVideo = !current.StopVideo;
-                StartStopButtonIcon = current.StopVideo ? PlayIcon : PauseIcon;
-                WeakReferenceMessenger.Default.Send(new BackgroundChangedMessage(current));
-            }
+            AppBackground.Current.PlayPauseVideo();
+            GameBackgroundModel? current = AppBackground.Current.CurrentGameBackground;
+            StartStopButtonIcon = current?.Type is 1 ? PauseIcon : PlayIcon;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Start or stop video background {GameBiz}", CurrentGameBiz);
+        }
     }
 
 

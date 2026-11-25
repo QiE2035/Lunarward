@@ -85,7 +85,7 @@ internal class GameRecordService
     private IGameRecordBH3Client BH3Client => IsHoyolab ? _hoyolabBH3 : _hyperionBH3;
 
     /// <summary>当前 region 下任选一个客户端即可的能力（账号列表、头像、BBS UA）。</summary>
-    private GameRecordClientBase CurrentClient => IsHoyolab ? _hoyolabGenshin : _hyperionGenshin;
+    private IGameRecordClient CurrentClient => IsHoyolab ? _hoyolabGenshin : _hyperionGenshin;
 
 
     private bool isHoyolab;
@@ -141,72 +141,130 @@ internal class GameRecordService
 
 
     /// <summary>
-    /// 更新设备指纹信息
+    /// 更新设备指纹信息。
     /// </summary>
-    /// <param name="forceUpdate"></param>
-    /// <returns></returns>
+    /// <remarks>
+    /// LUNARWARD-DEVIATION: 上游 0.19.0 把设备指纹收进 GameRecordServiceBase（按 region 各缓存一份，
+    /// JSON 存在 <see cref="AppConfig.AndroidDeviceInfo"/>），原来的 HyperionDeviceId/HyperionDeviceFp/
+    /// HyperionDeviceFpLastUpdateTime 设置已 [Obsolete(..., true)] 删除。移植侧门面不是 GameRecordServiceBase 的
+    /// 子类（它要同时持有两个 region 的客户端），所以在这里照同样的规则实现一遍。
+    /// </remarks>
     public async Task UpdateDeviceFpAsync(bool forceUpdate = false, CancellationToken cancellationToken = default)
     {
-        if (IsHoyolab)
+        ServerRegion region = IsHoyolab ? ServerRegion.HoYoverse : ServerRegion.miHoYo;
+        if (forceUpdate)
         {
-            return;
-        }
-        string? id = AppConfig.HyperionDeviceId;
-        string? fp = AppConfig.HyperionDeviceFp;
-        DateTimeOffset lastUpdateTime = AppConfig.HyperionDeviceFpLastUpdateTime;
-        if (!forceUpdate && !string.IsNullOrWhiteSpace(id) && !string.IsNullOrWhiteSpace(fp))
-        {
-            ApplyDeviceInfo();
-        }
-        if (forceUpdate || DateTimeOffset.Now - lastUpdateTime > TimeSpan.FromDays(3))
-        {
-            try
+            if (region is ServerRegion.HoYoverse)
             {
-                var deviceInfo = BuildDeviceInfo();
-                DeviceFpResult result = await _deviceFpClient.GetDeviceFpAsync(ServerRegion.miHoYo, deviceInfo, cancellationToken);
-                if (!string.IsNullOrWhiteSpace(result.DeviceFp))
-                {
-                    AppConfig.HyperionDeviceId = deviceInfo.BbsDeviceId;
-                    AppConfig.HyperionDeviceFp = result.DeviceFp;
-                    AppConfig.HyperionDeviceFpLastUpdateTime = DateTimeOffset.Now;
-                }
+                _deviceInfoHoYoverse = null;
             }
-            catch (Exception ex)
+            else
             {
-                // 拿不到指纹不该阻断战绩查询：旧的 id/fp 继续用，下次再试。
-                _logger.LogWarning(ex, "Update device fp failed");
+                _deviceInfoMiHoYo = null;
             }
-            ApplyDeviceInfo();
+        }
+        try
+        {
+            AndroidDeviceInfo deviceInfo = await GetDeviceInfoAsync(region, cancellationToken);
+            ApplyDeviceInfo(deviceInfo);
+        }
+        catch (Exception ex)
+        {
+            // 拿不到指纹不该阻断战绩查询：旧的 id/fp 继续用，下次再试。
+            _logger.LogWarning(ex, "Update device fp failed");
         }
     }
 
 
-    /// <summary>把 AppConfig 里的设备 id/fp 推给所有客户端（上游按 region 各存一份）。</summary>
+    /// <summary>清掉缓存与持久化的设备指纹，下次查询时会重新申请（对应上游 GameRecordServiceBase.ResetDeviceInfo）。</summary>
+    public void ResetDeviceInfo()
+    {
+        AppConfig.AndroidDeviceInfo = null;
+        _deviceInfoMiHoYo = null;
+        _deviceInfoHoYoverse = null;
+    }
+
+
+    private AndroidDeviceInfo? _deviceInfoMiHoYo;
+
+    private AndroidDeviceInfo? _deviceInfoHoYoverse;
+
+
+    private async Task<AndroidDeviceInfo> GetDeviceInfoAsync(ServerRegion region, CancellationToken cancellationToken = default)
+    {
+        if (region is ServerRegion.HoYoverse)
+        {
+            return _deviceInfoHoYoverse ??= await CreateDeviceInfoAsync(region, cancellationToken);
+        }
+        return _deviceInfoMiHoYo ??= await CreateDeviceInfoAsync(region, cancellationToken);
+    }
+
+
+    private async Task<AndroidDeviceInfo> CreateDeviceInfoAsync(ServerRegion region, CancellationToken cancellationToken)
+    {
+        AndroidDeviceInfo deviceInfo = LoadDeviceInfo();
+        try
+        {
+            DeviceFpResult fpResult = await _deviceFpClient.GetDeviceFpAsync(region, deviceInfo, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fpResult.DeviceFp))
+            {
+                if (region is ServerRegion.HoYoverse)
+                {
+                    deviceInfo.HoyolabDeviceFp = fpResult.DeviceFp;
+                }
+                else
+                {
+                    deviceInfo.DeviceFp = fpResult.DeviceFp;
+                    deviceInfo.BbsDeviceFp = fpResult.DeviceFp;
+                }
+                AppConfig.AndroidDeviceInfo = JsonSerializer.Serialize(deviceInfo, DeviceFpJsonContext.Default.AndroidDeviceInfo);
+            }
+        }
+        catch (Exception ex)
+        {
+            // 设备指纹接口偶发失败时用随机生成的设备信息兜底，和上游一致。
+            _logger.LogWarning(ex, "Get device fp failed");
+        }
+        return deviceInfo;
+    }
+
+
+    private static AndroidDeviceInfo LoadDeviceInfo()
+    {
+        AndroidDeviceInfo? deviceInfo = null;
+        try
+        {
+            string? json = AppConfig.AndroidDeviceInfo;
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                deviceInfo = JsonSerializer.Deserialize<AndroidDeviceInfo>(json, DeviceFpJsonContext.Default.AndroidDeviceInfo);
+            }
+        }
+        catch { }
+        return deviceInfo ?? AndroidDeviceInfo.CreateRandom();
+    }
+
+
+    /// <summary>把当前 region 的设备信息推给该 region 的客户端（请求头 x-rpc-device-*）。</summary>
+    private void ApplyDeviceInfo(AndroidDeviceInfo deviceInfo)
+    {
+        ServerRegion region = IsHoyolab ? ServerRegion.HoYoverse : ServerRegion.miHoYo;
+        foreach (var client in _allClients.OfType<GameRecordClientBase>())
+        {
+            if (client.ServerRegion == region)
+            {
+                client.DeviceInfo = deviceInfo;
+            }
+        }
+    }
+
+
+    /// <summary>同步版：构造函数和切换 region 时用已持久化（或随机生成）的设备信息，不发网络请求。</summary>
     private void ApplyDeviceInfo()
     {
-        var deviceInfo = BuildDeviceInfo();
-        if (string.IsNullOrWhiteSpace(deviceInfo.DeviceId))
-        {
-            return;
-        }
-        foreach (var client in _allClients)
-        {
-            client.DeviceInfo = deviceInfo;
-        }
-    }
-
-
-    private static AndroidDeviceInfo BuildDeviceInfo()
-    {
-        string id = AppConfig.HyperionDeviceId ?? "";
-        string fp = AppConfig.HyperionDeviceFp ?? "";
-        return new AndroidDeviceInfo
-        {
-            DeviceId = id,
-            BbsDeviceId = id,
-            DeviceFp = fp,
-            BbsDeviceFp = fp,
-        };
+        ServerRegion region = IsHoyolab ? ServerRegion.HoYoverse : ServerRegion.miHoYo;
+        AndroidDeviceInfo deviceInfo = (region is ServerRegion.HoYoverse ? _deviceInfoHoYoverse : _deviceInfoMiHoYo) ?? LoadDeviceInfo();
+        ApplyDeviceInfo(deviceInfo);
     }
 
 
@@ -277,7 +335,7 @@ internal class GameRecordService
             {
                 list.AddRange(await CurrentClient.GetGameRolesAsync(biz, cookie, cancellationToken));
             }
-            catch (miHoYoApiException ex) when (ex.Retcode is -100 or -101 or -10001)
+            catch (miHoYoApiException ex) when (ex.ReturnCode is -100 or -101 or -10001)
             {
                 // 这个 cookie 下没有这个游戏的账号，跳过即可。
                 _logger.LogDebug("No game role for {biz}: {message}", biz, ex.Message);

@@ -1,5 +1,6 @@
-// Lunarward：CommunityToolkit.WinUI 在 Linux 上不可用（其 TFM 为 net8.0-windows），
+﻿// Lunarward：CommunityToolkit.WinUI 在 Linux 上不可用（其 TFM 为 net8.0-windows），
 // 这里提供上游 XAML 实际用到的少数附加属性，保持页面 XAML 不改。
+using System;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
@@ -76,4 +77,61 @@ public static class Effects
 
     public static void SetShadow(Microsoft.UI.Xaml.DependencyObject element, object? value)
         => element.SetValue(ShadowProperty, value);
+}
+
+
+/// <summary>
+/// 上游用 CommunityToolkit.WinUI 的 <c>FindDescendant</c>（0.19.0 的 LauncherConfigView 用它取 GridView 的 ScrollViewer）。
+/// 这个扩展方法属于 `CommunityToolkit.WinUI.Extensions` 包，移植侧没有引；这里按同样语义实现（L-184）。
+/// </summary>
+public static class DependencyObjectExtensions
+{
+    public static T FindDescendant<T>(this DependencyObject element) where T : class
+    {
+        return element.FindDescendant<T>(null);
+    }
+
+    public static T FindDescendant<T>(this DependencyObject element, Func<T, bool>? predicate) where T : class
+    {
+        if (element is null)
+        {
+            return null;
+        }
+        int count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(element);
+        for (int i = 0; i < count; i++)
+        {
+            DependencyObject child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(element, i);
+            if (child is T match && (predicate is null || predicate(match)))
+            {
+                return match;
+            }
+            if (child.FindDescendant(predicate) is T nested)
+            {
+                return nested;
+            }
+        }
+        return null;
+    }
+
+    public static DependencyObject FindDescendant(this DependencyObject element, string name)
+    {
+        if (element is null)
+        {
+            return null;
+        }
+        int count = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(element);
+        for (int i = 0; i < count; i++)
+        {
+            DependencyObject child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(element, i);
+            if (child is FrameworkElement framework && framework.Name == name)
+            {
+                return child;
+            }
+            if (child.FindDescendant(name) is { } nested)
+            {
+                return nested;
+            }
+        }
+        return null;
+    }
 }

@@ -53,12 +53,6 @@
                              Tag="{x:Bind sfv:MainWindowCloseOption.Exit}" />
             </StackPanel>
 
-            <ToggleSwitch Margin="0,12,0,0"
-                          IsOn="{x:Bind EnableGameAccountSwitcher, Mode=TwoWay}"
-                          OffContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}"
-                          OnContent="{x:Bind lang:Lang.SettingPage_RegistryBasedGameAccountSwitchingFeature}" />
-
-
             <!--  Linux：透明/动画效果是 Windows 系统设置项，Linux 下无对应开关，整段移除（D61）。  -->
 
         </StackPanel>

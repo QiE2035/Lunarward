@@ -15,7 +15,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Windows.System;
-using Starward.Features.HoYoPlay;
+using Starward.GameInstall;
 
 
 namespace Starward.Features.GameLauncher;

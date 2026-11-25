@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Starward.GameInstall;
 using System.Windows.Input;
-using Starward.RPC.GameInstall;
 using System;
 
 

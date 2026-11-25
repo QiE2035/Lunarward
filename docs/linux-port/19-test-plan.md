@@ -6,7 +6,7 @@
 
 - 最后更新：2026-11-24（用例计数按表内唯一 ID 重算为 **237 条** = 225 `T-*` + 12 `RG-*`，并修掉 `T-UI-30/31/33` 的重号；覆盖率口径按 D122 落实；D87 运行器命名 12 例、D88 `lint-pkgbuild.sh` 静态检查、D89 SDK 下限防回归）
 - 对应代码：`src/Lunarward`（`main`），单头 Linux，不改 `src/Starward/`
-- 现状（2026-11-24 实测）：L1 单测数量以 `dotnet test Starward.slnx -c Debug` 的实际输出为准（2026-11-24 为 **379 条**）；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **41 例（40 通过 + 1 跳过）** + `cli-extra.sh` **32 例** + `chunk-smoke.sh` **6 条** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
+- 现状（2026-11-24 实测）：L1 单测数量以 `dotnet test Starward.slnx -c Debug` 的实际输出为准（2026-11-24 为 **379 条**）；L1.5 `--selftest-ui` **11 条**；L2 `cli-smoke.sh` **41 例（40 通过 + 1 跳过）** + `cli-extra.sh` **32 例（含 4 条退役 SKIP）** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
 
 ### 覆盖率口径（D122，2026-11-24）
 
@@ -400,7 +400,7 @@
 
 - **L1**：`dotnet test`（xunit）。新增纯逻辑必须先加断言（路径、解析、状态机、序列化）。
 - **L1.5**：应用内 `--selftest-ui`，用例清单驱动，`PASS/FAIL` + 退出码；`xvfb-run` 可跑。
-- **L2**：`scripts/test/cli-smoke.sh`（子命令错误路径）、`scripts/test/fake-sophon.py`（本地假 HTTP 服务，由 `chunk-smoke.sh` 拉起）、`scripts/test/fixtures.sh`（造假前缀/假运行器）。
+- **L2**：`scripts/test/cli-smoke.sh`（子命令错误路径）、`scripts/test/cli-extra.sh`、`scripts/test/fixtures.sh`（造假前缀/假运行器）。安装/更新的离线替身（`fake-sophon.py` + `chunk-smoke.sh`）已随自研 Sophon 管线退役（D128）。
 - **L3**：`cu_*`（真实输入 + 截图）+ 日志断言 + 像素判据（区域均值/标准差/自相关节距）；每个用例一个脚本（约定 `scripts/test/gui/<用例 ID>.sh`，该目录当前尚未建立），输出证据路径。
 - **LP**：`scripts/test/perf.sh`：起应用 → 跑场景 → 采样 `/proc` → 生成 `perf-<sha>.json` → 与 `scripts/test/perf-baseline.json` 比对，超阈值退出码非 0。
 - **故障注入**（计划，`scripts/test/faults/` 目录当前尚未建立）：kill -9 时点、磁盘满用小 tmpfs、权限、断网用 `unshare -n` 或本地代理。
@@ -483,7 +483,9 @@ L2 脚手架（`scripts/test/`）第一次全量跑 33 条用例，暴露 3 个�
 首装目标缺失导致只写了一次记录。改为夹具自带 `fake-dxvk` / `fake-vkd3d` 两个组件，装 A 再装 B 才触发备份。
 
 
-## 附录：L2 安装链路（假 Sophon 服务，2026-11-12）
+## 附录：L2 安装链路（假 Sophon 服务，2026-11-12）—— **已退役（D128）**
+
+> 2026-11-25 起移植侧删除自研 Sophon 管线（`Features/GameInstall/Sophon/*`、`--install-run`/`--install-fetch`/`--update-run`/`--patch-run` 等入口），安装/更新改走上游 `Starward.GameInstall.GameInstallRunner` + 官方 HoYoPlay API；`fake-sophon.py`、`chunk-smoke.sh` 与 T-IN-20…25 一并移除，`cli-extra.sh` 的 T-CL-29..32 标 SKIP。以下内容留作历史，接假服务需要给官方客户端加 base URL 注入口，暂不做。
 
 为了在没有网络、没有真实游戏目录的情况下测「安装/更新/复用/续传」，加了一套离线安装链路：
 
@@ -492,7 +494,7 @@ L2 脚手架（`scripts/test/`）第一次全量跑 33 条用例，暴露 3 个�
   `getPatchBuild` 回空清单表示「没有可差分补丁」，让链路走 chunk 复用。
 - 注入点：`SophonLibrary.ApiBase`（`LUNARWARD_SOPHON_BASE`）+ `Program.Linux.cs` 的 `GetBuildForTest`
   （`LUNARWARD_SOPHON_DIRECT=1` 直接构造假 package，跳过 HoYoPlay 的 branch 查询）。
-- `scripts/test/chunk-smoke.sh`：6 条用例（T-IN-20…T-IN-25），CI 与本地都跑。
+- `scripts/test/chunk-smoke.sh`：6 条用例（T-IN-20…T-IN-25）—— **2026-11-25 已随自研 Sophon 管线删除（D128）**。
 
 用例与首轮结果：
 
@@ -634,7 +636,7 @@ CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1
 | RG-11 预检结论要反映到退出码 | `--preflight` 判定不可启动仍 `rc=0` | 不可启动时 `rc=1` | L2 | ✅ `cli-extra.sh` |
 | RG-12 安装路径不依赖 config.json | `--install-fetch` 说「没有记录安装路径」，实际存 SQLite | 传 `--install-dir` 后能完成规划 | L2 | ✅ `cli-extra.sh` |
 
-落地位置汇总：`tests/Lunarward.Tests/*`（L1，62 条）、`Features/Dev/UiSelfTest.cs`（L1.5，11 条）、`scripts/test/{cli-smoke,cli-extra,chunk-smoke,lint-ui-thread}.sh`（L2）。
+落地位置汇总：`tests/Lunarward.Tests/*`（L1）、`Features/Dev/UiSelfTest.cs`（L1.5，11 条）、`scripts/test/{cli-smoke,cli-extra,lint-ui-thread,lint-cli-help,lint-doc-status,lint-pkgbuild,perf}.sh`（L2）。
 
 ### 12.1 关于「lint」这一层
 

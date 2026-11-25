@@ -1,4 +1,4 @@
-// Lunarward：上游通过 WinRT 互操作给窗口挂 Mica/Acrylic 背景（Windows 专有）。
+﻿// Lunarward：上游通过 WinRT 互操作给窗口挂 Mica/Acrylic 背景（Windows 专有）。
 // Linux 侧没有等价的 SystemBackdrop API，这里用「回退色 + 半透明叠层」近似：
 // 读取属性里的 FallbackColor，作为窗口内容背景；真正的合成器模糊（KWin blur）留到 M3。
 using Microsoft.UI.Xaml;
@@ -90,10 +90,18 @@ public class SystemBackdropHelper
         {
             return;
         }
-        if (_window.Content is FrameworkElement element)
+        // FrameworkElement 没有 Background（只有 Panel / Control 有），上游这里直接写 element.Background
+        // 是因为它的窗口内容固定是 Panel；移植侧的窗口内容可能是 UserControl（L-184）。
+        var brush = new SolidColorBrush(Color.FromArgb(
+            (byte)((color >> 24) & 0xFF), (byte)((color >> 16) & 0xFF), (byte)((color >> 8) & 0xFF), (byte)(color & 0xFF)));
+        switch (_window.Content)
         {
-            element.Background = new SolidColorBrush(Color.FromArgb(
-                (byte)((color >> 24) & 0xFF), (byte)((color >> 16) & 0xFF), (byte)((color >> 8) & 0xFF), (byte)(color & 0xFF)));
+            case Microsoft.UI.Xaml.Controls.Panel panel:
+                panel.Background = brush;
+                break;
+            case Microsoft.UI.Xaml.Controls.Control control:
+                control.Background = brush;
+                break;
         }
     }
 }

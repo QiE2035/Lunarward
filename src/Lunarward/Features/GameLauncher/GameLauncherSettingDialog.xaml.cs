@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.Input;
+﻿using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graphics.Display;
@@ -23,12 +23,6 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.System;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.WinUI.Controls;
-using Starward.Features.HoYoPlay;
-using Starward.RPC.GameInstall;
-using System.Text;
-using Windows.ApplicationModel.DataTransfer;
 
 namespace Starward.Features.GameLauncher;
 
@@ -247,7 +241,7 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
         {
             if (Directory.Exists(InstallPath))
             {
-                Starward.Helpers.OpenUrl.Open(InstallPath);
+                await Launcher.LaunchUriAsync(new Uri(InstallPath));
             }
         }
         catch { }
@@ -676,7 +670,7 @@ public sealed partial class GameLauncherSettingDialog : ContentDialogBase
             string path = Path.Join(AppConfig.UserDataFolder, "bg", CustomBg);
             if (File.Exists(path))
             {
-                Starward.Helpers.OpenUrl.Open(path);
+                await Launcher.LaunchUriAsync(new Uri(path));
             }
         }
         catch { }

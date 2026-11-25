@@ -1,4 +1,4 @@
-// Lunarward：CommunityToolkit.WinUI.Controls 在 Linux 上无可用版本（TFM 为 net8.0-windows）。
+﻿// Lunarward：CommunityToolkit.WinUI.Controls 在 Linux 上无可用版本（TFM 为 net8.0-windows）。
 // 这里实现上游实际用到的三个控件：Segmented / SegmentedItem / WrapPanel，保持 XAML 不改。
 using Microsoft.UI.Xaml;
 using Windows.Foundation;
@@ -21,7 +21,18 @@ public partial class Segmented : ListView
     public Segmented()
     {
         SelectionMode = ListViewSelectionMode.Multiple;
-        ItemsPanel = new ItemsPanelTemplate(() => new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0 });
+    }
+
+    protected override void OnApplyTemplate()
+    {
+        base.OnApplyTemplate();
+        // Uno 7 的 ItemsPanelTemplate 只有 (object, NewFrameworkTemplateBuilder) 构造，而这个构造在
+        // Debug 与 Release 的参考程序集里不一致（CS1729），所以不再替换 ItemsPanel；
+        // 改为在模板应用后把默认的 ItemsStackPanel 调成横向（L-184）。
+        if (ItemsPanelRoot is ItemsStackPanel panel)
+        {
+            panel.Orientation = Orientation.Horizontal;
+        }
     }
 }
 
@@ -119,6 +130,111 @@ public partial class WrapPanel : Panel
 /// 需要换行排布的地方改用本文件的 <see cref="WrapPanel"/>（ItemsPanelTemplate 里用）。
 /// 保留这个类型只是为了让上游 XAML 里可能残留的引用仍能编译。
 /// </summary>
-public partial class WrapLayout : Microsoft.UI.Xaml.Controls.VirtualizingLayout
+/// <summary>
+/// 上游来自 CommunityToolkit.WinUI.Controls 的折行布局。
+/// 这里用 NonVirtualizingLayout 实现（ItemsRepeater 支持）：按可用宽度折行，行高取该行最高项。
+/// 之前这个类是空壳，ItemsRepeater 里的标签会全部叠在 (0,0)（L-184）。
+/// </summary>
+public partial class WrapLayout : Microsoft.UI.Xaml.Controls.NonVirtualizingLayout
 {
+    public double HorizontalSpacing { get; set; }
+
+    public double VerticalSpacing { get; set; }
+
+    protected override Size MeasureOverride(Microsoft.UI.Xaml.Controls.NonVirtualizingLayoutContext context, Size availableSize)
+    {
+        double width = double.IsInfinity(availableSize.Width) ? double.PositiveInfinity : availableSize.Width;
+        double x = 0, y = 0, rowHeight = 0;
+        for (int i = 0; i < context.Children.Count; i++)
+        {
+            UIElement child = context.Children[i];
+            child.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Size size = child.DesiredSize;
+            if (x > 0 && x + size.Width > width)
+            {
+                x = 0;
+                y += rowHeight + VerticalSpacing;
+                rowHeight = 0;
+            }
+            x += size.Width + HorizontalSpacing;
+            rowHeight = Math.Max(rowHeight, size.Height);
+        }
+        return new Size(double.IsInfinity(width) ? x : width, y + rowHeight);
+    }
+
+    protected override Size ArrangeOverride(Microsoft.UI.Xaml.Controls.NonVirtualizingLayoutContext context, Size finalSize)
+    {
+        double x = 0, y = 0, rowHeight = 0;
+        for (int i = 0; i < context.Children.Count; i++)
+        {
+            UIElement child = context.Children[i];
+            Size size = child.DesiredSize;
+            if (x > 0 && x + size.Width > finalSize.Width)
+            {
+                x = 0;
+                y += rowHeight + VerticalSpacing;
+                rowHeight = 0;
+            }
+            child.Arrange(new Rect(x, y, size.Width, size.Height));
+            x += size.Width + HorizontalSpacing;
+            rowHeight = Math.Max(rowHeight, size.Height);
+        }
+        return finalSize;
+    }
+}
+
+
+/// <summary>上游 CommunityToolkit 的 EqualPanel：一行塞满等宽格子，塞不下就换行（GridView 的分类卡片用）。</summary>
+public partial class EqualPanel : Panel
+{
+    public double Spacing { get; set; } = 8;
+
+    public double MinItemWidth { get; set; } = 120;
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        double width = double.IsInfinity(availableSize.Width) ? MinItemWidth : availableSize.Width;
+        int columns = Math.Max(1, (int)Math.Floor((width + Spacing) / (MinItemWidth + Spacing)));
+        double itemWidth = Math.Max(1, (width - (columns - 1) * Spacing) / columns);
+        double y = 0, rowHeight = 0;
+        for (int i = 0; i < Children.Count; i++)
+        {
+            UIElement child = Children[i];
+            child.Measure(new Size(itemWidth, double.PositiveInfinity));
+            rowHeight = Math.Max(rowHeight, child.DesiredSize.Height);
+            if ((i + 1) % columns == 0)
+            {
+                y += rowHeight + Spacing;
+                rowHeight = 0;
+            }
+        }
+        if (Children.Count % columns != 0)
+        {
+            y += rowHeight;
+        }
+        return new Size(width, Math.Max(0, y - (Children.Count > 0 ? Spacing : 0)));
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        double width = double.IsInfinity(finalSize.Width) ? MinItemWidth : finalSize.Width;
+        int columns = Math.Max(1, (int)Math.Floor((width + Spacing) / (MinItemWidth + Spacing)));
+        double itemWidth = Math.Max(1, (width - (columns - 1) * Spacing) / columns);
+        double x = 0, y = 0, rowHeight = 0;
+        for (int i = 0; i < Children.Count; i++)
+        {
+            UIElement child = Children[i];
+            double height = child.DesiredSize.Height;
+            child.Arrange(new Rect(x, y, itemWidth, height));
+            rowHeight = Math.Max(rowHeight, height);
+            x += itemWidth + Spacing;
+            if ((i + 1) % columns == 0)
+            {
+                x = 0;
+                y += rowHeight + Spacing;
+                rowHeight = 0;
+            }
+        }
+        return finalSize;
+    }
 }

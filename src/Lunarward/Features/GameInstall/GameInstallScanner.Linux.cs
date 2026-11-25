@@ -1,8 +1,10 @@
-// Lunarward：Linux 侧「识别已有安装」（D25 的 M1 范围）。
+﻿// Lunarward：Linux 侧「识别已有安装」（D25 的 M1 范围）。
 // 上游 AutoSearchInstalledGames 靠注册表 HKCU\Software\miHoYo\HYP\... 找安装路径，
 // Linux 没有注册表可读，改为扫目录：按每个游戏的可执行文件名在候选根目录下找（深度 ≤ 2）。
 using Microsoft.Extensions.Logging;
 using Starward.Core;
+using Starward.Core.HoYoPlay;
+using Starward.Features.GameSelector;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -35,6 +37,37 @@ internal static class GameInstallScanner
     private static List<string> _detected = new();
 
 
+    /// <summary>
+    /// 读安装路径。LUNARWARD-DEVIATION: 上游 0.19.0 把安装路径从 AppConfig 移到 GameEntry 表
+    /// （AppConfig.GetGameInstallPath/SetGameInstallPath 已 [Obsolete(..., true)]），这里统一走
+    /// GameLauncherService 的静态读写入口，避免依赖 HoYoPlayService 的初始化时机（扫描发生在启动早期）。
+    /// </summary>
+    private static string? GetInstallPath(GameBiz biz)
+    {
+        GameId? gameId = GameId.FromGameBiz(biz);
+        return gameId is null ? null : Features.GameLauncher.GameLauncherService.GetGameInstallPath(gameId);
+    }
+
+
+    /// <summary>写安装路径（GameEntry 表；可移动存储记相对路径）。</summary>
+    private static void SetInstallPath(GameBiz biz, string? path)
+    {
+        GameId? gameId = GameId.FromGameBiz(biz);
+        if (gameId is null)
+        {
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            GameEntryService.SetInstallPathNull(gameId);
+            return;
+        }
+        string launcherId = LauncherId.FromGameBiz(biz) ?? LauncherId.ChinaOfficial;
+        string relativePath = Features.GameLauncher.GameLauncherService.GetRelativePathIfInRemovableStorage(path, out bool removable);
+        GameEntryService.SetInstallPath(gameId, launcherId, relativePath, removable);
+    }
+
+
     public static int ScanAndApply(ILogger? logger = null, bool force = false)
     {
         int count = 0;
@@ -46,14 +79,14 @@ internal static class GameInstallScanner
             {
                 bool allAlive = _knownGameBizs.All(b =>
                 {
-                    string? p = AppConfig.GetGameInstallPath(b);
+                    string? p = GetInstallPath(b);
                     return string.IsNullOrWhiteSpace(p) || Directory.Exists(p);
                 });
                 if (allAlive)
                 {
                     logger?.LogDebug("skip game scan: cache is fresh");
                     KnownGames = _knownGameBizs
-                        .Where(b => { string? p = AppConfig.GetGameInstallPath(b); return !string.IsNullOrWhiteSpace(p) && Directory.Exists(p); })
+                        .Where(b => { string? p = GetInstallPath(b); return !string.IsNullOrWhiteSpace(p) && Directory.Exists(p); })
                         .ToArray();
                     LastDetectedGames = Array.Empty<GameBiz>();
                     return 0;
@@ -67,7 +100,7 @@ internal static class GameInstallScanner
                 {
                     continue;
                 }
-                string? existing = AppConfig.GetGameInstallPath(biz);
+                string? existing = GetInstallPath(biz);
                 if (!string.IsNullOrWhiteSpace(existing) && Directory.Exists(existing))
                 {
                     if (NameMatches(existing, biz))
@@ -81,7 +114,7 @@ internal static class GameInstallScanner
                     string? dir = FindGameDirectory(root, exeName, biz);
                     if (dir is not null)
                     {
-                        AppConfig.SetGameInstallPath(biz, dir);
+                        SetInstallPath(biz, dir);
                         logger?.LogInformation("自动识别到 {biz} 安装目录：{dir}", biz, dir);
                         detected.Add(biz);
                         count++;
@@ -96,7 +129,7 @@ internal static class GameInstallScanner
         }
         LastDetectedGames = detected;
         KnownGames = _knownGameBizs
-            .Where(b => { string? p = AppConfig.GetGameInstallPath(b); return !string.IsNullOrWhiteSpace(p) && Directory.Exists(p); })
+            .Where(b => { string? p = GetInstallPath(b); return !string.IsNullOrWhiteSpace(p) && Directory.Exists(p); })
             .ToArray();
         // 收尾：同一路径被多个 gameBiz 认领时，只保留目录名对得上的那个（国服/国际服 exe 同名）
         try
@@ -104,7 +137,7 @@ internal static class GameInstallScanner
             var claims = new Dictionary<string, List<GameBiz>>(StringComparer.Ordinal);
             foreach (GameBiz biz in _knownGameBizs)
             {
-                string? path = AppConfig.GetGameInstallPath(biz);
+                string? path = GetInstallPath(biz);
                 if (string.IsNullOrWhiteSpace(path))
                 {
                     continue;
@@ -125,7 +158,7 @@ internal static class GameInstallScanner
                 {
                     if (!NameMatches(path, biz))
                     {
-                        AppConfig.SetGameInstallPath(biz, null);
+                        SetInstallPath(biz, null);
                     }
                 }
             }

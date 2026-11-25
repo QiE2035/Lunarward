@@ -27,10 +27,17 @@ public sealed partial class BackgroundViewPage : PageBase
     private readonly ILogger<BackgroundViewPage> _logger = AppConfig.GetLogger<BackgroundViewPage>();
 
 
+    private double _tileWidth;
+    private double _tileHeight;
+
+
     public BackgroundViewPage()
     {
         this.InitializeComponent();
         SizeChanged += OnPageSizeChanged;
+        // 真实的 CommunityToolkit WrapPanel（Uno 版）只有 Spacing，没有 ItemWidth/ItemHeight（L-179），
+        // 所以条目尺寸要自己写到已经实体化的容器上；滚动中新实体化的条目在这里补。
+        GridView_Images.ContainerContentChanging += OnImageContainerChanging;
     }
 
 
@@ -85,6 +92,36 @@ public sealed partial class BackgroundViewPage : PageBase
     /// <summary>
     /// 窗口尺寸变化后重算条目宽度并让 WrapPanel 重新换行（D56 / L-97）。
     /// </summary>
+    /// <summary>
+    /// 把算好的条目尺寸写给已经实体化的容器（L-179：toolkit WrapPanel 没有 ItemWidth/ItemHeight）。
+    /// </summary>
+    private void ApplyTileSize(Panel panel)
+    {
+        if (_tileWidth <= 0 || _tileHeight <= 0)
+        {
+            return;
+        }
+        foreach (UIElement child in panel.Children)
+        {
+            if (child is ListViewItem item)
+            {
+                item.Width = _tileWidth;
+                item.Height = _tileHeight;
+            }
+        }
+    }
+
+
+    private void OnImageContainerChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (_tileWidth > 0 && _tileHeight > 0 && args.ItemContainer is { } container)
+        {
+            container.Width = _tileWidth;
+            container.Height = _tileHeight;
+        }
+    }
+
+
     private void OnPageSizeChanged(object sender, SizeChangedEventArgs e)
     {
         UpdateTileSize();
@@ -123,14 +160,13 @@ public sealed partial class BackgroundViewPage : PageBase
             double tile = Math.Floor((avail - (gap * (cols - 1))) / cols);
             tile = Math.Max(120, tile);
             double height = Math.Round(tile * 122.0 / 216.0);
-            double currentWidth = panel.ItemWidth ?? 0;
-            double currentHeight = panel.ItemHeight ?? 0;
-            if (Math.Abs(currentWidth - tile) < 0.5 && Math.Abs(currentHeight - height) < 0.5)
+            if (Math.Abs(_tileWidth - tile) < 0.5 && Math.Abs(_tileHeight - height) < 0.5)
             {
                 return;
             }
-            panel.ItemWidth = tile;
-            panel.ItemHeight = height;
+            _tileWidth = tile;
+            _tileHeight = height;
+            ApplyTileSize(panel);
             panel.InvalidateMeasure();
             Serilog.Log.Debug("background view tiles: avail={avail} cols={cols} tile={tile}x{height}", avail, cols, tile, height);
         }

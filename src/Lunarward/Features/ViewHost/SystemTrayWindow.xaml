@@ -10,7 +10,7 @@
                xmlns:sf="using:Starward.Features"
                Title="StarwardTrayMenu"
                x:DefaultBindMode="OneWay"
-               Closed="WindowEx_Closed"
+               Closed="WindowBase_Closed"
                mc:Ignorable="d">
 
     <Grid Name="RootGrid">

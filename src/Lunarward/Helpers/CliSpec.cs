@@ -1,4 +1,4 @@
-// Lunarward：命令行开关的唯一声明表（D79）。
+﻿// Lunarward：命令行开关的唯一声明表（D79）。
 //
 // 以前 `--help` 是一段手写字符串，和 `Program.Linux.cs` 里 48 个 `args[0] is "--x"` 分支
 // 各写一遍：加开关忘了写帮助（这轮就发生过：`--profile-ensure` 事后补的），
@@ -82,17 +82,10 @@ internal static class CliSpec
 
         // 安装与更新
         new("--install-plan", "<biz>", "只算不装：打印安装计划", GroupInstall),
-        new("--install-run", "<biz> [--limit-mb N]", "执行安装", GroupInstall),
-        new("--install-fetch", "<biz> <相对路径>", "只取单个文件（配 --target / --predownload）", GroupInstall),
-        new("--install-chunk-plan", "<biz>", "打印 zstd 分块安装计划", GroupInstall),
-        new("--install-chunk-run", "<biz>", "执行 zstd 分块安装", GroupInstall),
         new("--update-plan", "<biz>", "打印更新计划", GroupInstall),
-        new("--update-run", "<biz> [--limit-mb N]", "执行更新", GroupInstall),
         new("--patch-plan", "<biz>", "打印增量补丁计划", GroupInstall),
-        new("--patch-run", "<biz>", "执行增量补丁（配 --apply-to-install / --from）", GroupInstall),
         new("--predownload-size", "<biz>", "预下载体积", GroupInstall),
         new("--install-task", "<biz> <任务>", "安装子任务（走安装管线内部分支）", GroupInstall),
-        new("--sophon-probe", "<biz>", "探测 Sophon 服务与分支信息", GroupInstall),
         new("--version-status", "<biz>", "读游戏目录里记录的版本", GroupInstall),
         new("--version-write", "<目录> <版本>", "写游戏版本（三道校验 + 写前备份）", GroupInstall),
         new("--companion-plan", "<biz>", "打印伴随启动计划（后启动程序，不启动游戏）", GroupInstall),

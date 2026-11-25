@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.Messaging;
+﻿using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -19,7 +19,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Starward.Features.HoYoPlay;
+using Starward.GameInstall;
 using System.Text.RegularExpressions;
 
 namespace Starward.Features.GameLauncher;
@@ -287,7 +287,9 @@ internal partial class GameLauncherService
         {
             return false;
         }
-        GameConfigIni? configIni = await GameConfigService.GetGameConfigIniAsync(installPath, cancellation);
+        // LUNARWARD-DEVIATION: 移植侧 Features/GameLauncher/GameConfigIni.cs 还留着旧的同名类（Windows 时代的手写解析），
+        // 与本命名空间同名会遮蔽共享工程里的 Starward.GameInstall.Model.GameConfigIni，这里显式全限定。
+        Starward.GameInstall.Model.GameConfigIni? configIni = await GameConfigService.GetGameConfigIniAsync(installPath, cancellation);
         foreach (var item in pluginRelease.Plugins)
         {
             if (item.PluginPackage.Url.Contains("DXSETUP", StringComparison.OrdinalIgnoreCase))
@@ -409,7 +411,7 @@ internal partial class GameLauncherService
         if (!OperatingSystem.IsWindows())
         {
             // B34：wine 的进程名是 wine/wine64，按 exe 名永远找不到；改为扫 /proc 的 cmdline。
-            string exeName = await GetGameExeNameAsync(gameId);
+            string exeName = await GetGameExeNameAsync(gameId, cancellation);
             int? pid = Features.PlayTime.PlayTimeSession.FindProcessByCommandLine(exeName);
             if (pid is int found)
             {
@@ -531,6 +533,13 @@ internal partial class GameLauncherService
             // Lunarward：`StartGameWithCMD` 是 Windows 上「经 cmd.exe 拉起以便提权」的技巧，
             // Linux 没有对应概念，且套一层 shell 会破坏「游戏是 wine 第一个进程」的前提，
             // 因此该开关在 Linux 上忽略（保留判断以免上游字段消失时编译失败）。
+            CancellationToken token = CancellationTokenSource.CreateLinkedTokenSource(cancellation, new CancellationTokenSource(3000).Token).Token;
+            var sb = new StringBuilder();
+            sb.Append(AppConfig.GetStartArgument(gameId)?.Trim());
+            await AppendDX12Async(sb, gameId, token);
+            await AppendLoginAuthTicketAsync(sb, gameId, token);
+            string arg = sb.ToString();
+
             if (!thirdPartyTool && AppConfig.StartGameWithCMD && OperatingSystem.IsWindows())
             {
                 arg = $"""/c start "" /d "{Path.GetDirectoryName(exe)}" "{exe}" {arg}""";

@@ -70,7 +70,12 @@ public sealed partial class HypLoginWindow : WindowBase
 
     public new void Activate()
     {
-        User32.SetWindowLong(WindowHandle, User32.WindowLongFlags.GWL_HWNDPARENT, ParentWindowHandle);
+        // LUNARWARD-DEVIATION: 上游用 User32.SetWindowLong(GWL_HWNDPARENT) 把登录窗挂成父窗口的子窗（模态）。
+        // Linux/X11 下窗口父子关系由 X11Window 自己管，且 Uno 的 WindowHandle 是 X11 窗口 id，这里不调 Win32。
+        if (OperatingSystem.IsWindows())
+        {
+            User32.SetWindowLong(WindowHandle, User32.WindowLongFlags.GWL_HWNDPARENT, ParentWindowHandle);
+        }
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.IsModal = true;

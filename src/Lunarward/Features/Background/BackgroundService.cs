@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Starward.Core.HoYoPlay;
-using Starward.Features.HoYoPlay;
 using Starward.GameInstall;
 using Starward.Helpers;
 using System;
@@ -203,15 +202,11 @@ public class BackgroundService
     /// <returns></returns>
     public static string? GetFallbackBackgroundImage()
     {
-        string? bg = GetBgFilePath(AppConfig.GetBg(gameId.GameBiz));
-        if (!File.Exists(bg))
-        {
-            string baseFolder = AppContext.BaseDirectory;
-            // Lunarward：上游写死的是 Windows 反斜杠路径，Linux 下 File.Exists 恒为 false，改成 Path.Combine
-            string path = Path.Combine(baseFolder, "Assets", "Image", "UI_CutScene_1130320101A.png");
-            bg = File.Exists(path) ? path : null;
-        }
-        return bg;
+        string baseFolder = AppContext.BaseDirectory;
+        // LUNARWARD-DEVIATION: 上游写死的是 Windows 反斜杠路径 @"Assets\Image\UI_CutScene_1130320101A.png"，
+        // Linux 下 Path 分隔符是 '/'，原样拼接 File.Exists 恒为 false（壁纸永远回退不到兜底图），改用 Path.Combine。
+        string path = Path.Combine(baseFolder, "Assets", "Image", "UI_CutScene_1130320101A.png");
+        return File.Exists(path) ? path : null;
     }
 
 
@@ -250,13 +245,19 @@ public class BackgroundService
     /// </summary>
     /// <param name="file"></param>
     /// <returns></returns>
-    public static async Task<string?> ChangeCustomBackgroundFileAsync(string file)
+    public static async Task<string?> ChangeCustomBackgroundFileAsync(string? file)
     {
-        string bg = Path.Join(AppConfig.UserDataFolder, "bg");
-        if (Path.GetDirectoryName(file.Path) != bg)
+        if (string.IsNullOrWhiteSpace(file))
         {
-            // Lunarward：用 System.IO + 简单嗅探替代 MediaSource/BitmapDecoder 校验
-            await CheckBackgroundFileAvailableAsync(file);
+            return null;
+        }
+        string bg = Path.Join(AppConfig.UserDataFolder, "bg");
+        string name = Path.GetFileName(file);
+        // LUNARWARD-DEVIATION: 上游这个重载收 StorageFile（走 MediaSource/BitmapDecoder 判定视频与可解码性），
+        // Uno/Skia 没有 WinRT StorageFile，移植侧收本地路径，并用 System.IO + ImageLoader 做同样的校验。
+        await CheckBackgroundFileAvailableAsync(file);
+        if (Path.GetDirectoryName(Path.GetFullPath(file)) != Path.GetFullPath(bg))
+        {
             Directory.CreateDirectory(bg);
             string path = Path.Combine(bg, name);
             File.Copy(file, path, true);

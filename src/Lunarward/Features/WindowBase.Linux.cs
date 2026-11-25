@@ -1,4 +1,4 @@
-// Lunarward：WindowBase 的 Linux 实现（上游 0.19.0 把 Frameworks/WindowBase.cs 改名为 Features/WindowBase.cs）。上游 Frameworks/WindowBase.cs 依赖 Vanara/User32 子类化，保留但不编译。
+﻿// Lunarward：WindowBase 的 Linux 实现（上游 0.19.0 把 Frameworks/WindowBase.cs 改名为 Features/WindowBase.cs）。上游 Frameworks/WindowBase.cs 依赖 Vanara/User32 子类化，保留但不编译。
 // 这里用 Uno 的 Window.AppWindow 完成窗口动作；Windows 专有的图标/拖拽区/标题栏配色降级为 no-op。
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Xaml;
@@ -18,6 +18,7 @@ public abstract partial class WindowBase : Window
 
     protected WindowBase()
     {
+        Register(this);
         AppWindow.Closing += (_, _) => { };
     }
 
@@ -157,15 +158,71 @@ public abstract partial class WindowBase : Window
         }
     }
 
-    public void SetIcon(string? iconPath = null) { }
+    /// <summary>
+    /// Lunarward：上游用 User32.LoadIcon + AppWindow.SetIcon 给每个窗口设图标；Uno 的 X11 后端没有等价 API，
+    /// 这里复用主窗口那套 libxcb 的 <c>_NET_WM_ICON</c> 写入（Helpers.AppIcon），按窗口标题定位。
+    /// L-183：以前是空实现，除主窗口外任务栏/Alt-Tab 都是通用方块。
+    /// </summary>
+    public void SetIcon(string? iconPath = null)
+    {
+        try
+        {
+            Helpers.AppIcon.Apply(Title);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "set window icon failed: {title}", Title);
+        }
+    }
 
+    /// <summary>X11 下窗口装饰由 WM 画，没有「自绘标题栏拖拽区」，保持 no-op。</summary>
     public void SetDragRectangles(params RectInt32[] value) { }
 
+    /// <summary>X11 下标题栏按钮颜色由 WM/GTK 主题决定，没有可编程入口，保持 no-op。</summary>
     public void AdaptTitleBarButtonColorToActuallTheme() { }
 
     public virtual void ChangeAccentColor(Windows.UI.Color? backColor = null, Windows.UI.Color? foreColor = null) { }
 
-    protected static bool ShouldAppsUseDarkMode() => true;
+    /// <summary>
+    /// Lunarward：上游读注册表判断应用/系统是否深色。Linux 上按 GTK 主题与 KDE 配色推断（L-183）：
+    /// 以前恒返回 true，导致浅色桌面的用户看到 Gacha/更新/过场窗口一律深色。
+    /// </summary>
+    protected static bool ShouldAppsUseDarkMode() => Helpers.SystemThemePreference.IsDark;
 
-    protected static bool ShouldSystemUseDarkMode() => true;
+    /// <summary>同 <see cref="ShouldAppsUseDarkMode"/>：X11 没有「应用主题 / 系统主题」之分。</summary>
+    protected static bool ShouldSystemUseDarkMode() => Helpers.SystemThemePreference.IsDark;
+
+    // ---- 窗口登记表：把 XamlRoot 映射回它所属的 AppWindow（Helpers.XamlRootExtension.GetAppWindow 用） ----
+
+    private static readonly System.Collections.Generic.List<WeakReference<WindowBase>> _instances = new();
+
+    private static void Register(WindowBase window)
+    {
+        lock (_instances)
+        {
+            _instances.RemoveAll(x => !x.TryGetTarget(out _));
+            _instances.Add(new WeakReference<WindowBase>(window));
+        }
+    }
+
+    /// <summary>按 XamlRoot 找所属窗口的 AppWindow；找不到返回 null（不猜主窗口，L-183）。</summary>
+    internal static Microsoft.UI.Windowing.AppWindow? FindAppWindow(XamlRoot? xamlRoot)
+    {
+        if (xamlRoot is null)
+        {
+            return null;
+        }
+        lock (_instances)
+        {
+            foreach (WeakReference<WindowBase> reference in _instances)
+            {
+                if (reference.TryGetTarget(out WindowBase? window)
+                    && ReferenceEquals(window.Content?.XamlRoot, xamlRoot))
+                {
+                    return window.AppWindow;
+                }
+            }
+        }
+        return null;
+    }
 }

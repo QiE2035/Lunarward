@@ -6,6 +6,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.IO.Hashing;
 using System.Linq;
 using System.Runtime.InteropServices;

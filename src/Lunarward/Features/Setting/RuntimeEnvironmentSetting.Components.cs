@@ -190,11 +190,11 @@ public sealed partial class RuntimeEnvironmentSetting
                 string text = string.Format(
                     Lang.Lunarward_RuntimeEnv_SummaryFormat,
                     count,
-                    Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(total),
-                    Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(free));
+                    FormatSize(total),
+                    FormatSize(free));
                 if (free > 0 && free < need)
                 {
-                    text += "  ·  " + string.Format(Lang.Lunarward_RuntimeEnv_SummaryNeedMore, Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(need - free));
+                    text += "  ·  " + string.Format(Lang.Lunarward_RuntimeEnv_SummaryNeedMore, FormatSize(need - free));
                     installButton.IsEnabled = false;
                 }
                 else
@@ -245,7 +245,7 @@ public sealed partial class RuntimeEnvironmentSetting
                 }
                 var meta = new TextBlock
                 {
-                    Text = $"{asset.ReleaseTag}  ·  {Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(asset.Size)}",
+                    Text = $"{asset.ReleaseTag}  ·  {FormatSize(asset.Size)}",
                     FontSize = 12,
                     Opacity = 0.7,
                 };
@@ -369,10 +369,10 @@ public sealed partial class RuntimeEnvironmentSetting
                         {
                             var downloadProgress = new Progress<ComponentDownloadProgress>(p =>
                             {
-                                string total = p.Total is > 0 ? Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(p.Total.Value) : Lang.Lunarward_RuntimeEnv_Unknown2;
+                                string total = p.Total is > 0 ? FormatSize(p.Total.Value) : Lang.Lunarward_RuntimeEnv_Unknown2;
                                 row.RowStatus.Text = string.Format(
                                     Lang.Lunarward_RuntimeEnv_Downloading2,
-                                    Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(p.Received),
+                                    FormatSize(p.Received),
                                     total,
                                     p.ActiveConnections,
                                     (p.BytesPerSecond / 1024.0 / 1024.0).ToString("F1"));
@@ -390,7 +390,7 @@ public sealed partial class RuntimeEnvironmentSetting
                             row.RowStatus.Text = result.Resumed ? Lang.Lunarward_RuntimeEnv_DownloadedResumed : Lang.Lunarward_RuntimeEnv_Downloaded;
                             var extractProgress = new Progress<ArchiveProgress>(p =>
                             {
-                                row.RowStatus.Text = string.Format(Lang.Lunarward_RuntimeEnv_Extracting2, p.Entries, Starward.Features.GameInstall.Sophon.InstallPlanner.FormatSize(p.Bytes));
+                                row.RowStatus.Text = string.Format(Lang.Lunarward_RuntimeEnv_Extracting2, p.Entries, FormatSize(p.Bytes));
                             });
                             ComponentManifest manifest = await ComponentImporter.ImportAsync(
                                 result.FilePath, kind, sha256: result.Sha256, expectedSha256: row.Asset.Sha256,

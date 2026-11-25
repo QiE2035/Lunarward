@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -9,7 +9,9 @@ using Starward.Features.Overlay;
 using Starward.Features.Screenshot;
 using System;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Vanara.PInvoke;
 using Windows.Graphics;
 
@@ -36,6 +38,21 @@ public sealed partial class MainWindow : WindowBase
         if (Environment.GetEnvironmentVariable("LUNARWARD_SELFTEST") is "1")
         {
             this.Activated += OnSelfTestActivated;
+            // 兜底：没有窗口管理器时（CI 的 xvfb-run 就是这种），窗口不会被激活，Activated 永远不来，
+            // 自检会卡到超时。用 UI 线程的 DispatcherQueueTimer 8 秒后无论如何跑一次（L-185）。
+            var selfTestTimer = DispatcherQueue.CreateTimer();
+            selfTestTimer.Interval = TimeSpan.FromSeconds(8);
+            selfTestTimer.IsRepeating = false;
+            selfTestTimer.Tick += (_, _) =>
+            {
+                if (_selfTestStarted)
+                {
+                    return;
+                }
+                _selfTestStarted = true;
+                _ = RunSelfTestAsync();
+            };
+            selfTestTimer.Start();
         }
         App.Current.EnsureSystemTray();
         RunDebugWindowAction();
@@ -165,10 +182,17 @@ public sealed partial class MainWindow : WindowBase
             else if (act == "gamesetting")
             {
                 // 开发期直达：打开「游戏设置」对话框（验证布局用，见 12 号表）
+                // 0.19.0 起 AppConfig.CurrentGameId 只存 GameId.Id 字符串，这里按已登记的条目还原成 GameId 对象。
+                Features.GameSelector.GameEntry? entry = Features.GameSelector.GameEntryService.GetAllEntries()
+                    .FirstOrDefault(x => x.GameId == AppConfig.CurrentGameId);
+                if (entry is null)
+                {
+                    Serilog.Log.Warning("[dev] gamesetting: no entry for current game id {id}", AppConfig.CurrentGameId);
+                    return;
+                }
                 var dialog = new Features.GameLauncher.GameLauncherSettingDialog
                 {
-                    CurrentGameId = Starward.Core.HoYoPlay.GameId.FromGameBiz(AppConfig.CurrentGameBiz),
-                    CurrentGameBiz = AppConfig.CurrentGameBiz,
+                    CurrentGameId = new Starward.Core.HoYoPlay.GameId(entry.GameId, entry.GameBiz),
                     XamlRoot = (Content as Microsoft.UI.Xaml.FrameworkElement)?.XamlRoot,
                 };
                 _ = dialog.ShowAsync();

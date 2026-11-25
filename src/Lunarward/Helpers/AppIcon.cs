@@ -1,4 +1,4 @@
-// Lunarward：把应用图标喂给窗口管理器。
+﻿// Lunarward：把应用图标喂给窗口管理器。
 //
 // Uno 的 X11 后端不设置 _NET_WM_ICON，导致任务栏/Alt-Tab 里只有通用占位方块。
 // 这里用 SkiaSharp 解一次 PNG，转成 X11 需要的 0xAARRGGBB 数组，交给 X11Window.SetIcon。
@@ -83,12 +83,14 @@ public static class AppIcon
             const int Target = 64;
             using var surface = SKSurface.Create(new SKImageInfo(Target, Target, SKColorType.Bgra8888, SKAlphaType.Premul));
             surface.Canvas.Clear(SKColors.Transparent);
-            using (var paint = new SKPaint { IsAntialias = true, FilterQuality = SKFilterQuality.High })
+            using (var paint = new SKPaint { IsAntialias = true })
             {
                 float scale = Math.Min((float)Target / bitmap.Width, (float)Target / bitmap.Height);
                 float w = bitmap.Width * scale;
                 float h = bitmap.Height * scale;
-                surface.Canvas.DrawImage(SKImage.FromBitmap(bitmap), new SKRect((Target - w) / 2, (Target - h) / 2, (Target + w) / 2, (Target + h) / 2), paint);
+                // SkiaSharp 4：采样质量由 SKSamplingOptions 表达（SKPaint.FilterQuality 已删，L-184）。
+                surface.Canvas.DrawImage(SKImage.FromBitmap(bitmap), new SKRect((Target - w) / 2, (Target - h) / 2, (Target + w) / 2, (Target + h) / 2),
+                    new SKSamplingOptions(SKCubicResampler.Mitchell), paint);
             }
             using SKImage image = surface.Snapshot();
             using SKBitmap? scaled = SKBitmap.FromImage(image);

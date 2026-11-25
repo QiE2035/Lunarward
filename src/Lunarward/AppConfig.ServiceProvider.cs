@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -41,7 +41,6 @@ using System.Net.Http;
 using ZiggyCreatures.Caching.Fusion;
 using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
 using Starward.Core.GameRecord;
-using Starward.Features.HoYoPlay;
 using Starward.Features.RPC;
 
 namespace Starward;
@@ -93,7 +92,6 @@ public static partial class AppConfig
                                op.FactorySoftTimeout = TimeSpan.FromSeconds(5);
                            });
 
-        sc.AddSingleton<HoYoPlayService>();
         sc.AddSingleton<HoYoPlayClient>();
         sc.AddSingleton<HoYoPlayBetaClient>();
         sc.AddSingleton<GameNoticeClient>();
@@ -138,14 +136,21 @@ public static partial class AppConfig
         sc.AddHttpClient<ReleaseClient>().ConfigStarwardHttpClient();
         sc.AddTransient<UpdateService>();
 
-        // Lunarward: 上游这些来自 Starward.GameInstall（net11.0-windows + FusionCache），移植侧不引用该库；
-        // 这里注册 Features/GameInstall 下的移植版实现与 GameInstallShims。
+        // Lunarward: 上游 0.19.0 把安装/热更新/服务抽进 Starward.GameInstall，移植侧同样引用该库（D128）。
+        // AddStarwardGameInstall 注册 HoYoPlayService / GameConfigService / GameResourceService /
+        // GenshinDispatchClient / GenshinHotUpdateService / HttpService / DownloadService / GameInstallRunner。
+        sc.AddStarwardGameInstall();
         sc.AddSingleton<GameInstallService>();
-        sc.AddSingleton<RpcService>();
+        // Lunarward: ScreenCaptureService 依赖 Windows.Graphics.Capture + Win2D，M2 重写后再注册
+        // sc.AddSingleton<ScreenCaptureService>();
 
         sc.AddSingleton<GameAccountService>();
-
-        sc.AddSingleton<ScreenCaptureService>();
+        // Lunarward：伴随启动的运行器（移植侧自建，上游没有），缺注册会让 App.OnLaunched 解析时抛异常。
+        sc.AddSingleton<Starward.Features.Companion.CompanionRunner>();
+        // Lunarward：BBS 登录页 / 战绩页要用的门面（0.19.0 合并时同样丢了注册）。
+        sc.AddSingleton<Starward.Features.GameRecord.GameRecordService>();
+        // Lunarward：Hyp 登录通道（GameAuthLoginButton 会解析它）。
+        sc.AddHttpClient<Starward.Features.GameLauncher.GameAuthLoginService>();
 
         sc.AddHttpClient<LogUploadClient>().ConfigStarwardHttpClient();
     }

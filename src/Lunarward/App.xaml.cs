@@ -1,8 +1,11 @@
-using CommunityToolkit.Mvvm.Messaging;
+﻿using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.UI.Dispatching;
+using Microsoft.Extensions.Configuration;
 using Microsoft.UI.Xaml;
-using Microsoft.Windows.AppLifecycle;
+using Starward.Core;
+using Starward.Core.HoYoPlay;
 using Starward.Features.Database;
+using Starward.Features.GameLauncher;
 using Starward.Features.GamepadControl;
 using Starward.Features.Passport;
 using Starward.Features.ViewHost;
@@ -24,6 +27,9 @@ public partial class App : Application
 {
 
     private readonly DispatcherQueue _uiDispatcherQueue;
+
+    /// <summary>Lunarward：低频强制 GC，压住视频壁纸 + 大图缓存长期驻留的内存峰值。</summary>
+    private readonly Timer _gcTimer = new(TimeSpan.FromMinutes(10));
 
 
     public static new App Current => (App)Application.Current;
@@ -69,10 +75,15 @@ public partial class App : Application
     {
         string[] args = Environment.GetCommandLineArgs().Skip(1).ToArray();
 
-
         if (AppConfig.UserDataFolder is null)
         {
-            if (await new WelcomeWindow().WaitAsync())
+            // 自检模式（CI 的 xvfb）没有人和欢迎页交互，直接按默认配置继续；
+            // 否则进程会卡在 WelcomeWindow 的 WaitAsync 上，`--selftest-ui` 永远等不到主窗口（L-185）。
+            if (Environment.GetEnvironmentVariable("LUNARWARD_SELFTEST") is "1")
+            {
+                AppConfig.LoadConfiguration();
+            }
+            else if (await new WelcomeWindow().WaitAsync())
             {
                 AppConfig.LoadConfiguration();
             }
@@ -84,22 +95,19 @@ public partial class App : Application
 
         // Lunarward：游戏启动后拉起「伴随启动」的后启动程序（D24/D28）
         Features.Companion.CompanionAutoStart.Register(AppConfig.GetService<Features.Companion.CompanionRunner>(), AppConfig.GetLogger<App>());
-
         // Lunarward：Uno 的 AcrylicBrush 只实现为 FallbackColor（96% 不透明的深色），会把壁纸完全盖住。
         // 这里换成半透明画刷，近似 Windows 上「壁纸透过亚克力」的观感（真模糊见 D31 / M3）。
-        if (!OperatingSystem.IsWindows())
-        {
-            await instance.RedirectActivationToAsync(instance.GetActivatedEventArgs());
-            Environment.Exit(0);
-        }
-
+        // LUNARWARD-DEVIATION: 上游这里用 AppInstance.GetCurrent() 重定向单实例激活，Uno 上没有该实现，
+        // Linux 单实例由下面的 SingleInstancePipe（文件锁 + Unix socket）负责（D6）。
         // Lunarward：Linux 首次运行先识别已有安装（注册表不可用，改为扫目录，D25）
         if (!OperatingSystem.IsWindows())
         {
             // D86：结果以 KnownGames 为准。ScanAndApply 在「缓存还新鲜」时直接 return 0，
             // 拿返回值写日志会一直显示「识别到 0 个」，与实际认到的游戏数量无关。
             // D95：扫描是磁盘 IO，放后台线程，避免「启动先卡几秒」（B65）。
+        System.IO.File.AppendAllText("/tmp/lw-trace.txt", "C scan begin\n");
             await System.Threading.Tasks.Task.Run(() => Features.GameInstall.GameInstallScanner.ScanAndApply());
+        System.IO.File.AppendAllText("/tmp/lw-trace.txt", "D scan done\n");
             int knownGames = Features.GameInstall.GameInstallScanner.KnownGames.Count;
             if (knownGames > 0)
             {
@@ -109,8 +117,8 @@ public partial class App : Application
             string? debugGame = Starward.Features.Dev.DevSwitches.Game;
             if (!string.IsNullOrWhiteSpace(debugGame) && Starward.Core.GameBiz.TryParse(debugGame, out Starward.Core.GameBiz debugBiz))
             {
-                AppConfig.SelectedGameBizs = debugGame;
-                AppConfig.CurrentGameBiz = debugBiz;
+                // 0.19.0 起当前游戏用 GameId 记（AppConfig.CurrentGameId 是 string?），GameBiz 已过时（D128）。
+                AppConfig.CurrentGameId = debugGame;
             }
         }
 
@@ -290,8 +298,8 @@ public partial class App : Application
         if (args[0].ToLower() is "playtime")
         {
             int pid = config.GetValue<int>("pid");
-            GameBiz biz = (GameBiz)config.GetValue<string>("biz");
-            if (pid > 0)
+            string bizName = config.GetValue<string>("biz") ?? "";
+            if (pid > 0 && GameBiz.TryParse(bizName, out GameBiz biz))
             {
                 var playtime = AppConfig.GetService<Features.PlayTime.PlayTimeRecordService>();
                 await playtime.LogPlayTimeAsync(biz, pid);
@@ -301,8 +309,8 @@ public partial class App : Application
 
         if (args[0].ToLower() is "startgame")
         {
-            GameBiz biz = (GameBiz)config.GetValue<string>("biz");
-            GameId? gameId = GameId.FromGameBiz(biz);
+            string bizName = config.GetValue<string>("biz") ?? "";
+            GameId? gameId = GameBiz.TryParse(bizName, out GameBiz biz) ? GameId.FromGameBiz(biz) : null;
             if (gameId is not null)
             {
                 await AppConfig.GetService<GameLauncherService>().StartGameAsync(gameId);
@@ -493,7 +501,8 @@ public partial class App : Application
                 var timer = new Timer(30_000);
                 timer.Elapsed += (_, _) => Environment.Exit(0);
                 timer.Start();
-                AppInstance.GetCurrent().UnregisterKey();
+                // Lunarward：Linux 的单实例是文件锁 + Unix socket，退出时由 SingleInstancePipe 自己清理；
+                // 上游这里用 AppInstance.GetCurrent().UnregisterKey()，Uno 上没有该实现（D128）。
                 DatabaseService.AutoBackupToAppDataLocal();
             }
             catch { }

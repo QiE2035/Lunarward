@@ -1,4 +1,4 @@
-// Lunarward：游戏启动后按列表顺序拉起「伴随启动」的条目（D24/D28）。
+﻿// Lunarward：游戏启动后按列表顺序拉起「伴随启动」的条目（D24/D28）。
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
@@ -27,7 +27,10 @@ public static class CompanionAutoStart
     {
         try
         {
-            GameBiz biz = AppConfig.CurrentGameBiz;
+            if (Helpers.GameIdHelper.CurrentGameBiz() is not { } biz)
+            {
+                return;
+            }
             if (_runner is null)
             {
                 return;

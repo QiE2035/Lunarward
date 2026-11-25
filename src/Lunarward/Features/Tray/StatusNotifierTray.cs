@@ -1,4 +1,4 @@
-// Lunarward：Linux 托盘（org.kde.StatusNotifierItem + com.canonical.dbusmenu）。
+﻿// Lunarward：Linux 托盘（org.kde.StatusNotifierItem + com.canonical.dbusmenu）。
 //
 // 上游用 H.NotifyIcon 的 TaskbarIcon（Win32 Shell_NotifyIcon）。Linux 桌面没有该 API，
 // 现代 KDE/GNOME 走 StatusNotifierItem（G0-6 已在 KDE 上验证通路）。
@@ -364,7 +364,9 @@ internal static class TrayIconPixmap
             {
                 return _cache = Array.Empty<(int, int, byte[])>();
             }
-            using var resized = bitmap.Resize(new SkiaSharp.SKImageInfo(22, 22), SkiaSharp.SKFilterQuality.High);
+            // SkiaSharp 4：Resize 的采样质量参数换成 SKSamplingOptions（L-184）。
+            using var resized = bitmap.Resize(new SkiaSharp.SKImageInfo(22, 22),
+                new SkiaSharp.SKSamplingOptions(SkiaSharp.SKCubicResampler.Mitchell));
             var bytes = new byte[22 * 22 * 4];
             int i = 0;
             for (int y = 0; y < 22; y++)

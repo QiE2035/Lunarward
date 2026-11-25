@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.GameLauncher;
-using Starward.Features.HoYoPlay;
+using Starward.GameInstall;
 using System;
 using System.Collections.Generic;
 using System.IO;

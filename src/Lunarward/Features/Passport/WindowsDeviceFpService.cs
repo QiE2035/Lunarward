@@ -1,5 +1,7 @@
-﻿using Microsoft.UI.Windowing;
-using Microsoft.Win32;
+// LUNARWARD-DEVIATION: 上游同名文件用注册表 + DXGI + SMBIOS 固件表取设备信息（Windows 专属）。
+// Linux 侧改从 /proc、/sys、/etc/machine-id 取同样的字段，SDK 缓存值落到数据目录的 JSON 文件。
+// 类名沿用上游的 WindowsDeviceFpService，避免调用点（MainView / HypLoginWindow / DI 注册）分叉。D128
+using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.DeviceFp;
 using System;
@@ -11,8 +13,6 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Vanara.PInvoke;
-using Windows.Graphics;
 
 namespace Starward.Features.Passport;
 
@@ -20,22 +20,15 @@ internal partial class WindowsDeviceFpService
 {
 
     /// <summary>
-    /// SDK 注册表键
+    /// SDK 缓存文件（对应上游的 HKEY_CURRENT_USER\Software\miHoYoSDK）
     /// </summary>
-    private const string SdkKey = @"HKEY_CURRENT_USER\Software\miHoYoSDK";
+    private static readonly string SdkStorePath = Path.Combine(AppConfig.CacheFolder, "device-sdk.json");
 
-    private const string CpuKey = @"HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0";
-
-    private const string BiosKey = @"HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\BIOS";
-
-    private const string GpuClassKey = @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}";
-
-    private const string MachineGuidKey = @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography";
-
-    private const string WindowsVersionKey = @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion";
-
+    private static readonly object SdkStoreLock = new();
 
     private readonly DeviceFpClient _client;
+
+    private readonly ILogger<WindowsDeviceFpService> _logger = AppConfig.GetLogger<WindowsDeviceFpService>();
 
 
     public WindowsDeviceFpService(DeviceFpClient deviceFpClient)
@@ -68,7 +61,7 @@ internal partial class WindowsDeviceFpService
 
 
     /// <summary>
-    /// 登录窗口的 deviceId。与 <see cref="CreateRequest"/> 的取值一致，取注册表缓存，没有就按 HYP 的算法生成。
+    /// 登录窗口的 deviceId。与 <see cref="CreateRequest"/> 的取值一致，取缓存，没有就按 HYP 的算法生成。
     /// </summary>
     public string GetDeviceId()
     {
@@ -76,9 +69,8 @@ internal partial class WindowsDeviceFpService
     }
 
 
-
     /// <summary>
-    /// 登录窗口的 deviceFp。取注册表缓存，没有就用占位值。
+    /// 登录窗口的 deviceFp。取缓存，没有就用占位值。
     /// </summary>
     public string GetDeviceFp()
     {
@@ -87,7 +79,7 @@ internal partial class WindowsDeviceFpService
 
 
     /// <summary>
-    /// 构造 getFp 请求体：device_id / seed / device_fp 取注册表缓存或默认值，
+    /// 构造 getFp 请求体：device_id / seed / device_fp 取缓存或默认值，
     /// </summary>
     public DeviceFpRequest CreateRequest(DeviceExtListResult extList)
     {
@@ -102,7 +94,6 @@ internal partial class WindowsDeviceFpService
         };
 
         // 和 SDK 一样，只在值不存在时回写，避免覆盖启动器/游戏已经写好的数据
-        //SaveSdkValueIfMissing("MIHOYOSDK_DEVICE_FP", request.DeviceFp);
         SaveSdkValueIfMissing("MIHOYOSDK_SEED_ID", request.SeedId);
         SaveSdkValueIfMissing("MIHOYOSDK_SEED_TIME", request.SeedTime);
         SaveSdkValueIfMissing("MIHOYOSDK_DEVICE_UID", GetExtFieldDeviceUid());
@@ -122,11 +113,11 @@ internal partial class WindowsDeviceFpService
             fields[name] = name switch
             {
                 "osVersion" => GetOsVersion(),
-                "cpuName" => Registry.GetValue(CpuKey, "ProcessorNameString", null)?.ToString() ?? "unknown",
+                "cpuName" => ReadCpuInfo("model name") ?? "unknown",
                 "cpuCores" => Environment.ProcessorCount.ToString(),
-                "cpuFrequency" => Registry.GetValue(CpuKey, "~MHz", null)?.ToString() ?? "unknown",
-                "cpuType" => "unknown",
-                "deviceModel" => Registry.GetValue(BiosKey, "BaseBoardProduct", null)?.ToString() ?? "unknown",
+                "cpuFrequency" => ReadCpuInfo("cpu MHz") ?? "unknown",
+                "cpuType" => ReadFile("/sys/devices/system/cpu/cpu0/cpufreq/scaling_driver") ?? "unknown",
+                "deviceModel" => ReadFile("/sys/class/dmi/id/board_name") ?? ReadFile("/sys/class/dmi/id/product_name") ?? "unknown",
                 "deviceName" or "systemName" => Environment.MachineName,
                 "deviceType" => "Desktop",
                 "deviceUID" => GetExtFieldDeviceUid(),
@@ -161,12 +152,20 @@ internal partial class WindowsDeviceFpService
 
     private static string? GetSdkValue(string name)
     {
-        string? value = Registry.GetValue(SdkKey, name, null) as string;
-        if (string.IsNullOrWhiteSpace(value))
+        try
         {
-            return null;
+            lock (SdkStoreLock)
+            {
+                if (ReadStore() is { } store && store.TryGetValue(name, out string? value) && !string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
         }
-        return value;
+        catch (Exception)
+        {
+        }
+        return null;
     }
 
 
@@ -178,35 +177,62 @@ internal partial class WindowsDeviceFpService
         }
         try
         {
-            Registry.SetValue(SdkKey, name, value, RegistryValueKind.String);
+            lock (SdkStoreLock)
+            {
+                var store = ReadStore() ?? new Dictionary<string, string>();
+                store[name] = value;
+                Directory.CreateDirectory(Path.GetDirectoryName(SdkStorePath)!);
+                string text = JsonSerializer.Serialize(store, SdkJsonOptions);
+                string temp = SdkStorePath + ".tmp";
+                File.WriteAllText(temp, text);
+                File.Move(temp, SdkStorePath, true);
+            }
         }
-        catch { }
+        catch (Exception)
+        {
+        }
     }
 
 
-    private static string GetMachineGuid()
+    private static readonly JsonSerializerOptions SdkJsonOptions = new() { WriteIndented = true };
+
+
+    private static Dictionary<string, string>? ReadStore()
     {
-        return Registry.GetValue(MachineGuidKey, "MachineGuid", null) as string ?? "";
+        if (!File.Exists(SdkStorePath))
+        {
+            return null;
+        }
+        return JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(SdkStorePath));
     }
 
 
     /// <summary>
-    /// 生成设备号：<c>SHA1(主板序列号 + BIOS 序列号 + 系统 ProductId)</c> 的 40 位小写十六进制，再拼接当前毫秒。
+    /// 系统唯一标识，对应 Windows 的 MachineGuid。
+    /// </summary>
+    private static string GetMachineGuid()
+    {
+        return ReadFile("/etc/machine-id") ?? ReadFile("/var/lib/dbus/machine-id") ?? "";
+    }
+
+
+    /// <summary>
+    /// 生成设备号：<c>SHA1(主板序列号 + BIOS 序列号 + machine-id)</c> 的 40 位小写十六进制，再拼接当前毫秒。
     /// <para>
-    /// 主板序列号取 SMBIOS Type 2，BIOS 序列号取 SMBIOS Type 1，与 Win32_BaseBoard / Win32_BIOS 的 SerialNumber 一致。
-    /// 任一序列号缺失时退化成 MachineGuid，保证仍能得到一个稳定值。
+    /// 序列号取 SMBIOS 的 /sys/class/dmi/id 下的 board_serial 与 product_serial，与 Windows 侧
+    /// Win32_BaseBoard / Win32_BIOS 的 SerialNumber 对应。任一序列号缺失时退化成 machine-id。
     /// </para>
     /// </summary>
     private static string GenerateDeviceId()
     {
-        string boardSerial = ReadSmbiosSerial(2);
-        string biosSerial = ReadSmbiosSerial(1);
-        string productId = Registry.GetValue(WindowsVersionKey, "ProductId", null)?.ToString() ?? "";
+        string boardSerial = ReadFile("/sys/class/dmi/id/board_serial") ?? "";
+        string biosSerial = ReadFile("/sys/class/dmi/id/product_serial") ?? "";
+        string productId = GetMachineGuid();
 
         string raw;
         if (string.IsNullOrEmpty(boardSerial) || string.IsNullOrEmpty(biosSerial))
         {
-            raw = GetMachineGuid();
+            raw = productId;
         }
         else
         {
@@ -218,166 +244,109 @@ internal partial class WindowsDeviceFpService
     }
 
 
-    /// <summary>
-    /// 读取 SMBIOS 表中的字符串字段（Type 1 = 系统，Type 2 = 主板）。
-    /// </summary>
-    private static string ReadSmbiosSerial(byte type)
-    {
-        try
-        {
-            uint size = Kernel32.GetSystemFirmwareTable(Kernel32.FirmwareTableProviderId.RSMB, 0, out byte[]? buffer);
-            if (buffer is null || size > buffer.Length)
-            {
-                return "";
-            }
-
-            int offset = 8; // 跳过 SMBIOS 数据头
-            while (offset + 4 <= buffer.Length)
-            {
-                byte structureType = buffer[offset];
-                int length = buffer[offset + 1];
-                if (length < 4)
-                {
-                    break;
-                }
-                if (structureType == type)
-                {
-                    // Type 1 / Type 2 的 Serial Number 都在结构体偏移 +7 处
-                    return ReadSmbiosString(buffer, offset, length, buffer[offset + 7]);
-                }
-                if (structureType == 127)
-                {
-                    break;
-                }
-                int position = offset + length;
-                while (position + 1 < buffer.Length && !(buffer[position] == 0 && buffer[position + 1] == 0))
-                {
-                    position++;
-                }
-                offset = position + 2;
-            }
-        }
-        catch { }
-        return "";
-    }
-
-
-    /// <summary>
-    /// 取 SMBIOS 结构体后面第 <paramref name="index"/> 个字符串（从 1 开始，0 表示没有）。
-    /// </summary>
-    private static string ReadSmbiosString(byte[] buffer, int offset, int length, byte index)
-    {
-        if (index == 0)
-        {
-            return "";
-        }
-        int position = offset + length;
-        for (int i = 1; i <= index; i++)
-        {
-            if (position >= buffer.Length)
-            {
-                return "";
-            }
-            int end = position;
-            while (end < buffer.Length && buffer[end] != 0)
-            {
-                end++;
-            }
-            if (i == index)
-            {
-                return Encoding.UTF8.GetString(buffer, position, end - position).Trim();
-            }
-            position = end + 1;
-        }
-        return "";
-    }
-
-
     private static string GetOsVersion()
     {
-        Version version = Environment.OSVersion.Version;
-        return $"Windows {version.Major}.{version.Minor}.{version.Build}";
+        string? prettyName = null;
+        string? osRelease = ReadFile("/etc/os-release");
+        if (osRelease is not null)
+        {
+            foreach (string line in osRelease.Split('\n'))
+            {
+                if (line.StartsWith("PRETTY_NAME=", StringComparison.Ordinal))
+                {
+                    prettyName = line["PRETTY_NAME=".Length..].Trim().Trim('"');
+                    break;
+                }
+            }
+        }
+        return prettyName ?? $"Linux {Environment.OSVersion.Version}";
     }
 
 
     /// <summary>
-    /// GPU 信息，取值方式和 SDK 一致：DXGI 拿适配器信息，D3D11 拿特性等级。
+    /// GPU 信息：/proc/driver/nvidia 能给 NVIDIA 的型号，其它厂商退回 PCI vendor/device id。
     /// </summary>
     private readonly record struct GpuInfo(string Name, string Vendor, string VendorId, string DeviceId, string Memory, string Version, string Api);
 
 
     private static GpuInfo GetGpuInfo()
     {
-        if (TryGetGpuInfoFromDxgi(out GpuInfo info))
-        {
-            return info;
-        }
-        // DXGI 不可用时退回注册表，能取多少算多少
-        var (name, vendor, memory) = GetGpuInfoFromRegistry();
-        return new GpuInfo(name, vendor, "unknown", "unknown", memory, "Direct3D 11.0", "Direct3D 11");
+        string? vendorId = ReadFile("/sys/class/drm/card0/device/vendor");
+        string? deviceId = ReadFile("/sys/class/drm/card0/device/device");
+        uint vendor = ParseHexId(vendorId);
+        var (name, memory) = GetGpuNameAndMemory();
+        return new GpuInfo(
+            name ?? "unknown",
+            GetGpuVendorName(vendor),
+            vendor == 0 ? "unknown" : vendor.ToString(),
+            ParseHexId(deviceId) is uint device and not 0 ? device.ToString() : "unknown",
+            memory ?? "unknown",
+            "OpenGL",
+            "OpenGL");
     }
 
 
-    private static bool TryGetGpuInfoFromDxgi(out GpuInfo info)
+    /// <summary>
+    /// NVIDIA 专有驱动会在 /proc/driver/nvidia/gpus/&lt;pci&gt;/information 里写型号；
+    /// 显存只有驱动暴露的 sysfs 节点（AMD）或 nvidia-smi（不 fork）可用，取不到就 unknown。
+    /// </summary>
+    private static (string? Name, string? Memory) GetGpuNameAndMemory()
     {
-        info = default;
         try
         {
-            // 不同系统支持的 factory 接口版本不同，从新到旧依次尝试
-            DXGI.IDXGIFactory? factory = CreateDxgiFactory();
-            if (factory is null)
+            string gpusRoot = "/proc/driver/nvidia/gpus";
+            if (Directory.Exists(gpusRoot))
             {
-                return false;
+                foreach (string dir in Directory.EnumerateDirectories(gpusRoot))
+                {
+                    string? info = ReadFile(Path.Combine(dir, "information"));
+                    if (info is null)
+                    {
+                        continue;
+                    }
+                    string? model = null;
+                    foreach (string line in info.Split('\n'))
+                    {
+                        if (line.StartsWith("Model:", StringComparison.Ordinal))
+                        {
+                            model = line["Model:".Length..].Trim();
+                            break;
+                        }
+                    }
+                    string? vram = ReadFile("/sys/class/drm/card0/device/mem_info_vram_total");
+                    return (model, vram is null ? null : (long.Parse(vram) >> 20).ToString());
+                }
             }
-
-            // 枚举主显卡
-            if (factory.EnumAdapters(0, out DXGI.IDXGIAdapter? adapter).Failed || adapter is null)
+            string? amdMemory = ReadFile("/sys/class/drm/card0/device/mem_info_vram_total");
+            if (amdMemory is not null)
             {
-                return false;
+                return (null, (long.Parse(amdMemory) >> 20).ToString());
             }
-
-            DXGI.DXGI_ADAPTER_DESC desc = adapter.GetDesc();
-
-            info = new GpuInfo(
-                string.IsNullOrWhiteSpace(desc.Description) ? "unknown" : desc.Description,
-                GetGpuVendorName(desc.VendorId),
-                desc.VendorId.ToString(),
-                desc.DeviceId.ToString(),
-                (desc.DedicatedVideoMemory >> 20).ToString(),
-                "Direct3D 11.0",
-                "Direct3D 11");
-            return true;
         }
         catch (Exception)
         {
-            return false;
         }
+        return (null, null);
     }
 
 
-    /// <summary>
-    /// 创建 DXGI factory，从 IDXGIFactory2 往旧版本回退。
-    /// </summary>
-    private static DXGI.IDXGIFactory? CreateDxgiFactory()
+    private static uint ParseHexId(string? text)
     {
-        if (DXGI.CreateDXGIFactory(typeof(DXGI.IDXGIFactory2).GUID, out object? factory2).Succeeded && factory2 is DXGI.IDXGIFactory2 f2)
+        if (string.IsNullOrWhiteSpace(text))
         {
-            return f2;
+            return 0;
         }
-        if (DXGI.CreateDXGIFactory(typeof(DXGI.IDXGIFactory1).GUID, out object? factory1).Succeeded && factory1 is DXGI.IDXGIFactory1 f1)
+        text = text.Trim();
+        if (text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
         {
-            return f1;
+            text = text[2..];
         }
-        if (DXGI.CreateDXGIFactory(typeof(DXGI.IDXGIFactory).GUID, out object? factory0).Succeeded && factory0 is DXGI.IDXGIFactory f0)
-        {
-            return f0;
-        }
-        return null;
+        return uint.TryParse(text, System.Globalization.NumberStyles.HexNumber, null, out uint value) ? value : 0;
     }
 
 
     /// <summary>
-    /// DXGI VendorId 到厂商名的映射，和 SDK 一致。
+    /// PCI VendorId 到厂商名的映射，和 SDK 一致。
     /// </summary>
     private static string GetGpuVendorName(uint vendorId) => vendorId switch
     {
@@ -388,47 +357,40 @@ internal partial class WindowsDeviceFpService
     };
 
 
-    private static (string Name, string Vendor, string Memory) GetGpuInfoFromRegistry()
-    {
-        try
-        {
-            // 显示适配器类的子键是 0000、0001…
-            for (int i = 0; i < 16; i++)
-            {
-                string subKey = $@"{GpuClassKey}\{i:0000}";
-                if (Registry.GetValue(subKey, "DriverDesc", null) is string name && !string.IsNullOrWhiteSpace(name))
-                {
-                    string vendor = Registry.GetValue(subKey, "ProviderName", null) as string ?? "unknown";
-                    string memory = "unknown";
-                    if (Registry.GetValue(subKey, "HardwareInformation.qwMemorySize", null) is { } size)
-                    {
-                        long bytes = Convert.ToInt64(size);
-                        if (bytes > 0)
-                        {
-                            memory = (bytes >> 20).ToString();
-                        }
-                    }
-                    return (name, vendor, memory);
-                }
-            }
-        }
-        catch { }
-        return ("unknown", "unknown", "unknown");
-    }
-
-
     private static (string Total, string Available) GetMemoryInfo()
     {
         try
         {
-            Kernel32.MEMORYSTATUSEX status = new();
-            if (Kernel32.GlobalMemoryStatusEx(ref status))
+            string? memInfo = ReadFile("/proc/meminfo");
+            if (memInfo is not null)
             {
-                return ((status.ullTotalPhys >> 20).ToString(), (status.ullAvailPhys >> 20).ToString());
+                string total = "unknown";
+                string available = "unknown";
+                foreach (string line in memInfo.Split('\n'))
+                {
+                    if (line.StartsWith("MemTotal:", StringComparison.Ordinal))
+                    {
+                        total = (ParseKilobytes(line) >> 10).ToString();
+                    }
+                    else if (line.StartsWith("MemAvailable:", StringComparison.Ordinal))
+                    {
+                        available = (ParseKilobytes(line) >> 10).ToString();
+                    }
+                }
+                return (total, available);
             }
         }
-        catch { }
+        catch (Exception)
+        {
+        }
         return ("unknown", "unknown");
+    }
+
+
+    private static long ParseKilobytes(string line)
+    {
+        string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2 && long.TryParse(parts[1], out long kb) ? kb : 0;
     }
 
 
@@ -436,32 +398,22 @@ internal partial class WindowsDeviceFpService
     {
         try
         {
-            string? root = Path.GetPathRoot(Environment.SystemDirectory);
-            if (!string.IsNullOrEmpty(root))
-            {
-                DriveInfo drive = new(root);
-                return ((drive.TotalSize >> 20).ToString(), (drive.AvailableFreeSpace >> 20).ToString());
-            }
+            var drive = new DriveInfo(Path.GetPathRoot(AppConfig.CacheFolder) ?? "/");
+            return ((drive.TotalSize >> 20).ToString(), (drive.AvailableFreeSpace >> 20).ToString());
         }
         catch (Exception)
         {
-
         }
         return ("unknown", "unknown");
     }
 
 
+    /// <summary>
+    /// Uno 的 X11 后端没有 DisplayArea 这类查询，屏幕尺寸取 xrandr 的值会 fork 进程（硬规则 10），这里留 unknown。
+    /// </summary>
     private static string GetScreenSize()
     {
-        try
-        {
-            DisplayArea area = DisplayArea.GetFromPoint(new PointInt32(0, 0), DisplayAreaFallback.Primary);
-            return $"{area.OuterBounds.Width}x{area.OuterBounds.Height}";
-        }
-        catch (Exception)
-        {
-            return "unknown";
-        }
+        return "unknown";
     }
 
 
@@ -484,6 +436,45 @@ internal partial class WindowsDeviceFpService
         }
         catch { }
         return "FFFFFFFFFFFF";
+    }
+
+
+    /// <summary>
+    /// 读 /proc 里 cpuinfo 的字段值（第一处出现）。
+    /// </summary>
+    private static string? ReadCpuInfo(string key)
+    {
+        string? cpuInfo = ReadFile("/proc/cpuinfo");
+        if (cpuInfo is null)
+        {
+            return null;
+        }
+        foreach (string line in cpuInfo.Split('\n'))
+        {
+            if (line.StartsWith(key, StringComparison.Ordinal) && line.Length > key.Length && line[key.Length] == ':')
+            {
+                string value = line[(key.Length + 1)..].Trim();
+                return string.IsNullOrWhiteSpace(value) ? null : value;
+            }
+        }
+        return null;
+    }
+
+
+    private static string? ReadFile(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                string text = File.ReadAllText(path).Trim();
+                return string.IsNullOrWhiteSpace(text) ? null : text;
+            }
+        }
+        catch (Exception)
+        {
+        }
+        return null;
     }
 
 
