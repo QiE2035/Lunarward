@@ -110,9 +110,11 @@ internal static class DatabaseService
             Directory.CreateDirectory(folder);
             string hash = Convert.ToHexStringLower(XxHash3.Hash(MemoryMarshal.AsBytes(AppConfig.UserDataFolder.AsSpan())));
             string file = Path.Combine(folder, $"StarwardDatabase_AutoBackup_{hash}_{DateTime.Now:yyyyMMdd_HHmmss}.db");
-            string archive = Path.ChangeExtension(file, ".7z");
+            // D134：CreateArchive 用 System.IO.Compression 写的是 ZIP，扩展名不能再挂 .7z
+            // （以前产物是 ZIP、名字是 .7z、清理通配符也按 .7z，用户拿 7z 打开会报错）。
+            string archive = Path.ChangeExtension(file, ".zip");
             string archive_tmp = archive + ".tmp";
-            string[] files = Directory.GetFiles(folder, $"StarwardDatabase_AutoBackup_{hash}_*.7z");
+            string[] files = Directory.GetFiles(folder, $"StarwardDatabase_AutoBackup_{hash}_*.zip");
             if (files.Length == 0)
             {
                 BackupDatabase(file);
@@ -139,6 +141,12 @@ internal static class DatabaseService
             foreach (string item in files)
             {
                 File.Delete(item);
+            }
+            // 旧版本留下的 .7z（其实是 ZIP）一并清掉，它们不会再被上面的轮转逻辑选中。
+            files = Directory.GetFiles(folder, $"StarwardDatabase_AutoBackup_{hash}_*.7z");
+            foreach (string item in files)
+            {
+                try { File.Delete(item); } catch (IOException) { }
             }
         }
         catch (Exception ex)

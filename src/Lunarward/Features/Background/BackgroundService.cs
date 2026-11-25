@@ -297,28 +297,27 @@ public class BackgroundService
     /// <returns></returns>
     private static async Task CheckBackgroundFileAvailableAsync(string file)
     {
-        await Task.Run(() =>
+        if (!File.Exists(file))
         {
-            if (!File.Exists(file))
+            throw new FileNotFoundException("background file not found", file);
+        }
+        var info = new FileInfo(file);
+        if (info.Length <= 0)
+        {
+            throw new InvalidDataException("background file is empty");
+        }
+        // B54：图片必须真的解得开才允许落盘，否则壁纸变黑且已持久化。
+        // GetImagePixelSizeAsync 自己就在后台线程解码（SKCodec），这里直接 await，
+        // 不要再套 Task.Run + GetAwaiter().GetResult() 的嵌套同步等待。
+        string extension = Path.GetExtension(file).ToLowerInvariant();
+        if (extension is not (".mp4" or ".mkv" or ".webm" or ".mov" or ".avi"))
+        {
+            var (width, height) = await Starward.Features.Codec.ImageLoader.GetImagePixelSizeAsync(file);
+            if (width == 0 || height == 0)
             {
-                throw new FileNotFoundException("background file not found", file);
+                throw new InvalidDataException("background image cannot be decoded");
             }
-            var info = new FileInfo(file);
-            if (info.Length <= 0)
-            {
-                throw new InvalidDataException("background file is empty");
-            }
-            // B54：图片必须真的解得开才允许落盘，否则壁纸变黑且已持久化。
-            string extension = Path.GetExtension(file).ToLowerInvariant();
-            if (extension is not (".mp4" or ".mkv" or ".webm" or ".mov" or ".avi"))
-            {
-                var (width, height) = Starward.Features.Codec.ImageLoader.GetImagePixelSizeAsync(file).GetAwaiter().GetResult();
-                if (width == 0 || height == 0)
-                {
-                    throw new InvalidDataException("background image cannot be decoded");
-                }
-            }
-        });
+        }
     }
 
 

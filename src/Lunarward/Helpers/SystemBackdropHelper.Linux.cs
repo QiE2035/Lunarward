@@ -61,31 +61,31 @@ public class SystemBackdropHelper
 
     private readonly SystemBackdropProperty _property;
 
-    private bool _isDark = true;
-
     public SystemBackdropHelper(Window window, SystemBackdropProperty property)
     {
         _window = window;
         _property = property;
     }
 
-    public SystemBackdropHelper TrySetAcrylic(bool isDark = true)
+    // D134：上游这两个方法的参数是 `alwaysActive`（窗口失焦时是否保持亚克力），不是「是否深色」。
+    // 移植侧以前把它当 isDark 用，结果 SystemTrayWindow 传 true → 浅色主题下托盘恒为深灰底。
+    // 现在参数只为保持签名一致而接收，深浅色一律按桌面主题推断（SystemThemePreference）。
+    public SystemBackdropHelper TrySetAcrylic(bool alwaysActive = false)
     {
-        _isDark = isDark;
         Apply();
         return this;
     }
 
-    public SystemBackdropHelper TrySetMica(bool isDark = true)
+    public SystemBackdropHelper TrySetMica(bool alwaysActive = false)
     {
-        _isDark = isDark;
         Apply();
         return this;
     }
 
     private void Apply()
     {
-        uint color = _isDark ? _property.FallbackColorDark : _property.FallbackColorLight;
+        bool isDark = SystemThemePreference.IsDark;
+        uint color = isDark ? _property.FallbackColorDark : _property.FallbackColorLight;
         if (color == 0)
         {
             return;

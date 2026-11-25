@@ -297,10 +297,6 @@ public sealed partial class CachedImage : Image
         return bitmap;
     }
 
-    private static class StreamExtensions
-    {
-    }
-
     /// <summary>上游 ImageEx 的图片加载完成事件；这里在加载结束（成功或失败）时触发一次。</summary>
     public event EventHandler? ImageExOpened;
 

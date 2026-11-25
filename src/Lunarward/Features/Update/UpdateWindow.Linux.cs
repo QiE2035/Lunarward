@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 
 namespace Starward.Features.Update;
 
+[INotifyPropertyChanged]
 public sealed partial class UpdateWindow : WindowBase
 {
     public UpdateWindow()
@@ -21,7 +22,14 @@ public sealed partial class UpdateWindow : WindowBase
 
     public string ChannelText { get; set; } = "";
 
-    public string? ErrorMessage { get; set; }
+    private string? _errorMessage;
+
+    /// <summary>D134：加 INotifyPropertyChanged 后 x:Bind 才能在「重试」失败时刷新（以前是普通自动属性）。</summary>
+    public string? ErrorMessage
+    {
+        get => _errorMessage;
+        set => SetProperty(ref _errorMessage, value);
+    }
 
     public bool IsProgressBarVisible { get; set; }
 
@@ -106,12 +114,10 @@ public sealed partial class UpdateWindow : WindowBase
 
     private void SetErrorMessage(string? message)
     {
+        // XAML 与上游一致用 `{x:Bind ErrorMessage}`（默认 OneTime），PropertyChanged 不会自动生效，
+        // 所以赋值后手动刷新一次绑定；不再走 FindName 改控件文本（那条路依赖模板已加载，会静默失败）。
         ErrorMessage = message;
-        if ((Content as FrameworkElement)?.FindName("TextBlock_ErrorMessage") is TextBlock block)
-        {
-            block.Text = message ?? "";
-            block.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
-        }
+        Bindings.Update();
     }
 
     [RelayCommand]
@@ -125,11 +131,11 @@ public sealed partial class UpdateWindow : WindowBase
         try
         {
             NewVersion = await AppConfig.GetService<UpdateService>().GetLatestVersionAsync();
-            ErrorMessage = NewVersion is null ? "无法获取最新版本信息" : null;
+            SetErrorMessage(NewVersion is null ? "无法获取最新版本信息" : null);
         }
         catch (Exception ex)
         {
-            ErrorMessage = ex.Message;
+            SetErrorMessage(ex.Message);
         }
     }
 
