@@ -180,23 +180,7 @@ public sealed partial class GeneralSetting : PageBase
 
 
 
-    #region 系统视觉效果
 
-
-
-    /// <summary>
-    /// 透明/动画效果
-    /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="args"></param>
-    private async void Hyperlink_VisualEffects_Click(Microsoft.UI.Xaml.Documents.Hyperlink sender, Microsoft.UI.Xaml.Documents.HyperlinkClickEventArgs args)
-    {
-        await Launcher.LaunchUriAsync(new Uri("ms-settings:easeofaccess-visualeffects"));
-    }
-
-
-
-    #endregion
 
 
 

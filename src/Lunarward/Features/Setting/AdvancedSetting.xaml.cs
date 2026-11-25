@@ -108,7 +108,7 @@ public sealed partial class AdvancedSetting : PageBase
     {
         try
         {
-            string downloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            string downloads = DownloadFolder();
             Directory.CreateDirectory(downloads);
             Helpers.OpenUrl.Open(downloads);
         }
@@ -119,6 +119,43 @@ public sealed partial class AdvancedSetting : PageBase
     }
 
 
+    /// <summary>
+    /// D134：`~/Downloads` 是 Windows 的习惯；Linux 走 `user-dirs.dirs` 的 XDG_DOWNLOAD_DIR，
+    /// 没配置才回落到 `$HOME`（而不是造一个空的 `~/Downloads`）。
+    /// </summary>
+    private static string DownloadFolder()
+    {
+        try
+        {
+            string configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } xdg
+                ? xdg
+                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
+            string file = Path.Combine(configHome, "user-dirs.dirs");
+            if (File.Exists(file))
+            {
+                foreach (string line in File.ReadAllLines(file))
+                {
+                    if (!line.StartsWith("XDG_DOWNLOAD_DIR=", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+                    string value = line["XDG_DOWNLOAD_DIR=".Length..].Trim().Trim('"');
+                    value = value.Replace("$HOME", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), StringComparison.Ordinal);
+                    if (value.Length > 0)
+                    {
+                        return value;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "read XDG_DOWNLOAD_DIR failed");
+        }
+        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    }
+
+
     private void Button_OpenOutputFolder_Click(object sender, RoutedEventArgs e) => OpenOutputFolder();
 
 
@@ -126,8 +163,8 @@ public sealed partial class AdvancedSetting : PageBase
     {
         try
         {
-            string folder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share", "lunarward", "logs", "output");
+            // D134：跟 OutputCapture 写日志的位置保持一致（XDG_DATA_HOME 优先，而不是写死 ~/.local/share）。
+            string folder = Path.Combine(AppConfig.LinuxDataHome, "lunarward", "logs", "output");
             Directory.CreateDirectory(folder);
             Process.Start(new ProcessStartInfo("xdg-open", folder) { UseShellExecute = false });
         }

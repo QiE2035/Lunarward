@@ -51,7 +51,11 @@ public sealed partial class DownloadSetting : PageBase
     {
         try
         {
-            // Lunarward: 限速由 RPC 安装器执行；D25 下 M1 无下载流水线，值仅写入配置供后续使用
+            // D134：以前这里是个空壳（注释还停留在「限速由 RPC 安装器执行」的 D25 时代），
+            // 用户改了滑块要等下次开始安装才生效。现在直接下发到进程内的 GameInstallRunner。
+            int limit = Math.Clamp(value * 1024, 0, int.MaxValue);
+            var runner = AppConfig.GetService<Starward.GameInstall.GameInstallRunner>();
+            runner.SetRateLimiter(limit > 0, limit);
             await Task.CompletedTask;
         }
         catch (Exception ex)
