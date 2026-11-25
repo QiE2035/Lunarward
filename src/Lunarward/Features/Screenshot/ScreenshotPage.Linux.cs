@@ -236,10 +236,6 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     }
 
 
-    private void GridView_Images_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
-    {
-        // LINT-ALLOW: Uno 没有拖拽重排，改为多选 + 批量命令（L-48 家族）
-    }
     private void OpenViewerIfRequested(List<ScreenshotItem> items)
     {
         // 验证用：--viewer N 直接打开查看器（L-36：UI 点击在 XWayland 下不可靠）
@@ -258,12 +254,236 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     }
 
 
-    private void GridView_Images_ItemClick(object sender, ItemClickEventArgs e)
+    /// <summary>菜单项的 Tag 是它所属的条目（Uno 的 MenuFlyoutItem 不回传 DataContext）。</summary>
+    private static ScreenshotItem? ItemOf(object sender) => (sender as FrameworkElement)?.Tag as ScreenshotItem;
+
+
+    /// <summary>
+    /// 右键菜单：上游写在 XAML 的 `Grid.ContextFlyout` 里，Uno 的 Grid 没有这个属性（CS0117），
+    /// 所以改成 RightTapped 时现造同样的菜单。项与上游 ScreenshotPage.xaml:121-213 一一对应，
+    /// 少了「打开方式」（Windows 专有的对话框）——「用默认应用打开」已覆盖同一需求。D134。
+    /// </summary>
+    private void Item_RightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
-        if (e.ClickedItem is ScreenshotItem item)
+        if (sender is not FrameworkElement element || element.Tag is not ScreenshotItem item)
+        {
+            return;
+        }
+        var menu = new MenuFlyout();
+        var info = new MenuFlyoutItem
+        {
+            Text = item.FileInfo,
+            IsEnabled = false,
+            MinWidth = 208,
+            FontSize = 12,
+        };
+        menu.Items.Add(info);
+        menu.Items.Add(new MenuFlyoutSeparator());
+        menu.Items.Add(CreateMenuItem(Lang.Common_Open, "\uE8A7", item, MenuFlyoutItem_Open_Click));
+        menu.Items.Add(CreateMenuItem(Lang.ImageViewWindow2_CopyFile, "\uE8C8", item, MenuFlyoutItem_CopyFile_Click));
+        menu.Items.Add(CreateMenuItem(Lang.ImageViewWindow2_CopyAsJPG, "\uF413", item, MenuFlyoutItem_CopyAsJPG_Click));
+        menu.Items.Add(new MenuFlyoutSeparator());
+        menu.Items.Add(CreateMenuItem(Lang.ImageViewWindow2_OpenInExplorer, "\uEC50", item, MenuFlyoutItem_OpenInExplorer_Click));
+        menu.Items.Add(CreateMenuItem(Lang.ImageViewWindow2_OpenWithDefaultApp, "\uE91B", item, MenuFlyoutItem_OpenWithDefault_Click));
+        menu.Items.Add(new MenuFlyoutSeparator());
+        MenuFlyoutItem delete = CreateMenuItem(Lang.Common_Delete, "\uE74D", item, MenuFlyoutItem_Delete_Click);
+        delete.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SystemFillColorCriticalBrush"];
+        menu.Items.Add(delete);
+
+        item.UpdatePixelSize();
+        menu.ShowAt(element, new Microsoft.UI.Xaml.Controls.Primitives.FlyoutShowOptions { Position = e.GetPosition(element) });
+    }
+
+
+    private static MenuFlyoutItem CreateMenuItem(string text, string glyph, ScreenshotItem item, RoutedEventHandler handler)
+    {
+        var menuItem = new MenuFlyoutItem
+        {
+            Text = text,
+            Tag = item,
+            Icon = new FontIcon { Glyph = glyph },
+        };
+        menuItem.Click += handler;
+        return menuItem;
+    }
+
+
+    // ── 右键菜单（对齐上游 ScreenshotPage.xaml.cs:445-700 的六个处理器）────────────────────
+    // 上游还有「打开方式」（Windows 的 OpenWith 对话框）与「复制为 JPG 后再粘图片」，
+    // Linux 侧前者没有对应物（xdg-open 已覆盖「用默认应用打开」），后者的语义由
+    // CopyAsJPG 承担（转 JPG 后把文件放剪贴板）。D134。
+
+    private void MenuFlyoutItem_ScreenshotInfo_Loading(FrameworkElement sender, object args)
+    {
+        // 上游在这里补「像素大小」——FileInfo 初值是「格式 + 体积」，Loading 时才去读尺寸。
+        if (sender.DataContext is ScreenshotItem item)
+        {
+            item.UpdatePixelSize();
+        }
+    }
+
+
+    private void MenuFlyoutItem_Open_Click(object sender, RoutedEventArgs e)
+    {
+        if (ItemOf(sender) is ScreenshotItem item)
         {
             OpenItem(item);
         }
+    }
+
+
+    private async void MenuFlyoutItem_CopyFile_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            List<string> files = SelectedOrSingle(sender);
+            if (files.Count == 0)
+            {
+                return;
+            }
+            var storageFiles = new List<Windows.Storage.IStorageItem>();
+            foreach (string path in files)
+            {
+                if (File.Exists(path))
+                {
+                    storageFiles.Add(await Windows.Storage.StorageFile.GetFileFromPathAsync(path));
+                }
+            }
+            if (storageFiles.Count == 0)
+            {
+                return;
+            }
+            Helpers.ClipboardHelper.SetStorageItems(Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy, storageFiles.ToArray());
+            Helpers.InAppToast.MainWindow?.Success((string?)null, $"已复制 {storageFiles.Count} 个文件", 3000);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "复制截图文件失败");
+            Helpers.InAppToast.MainWindow?.Warning((string?)null, "复制文件失败（剪贴板不可用）", 4000);
+        }
+    }
+
+
+    private async void MenuFlyoutItem_CopyAsJPG_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            List<string> files = SelectedOrSingle(sender);
+            if (files.Count == 0)
+            {
+                return;
+            }
+            string temp = Path.Combine(Path.GetTempPath(), $"lunarward-copy-{Guid.NewGuid():N}.jpg");
+            bool ok = await Task.Run(() => ConvertFirstToJpeg(files[0], temp));
+            if (!ok)
+            {
+                Helpers.InAppToast.MainWindow?.Warning((string?)null, "转换 JPG 失败", 4000);
+                return;
+            }
+            Helpers.ClipboardHelper.SetImageFile(temp);
+            Helpers.InAppToast.MainWindow?.Success((string?)null, "已复制为 JPG 图片", 3000);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "复制为 JPG 失败");
+        }
+    }
+
+
+    private static bool ConvertFirstToJpeg(string source, string target)
+    {
+        using SkiaSharp.SKBitmap? bitmap = Helpers.ImageDecode.Load(source);
+        if (bitmap is null)
+        {
+            return false;
+        }
+        using SkiaSharp.SKImage image = SkiaSharp.SKImage.FromBitmap(bitmap);
+        using SkiaSharp.SKData data = image.Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 92);
+        using FileStream stream = File.Create(target);
+        data.SaveTo(stream);
+        return true;
+    }
+
+
+    private void MenuFlyoutItem_OpenInExplorer_Click(object sender, RoutedEventArgs e)
+    {
+        // Linux 没有资源管理器：打开文件所在目录（xdg-open 会交给文件管理器）。
+        try
+        {
+            List<string> files = SelectedOrSingle(sender);
+            string? folder = files.Count > 0 ? Path.GetDirectoryName(files[0]) : null;
+            if (string.IsNullOrEmpty(folder))
+            {
+                folder = ScreenCaptureLinux.DefaultFolder;
+            }
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdg-open", folder!) { UseShellExecute = false });
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "打开截图目录失败");
+        }
+    }
+
+
+    private void MenuFlyoutItem_OpenWithDefault_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            List<string> files = SelectedOrSingle(sender);
+            if (files.Count > 0)
+            {
+                OpenWithDefaultApp(files[0]);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "用默认应用打开截图失败");
+        }
+    }
+
+
+    private void MenuFlyoutItem_Delete_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            List<string> files = SelectedOrSingle(sender);
+            int deleted = 0;
+            foreach (string path in files)
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                    deleted++;
+                }
+            }
+            if (deleted > 0)
+            {
+                Helpers.InAppToast.MainWindow?.Success((string?)null, $"已删除 {deleted} 张截图", 3000);
+                LoadImages();
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Serilog.Log.Warning(ex, "删除截图失败（权限或占用）");
+            Helpers.InAppToast.MainWindow?.Warning((string?)null, "删除失败：没有权限或文件被占用", 5000);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "删除截图失败");
+        }
+    }
+
+
+    /// <summary>多选时有勾选就按勾选，否则退回右键那一张（上游同样先看 SelectedItems）。</summary>
+    private List<string> SelectedOrSingle(object sender)
+    {
+        var items = (ScreenshotViewSource.View as IEnumerable<ScreenshotItem>)?.ToList() ?? new List<ScreenshotItem>();
+        List<ScreenshotItem> selected = MutliSelect ? items.Where(x => x.IsSelected).ToList() : new List<ScreenshotItem>();
+        if (selected.Count == 0 && ItemOf(sender) is ScreenshotItem single)
+        {
+            selected.Add(single);
+        }
+        return selected.Select(x => x.FilePath).ToList();
     }
 
 
@@ -308,10 +528,13 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     private async Task BatchConvertAsync()
     {
         var items = (ScreenshotViewSource.View as IEnumerable<ScreenshotItem>)?.ToList() ?? new List<ScreenshotItem>();
-        var targets = MutliSelect ? items.Where(x => x.IsSelected).ToList() : items;
+        // 上游是「打开转换窗口 → 选文件 → 选格式」，移植侧没有那个窗口（ImageBatchConvertWindow
+        // 被 Compile Remove）。这里只保留「批量转 JPG」，所以必须要求先勾选：
+        // 非多选模式以前会拿整个图库当输入，点一下就在库里凭空多出一倍 .jpg（D134）。
+        List<ScreenshotItem> targets = MutliSelect ? items.Where(x => x.IsSelected).ToList() : new List<ScreenshotItem>();
         if (targets.Count == 0)
         {
-            Helpers.InAppToast.MainWindow?.Information(MutliSelect ? "请先勾选要转换的截图" : "没有可转换的截图", null, 3000);
+            Helpers.InAppToast.MainWindow?.Information((string?)null, "请先切换多选并勾选要转换的截图", 3000);
             return;
         }
         int quality = AppConfig.ScreenCaptureEncodeQuality switch { 0 => 80, 1 => 90, _ => 100 };
@@ -332,11 +555,6 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
             Serilog.Log.Warning(ex, "打开截图失败");
         }
     }
-    private void MenuFlyoutItem_ScreenshotInfo_Loading(Microsoft.UI.Xaml.FrameworkElement sender, object e)
-    {
-        // LINT-ALLOW: 信息项在 Linux 版打开菜单前就同步填好了，不需要延迟加载回调
-    }
-
     /// <summary>上游是 CollectionViewSource；x:Bind 走 .View 取视图集合。</summary>
     public sealed class ScreenshotViewSourceModel
     {

@@ -57,7 +57,9 @@ public static class ScreenCaptureLinux
             Serilog.Log.Warning(ex, "创建截图目录失败：{folder}", folder);
             return null;
         }
-        string file = Path.Combine(folder, $"Lunarward_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.png");
+        // 文件名要能被 ScreenshotItem.TryParseCreationTime 认出来（它认 yyyyMMdd_HHmmssff 等格式，
+        // 不认「日期_时间」这种混排），否则每条新截图都退到 FileInfo.CreationTime（D134）。
+        string file = Path.Combine(folder, $"Lunarward_{DateTime.Now:yyyyMMdd_HHmmssff}.png");
 
         // 顺序按「本机最可能可用的」来：KDE 的 spectacle 支持无交互全屏，grim 次之。
         (string exe, string[] args)[] candidates =

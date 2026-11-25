@@ -12,11 +12,5 @@ namespace Starward.Features.Screenshot;
 public sealed partial class ScreenshotPage
 {
     private void GridView_Images_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
-    private void MenuFlyoutItem_CopyAsJPG_Click(object sender, RoutedEventArgs e) { }
-    private void MenuFlyoutItem_CopyFile_Click(object sender, RoutedEventArgs e) { }
-    private void MenuFlyoutItem_Delete_Click(object sender, RoutedEventArgs e) { }
-    private void MenuFlyoutItem_OpenInExplorer_Click(object sender, RoutedEventArgs e) { }
-    private void MenuFlyoutItem_OpenWithDefault_Click(object sender, RoutedEventArgs e) { }
     private void MenuFlyoutItem_OpenWith_Click(object sender, RoutedEventArgs e) { }
-    private void MenuFlyoutItem_Open_Click(object sender, RoutedEventArgs e) { }
 }

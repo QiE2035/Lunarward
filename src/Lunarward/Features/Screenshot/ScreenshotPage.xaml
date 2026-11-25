@@ -68,6 +68,7 @@
                         <Border Margin="0,0,0,0"
                                 Padding="6"
                                 Tapped="Item_Tapped"
+                                RightTapped="Item_RightTapped"
                                 CornerRadius="6"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 Width="218">
@@ -77,6 +78,7 @@
                                       CornerRadius="4">
                                     <sc:CachedImage Width="206"
                                                     Height="116"
+                                                    IsThumbnail="True"
                                                     Stretch="UniformToFill"
                                                     Source="{x:Bind FilePath}" />
                                     <CheckBox Margin="4"
