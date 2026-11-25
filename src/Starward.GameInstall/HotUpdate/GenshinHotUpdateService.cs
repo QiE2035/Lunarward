@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -7,6 +7,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 
 namespace Starward.GameInstall.HotUpdate;
+
+// LUNARWARD-DEVIATION: 上游把子目录和文件名写成单个字面量（@"Persistent\ChannelName"、"@"StreamingAssets\res_versions_streaming"），
+// 在 Windows 上反斜杠恰好仍是路径分隔符；Linux 上会变成文件名的一部分，永远匹配不到（L-188）。这里统一拆成多段 Path.Combine。
 
 public class GenshinHotUpdateService
 {
@@ -32,6 +35,13 @@ public class GenshinHotUpdateService
 
     public async Task<bool> CheckUpdateAsync(GameId gameId, string installPath, CancellationToken cancellation = default)
     {
+        // LUNARWARD-DEVIATION: Linux 上热更新还缺两块——服务器名要读 Wine 前缀的注册表（GetServerName 目前返回 null），
+        // 打补丁要能在 Linux 上建硬链接（GenshinHotUpdateStep 仍直接调 Kernel32.CreateHardLink）。
+        // 在补齐之前整体不启用，避免「路径修对了」就触发一次写错区域的热更新（D131）。
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
         ServerRegion region = gameId.GameBiz.Value switch
         {
             GameBiz.hk4e_cn => ServerRegion.miHoYo,
@@ -102,7 +112,7 @@ public class GenshinHotUpdateService
     private static async Task<bool> CheckChannelNameAndScriptVersionAsync(ServerRegion region, string installPath, string version, CancellationToken cancellation)
     {
         string folder = region is ServerRegion.miHoYo ? "YuanShen_Data" : "GenshinImpact_Data";
-        string channelName = Path.Combine(installPath, folder, @"Persistent\ChannelName");
+        string channelName = Path.Combine(installPath, folder, "Persistent", "ChannelName");
         if (!File.Exists(channelName))
         {
             return false;
@@ -111,7 +121,7 @@ public class GenshinHotUpdateService
         {
             return false;
         }
-        string scriptVersion = Path.Combine(installPath, folder, @"Persistent\ScriptVersion");
+        string scriptVersion = Path.Combine(installPath, folder, "Persistent", "ScriptVersion");
         if (!File.Exists(scriptVersion))
         {
             return false;
@@ -123,12 +133,12 @@ public class GenshinHotUpdateService
     private static async Task<bool> CheckBaseResVersionHashAsync(ServerRegion region, string installPath, CancellationToken cancellation)
     {
         string folder = region is ServerRegion.miHoYo ? "YuanShen_Data" : "GenshinImpact_Data";
-        string base_res_version_hash = Path.Combine(installPath, folder, @"Persistent\base_res_version_hash");
+        string base_res_version_hash = Path.Combine(installPath, folder, "Persistent", "base_res_version_hash");
         if (!File.Exists(base_res_version_hash))
         {
             return false;
         }
-        string res_version_streaming = Path.Combine(installPath, folder, @"StreamingAssets\res_versions_streaming");
+        string res_version_streaming = Path.Combine(installPath, folder, "StreamingAssets", "res_versions_streaming");
         if (!File.Exists(res_version_streaming))
         {
             return false;
@@ -143,12 +153,12 @@ public class GenshinHotUpdateService
     private static async Task<bool> CheckDownloadPrefAsync(ServerRegion region, string installPath, string version, CancellationToken cancellation)
     {
         string folder = region is ServerRegion.miHoYo ? "YuanShen_Data" : "GenshinImpact_Data";
-        string path_pref = Path.Combine(installPath, folder, @"Persistent\DownloadPref");
+        string path_pref = Path.Combine(installPath, folder, "Persistent", "DownloadPref");
         if (!File.Exists(path_pref))
         {
             return false;
         }
-        string res_version_streaming = Path.Combine(installPath, folder, @"StreamingAssets\res_versions_streaming");
+        string res_version_streaming = Path.Combine(installPath, folder, "StreamingAssets", "res_versions_streaming");
         if (!File.Exists(res_version_streaming))
         {
             return false;
@@ -187,7 +197,7 @@ public class GenshinHotUpdateService
     private async Task<bool> CheckPatchDoneAsync(ServerRegion region, string installPath, string version, RegionInfo regionInfo, CancellationToken cancellation)
     {
         string folder = region is ServerRegion.miHoYo ? "YuanShen_Data" : "GenshinImpact_Data";
-        string path_patchdone = Path.Combine(installPath, folder, @"Persistent\PatchDone");
+        string path_patchdone = Path.Combine(installPath, folder, "Persistent", "PatchDone");
         if (!File.Exists(path_patchdone))
         {
             return false;
@@ -212,22 +222,22 @@ public class GenshinHotUpdateService
     private async Task<bool> CheckRevisionAsync(ServerRegion region, string installPath, string version, RegionInfo regionInfo, CancellationToken cancellation)
     {
         string folder = region is ServerRegion.miHoYo ? "YuanShen_Data" : "GenshinImpact_Data";
-        string res_revision = Path.Combine(installPath, folder, @"Persistent\res_revision");
+        string res_revision = Path.Combine(installPath, folder, "Persistent", "res_revision");
         if (!File.Exists(res_revision) || await File.ReadAllTextAsync(res_revision, cancellation) != regionInfo.ResVersionConfig.Version.ToString())
         {
             return false;
         }
-        string data_revision = Path.Combine(installPath, folder, @"Persistent\data_revision");
+        string data_revision = Path.Combine(installPath, folder, "Persistent", "data_revision");
         if (!File.Exists(data_revision) || await File.ReadAllTextAsync(data_revision, cancellation) != regionInfo.ClientDataVersion.ToString())
         {
             return false;
         }
-        string silence_revision = Path.Combine(installPath, folder, @"Persistent\silence_revision");
+        string silence_revision = Path.Combine(installPath, folder, "Persistent", "silence_revision");
         if (!File.Exists(silence_revision) || await File.ReadAllTextAsync(silence_revision, cancellation) != regionInfo.ClientSilenceDataVersion.ToString())
         {
             return false;
         }
-        string audio_revision = Path.Combine(installPath, folder, @"Persistent\audio_revision");
+        string audio_revision = Path.Combine(installPath, folder, "Persistent", "audio_revision");
         if (!File.Exists(audio_revision))
         {
             return false;

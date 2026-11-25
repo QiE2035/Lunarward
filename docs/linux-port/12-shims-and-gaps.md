@@ -159,6 +159,18 @@
 | `Helpers/OneShotHints.cs` | 一次性提示 | ✅ | M1 | SQLite `Setting` 表的 `hint_<name>`，替代进程级 `static bool`（D86） |
 | `Features/Runtime/RunnerNaming.cs` | 运行器显示名 | ✅ | M1 | PATH 里的 wine 只有装在 `/usr`、`/bin`、`/sbin` 才叫「系统 Wine」，其余用目录名；重名才加来源后缀（D87/L-161） |
 
+### 5.1 · 上游库 `src/Starward.GameInstall/` 里的偏差（D128 / D131）
+
+> 这个库不是 UI 代码，但 0.19.0 把安装/热更新整体搬进来了，Linux 侧必须能编译能跑。改动全部带 `// LUNARWARD-DEVIATION:` 注释。
+
+| 文件 | 偏差 | 原因 | 决策 |
+|---|---|---|---|
+| `Starward.GameInstall.csproj` | TFM `net11.0-windows` → `net11.0` | Linux 构建平台中立 | D128 |
+| `Service/HardLinkCompat.cs`（新增） | 跨平台 `IsSupported` / `TryCreate` | 上游只认 NTFS/ReFS（`DriveInfo.DriveFormat`），Linux 的 ext4/btrfs/xfs 同样支持；`.NET 11` 已内建 `File.CreateHardLink` | D131 |
+| `Service/HardLinkService.cs` | 3 处改用上面的兼容层；文件 ID 的 `Kernel32` 调用只留 Windows 分支 | 文件 ID 两列在库里只建索引、无人读取，Linux 填 0 即可 | D131 |
+| `GameInstallRunner.cs` | 截图备份的同卷判断改成「文件系统是否支持硬链接」，跨卷交给 `TryCreate` 失败回退复制 | Linux 上所有路径的根都是 `/`，「根相同」恒真 | D131 |
+| `HotUpdate/GenshinHotUpdateService.cs` | 11 处 `@"Persistent\X"` / `@"StreamingAssets\X"` 拆成多段 `Path.Combine`；`CheckUpdateAsync` 在非 Windows 直接返回 false | 反斜杠在 Linux 上是普通字符（L-188）；热更新还缺服务器名（注册表）与打补丁硬链接，半可用状态更危险 | D131 |
+
 ---
 
 ## 6 · 排除编译的上游文件（53 条）

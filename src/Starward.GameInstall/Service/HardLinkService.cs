@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using Starward.Core.HoYoPlay;
 using System.Buffers.Binary;
 using System.Runtime.InteropServices;
@@ -19,7 +19,7 @@ public static class HardLinkService
                 return false;
             }
             path = Path.GetFullPath(path);
-            if (new DriveInfo(path).DriveFormat is not "NTFS" and not "ReFS")
+            if (!HardLinkCompat.IsSupported(path))
             {
                 return false;
             }
@@ -65,7 +65,7 @@ public static class HardLinkService
         {
             File.Delete(link);
         }
-        if (Kernel32.CreateHardLink(link, pathToTarget))
+        if (HardLinkCompat.TryCreate(link, pathToTarget))
         {
             File.Move(link, path, true);
             return true;
@@ -84,9 +84,12 @@ public static class HardLinkService
         item.LastWriteTime = info.LastWriteTime.ToFileTimeUtc();
         item.MD5 = await HashService.GetFileMD5Async(item.Path, cancellation).ConfigureAwait(false);
         using var handle = File.OpenHandle(item.Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-        var id = Kernel32.GetFileInformationByHandleEx<Kernel32.FILE_ID_INFO>(handle, Kernel32.FILE_INFO_BY_HANDLE_CLASS.FileIdInfo);
-        item.VolumeSerialNumber = id.VolumeSerialNumber;
-        item.FileId = id.FileId;
+        if (OperatingSystem.IsWindows())
+        {
+            var id = Kernel32.GetFileInformationByHandleEx<Kernel32.FILE_ID_INFO>(handle, Kernel32.FILE_INFO_BY_HANDLE_CLASS.FileIdInfo);
+            item.VolumeSerialNumber = id.VolumeSerialNumber;
+            item.FileId = id.FileId;
+        }
         InsertGameFileItem(item);
     }
 
@@ -110,7 +113,8 @@ public static class HardLinkService
                     MD5 = md5,
                     LastWriteTime = info.LastWriteTime.ToFileTimeUtc(),
                 };
-                if (new DriveInfo(path).DriveFormat is "NTFS" or "ReFS")
+                // LUNARWARD-DEVIATION: 文件 ID 只有 Windows 拿得到；Linux 上这两列只建了索引、无人读取（D131）。
+                if (OperatingSystem.IsWindows() && HardLinkCompat.IsSupported(path))
                 {
                     using var handle = File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                     var id = Kernel32.GetFileInformationByHandleEx<Kernel32.FILE_ID_INFO>(handle, Kernel32.FILE_INFO_BY_HANDLE_CLASS.FileIdInfo);

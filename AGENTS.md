@@ -1,4 +1,4 @@
-﻿# AGENTS.md · Lunarward（Starward 的 Linux 移植）
+# AGENTS.md · Lunarward（Starward 的 Linux 移植）
 
 给在这个仓库里干活的人 / Agent 的操作手册。**先读第 1、2 节再动手**；其余按需查。
 
@@ -61,7 +61,7 @@ Lunarward 是 Uno/Skia 应用，**不发布 AT-SPI 树**：`cu_a11y_find` / `cu_
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 340 条）
+# 单元测试（当前 352 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）
@@ -152,9 +152,9 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 活跃文档**共 14 份**（2026-11-21 增补 `25`/`26`/`27`，2026-11-23 增补 `28`/`29`）：
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D130 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D131 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-187 坑与复现方法（唯一；编号勘误见文末）
+- `13-lessons.md` — L-01…L-188 坑与复现方法（唯一；编号勘误见文末）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`scripts/list-deviations.sh` 生成；逐点以 `25` 为准）
 - `19-test-plan.md` — 测试计划（唯一，237 条：225 T-* + 12 RG-*，按表内唯一 ID 统计）
 - `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 九字段 / 四层检查 / 页面）

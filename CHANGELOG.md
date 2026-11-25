@@ -1,4 +1,12 @@
-﻿# Changelog
+# Changelog
+
+## 2026-11-25 —— 上游 GameInstall 库的三处 Windows-only 代码移植到 Linux（D131）
+
+- **更新时不再白下载**：硬链接复用以前在 Linux 上直接判「不支持」（上游只认 NTFS/ReFS），现在按文件系统判断（ext4/btrfs/xfs 等可用），用 `.NET 11` 内建的 `File.CreateHardLink` 建链接；失败一律回退下载，最坏情况与之前相同。
+- **截图备份**：不再用「路径根相同」判断同卷（Linux 上恒真），改成「文件系统是否支持硬链接」，跨卷自动回退复制。
+- **热更新路径修正**：上游把 `@"Persistent\ChannelName"` 这类子目录写成单个字面量，Linux 上反斜杠会变成文件名字符，永远匹配不到；11 处统一拆成多段 `Path.Combine`（L-188）。
+- **热更新在 Linux 上仍不启用**（`CheckUpdateAsync` 直接返回 false）：服务器名要读 Wine 注册表、打补丁要能在 Linux 上建硬链接，两块补齐之前半可用状态更危险。
+- 新增 `HardLinkCompatTests` 7 条（共享 inode、已存在链接、目标缺失、跨文件系统等），`dotnet test` 352 通过。
 
 ## 2026-11-25 —— 0.19.0 编译收口：Skia 桥、toolkit 替身与启动链修复（D130）
 

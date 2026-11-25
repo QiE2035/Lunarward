@@ -1,6 +1,6 @@
-﻿# 决策记录（ADR）
+# 决策记录（ADR）
 
-- **状态**：生效中（D0–D130）
+- **状态**：生效中（D0–D131）
 - **最后更新**：2026-11-25
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -2215,3 +2215,30 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - `LUNARWARD_SELFTEST=1 … --selftest-ui`（Xvfb）：11/11 PASS，2553 ms，退出码 0。
 - `cli-smoke.sh` 40 通过 / 0 失败 / 1 跳过；`cli-extra.sh` 28 通过 / 0 失败 / 4 跳过（D128 退役的 4 条）。
 - `lint-ui-thread.sh`、`lint-doc-status.sh --strict`：全绿。
+
+## D131 · 上游 GameInstall 库里的三处 Windows-only 代码移植到 Linux
+
+**背景**：D128 把上游 `src/Starward.GameInstall/` 整库移植进 Linux 构建（TFM 从 `net11.0-windows` 改成 `net11.0`）。合并后核查发现库里只有 4 处直接用 Windows API，全部包在 try/catch 或平台判断里，Linux 上是「静默降级」而不是崩溃：硬链接复用、截图备份、热更新的服务器名（注册表）、热更新的路径字面量。前三者的降级会让人以为功能能用、实际每次都在重新下载/读不到值。确认方式：m05725「这几条降级回退只能保持吗」、m05743「先全做吧，3+5 等真遇到 bug 了再修」。
+
+**决定**
+
+1. **硬链接复用改走跨平台判断**：新增 `src/Starward.GameInstall/Service/HardLinkCompat.cs`——`IsSupported(path)`（Windows 只认 `NTFS`/`ReFS`，Unix 用黑名单排除 `vfat/exfat/ntfs/ntfs3/cifs/nfs/9p` 等）与 `TryCreate(link, target)`（`.NET 11` 已内建 `File.CreateHardLink`，不需要 P/Invoke）。
+2. **`HardLinkService` 三处改用上面的兼容层**：`TryHardLinkAsync` 的文件系统门槛、`TryHardLink` 的建链接；`UpdateGameFileItemAsync`/`InsertGameFileItem` 里 `Kernel32.GetFileInformationByHandleEx` 只留在 Windows 分支——`GameFile` 表的 `VolumeId/FileIdLow/FileIdHigh` 在库里**只有建索引、没有任何读取方**（全库 grep 确认），Linux 填 0 不影响功能。
+3. **截图备份不再用「路径根相同」判断同卷**：Linux 上所有路径的根都是 `/`，那个判断恒真。改成只看文件系统是否支持硬链接，跨卷交给 `TryCreate` 失败后回退 `File.Copy`。
+4. **热更新的路径字面量拆成多段**：`GenshinHotUpdateService` 里 11 处 `@"Persistent\ChannelName"` / `@"StreamingAssets\res_versions_streaming"` 在 Linux 上会把反斜杠当成文件名字符，永远匹配不到；改成多段 `Path.Combine(installPath, folder, "Persistent", "ChannelName")`。（L-188）
+5. **热更新在 Linux 上整体不启用**：`CheckUpdateAsync` 开头 `if (!OperatingSystem.IsWindows()) return false;`。原因不是懒——服务器名要读 Wine 前缀的注册表（`GetServerName` 现在返回 null，会 fallback 到 region 列表第一项）、打补丁要能在 Linux 上建硬链接（`GenshinHotUpdateStep` 仍直接调 `Kernel32.CreateHardLink`）。路径改对之后如果只修这一处，就会**真的触发**一次可能写错区域的热更新，比现在的「不触发」危险得多。补齐这两块之前保持关闭（用户 m05743 明确 3+5 等真遇到 bug 再修）。
+
+**代价与边界**
+
+- 硬链接的收益依赖「同一卷上已存在相同 MD5 的文件」——第一次安装、或游戏装在另一块盘时没有收益；失败一定回退到下载，不会写坏文件。
+- `HardLinkCompat.IsSupported` 用 `DriveInfo.DriveFormat`（读 `/proc/mounts` 的文件系统名），对 `fuse`、`btrfs` 子卷、容器 overlay 的边角情况只能给近似判断；判错的后果是「本该能硬链接却去下载」，不损坏数据。
+- `ZFS` 上硬链接可用但会占额外 ditto 块，空间统计与上游 Windows 语义不完全一致（`storageSize` 仍是逻辑大小）。
+- 热更新在 Linux 上仍不可用；用户要用 hotfix 时仍需在 Wine 里跑官方启动器。
+- 这些都是改上游库文件，全部加了 `// LUNARWARD-DEVIATION:` 注释并登记到 `12-shims-and-gaps.md`。
+
+**验证**
+
+- `dotnet build src/Starward.GameInstall/Starward.GameInstall.csproj -c Debug`：0 错误；`dotnet build Starward.slnx -c Debug` / `-c Release`：0 错误。
+- `dotnet test Starward.slnx -c Debug`：**352 通过**（新增 `HardLinkCompatTests` 7 条：空路径/临时目录判断、共享 inode、已存在链接、目标缺失、跨文件系统）。
+- 真机 `DriveInfo("/home").DriveFormat` = `btrfs`、`/tmp` = `tmpfs`（所以在 Linux 上确实能进硬链接分支）。
+

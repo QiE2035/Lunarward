@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
@@ -412,11 +412,9 @@ public class GameInstallRunner
         }
         Directory.CreateDirectory(screenshotBackupPath);
 
-        bool canHardLink = false;
-        if (Path.GetPathRoot(screenshotPath) == Path.GetPathRoot(screenshotBackupPath) && new DriveInfo(screenshotBackupPath).DriveFormat is "NTFS" or "ReFS")
-        {
-            canHardLink = true;
-        }
+        // LUNARWARD-DEVIATION: 不再用「路径根相同」判断同卷——Linux 上所有路径的根都是 "/"；
+        // 跨卷交给 HardLinkCompat.TryCreate 失败后回退复制（D131）。
+        bool canHardLink = HardLinkCompat.IsSupported(screenshotBackupPath);
 
         int count = 0;
         foreach (string file in files)
@@ -427,7 +425,7 @@ public class GameInstallRunner
                 bool result = false;
                 if (canHardLink)
                 {
-                    result = Kernel32.CreateHardLink(target, file);
+                    result = HardLinkCompat.TryCreate(target, file);
                 }
                 if (!result)
                 {

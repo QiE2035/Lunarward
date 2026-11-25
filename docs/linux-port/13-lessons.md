@@ -1670,3 +1670,15 @@ bitmap.Resize(info, new SKSamplingOptions(SKCubicResampler.Mitchell));
 **做法**：所有会碰数据库的 CLI 分支统一先 `InitEnviroment()`（`Program.Linux.cs` 本来就定义了它，只是 branch 里漏调）。
 
 **教训**：`LoadConfiguration()` 和 `CheckEnviromentAsync()` 不是同一件事——前者只读 `config.ini`，后者才有「定位数据目录 + 建库 + 迁移表 + 读配置」。CLI 分支要读任何持久化状态，都走后者。
+
+## L-188　上游把子目录写成单个字面量（`@"Persistent\X"`），Linux 上会变成文件名的一部分
+
+**现象**：热更新检查 `CheckChannelNameAndScriptVersionAsync` 在 Linux 上恒定返回 false——`Path.Combine(installPath, "YuanShen_Data", @"Persistent\ChannelName")` 得到的是 `…/YuanShen_Data/Persistent\ChannelName`（反斜杠是文件名里的普通字符），`File.Exists` 永远为 false。
+
+**原因**：Windows 的文件 API 把 `\` 和 `/` 都当分隔符，所以上游在单个字符串里写 `@"Persistent\ChannelName"` 能工作；Linux 只认 `/`。
+
+**做法**：拆成多段——`Path.Combine(installPath, folder, "Persistent", "ChannelName")`。同一个文件里还有 `StreamingAssets\res_versions_streaming` 等 11 处，一次性全改（`GenshinHotUpdateService.cs`）。排查这类问题用一条 grep 就够：`grep -rn '@"[A-Za-z0-9_ .]*\\\\' src/`。
+
+**教训**：从 Windows 移植过来的路径拼接，要按「**字面量里有没有反斜杠**」扫一遍，不能只看 `Path.Combine` 用得对不对——上游那一行看起来完全正常。反过来说，也只在这类地方能安全地改：路径语义本来就是平台相对的，改完 Windows 行为不变。
+
+**注意**：路径修对了 ≠ 功能能用了。同一处热更新还依赖注册表（服务器名）与硬链接（打补丁），所以 D131 里给 `CheckUpdateAsync` 加了 `!OperatingSystem.IsWindows()` 的整体关闭——半可用状态会真的触发一次「按错误区域下载」的热更新。

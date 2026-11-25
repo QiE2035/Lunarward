@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
@@ -28,6 +28,7 @@
     <Compile Include="../../src/Lunarward/Features/Runtime/PeArchitecture.cs" Link="Linked/PeArchitecture.cs" />
     <Compile Include="../../src/Lunarward/Features/Runtime/RunnerNaming.cs" Link="Linked/RunnerNaming.cs" />
     <Compile Include="../../src/Lunarward/Helpers/CliSpec.cs" Link="Linked/CliSpec.cs" />
+    <Compile Include="../../src/Starward.GameInstall/Service/HardLinkCompat.cs" Link="Linked/HardLinkCompat.cs" />
   </ItemGroup>
 
   <ItemGroup>
