@@ -3115,7 +3115,28 @@
   <data name="Lunarward_Preflight_OK" xml:space="preserve">
     <value>知道了</value>
   </data>
-  <data name="Lunarward_Preflight_Title" xml:space="preserve">
+    <data name="Lunarward_Preflight_Action_OpenGameSettings" xml:space="preserve">
+    <value>開啟遊戲設定</value>
+  </data>
+  <data name="Lunarward_Preflight_Action_OpenRuntimeSettings" xml:space="preserve">
+    <value>開啟執行環境</value>
+  </data>
+  <data name="Lunarward_Preflight_Action_OpenPrefixFolder" xml:space="preserve">
+    <value>開啟前綴目錄</value>
+  </data>
+  <data name="Lunarward_Preflight_Action_RebuildPrefix" xml:space="preserve">
+    <value>重建前綴</value>
+  </data>
+  <data name="Lunarward_Preflight_Action_InstallGraphics" xml:space="preserve">
+    <value>安裝圖形元件</value>
+  </data>
+  <data name="Lunarward_Preflight_Action_ShowPrefixProcesses" xml:space="preserve">
+    <value>檢視佔用程序</value>
+  </data>
+  <data name="Lunarward_Preflight_Action_OpenGameFolder" xml:space="preserve">
+    <value>開啟遊戲目錄</value>
+  </data>
+<data name="Lunarward_Preflight_Title" xml:space="preserve">
     <value>無法啟動：還有檢查項未通過</value>
   </data>
   <data name="Lunarward_Profile_DefaultName" xml:space="preserve">

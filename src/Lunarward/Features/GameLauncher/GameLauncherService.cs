@@ -287,9 +287,7 @@ internal partial class GameLauncherService
         {
             return false;
         }
-        // LUNARWARD-DEVIATION: 移植侧 Features/GameLauncher/GameConfigIni.cs 还留着旧的同名类（Windows 时代的手写解析），
-        // 与本命名空间同名会遮蔽共享工程里的 Starward.GameInstall.Model.GameConfigIni，这里显式全限定。
-        Starward.GameInstall.Model.GameConfigIni? configIni = await GameConfigService.GetGameConfigIniAsync(installPath, cancellation);
+        GameConfigIni? configIni = await GameConfigService.GetGameConfigIniAsync(installPath, cancellation);
         foreach (var item in pluginRelease.Plugins)
         {
             if (item.PluginPackage.Url.Contains("DXSETUP", StringComparison.OrdinalIgnoreCase))
@@ -732,15 +730,6 @@ internal partial class GameLauncherService
             }
         }
         catch { }
-    }
-
-
-    private void SetGenshinEnableHDR(GameId gameId)
-    {
-        if (gameId.GameBiz.Game is GameBiz.hk4e)
-        {
-            GameSettingService.SetGenshinEnableHDR(gameId.GameBiz, AppConfig.EnableGenshinHDR);
-        }
     }
 
 

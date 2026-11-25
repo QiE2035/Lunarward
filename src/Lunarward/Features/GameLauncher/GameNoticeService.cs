@@ -30,11 +30,6 @@ internal class GameNoticeService
 
 
 
-    public string GetGameNoticeUrl(GameBiz biz)
-        => GetGameNoticeUrlAsync(biz).GetAwaiter().GetResult();
-
-
-
     /// <summary>UI 路径必须用这个：uid 可能要读 wine 注册表（一次 fork 0.1–4 s），不能阻塞 UI 线程（L-127）。</summary>
     public async Task<string> GetGameNoticeUrlAsync(GameBiz biz, CancellationToken cancellationToken = default)
     {

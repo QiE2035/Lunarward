@@ -378,26 +378,6 @@ public sealed partial class GameBannerAndPost : UserControl
         }
         catch { }
 
-#if DEBUG
-        // 开发期验证：环境变量 LUNARWARD_DEV_BANNER_AUTOLINK=1 时，加载后自动打开当前轮播链接，
-        // 用于在无法可靠合成鼠标点击的环境里验证链接取值与 xdg-open 链路。
-        if (Environment.GetEnvironmentVariable("LUNARWARD_DEV_BANNER_AUTOLINK") == "1")
-        {
-            _ = DispatcherQueue.TryEnqueue(async () =>
-            {
-                await Task.Delay(1500);
-                if (FlipView_Banner?.SelectedItem is GameBanner devBanner && !string.IsNullOrWhiteSpace(devBanner.Image?.Link))
-                {
-                    Serilog.Log.Information("[dev] banner autolink: {Link}", devBanner.Image.Link);
-                    Starward.Helpers.OpenUrl.Open(devBanner.Image.Link);
-                }
-                else
-                {
-                    Serilog.Log.Information("[dev] banner autolink: no banner selected");
-                }
-            });
-        }
-#endif
     }
 
 

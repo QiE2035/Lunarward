@@ -777,13 +777,13 @@ public sealed partial class GameLauncherPage : PageBase
 
     private static string GetPreflightActionText(PreflightAction action) => action switch
     {
-        PreflightAction.OpenGameSettings => "打开游戏设置",
-        PreflightAction.OpenRuntimeSettings => "打开运行环境",
-        PreflightAction.OpenPrefixFolder => "打开前缀目录",
-        PreflightAction.RebuildPrefix => "重建前缀",
-        PreflightAction.InstallGraphics => "安装图形组件",
-        PreflightAction.ShowPrefixProcesses => "查看占用进程",
-        PreflightAction.OpenGameFolder => "打开游戏目录",
+        PreflightAction.OpenGameSettings => Lang.Lunarward_Preflight_Action_OpenGameSettings,
+        PreflightAction.OpenRuntimeSettings => Lang.Lunarward_Preflight_Action_OpenRuntimeSettings,
+        PreflightAction.OpenPrefixFolder => Lang.Lunarward_Preflight_Action_OpenPrefixFolder,
+        PreflightAction.RebuildPrefix => Lang.Lunarward_Preflight_Action_RebuildPrefix,
+        PreflightAction.InstallGraphics => Lang.Lunarward_Preflight_Action_InstallGraphics,
+        PreflightAction.ShowPrefixProcesses => Lang.Lunarward_Preflight_Action_ShowPrefixProcesses,
+        PreflightAction.OpenGameFolder => Lang.Lunarward_Preflight_Action_OpenGameFolder,
         _ => "",
     };
 
