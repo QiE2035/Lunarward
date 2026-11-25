@@ -30,6 +30,14 @@ public class WinePrefixRegistryTests
 
     private const string GenshinKey = @"Software\miHoYo\Genshin Impact";
 
+    private static string NewPrefixRaw(string userReg)
+    {
+        string prefix = NewTempDir();
+        Directory.CreateDirectory(Path.Combine(prefix, "drive_c"));
+        File.WriteAllText(Path.Combine(prefix, "user.reg"), userReg, new UTF8Encoding(false));
+        return prefix;
+    }
+
     private static string Hex(byte[] bytes) => string.Join(",", bytes.Select(x => x.ToString("x2")));
 
     private static string RegFile(string keyPath, string valueName, string data, int foldAt = 0)
@@ -128,5 +136,101 @@ public class WinePrefixRegistryTests
         Assert.Null(WinePrefixRegistry.ReadUserRegBinary(prefix, GenshinKey, ""));
         Assert.Null(WinePrefixRegistry.ReadUserRegBinary(null, GenshinKey, "s"));
         Assert.Null(WinePrefixRegistry.ReadUserRegBinary(Path.Combine(NewTempDir(), "nope"), GenshinKey, "s"));
+    }
+
+    [Fact]
+    public void FindPrefix_AcceptsFilePathInsidePrefix()
+    {
+        string prefix = NewPrefix(RegFile(GenshinKey, "v", "hex:00"));
+        string file = Path.Combine(prefix, "drive_c", "Games", "launcher.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, "");
+
+        // 传文件路径时从父目录开始（DirectoryInfo.Exists 对文件为 false）
+        Assert.Equal(prefix, WinePrefixRegistry.FindPrefix(file));
+    }
+
+    [Fact]
+    public void FindPrefix_GivesUpAfterDepthLimit()
+    {
+        string root = NewTempDir();
+        string deep = root;
+        for (int i = 0; i < 20; i++)
+        {
+            deep = Path.Combine(deep, "d" + i);
+        }
+        Directory.CreateDirectory(deep);
+
+        Assert.Null(WinePrefixRegistry.FindPrefix(Path.Combine(deep, "not-created-yet", "x")));
+    }
+
+    [Fact]
+    public void ReadUserRegBinary_StopsAtNextSection()
+    {
+        // 目标键里没有这个值，值出现在下一个段里 → 不能跨段命中
+        string reg = "[" + GenshinKey.Replace("\\", "\\\\") + "] 1\n\"other\"=hex:00\n"
+                   + "[Software\\\\miHoYo\\\\Other] 2\n\"target\"=hex:7b,7d\n";
+        string prefix = NewPrefixRaw(reg);
+
+        Assert.Null(WinePrefixRegistry.ReadUserRegBinary(prefix, GenshinKey, "target"));
+    }
+
+    [Fact]
+    public void ReadUserRegBinary_SkipsCommentsTimestampsAndDefaults()
+    {
+        byte[] payload = { 0x7b, 0x7d };
+        string reg = "[" + GenshinKey.Replace("\\", "\\\\") + "] 1\n"
+                   + "#time=1d9a0b2c0\n"
+                   + "\n"
+                   + "   # indented comment\n"
+                   + "@=\"default value\"\n"
+                   + "0x1d9a0b2c0\n"
+                   + "\"target\"=hex:" + Hex(payload) + "\n";
+        string prefix = NewPrefixRaw(reg);
+
+        Assert.Equal(payload, WinePrefixRegistry.ReadUserRegBinary(prefix, GenshinKey, "target"));
+    }
+
+    [Fact]
+    public void ReadUserRegBinary_IgnoresMalformedLines()
+    {
+        string key = GenshinKey.Replace("\\", "\\\\");
+        string reg = "[\n[]\n[a\n[" + key + "] 1\n"
+                   + "\"unterminated\n"                          // 没有收尾引号 → 跳过
+                   + "\"target\"\n"                              // 命中值名但没有 '='
+                   ;
+        string prefix = NewPrefixRaw(reg);
+
+        Assert.Null(WinePrefixRegistry.ReadUserRegBinary(prefix, GenshinKey, "target"));
+    }
+
+    [Fact]
+    public void ReadUserRegBinary_RejectsNonBinaryValues()
+    {
+        string key = GenshinKey.Replace("\\", "\\\\");
+        string reg = "[" + key + "] 1\n"
+                   + "\"word\"=dword:00000001\n"
+                   + "\"bad\"=Hex:zz\n"
+                   + "\"empty\"=hex:\n";
+        string prefix = NewPrefixRaw(reg);
+
+        Assert.Null(WinePrefixRegistry.ReadUserRegBinary(prefix, GenshinKey, "word"));
+        Assert.Null(WinePrefixRegistry.ReadUserRegBinary(prefix, GenshinKey, "bad"));
+        Assert.Empty(WinePrefixRegistry.ReadUserRegBinary(prefix, GenshinKey, "empty")!);
+        // 前缀/键名/值名空白一律 null
+        Assert.Null(WinePrefixRegistry.ReadUserRegBinary(prefix, " ", "empty"));
+        Assert.Null(WinePrefixRegistry.ReadUserRegBinary(" ", GenshinKey, "empty"));
+    }
+
+    [Fact]
+    public void ReadUserRegBinary_DecodesEveryEscape()
+    {
+        // 段名里用尽 wine 的转义：\\ \" \n \r \t \0 \xNN \xNNNN \XNN，以及未知转义与结尾裸反斜杠
+        string key = "A\\B\"C\nD\rE\tF\0G\x41H\x0053I\x12\x34Jq\\";
+        string escaped = @"A\\B\""C\nD\rE\tF\0G\x41H\x0053I\x12\x34Jq\\";
+        string reg = "[" + escaped + "] 1\n\"target\"=hex:01\n";
+        string prefix = NewPrefixRaw(reg);
+
+        Assert.Equal(new byte[] { 0x01 }, WinePrefixRegistry.ReadUserRegBinary(prefix, key, "target"));
     }
 }

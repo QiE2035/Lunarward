@@ -61,7 +61,7 @@ Lunarward 是 Uno/Skia 应用，**不发布 AT-SPI 树**：`cu_a11y_find` / `cu_
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 358 条）
+# 单元测试（当前 365 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）

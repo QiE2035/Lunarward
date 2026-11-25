@@ -5,7 +5,7 @@
 - **热更新在 Linux 上不再被整体关掉**：删掉 `CheckUpdateAsync` 开头的 `if (!OperatingSystem.IsWindows()) return false;`，按用户口径「先接通，能不能用等真踩到再说」。
 - **服务器名改从 wine 前缀读**：`selectedServerName` 在 Linux 上没有注册表，新增 `WinePrefixRegistry` 直接解析 `<prefix>/user.reg`（处理 wine 的折行与 `\xNNNN` 转义），从安装目录往上回溯找前缀；读不到时退化成 region 列表第一项，与上游「注册表里没这个值」一致。
 - **打补丁的硬链接跨平台**：`GenshinHotUpdateStep` 里 `Kernel32.CreateHardLink` 改成 `HardLinkCompat.TryCreate`，失败照旧回退 `File.Copy`；顺手去掉该文件唯一的 Vanara 依赖。
-- 新增 `WinePrefixRegistryTests` 6 条（前缀回溯、`hex:` 解析、折行拼接、转义键名、缺键/`hex(2)` 兜底），`dotnet test` **358 通过**。
+- 新增 `WinePrefixRegistryTests` 13 条（前缀回溯/深度上限/文件路径入参、`hex:` 解析、折行拼接、全部转义、段边界、畸形行与缺键兜底），`dotnet test` **365 通过**。
 
 ## 2026-11-25 —— 上游 GameInstall 库的三处 Windows-only 代码移植到 Linux（D131）
 

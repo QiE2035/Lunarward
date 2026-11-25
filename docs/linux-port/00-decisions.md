@@ -2270,4 +2270,4 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 
 - `dotnet build src/Starward.GameInstall/Starward.GameInstall.csproj -c Debug`：0 错误。
 - `dotnet build Starward.slnx -c Debug`：0 错误。
-- `dotnet test Starward.slnx -c Debug`：**358 通过**（新增 `WinePrefixRegistryTests` 6 条：从前缀深处回溯、无标记返回 null、`hex:` 解析、折行拼接、转义键名 + 大小写不敏感、缺键/`hex(2)`/空参返回 null）。
+- `dotnet test Starward.slnx -c Debug`：**365 通过**（新增 `WinePrefixRegistryTests` 13 条：从前缀深处回溯、深度上限、传文件路径、无标记返回 null、`hex:` 解析、折行拼接、全部转义（含 `\xNNNN` 与未知转义）、段边界、畸形行、缺键/`hex(2)`/空参返回 null；后 7 条为把新增行覆盖率从 67.76% 补到 89.62% 而加）。
