@@ -72,6 +72,7 @@ public static class ScreenCaptureLinux
         {
             if (await TryRunAsync(exe, args, cancellation) && File.Exists(file) && new FileInfo(file).Length > 0)
             {
+                file = await FinalizeCaptureAsync(file, cancellation).ConfigureAwait(false);
                 Serilog.Log.Information("截图完成：{file}", file);
                 await TryCopyToClipboardAsync(file).ConfigureAwait(false);
                 if (notify)
@@ -103,6 +104,7 @@ public static class ScreenCaptureLinux
                 }
                 return viaPortal;
             }
+            file = await FinalizeCaptureAsync(file, cancellation).ConfigureAwait(false);
             Serilog.Log.Information("截图完成（portal）：{file}", file);
             await TryCopyToClipboardAsync(file).ConfigureAwait(false);
             if (notify)
@@ -113,6 +115,57 @@ public static class ScreenCaptureLinux
         }
         Serilog.Log.Warning("截图失败：spectacle / grim / gnome-screenshot / portal 都不可用或被拒绝");
         return null;
+    }
+
+
+    /// <summary>
+    /// D134：把外部工具写出的 PNG 转成设置里选的格式（0 PNG / 1 AVIF / 2 JPEG XL，质量 0/1/2 三档）。
+    /// 上游在 DirectX 捕获管线里直接按格式编码；Linux 侧捕获一定是 PNG（spectacle/grim/portal），
+    /// 只能在落盘后转换。转换失败时保留 PNG 并记 warning，不丢用户截图。
+    /// </summary>
+    private static async Task<string> FinalizeCaptureAsync(string pngFile, CancellationToken cancellation)
+    {
+        int format = AppConfig.ScreenCaptureSavedFormat;
+        if (format is not (1 or 2))
+        {
+            return pngFile;
+        }
+        try
+        {
+            string extension = format == 1 ? ".avif" : ".jxl";
+            string target = Path.ChangeExtension(pngFile, extension);
+            byte[]? encoded = await Task.Run(() =>
+            {
+                using SkiaSharp.SKBitmap? bitmap = Helpers.ImageDecode.Load(pngFile);
+                if (bitmap is null)
+                {
+                    return null;
+                }
+                // 三档质量映射：Middle / High / Lossless
+                int quality = AppConfig.ScreenCaptureEncodeQuality switch
+                {
+                    2 => 100,
+                    1 => 92,
+                    _ => 75,
+                };
+                byte[] bgra = new byte[bitmap.Width * bitmap.Height * 4];
+                System.Runtime.InteropServices.Marshal.Copy(bitmap.GetPixels(), bgra, 0, bgra.Length);
+                return Helpers.MagickCodec.TryEncode(bgra, bitmap.Width, bitmap.Height, jxl: format == 2, quality);
+            }, cancellation).ConfigureAwait(false);
+            if (encoded is null || encoded.Length == 0)
+            {
+                Serilog.Log.Warning("截图转 {format} 失败（Magick.NET 不可用或编码失败），保留 PNG", extension);
+                return pngFile;
+            }
+            await File.WriteAllBytesAsync(target, encoded, cancellation).ConfigureAwait(false);
+            TryDelete(pngFile);
+            return target;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "截图转格式失败，保留 PNG");
+            return pngFile;
+        }
     }
 
 
