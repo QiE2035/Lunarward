@@ -42,8 +42,10 @@ public abstract partial class PageBase : Page
 
     private void PageEx_Unloaded(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
-        Loaded -= PageEx_Loaded;
-        Unloaded -= PageEx_Unloaded;
+        // LUNARWARD-DEVIATION: D94/D134。上游每次导航都新建页面实例，退订无所谓；Lunarward
+        // 缓存页面实例（D94），退订后同一个实例再进来说到不了 PageEx_Loaded → OnLoaded 不再执行，
+        // 页面停在离开时的状态（GameRecordPage 这类在 OnLoaded 里注册 WeakReferenceMessenger 的页面
+        // 甚至收不到后续消息）。所以这里只做 OnUnloaded，不退订。
         OnUnloaded();
     }
 
