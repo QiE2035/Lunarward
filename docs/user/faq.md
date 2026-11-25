@@ -111,8 +111,9 @@ Alt+D 依次尝试 `spectacle -b -n -f`、`grim`、`gnome-screenshot`。三个�
 ```
 ~/games  ~/Games  ~/Games/miHoYo  /opt
 Steam 库的 steamapps/common（~/.local/share/Steam、~/.steam、Flatpak 版）
-$LUNARWARD_GAME_ROOTS
 ```
+
+装在别处（例如 `/data/games`）就在「设置 → 游戏 → 扫描根」里加一行，扫描根可持久化、可回看。
 
 目录名要和 gameId 一致（`hk4e_cn`、`hkrpg_cn`、`nap_cn` 等），否则会漏检——这是刻意的：
 `YuanShen.exe` 同时属于国服和 B 服，只按 exe 名会认错。识别不到就在「自动查找」里手工指定。

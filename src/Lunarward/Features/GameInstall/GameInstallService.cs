@@ -78,6 +78,9 @@ internal class GameInstallService
             _getProgressSemaphore.Release();
             if (!_tasks.IsEmpty)
             {
+                // D134：上游这里在重启轮询前先 Task.Delay(1000)（等 RPC 进程重启）。进程内没有 RPC，
+                // 但退避本身还有用——GetTaskProgress 若持续抛异常，立即重启会退化成热循环。
+                await Task.Delay(1000);
                 StartUpdateTaskProgress();
             }
         }
@@ -242,6 +245,12 @@ internal class GameInstallService
         {
             task = value;
             _tasks.TryAdd(gameId, task);
+        }
+        // D134：与上游 AddOrUpdateTask 一致——Stop/Finish 之后任务不该留在表里，
+        // 否则 _tasks 永不为空（后台变常驻 1 Hz 轮询），GetGameInstallTask 还会返回僵尸任务。
+        if (task.State is RunnerState.Stop or RunnerState.Finish)
+        {
+            _tasks.TryRemove(gameId, out _);
         }
         return task;
     }

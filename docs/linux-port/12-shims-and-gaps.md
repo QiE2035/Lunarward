@@ -94,7 +94,7 @@
 | `Features/Overlay/RunningGameService.Linux.cs` | `SetWinEventHook` | 🟡 | M1 | `Process.HasExited` 判定存活，不感知窗口焦点；`OpenOverlayWindow()` 恒 false |
 | `Features/RPC/RpcService.Linux.cs` | 命名管道 + gRPC 子进程 | ⬜ | M4 | 恒「未运行」；`CreateRpcClient` 抛 NotSupported（D6） |
 | `Features/GameInstall/GameInstallService.cs`（**非** `*.Linux.cs`） | `Starward.RPC.GameInstall` 的 gRPC 客户端包装 | ✅ | M3 | 移植侧改成**进程内 facade**：同名同命名空间（`Starward.Features.GameInstall`），内部直接 `CreateContextAsync` + `StartOrContinueTaskAsync`，不再起子进程（上游 0.19.0 已删 RPC 项目，D128）。`RunOnce`/限速/任务进度订阅与上游一致 | 少了子进程隔离；`GameInstallController`（gRPC 服务端）在 Linux 上不编译 |
-| `Features/GameInstall/GameInstallScanner.Linux.cs` | 注册表枚举已装游戏 | ✅ | M1 | 扫 `~/games`、Steam `common`、`$LUNARWARD_GAME_ROOTS`，`NameMatches` 防国服/B 服同名 exe 误认 |
+| `Features/GameInstall/GameInstallScanner.Linux.cs` | 注册表枚举已装游戏 | ✅ | M1 | 扫 `~/games`、`/opt`、Steam `common` 与设置页配置的扫描根（D134 删掉 `$LUNARWARD_GAME_ROOTS`），`NameMatches` 防国服/B 服同名 exe 误认 |
 | `Features/GameLauncher/GameLauncherService.Linux.cs` | `ProcessStartInfo{Verb="runas"}` + `cmd /c start` | ✅ | M1–M2 | 直 `exec wine`；补 Proton 的 `WINEDLLPATH`/`LD_LIBRARY_PATH`/`PROTONPATH`（L-44）；前缀锁、报告、退出钩子都在这里 |
 | `Features/GameSetting/GenshinHDRLuminanceSettingDialog.Linux.cs` | Win2D HDR 预览 | 🟡 | M3 | `.xaml` 已改名 `*.xaml.disabled`（整页 Win2D 实时预览，D31）；对话框由本文件**代码重建**：3 个 Slider + 数值文本 + 恢复默认 + `Opened` 读 `GameSettingService.GetGenshinHDRLuminanceAsync` / 关闭写回，只能调写入游戏的亮度参数，无预览 |
 | `Features/GamepadControl/GamepadController.Linux.cs` | `SharpGameInput` + `InputSimulator` | ⬜ | M4 | 整体未实现 |

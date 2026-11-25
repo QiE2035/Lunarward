@@ -270,14 +270,14 @@ internal static class GameInstallScanner
 
     private static List<string> GetCandidateRoots()
     {
-        List<string> roots = [];
-        string? extra = Environment.GetEnvironmentVariable("LUNARWARD_GAME_ROOTS");
-        if (!string.IsNullOrWhiteSpace(extra))
+        // 只有「设置里配置的根 → 内置默认根」这一条来源（D134：删掉 LUNARWARD_GAME_ROOTS 逃生口，
+        // 它绕过设置页持久化，用户看不见自己多设了哪些根）。
+        List<string> roots = ScanRoots.Where(Directory.Exists).Distinct().ToList();
+        foreach (string root in roots)
         {
-            roots.AddRange(extra.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            Serilog.Log.Debug("game scan root: {root}", root);
         }
-        roots.AddRange(ScanRoots);
-        return roots.Where(Directory.Exists).Distinct().ToList();
+        return roots;
     }
 
 
