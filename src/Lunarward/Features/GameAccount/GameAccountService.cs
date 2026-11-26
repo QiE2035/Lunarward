@@ -44,9 +44,16 @@ public class GameAccountService
             "global" => GameRegistry.MIHOYOSDK_ADL_PROD_OVERSEA_h1158948810,
             _ => throw new ArgumentOutOfRangeException($"Unknown region {biz}"),
         };
-        // D134：读也要读游戏真正使用的前缀（写侧 L197 早已如此）。前缀还没解析出来时
-        // WineRegistry 会回落到默认前缀，但那时游戏本身也还没跑过，读到空值是对的。
+        // D134：读也要读游戏真正使用的前缀（写侧 L197 早已如此）。
+        // D135：前缀解析不出来时以前会交给 WineRegistry 回落 ~/.wine —— 那是另一套前缀，
+        // 读到的账号跟游戏实际用的对不上；这里和 GameSettingService.TryGetReadPrefix 保持一致，
+        // 直接当作「还没有账号」返回，不猜。
         string? prefix = Starward.Features.GameSetting.GameSettingService.GetGameWinePrefix(biz);
+        if (string.IsNullOrWhiteSpace(prefix))
+        {
+            Serilog.Log.Debug("Game account: no wine prefix for {biz}, skip registry read", biz);
+            return null;
+        }
         var values = await WineRegistry.GetKeyValuesAsync(key, prefix, cancellationToken).ConfigureAwait(false);
         values.TryGetValue(keyName, out object? raw);
         if (raw is byte[] adl)

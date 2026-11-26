@@ -87,6 +87,12 @@ public sealed partial class HypLoginWindow : WindowBase
         }
         CenterInScreen(520, 740);
         base.Activate();
+        // LUNARWARD-DEVIATION: D135 —— Win32 的 GWL_HWNDPARENT 在 Linux 没有对应 API（Uno 不暴露 X 窗口 id），
+        // 用 WM_TRANSIENT_FOR 补「随主窗关闭 / 保持在上层」的语义；在后台线程 fork xdotool/xprop。
+        if (!OperatingSystem.IsWindows())
+        {
+            _ = Task.Run(() => Helpers.X11Window.TrySetTransientFor("Starward HYP Login", "Lunarward"));
+        }
     }
 
 

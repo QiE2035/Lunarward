@@ -313,8 +313,10 @@ internal partial class WindowsDeviceFpService
                             break;
                         }
                     }
-                    string? vram = ReadFile("/sys/class/drm/card0/device/mem_info_vram_total");
-                    return (model, vram is null ? null : (long.Parse(vram) >> 20).ToString());
+                    // D135：mem_info_vram_total 是 amdgpu 的节点，NVIDIA 的 card0 下没有这个文件；
+                    // 以前照读，读到的是 AMD 的显存（型号 NVIDIA、显存 AMD）或直接 Parse 失败。
+                    // 没有不 fork 的 NVIDIA 显存来源，这里如实留 null。
+                    return (model, null);
                 }
             }
             string? amdMemory = ReadFile("/sys/class/drm/card0/device/mem_info_vram_total");
@@ -409,10 +411,23 @@ internal partial class WindowsDeviceFpService
 
 
     /// <summary>
-    /// Uno 的 X11 后端没有 DisplayArea 这类查询，屏幕尺寸取 xrandr 的值会 fork 进程（硬规则 10），这里留 unknown。
+    /// D135：以前这里恒返回 unknown，理由是「取屏幕尺寸要 fork xrandr」——但移植侧本来就有
+    /// <see cref="Helpers.X11Window.TryGetScreenSize(out int, out int)"/>（libxcb 直连，不 fork），
+    /// 设备指纹的屏幕字段因此一直是 unknown。改用 libxcb 查询，拿不到再退回 unknown。
     /// </summary>
     private static string GetScreenSize()
     {
+        try
+        {
+            if (Helpers.X11Window.TryGetScreenSize(out int width, out int height) && width > 0 && height > 0)
+            {
+                return $"{width} {height}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "GetScreenSize failed");
+        }
         return "unknown";
     }
 

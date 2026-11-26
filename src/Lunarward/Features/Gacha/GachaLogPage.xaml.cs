@@ -63,7 +63,10 @@ public sealed partial class GachaLogPage : PageBase
         MenuFlyoutItem_SyncFromMiyousheAll.Visibility = Visibility.Collapsed;
         MenuFlyoutItem_SyncFromHoYoLAB.Visibility = Visibility.Collapsed;
         MenuFlyoutItem_SyncFromHoYoLABAll.Visibility = Visibility.Collapsed;
-        MenuFlyoutItem_CloudGame.Visibility = Visibility.Visible;
+        // D135：上游这里对 hk4e/hkrpg 显示「云游戏抽卡」，它靠 WebView2 的 ExecuteScriptAsync 运行
+        // 云游戏页面里的脚本。Uno 的 WebView 没有该 API（调用会让进程直接退出，G0-3b 实测），
+        // 所以入口一律隐藏 —— 宁可没有，也不能点一下就崩。
+        MenuFlyoutItem_CloudGame.Visibility = Visibility.Collapsed;
         GachaTypeText = GachaLogService.GetGachaLogText(CurrentGameBiz);
         // 旧版导出对应的标准：原神是 UIGF v3.0，星铁是 SRGF v1.0，
         // 绝区零没有对应标准，Starward 只是套用了同样的结构，故仍标为 JSON

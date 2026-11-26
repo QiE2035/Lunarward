@@ -67,6 +67,8 @@
                     <DataTemplate x:DataType="local:ScreenshotItem">
                         <Border Margin="0,0,0,0"
                                 Padding="6"
+                                CanDrag="True"
+                                DragStarting="Item_DragStarting"
                                 Tapped="Item_Tapped"
                                 RightTapped="Item_RightTapped"
                                 CornerRadius="6"

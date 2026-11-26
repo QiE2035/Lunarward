@@ -105,7 +105,9 @@ internal static class DatabaseService
             return;
 #endif
 #pragma warning disable CS0162 // 检测到无法访问的代码
-            string folder = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"Starward\DatabaseBackup");
+            // D135：上游是 %AppData%\Starward\DatabaseBackup；Linux 上 SpecialFolder.ApplicationData 是
+            // ~/.config，拼 Starward 会在用户家目录留下旧品牌目录。这里改到移植侧统一的数据目录下。
+            string folder = Path.Join(AppConfig.UserDataFolder, "DatabaseBackup");
 #pragma warning restore CS0162 // 检测到无法访问的代码
             Directory.CreateDirectory(folder);
             string hash = Convert.ToHexStringLower(XxHash3.Hash(MemoryMarshal.AsBytes(AppConfig.UserDataFolder.AsSpan())));

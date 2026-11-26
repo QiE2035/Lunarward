@@ -177,7 +177,10 @@ internal class PlayTimeRecordService
             {
                 return null;
             }
-            return DateTimeOffset.FromUnixTimeSeconds(btime).UtcDateTime.AddSeconds(ticks / 100.0);
+            // D135：以前返回 UtcDateTime，而 GetLastStartTime 返回的是本机时间（DateTimeOffset.DateTime），
+            // 两者直接比较会差一个时区 —— UTC+8 上「进程启动时间」看着比记录晚 8 小时，
+            // pid 复用保护因此从不生效（L-62 的 bug 又回来了）。统一用本机时间比较。
+            return DateTimeOffset.FromUnixTimeSeconds(btime).ToLocalTime().DateTime.AddSeconds(ticks / 100.0);
         }
         catch
         {
@@ -192,8 +195,10 @@ internal class PlayTimeRecordService
         {
             using var dapper = DatabaseService.CreateConnection();
             var items = System.Linq.Enumerable.ToList(dapper.Query<PlayTimeItemStruct>(
-                "SELECT * FROM PlayTimeItem WHERE GameBiz = @biz AND Pid = @pid ORDER BY TimeStamp DESC LIMIT 1;",
-                new { biz = biz.ToString(), pid }));
+                // D135：状态过滤不能省。GameInstall/启动失败也会写记录，Stop/Error 那几条的
+                // TimeStamp 比 Start 更晚，不筛 State 就会把「上一局结束」当成本局起点（时长翻倍）。
+                "SELECT * FROM PlayTimeItem WHERE GameBiz = @biz AND Pid = @pid AND State = @state ORDER BY TimeStamp DESC LIMIT 1;",
+                new { biz = biz.ToString(), pid, state = (int)PlayTimeState.Start }));
             if (items.Count > 0 && items[0].TimeStamp > 0)
             {
                 return DateTimeOffset.FromUnixTimeMilliseconds(items[0].TimeStamp).DateTime;

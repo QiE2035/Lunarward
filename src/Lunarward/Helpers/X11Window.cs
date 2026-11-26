@@ -171,6 +171,70 @@ public static class X11Window
 
 
     /// <summary>取 X 屏幕（root window）的像素尺寸；失败返回 false。</summary>
+    /// <summary>
+    /// D135：把窗口设为另一个窗口的「临时子窗口」（WM_TRANSIENT_FOR）。
+    /// Win32 侧上游用 SetWindowLong(GWL_HWNDPARENT) 做这件事，Linux 上 Uno 不暴露自己的 X 窗口 id
+    /// （<see cref="XamlRootExtension.GetWindowHandle(XamlRoot?)"/> 恒 0），所以只能按标题找到窗口再写属性。
+    /// 必须在后台线程调用（会 fork xdotool/xprop，硬规则 10）。两个工具都缺时静默跳过。
+    /// </summary>
+    public static bool TrySetTransientFor(string childTitle, string parentTitle)
+    {
+        try
+        {
+            uint? child = FindWindowIdByTitle(childTitle);
+            uint? parent = FindWindowIdByTitle(parentTitle);
+            if (child is null || parent is null)
+            {
+                return false;
+            }
+            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xprop")
+            {
+                ArgumentList = { "-id", child.Value.ToString(), "-f", "WM_TRANSIENT_FOR", "32x", "-set", "WM_TRANSIENT_FOR", parent.Value.ToString() },
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                UseShellExecute = false,
+            });
+            if (process is null)
+            {
+                return false;
+            }
+            process.WaitForExit(2000);
+            return process.HasExited && process.ExitCode == 0;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "X11Window.TrySetTransientFor failed");
+            return false;
+        }
+    }
+
+
+    private static uint? FindWindowIdByTitle(string title)
+    {
+        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdotool")
+        {
+            ArgumentList = { "search", "--name", title },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        });
+        if (process is null)
+        {
+            return null;
+        }
+        string output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit(2000);
+        foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (uint.TryParse(line.Trim(), out uint id))
+            {
+                return id;
+            }
+        }
+        return null;
+    }
+
+
     public static bool TryGetScreenSize(out int width, out int height)
     {
         width = 0;

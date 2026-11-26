@@ -4,9 +4,11 @@ using Microsoft.UI.Xaml;
 // 这里保留可用的那部分设置项（文件夹、格式、质量、剪贴板），色彩管理项恒为关闭。
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.WinUI;
+using Microsoft.Extensions.Logging;
 using Starward.Features;
 using System;
 using System.Threading.Tasks;
+using Vanara.PInvoke;
 
 namespace Starward.Features.Setting;
 
@@ -95,6 +97,10 @@ public sealed partial class ScreenshotSetting : PageBase
     public string? WindowHandle { get; set; }
 
 
+    private readonly Microsoft.Extensions.Logging.ILogger<ScreenshotSetting> _logger =
+        AppConfig.GetLogger<ScreenshotSetting>();
+
+
     public ScreenshotSetting()
     {
         // 上游 ScreenshotSetting.xaml.cs 的 ctor 第一句就是它；本文件取代了那份 code-behind，
@@ -102,6 +108,16 @@ public sealed partial class ScreenshotSetting : PageBase
         InitializeComponent();
         ScreenshotFolder = AppConfig.ScreenshotFolder;
         AutoCopyScreenshotToClipboard = AppConfig.AutoCopyScreenshotToClipboard;
+        // 上游 ScreenshotSetting.xaml.cs:34-39 同样在 ctor 里做；漏掉这一句，控件显示「点击设置」
+        // 而实际热键仍是配置文件里的旧值（D135）。
+        try
+        {
+            Helpers.HotkeyManager.InitializeHotkeyInput(HotkeyInput_ScreenshotCapture);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Initialize screenshot hotkey input failed");
+        }
     }
 
 
@@ -186,17 +202,78 @@ public sealed partial class ScreenshotSetting : PageBase
     }
 
 
+    // D135：这三个处理器以前是空体（带 LINT-ALLOW），上游 ScreenshotSetting.xaml.cs:68-110 的
+    // 注册/注销/落盘全在这里 —— 结果是用户改完截图热键既不生效也不落盘，失败也看不到提示。
+    // 移植侧的 HotkeyManager（X11 轮询）与上游同签名，只是忽略 hwnd，所以这里直接照搬上游逻辑。
     private void HotkeyInput_HotkeyDeleted(object sender, HotkeyInputEventArg e)
     {
-        // LINT-ALLOW: 热键由 HotkeyManager 统一接管（X11 轮询），输入控件只做展示
+        try
+        {
+            XamlRoot.Content.Focus(FocusState.Programmatic);
+            Helpers.HotkeyManager.DeleteHotkey(0, e.HotkeyId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Hotkey deleted");
+        }
     }
-    private void HotkeyInput_HotkeyEditFinished(object sender, HotkeyEditFinishedEventArg e)
-    {
-        // LINT-ALLOW: 同上，注册在 HotkeyManager.Register 里完成
-    }
+
+
     private void HotkeyInput_HotkeyEditing(object sender, HotkeyInputEventArg e)
     {
-        // LINT-ALLOW: 编辑中的实时预览对 X11 轮询没有意义
+        try
+        {
+            Helpers.HotkeyManager.UnregisterHotkey(0, e.HotkeyId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Hotkey editing");
+        }
+    }
+
+
+    private void HotkeyInput_HotkeyEditFinished(object sender, HotkeyEditFinishedEventArg e)
+    {
+        try
+        {
+            XamlRoot.Content.Focus(FocusState.Programmatic);
+            if (!e.HotkeyAvaliable)
+            {
+                return;
+            }
+            Win32Error error = Helpers.HotkeyManager.RegisterHotkey(0, e.HotkeyId, (User32.HotKeyModifiers)e.fsModifiers, (User32.VK)e.Key);
+            if (error.Succeeded)
+            {
+                if (e.HotkeyChanged)
+                {
+                    ((HotkeyInput)sender).State = HoykeyInputState.Success;
+                }
+                return;
+            }
+            if (e.HotkeyChanged)
+            {
+                string hotkey = HotkeyInput.GetHotkeyText(e.fsModifiers, (uint)e.Key);
+                // Windows 上这个码是「已被其它程序占用」；X11 轮询拿不到独占权，这里只会是「按键无 keycode」。
+                if (error == (Win32Error)1409)
+                {
+                    Helpers.InAppToast.MainWindow?.Warning(null, string.Format(Lang.HotkeyManager_TheShortcutKeys0IsAlreadyInUse, hotkey), 5000);
+                }
+                else
+                {
+                    Helpers.InAppToast.MainWindow?.Warning(null, string.Format(Lang.HotkeyManager_FailedToRegisterTheShortcutKeys0, hotkey), 5000);
+                }
+                ((HotkeyInput)sender).State = HoykeyInputState.Warning;
+            }
+            else if (Helpers.HotkeyManager.GetHotkeyInfo(e.HotkeyId)?.Error.Failed ?? false)
+            {
+                ((HotkeyInput)sender).State = HoykeyInputState.Warning;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Hotkey edit finished");
+            Helpers.InAppToast.MainWindow?.Error(ex, Lang.HotkeySetting_FailedToRegisterTheShortcutKeys);
+        }
     }
     // Lunarward：上游这段逻辑在 ScreenshotSetting.xaml.cs（本工程 <Compile Remove>），
     // 这里补回来：文字被截断一次就缩小一号（最小 12），避免长路径被硬切（D46 复核结论 1）。

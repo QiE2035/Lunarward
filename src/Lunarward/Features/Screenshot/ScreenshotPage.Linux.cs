@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Starward.Features;
+using Starward.Features.GameLauncher;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -100,6 +101,49 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     private IReadOnlyList<string> ScreenshotFolders()
     {
         var folders = new List<string> { ScreenCaptureLinux.DefaultFolder };
+        // 上游 ScreenshotPage.xaml.cs:199-248：除了默认目录与外部目录，还要读
+        // ①「本程序备份目录」= <ScreenshotFolder 或 UserData/Screenshots>/<exe 名>
+        // ②「游戏内截图目录」= <安装路径>/<各游戏自己的截图子目录>
+        // 移植侧以前只读默认目录，游戏里按 F12 存的图和备份目录里的都看不见（D135）。
+        try
+        {
+            string? exeName = GameLauncherService.GetGameExeName(CurrentGameBiz)?.Replace(".exe", "", StringComparison.OrdinalIgnoreCase);
+            string? relativePath = CurrentGameBiz.Game switch
+            {
+                Starward.Core.GameBiz.hk4e => "ScreenShot",
+                Starward.Core.GameBiz.hkrpg => Path.Combine("StarRail_Data", "ScreenShots"),
+                Starward.Core.GameBiz.bh3 => "ScreenShot",
+                Starward.Core.GameBiz.nap => "ScreenShot",
+                _ => null,
+            };
+            if (!string.IsNullOrWhiteSpace(exeName))
+            {
+                string backupRoot = Directory.Exists(AppConfig.ScreenshotFolder)
+                    ? AppConfig.ScreenshotFolder
+                    : Path.Combine(AppConfig.UserDataFolder, "Screenshots");
+                string backup = Path.Combine(backupRoot, exeName);
+                if (Directory.Exists(backup))
+                {
+                    folders.Add(backup);
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(exeName) && !string.IsNullOrWhiteSpace(relativePath))
+            {
+                string? installPath = GameLauncherService.GetGameInstallPath(CurrentGameId);
+                if (!string.IsNullOrWhiteSpace(installPath))
+                {
+                    string inGame = Path.Combine(installPath, relativePath);
+                    if (Directory.Exists(inGame))
+                    {
+                        folders.Add(inGame);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "解析游戏截图目录失败");
+        }
         string? external = AppConfig.GetExternalScreenshotFolder(CurrentGameId);
         if (!string.IsNullOrWhiteSpace(external))
         {
@@ -157,9 +201,11 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
 
     public bool HasImages { get; private set; }
 
-    private FileSystemWatcher? _watcher;
+    // 上游用 _watchers 列表（每个目录一个）；移植侧以前只有单个 _watcher 且从不释放，
+    // 页面 NavigationCacheMode=Required 会一直存活，换游戏/换目录后旧 watcher 仍在跑（D135）。
+    private readonly List<FileSystemWatcher> _watchers = [];
 
-    private string? _watcherFolder;
+    private string _watcherKey = "";
 
     private void ApplyCheckBoxVisibility()
     {
@@ -201,35 +247,60 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
     {
         try
         {
-            string folder = ScreenCaptureLinux.DefaultFolder;
-            if (_watcher is not null && string.Equals(_watcherFolder, folder, StringComparison.Ordinal))
+            List<string> folders = ScreenshotFolders().Where(Directory.Exists).ToList();
+            string key = string.Join('|', folders);
+            if (string.Equals(_watcherKey, key, StringComparison.Ordinal) && _watchers.Count > 0)
             {
                 return;
             }
-            _watcher?.Dispose();
-            _watcher = null;
-            if (!Directory.Exists(folder))
+            DisposeWatchers();
+            foreach (string folder in folders)
             {
-                return;
+                var watcher = new FileSystemWatcher(folder)
+                {
+                    IncludeSubdirectories = false,
+                    EnableRaisingEvents = true,
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
+                };
+                void OnChange(object? _, FileSystemEventArgs e) => DispatcherQueue.TryEnqueue(LoadImages);
+                watcher.Created += OnChange;
+                watcher.Deleted += OnChange;
+                watcher.Renamed += (_, e) => DispatcherQueue.TryEnqueue(LoadImages);
+                watcher.Changed += OnChange;
+                _watchers.Add(watcher);
             }
-            var watcher = new FileSystemWatcher(folder)
-            {
-                IncludeSubdirectories = false,
-                EnableRaisingEvents = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size,
-            };
-            void OnChange(object? _, FileSystemEventArgs e) => DispatcherQueue.TryEnqueue(LoadImages);
-            watcher.Created += OnChange;
-            watcher.Deleted += OnChange;
-            watcher.Renamed += (_, e) => DispatcherQueue.TryEnqueue(LoadImages);
-            watcher.Changed += OnChange;
-            _watcher = watcher;
-            _watcherFolder = folder;
+            _watcherKey = key;
         }
         catch (Exception ex)
         {
             Serilog.Log.Warning(ex, "监视截图目录失败");
         }
+    }
+
+
+    private void DisposeWatchers()
+    {
+        foreach (FileSystemWatcher watcher in _watchers)
+        {
+            try
+            {
+                watcher.EnableRaisingEvents = false;
+                watcher.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Debug(ex, "释放截图目录监视器失败");
+            }
+        }
+        _watchers.Clear();
+        _watcherKey = "";
+    }
+
+
+    protected override void OnUnloaded()
+    {
+        base.OnUnloaded();
+        DisposeWatchers();
     }
 
 
@@ -381,6 +452,30 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
         if (ItemOf(sender) is ScreenshotItem item)
         {
             OpenItem(item);
+        }
+    }
+
+
+    /// <summary>
+    /// 上游 ScreenshotPage.xaml.cs:392-418：把选中的截图拖到文件管理器。
+    /// 移植侧用的是 ItemsControl（Uno 的 GridView 分组不渲染条目，L-48），没有 DragItemsStarting，
+    /// 所以改成条目根元素的 DragStarting（一次只带当前这一张，多选拖出上游也只走单张）。
+    /// </summary>
+    private async void Item_DragStarting(UIElement sender, DragStartingEventArgs e)
+    {
+        try
+        {
+            if (ItemOf(sender) is not ScreenshotItem item || !File.Exists(item.FilePath))
+            {
+                return;
+            }
+            e.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+            var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(item.FilePath);
+            e.Data.SetStorageItems([file], true);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "拖出截图失败");
         }
     }
 
