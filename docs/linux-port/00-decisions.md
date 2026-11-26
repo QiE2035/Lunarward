@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D134）
+- **状态**：生效中（D0–D137）
 - **最后更新**：2026-11-25
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -2354,3 +2354,73 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - `packaging/build-appimage.sh` 装完 `.desktop` 后调 `update-desktop-database` —— AppImage 不走包管理器，不刷缓存则深链注册后不生效。
 - 台账：25 号 §2.4 记 78 条回改、19 条保留（引擎能力 / 移植侧必要分支 / 无调用点 API），§1 统计改为 345 点、avoidable 19；附录 B 重写为这 19 条并逐条写「为什么留着」。
 - 边界：`AppBackground.Current` 仍是惰性 getter（上游靠 XAML 实例化顺序），改回自动属性会让「先取 `Current` 再构造」的顺序直接 NRE；`Current` 的兜底是刻意的，不是漏改。
+
+---
+
+## D135　全量文件级复核后的行为补齐（2026-11-26）
+
+**背景**：用户要求「逐文件、严禁抽查、允许破坏式更新」地复核与上游 0.19.0 的差异。复核方法与清点见 `30-full-alignment-audit.md`：`src/Starward` 351 个文件 / `src/Lunarward` 484 个，同名 335（逐字节相同 257、不同 78），仅上游存在 16、仅移植存在 149，78 个差异文件共 5512 行变更（删 1294 / 增 4218）。判读出的 40 条功能损失中，D135 先修可确定、低风险的 21 条。
+
+**决定**
+
+1. **会话锁通知补上发送方**：`MainWindow.xaml.cs` 删掉 `WindowSubclassProc`（`WM_WTSSESSION_CHANGE`）后，`MainWindowStateChangedMessage.SessionLock` 再没有生产者，锁屏时视频壁纸不暂停。新增 `Helpers/SessionLockWatcher.Linux.cs`，订阅 `org.freedesktop.ScreenSaver.ActiveChanged` 与 logind 的 `Session.Lock/Unlock`（会话按 PID → `XDG_SESSION_ID` → `auto` 三级定位），在 `EnsureSystemTray()` 的 Linux 分支启动。
+2. **`GameInstallEnv.CacheFolder` 不复用库默认值**：上游 `AppConfig.Configuration.cs` 把 `CacheFolder` 传给 `GameInstallEnv`，移植侧漏了这行，清单缓存一直写到库内写死的 `~/.local/share/Starward`。补齐并指向 XDG 数据目录。
+3. **启动期异常不再静默**：配置初始化失败时先写 stderr + `Serilog.Log.Fatal` 再退出（以前只有 `Debug.WriteLine`，用户双击「没反应」）；单实例接管失败同样落日志。
+4. **安装进度条值域对齐**：`GameLauncherPage.xaml` 的 `ProgressBar_InstallTask` 从 `Maximum="1"` 改为 `"100"`（后台写的是 `PercentProgress * 100`）。
+5. **安装任务请求与进度补全字段**：`GameInstallService.ToRequest` 带上 `PassportUserInfo`（beta 通道）与 `CutsceneBlockList`，进度更新按上游拷全 21 个字段；`Pause/Continue/StopTaskAsync` 去掉假异步（`async` 无 `await`）。
+6. **日志脱敏**：启动日志里的 `login_auth_ticket`/`login_ticket`/`stoken`/`st`/`token` 一律打码（`RedactLaunchArgument`）。
+7. **游戏设置页两处行为**：`DisplayInformation` 切游戏时先退订 `AdvancedColorInfoChanged` 并 `Dispose`；`RefreshProfileSelector/RefreshCompanions` 移到 bh3_global 映射之后（国际服 BH3 以前取到的是 `bh3_global` 的方案）。
+8. **HDR 亮度写入失败要报错**：`SetGenshinHDRLuminanceAsync` 改走返回 bool 的 `WineRegistry.SetValuesAsync`，false 抛 `Lunarward_Error_SetGameSettingFailed`；删掉 4 个零调用的同步 setter。
+9. **截图子系统补齐**（30 号 aud-d/aud-e1）：游戏内截图目录与备份目录纳入图库（上游 `GetGameScreenshotPathAsync` 语义）；每个目录一个 `FileSystemWatcher` 且 `OnUnloaded` 统一释放（`NavigationCacheMode=Required` 下以前永不释放）；条目支持拖出到文件管理器；截图热键三个处理器按上游实现（注册/注销/落盘/失败提示）并在 ctor 调 `InitializeHotkeyInput`。
+10. **登录窗的「父窗」语义**：Win32 用 `SetWindowLong(GWL_HWNDPARENT)`，Linux 无对应 API（`XamlRootExtension.GetWindowHandle` 恒 0）。改为在后台线程按标题找到窗口后用 `WM_TRANSIENT_FOR` 标记（`X11Window.TrySetTransientFor`，缺 `xdotool`/`xprop` 时静默跳过）。
+11. **看图窗补高频操作**：上游 `ImageViewWindow2` 是 1572 行 Win2D + DirectX 色彩管理实现（`CanvasSwapChainPanel`/`AdvancedColorInfo` 在 Uno 下不可用）。在现有 `ScreenshotViewerWindow` 上补缩放（±25%、适应）、复制、另存为、默认应用打开、删除；HDR 预览与画廊留 M4。
+12. **不再会一点就崩的入口**：云游戏抽卡入口在 Linux 隐藏（它依赖 WebView2 的 `ExecuteScriptAsync`，Uno 的 WebView 没有该 API，点进去进程直接退出）。
+13. **设备指纹修正**：屏幕尺寸改用 `X11Window.TryGetScreenSize`（libxcb，不 fork）；NVIDIA 分支不再读 amdgpu 的 `mem_info_vram_total`（以前型号是 NVIDIA、显存是 AMD，或 `long.Parse` 抛异常把型号一起丢掉）。
+14. **游玩时长两处真 bug**：`GetProcessStartTime` 返回 UTC、`GetLastStartTime` 返回本机时间，直接比较差一个时区，pid 复用保护从不生效；查上一局 `Start` 时补 `State = 1` 过滤（否则可能把 Stop 记录当起点）。
+15. **账号读取不猜前缀**：`GameAccountService.GetGameAccountFromRegistryAsync` 在前缀解析不出来时直接返回空，不再交给 `WineRegistry` 回落 `~/.wine`（与写侧、与 `TryGetReadPrefix` 一致）。
+16. **数据库备份与诊断目录去品牌**：自动备份从 `~/.config/Starward/DatabaseBackup` 改到 `AppConfig.UserDataFolder/DatabaseBackup`；诊断包默认目录按 `XDG_DOWNLOAD_DIR`。
+17. **`xdg-mime` 查询不再可能永久阻塞**：`IsProtocolRegistered` 先 `WaitForExit(3000)` 再读输出（原来先 `ReadToEnd`）。
+18. **文档口径**：30 号报告把四条旧结论标为错误（上游 16 个「已移除」文件其实仍在、`Grid.ContextFlyout` 可用、`PointerCursor` 的 `partial` 无依据、X11 无 owner/transient），本决策据此回改 25 号的对应条目。
+
+**代价与边界**
+
+- `SessionLockWatcher` 依赖桌面会话总线：纯 TTY 或没有 ScreenSaver/logind 会话的环境拿不到锁屏事件，视频壁纸照旧不停（只是不再比「完全没有」更差）。
+- `WM_TRANSIENT_FOR` 只是窗口管理器提示，不像 Win32 的 owner 那样强制销毁顺序；找不到窗口（标题被本地化改掉、没有 xdotool）时静默跳过。
+- 看图窗是「高频子集」而不是上游等价实现：没有画廊缩略图条、没有 Win2D 色彩管理预览、没有 HDR 亮度直方图。
+- 隐藏云游戏入口后，云端抽卡在 Linux 上不可用（上游靠 Windows WebView2）。
+- 游玩时长的时区修正只影响「进程已退出、回退到上一条 Start」这条分支；正常运行不受影响。
+
+**验证**：`dotnet build` Debug/Release 0 错误；`dotnet test` 365 通过；`--selftest-ui` 13/13（Xvfb）；`lint-ui-thread` / `lint-doc-status --strict` / `lint-pkgbuild` / `lint-cli-help` 全绿；`cli-smoke` 40 通过 + 1 跳过、`cli-extra` 28 通过 + 4 跳过。
+
+**确认方式**：用户 message「优先对齐上游，除非某些不得不偏离」（2026-11-26）；复核方法与证据见 `30-full-alignment-audit.md`。
+
+---
+
+## D136　安装链路服务按上游注册为单例（2026-11-26）
+
+**背景**：上游 `src/Starward/AppConfig.ServiceProvider.cs` 把 `GameInstallService`/`GameResourceService`/`GameConfigService`/`GenshinDispatchClient`/`GenshinHotUpdateService` 注册为 Singleton；移植侧只调 `sc.AddStarwardGameInstall()`，扩展里全是 Scoped。因为 `BuildServiceProvider()` 没开 `ValidateScopes`，从根容器解析 Scoped 服务能跑（等于根作用域单例），但 12 处 `AppConfig.GetService<HoYoPlayService>()` 都是 captive dependency，而且和 `GameInstallRunner` 自建 scope 解析出来的是**两个不同实例**（同一个下载任务在两处看到不同的进度状态）。
+
+**决定**：先调 `sc.AddStarwardGameInstall()`（它注册 `HttpService`/`DownloadService`/`GameInstallRunner` 等内部类型，外部无法复刻），再把 5 个业务服务覆写成 Singleton（后注册的赢）；`--selftest-ui` 增加一条断言「安装链路服务在根容器与 scope 里是同一实例」。
+
+**代价**：库内 `HttpService`/`DownloadService` 仍是 Singleton 且被业务单例共享，`HttpClient` 的连接池与 `FusionCache` 生命周期跟随进程，不再随页面释放；如果将来库把这两个服务改成 Scoped，这里要跟着改（注释里已写明）。
+
+**验证**：`--selftest-ui` 13/13（新增断言 `root/root/scope 同一实例`）；365 单测通过。
+
+**确认方式**：30 号报告 §B4 + 用户「优先对齐上游」（2026-11-26）。
+
+---
+
+## D137　确证死代码清理（2026-11-26）
+
+**背景**：30 号报告附录 C 列出 24 个 DEAD 文件与 4 个 REDUNDANT 文件。逐个人工复核引用计数后分两批删，第一批只动**零连带**的 12 个。
+
+**决定（批 1/2，已删）**：`src/Lunarward/.junie/mcp/mcp.json`（含 `.bak`）、`Lunarward.csproj.user`、`Controls/Win2DCompat.cs`、`Features/Background/VideoBgVolumeChangedMessage.cs`、`Features/GameInstall/GamePackageService.cs`（D128 后自研 Sophon 残留 181 行）、`Features/GameLauncher/GameAuthLogin{Button.xaml,Button.xaml.cs,Service.cs}`（及其 DI 注册）、`Features/GameSetting/GenshinHDRLuminanceSettingDialog.xaml.disabled`、`Features/RPC/RpcService.Linux.cs`、`Helpers/Housekeeping.cs`、`Helpers/WindowWaitAsync.Linux.cs`、`Features/GameRecord/LoginPage.xaml.cs`（早被 `<Compile Remove>` 的旧实现），并清掉 4 个文件里指向空命名空间 `Starward.Features.RPC` 的 `using`。
+
+**复核推翻了报告的三个判断（所以没有删）**：`Features/Update/SetupService.Linux.cs` 被 `UpdateWindow.xaml.cs:41` 使用；`Features/Screenshot/ScreenshotWindowsDisabled.cs` 提供 `ImageViewWindow2` 占位并被 `ToolboxSetting.xaml.cs:41/85/87` 依赖（删后 `CS0246`）；`SystemTrayWindow` + `Compat/NotifyIcon/TaskbarIconCompat.cs` + `Helpers/SystemBackdropHelper.Linux.cs` 仍被 `App.xaml.cs:207` 使用。批 2（登录页簇、单选路径残留）等真机验证 `hyp://` 回填后再做。
+
+**代价**：删 `RpcService.Linux.cs` 后必须保留 csproj 里的 `<Compile Remove="Features/RPC/RpcService.cs" />`（该文件引用已移除的 Grpc 包）；`LoginPage` 页面本身仍在使用（`MainView.xaml.cs:186`、`GameRecordPage.xaml.cs:512` 都会导航过去），只删了它被排除的 code-behind。
+
+**验证**：Debug/Release 0 错误、365 单测、`--selftest-ui` 13/13、`lint-ui-thread` 全绿；`lint-doc-status --strict` 在同步 12-shims 登记后全绿。
+
+**确认方式**：30 号报告 §B5 + 用户「优先对齐上游」（2026-11-26）。
+

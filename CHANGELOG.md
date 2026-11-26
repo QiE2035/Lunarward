@@ -1,5 +1,14 @@
 ﻿# Changelog
 
+## 2026-11-26 · D135/D136/D137 · 全量对齐上游（B1–B5）
+
+- **D135 批 1**（`6be7b97f`）：补会话锁通知（`SessionLockWatcher`，锁屏暂停视频壁纸）、`GameInstallEnv.CacheFolder` 指向 XDG 数据目录、启动期异常落 stderr + `Log.Fatal`、安装进度条值域、安装任务请求/进度字段补全、日志脱敏 `login_auth_ticket`、游戏设置页 `DisplayInformation` 泄漏与 bh3_global 映射顺序、HDR 亮度写入失败上抛、App.xaml 分隔线可见性、banner 双击只开一次、`MenuFlyoutSeparatorBackground` 覆盖删除。
+- **D135 批 2**（`4c90f9d6`）：截图热键三处理器与 `InitializeHotkeyInput`、游戏内截图目录与备份目录纳入图库、每目录 `FileSystemWatcher` 且 `OnUnloaded` 释放、条目拖出、登录窗 `WM_TRANSIENT_FOR`、云游戏抽卡入口隐藏、备份目录去品牌、设备指纹屏幕尺寸走 libxcb、NVIDIA 显存不误读、游玩时长时区与 `State` 过滤、账号读取不再回落 `~/.wine`。
+- **D135 批 3**（`51a65428`）：看图窗补缩放/适应/复制/另存为/默认应用打开/删除；`xdg-mime` 查询改先 `WaitForExit` 再读输出；「复制为 JPG」图标码位对齐上游。
+- **D136**（`d51e6289`）：安装链路 5 个业务服务按上游注册为单例（库内 `HttpService`/`DownloadService` 是 internal，只能先调扩展再覆写），`--selftest-ui` 增加「根容器与 scope 同一实例」断言。
+- **D137**（`30643ed5`）：删 12 个零连带死文件与 4 处指向空命名空间的 `using`；复核后保留 `SetupService.Linux`、`ScreenshotWindowsDisabled`、托盘三件套（仍在使用）。
+- 文档：新增 `30-full-alignment-audit.md`（351↔484 逐文件复核，含 8 份原始审计报告于 `30-appendix/`），文档总数 15 份；`12-shims` 登记 `SessionLockWatcher` 与登录窗偏差。
+
 ## D134 续 · 可避免偏离第四轮回改（2026-11-26）
 
 - 网络图片（公告海报、活动图）改走磁盘缓存：命中缓存不再重复下载，解码失败会删掉坏缓存。

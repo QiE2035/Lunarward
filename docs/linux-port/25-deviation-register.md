@@ -113,6 +113,31 @@
 
 > 回改的判据一律是「改回上游写法」：能删的死代码直接删、能照抄的文案走 `Lang`、能复用的上游实现（`FileCache`、`BackgroundSwitcher`、`SetValuesAsync`）直接复用。剩余的 19 条分成三类：①引擎能力（HDR 采集/色调映射、圆角裁剪、字体族）；②移植侧独有但必要的分支（首跑扫盘、DevSwitches 门禁、Linux 登录页）；③无存活调用点的 API 缺口（`ClipboardHelper`）。
 
+### 2.5　D135（2026-11-26）复核后的增补与更正
+
+`30-full-alignment-audit.md` 的逐文件复核推翻了本总账的六条判断，并把「看似可避免」的一批差异定性为**上游行为丢失**（不是风格选择）。据此产生的变更：
+
+**新增偏离（均记 must）**
+
+| 文件 | 内容 | 类别 | 必要性 |
+| --- | --- | --- | --- |
+| `Helpers/SessionLockWatcher.Linux.cs`（新增） | D-Bus 补 `MainWindowStateChangedMessage.SessionLock` 的发送方（替代上游 `WM_WTSSESSION_CHANGE`） | linux 专属实现 | must |
+| `Features/Passport/HypLoginWindow.xaml.cs` | `GWL_HWNDPARENT` 在 Linux 无等价 API，改 `WM_TRANSIENT_FOR`（后台线程 xdotool/xprop） | api 平台 API | must |
+| `Features/Gacha/GachaLogPage.xaml.cs` | 云游戏抽卡入口隐藏（Uno WebView 没有 `ExecuteScriptAsync`，调用会让进程退出） | engine 引擎能力 | must |
+| `Features/Screenshot/ScreenshotViewerWindow.xaml(.cs)` | 看图窗补缩放/适应/复制/另存/默认应用打开/删除（上游是 Win2D `ImageViewWindow2`） | engine 引擎能力 | must |
+| `Helpers/X11Window.cs` | 新增 `TrySetTransientFor`（登录窗父窗语义） | linux 专属实现 | must |
+
+**更正本总账的旧判断**
+
+1. 上游 0.19.0 **没有**移除截图二代/批量转换/图片查看/公告窗/HDR 对话框（16 个文件都在）——本文 §3 里「上游已移除」的措辞作废；`GameNoticeWindow` 仍是 D22 的主动决策。
+2. `Grid.ContextFlyout` 在 Uno 下可用（`BackgroundViewPage.xaml` 就在用），「Uno 没有这个 API」作废。
+3. `PointerCursor.cs` 的 `partial` 不是必须的，旧理由作废。
+4. X11 侧确实没有 owner/transient 语义，但可以补（见上表），不是「无法实现」。
+5. 读路径回落 `~/.wine`、以及把 `HypLoginWindow` 的差异记成「仅格式或轻微」，两条旧描述作废（D134/D135 已改成拒绝默认前缀 + WM_TRANSIENT_FOR）。
+6. `FileManageSetting.xaml` 的 `IsTextTrimmedChanged` 曾被误删，复核确认它是 `PageBase` 的 protected 方法，不是悬空引用。
+
+**统计口径**：§1 的 345 点 / 113 文件条目是 2026-11-25 的快照，尚未计入上表 5 条新增与 D135 的 12 处行为补齐；下一轮全量重算以当时脚本输出为准（脚本在 `/tmp/lw-audit2/gen/`，报告在 `30-appendix/`，可复现）。
+
 ## 3 · 逐模块偏离点
 
 ### 3.1 启动器与游戏入口（GameLauncher）

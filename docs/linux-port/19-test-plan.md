@@ -582,7 +582,7 @@ L3 不进 CI：需要真实桌面、真实输入，而且很多判据是「看�
 实现：`src/Lunarward/Features/Dev/UiSelfTest.cs` + `MainWindow.OnSelfTestActivated`；CLI 开关 `--selftest-ui`
 （只设 `LUNARWARD_SELFTEST=1`，真正执行在窗口首次 Activated 之后，跑完 `Environment.Exit`）。
 
-当前 12 条断言（2026-11-25 按 `UiSelfTest.cs` 的 `checks` 列表核对；首轮真机 8/8 通过的是当时那 8 条）：
+当前 13 条断言（2026-11-26 按 `UiSelfTest.cs` 的 `checks` 列表核对；首轮真机 8/8 通过的是当时那 8 条）：
 
 | 断言 | 抓什么 |
 | --- | --- |

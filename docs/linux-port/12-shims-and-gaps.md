@@ -368,10 +368,11 @@ EOF
 | 2026-11-19 | D89 SDK 下限：5 处 `global.json` 的 `sdk.version` 从 `10.0.300`/`10.0.302` 统一降到 `10.0.100`（`rollForward: latestMinor`），并在根与 `src/Lunarward` 两份里加注释说明「别改回 10.0.3xx」，否则 Arch 打包环境的低版本 SDK 会直接报 `A compatible .NET SDK was not found`；`lint-pkgbuild.sh` 加 D 节（`sdk.version` 末段必须是 `100` + 必须有 `rollForward` + `makedepends` 必须有 `dotnet-sdk`）（L-163） |
 | 2026-11-24 | **全表复核（HEAD `2b86682`，D123）**：按脚本重算 36 个 `*.Linux.cs` / 6 个 `*.LinuxAuto.cs` / 53 条 `<Compile Remove>` / XAML 37 差 6 缺；纠正 12 处历史断言（`GameNoticeWindow` 已删、`FileDialogHelper` 走 portal、`ImageLoader` 走 Magick.NET、`SystemBackdropHelper` 只铺不透明底色、`AppBackground` 已弃 0.42 近似、登录走进程内 WebKitGTK 6.0、`ScreenshotSetting` 真实路径、截图目录取 `MyPictures`、通知走 D-Bus 直连、视频壁纸 VAAPI 硬解 112%→74%、外部链接 portal 优先、`SingleInstancePipe`/`DevSwitches` 在 `Features/App/`）；补登 4 个漏记的 `*.Linux.cs`（`GameInstallService`、`PlayTimeSession`、`AccentColorHelper`、`DataFolder`） |
 
-### 9.1　共享文件里的 `LUNARWARD-DEVIATION`（D134 新增两条）
+### 9.1　共享文件里的 `LUNARWARD-DEVIATION`（D134 / D135）
 
 | 文件 : 行 | 原因 |
 | --- | --- |
 | `Features/ViewHost/SystemTrayWindow.xaml.cs:76` | `WindowActivatedEventArgs.WindowActivationState` 在本地 `net11.0-desktop` 构建里是 `Microsoft.UI.Xaml.WindowActivationState`，CI 的 `dotnet publish -r linux-x64` 里却是 `Windows.UI.Core.CoreWindowActivationState`；写枚举模式匹配会在其中一侧 `CS0266`，改用 `ToString() == "Deactivated"`。 |
+| `Features/Passport/HypLoginWindow.xaml.cs:88` | 上游用 `User32.SetWindowLong(GWL_HWNDPARENT)` 把登录窗挂到主窗；Linux 上 Uno 不暴露 X 窗口 id（`XamlRootExtension.GetWindowHandle` 恒 0），改在后台线程按标题找到窗口后写 `WM_TRANSIENT_FOR`（`X11Window.TrySetTransientFor`，缺 xdotool/xprop 时静默跳过；D135）。 |
 | `Features/ViewHost/WelcomeWindow.xaml.cs:46` | `RectInt32` 的 4 参构造器只在 Windows 目标下存在，`linux-x64` publish 报 `CS1729`；改用对象初始化器。 |
 
