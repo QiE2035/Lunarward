@@ -92,6 +92,19 @@ internal static class UiSelfTest
                 return Task.FromResult((ok, ok ? page.Content!.GetType().Name : "(null)"));
             }),
 
+            new("安装链路服务在根容器与 scope 里是同一实例（D135）", () =>
+            {
+                // 上游把这 5 个注册成 Singleton；移植侧曾照抄库里的 AddStarwardGameInstall()（全是 Scoped），
+                // 于是 12 处从根解析变成 captive dependency，且与 GameInstallRunner 自建 scope 得到两个实例。
+                var root1 = AppConfig.GetService<Starward.GameInstall.HoYoPlayService>();
+                var root2 = AppConfig.GetService<Starward.GameInstall.HoYoPlayService>();
+                using var scope = AppConfig.GetService<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>().CreateScope();
+                var scoped = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .GetRequiredService<Starward.GameInstall.HoYoPlayService>(scope.ServiceProvider);
+                bool ok = ReferenceEquals(root1, root2) && ReferenceEquals(root1, scoped);
+                return Task.FromResult((ok, ok ? "root/root/scope 同一实例" : "存在多实例"));
+            }),
+
             new("运行环境是一级页（footer 入口可打开）", async () =>
             {
                 // D80：它不再挂在设置页里。这条断言同时卡住「footer 条目被 Uno 吃掉」与「被 SupportedPages 白名单换回启动器」两种回归

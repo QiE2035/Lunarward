@@ -137,9 +137,19 @@ public static partial class AppConfig
         sc.AddTransient<UpdateService>();
 
         // Lunarward: 上游 0.19.0 把安装/热更新/服务抽进 Starward.GameInstall，移植侧同样引用该库（D128）。
-        // AddStarwardGameInstall 注册 HoYoPlayService / GameConfigService / GameResourceService /
-        // GenshinDispatchClient / GenshinHotUpdateService / HttpService / DownloadService / GameInstallRunner。
+        // 生命周期按上游 AppConfig.ServiceProvider.cs:118-142 注册 —— 那 5 个是 Singleton。
+        // 库自带的 AddStarwardGameInstall() 是给上游 RPC 子进程（RpcRunner）用的，里面全是 Scoped；
+        // 移植侧没有 RPC 子进程、全在根容器里解析，照抄会产生 12 处 captive dependency，
+        // 且与 GameInstallRunner 自建 scope 解析出两个实例（D135）。
+        // 库自带的注册里 HttpService/DownloadService 是 internal（只能由库自己注册），
+        // 所以先调 AddStarwardGameInstall() 拿到那几个基础设施，再把 5 个业务服务
+        // 按上游的生命周期覆写成 Singleton —— 后注册的赢，从根解析不再产生 captive dependency。
         sc.AddStarwardGameInstall();
+        sc.AddSingleton<HoYoPlayService>();
+        sc.AddSingleton<GameConfigService>();
+        sc.AddSingleton<GameResourceService>();
+        sc.AddSingleton<GenshinDispatchClient>();
+        sc.AddSingleton<GenshinHotUpdateService>();
         sc.AddSingleton<GameInstallService>();
         // Lunarward: ScreenCaptureService 依赖 Windows.Graphics.Capture + Win2D，M2 重写后再注册
         // sc.AddSingleton<ScreenCaptureService>();
