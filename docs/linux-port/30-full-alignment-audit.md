@@ -27,7 +27,9 @@
 | 6 | 构建归属核对 | `<Compile Remove>` 47 条 + `dotnet msbuild -getItem:Page`，确认「谁在真正编译」——很多同名文件是死代码 |
 | 7 | 交叉验证 | 关键结论用 `grep -n` / `sed -n` / `git log -1` 复核，脚本可复跑（§附录 E） |
 
-**基线事实**：`<Compile Remove>` 47 条；`*.Linux.cs` 31 个；`*.LinuxAuto.cs` 5 个；`Lang.resx` 1393 键；`dotnet test` 365 条；`--selftest-ui` 12 条断言。
+**基线事实（审计当天 2026-11-26 上午的快照）**：`<Compile Remove>` 47 条；`*.Linux.cs` 31 个；`*.LinuxAuto.cs` 5 个；`Lang.resx` 1393 键；`dotnet test` 365 条；`--selftest-ui` 12 条断言。
+
+> 审计完成后的修复让这些数继续变了：D135–D138 结束时是 `<Compile Remove>` **46** 条、`*.Linux.cs` **29** 个、`*.LinuxAuto.cs` 4 个、`Lang.resx` **1422** 键、`dotnet test` **368** 条、`--selftest-ui` **13** 条断言、同名差异文件 **74** 个（原 78）。以 `00-decisions.md` 的「统计口径统一」行为准，本文 §2 与附录 A 保留审计当天的数字用于对照。
 
 ## 2. 清点结果
 
@@ -225,7 +227,7 @@
 | 3 | DI 改回 Singleton | ✅ 单独一笔 `d51e6289`（D136），`--selftest-ui` 增加「根容器与 scope 同一实例」断言 |
 | 4 | DEAD 清理 | ✅ 批 1/2 `30643ed5`（D137）删 12 个零连带文件；复核保留 `SetupService.Linux`、`ScreenshotWindowsDisabled`、托盘三件套；登录页簇等真机验证 `hyp://` 后再删 |
 
-另两项产品取舍**仍待定**：F-26 `export_app` 是否保留 `Starward`、F-33 BBS 页签是否隐藏（用户未表态，暂维持现状）。
+另两项产品取舍已有结论（2026-11-26，用户「优先保证和上游一致」）：**F-26 `export_app` 回退 `Starward`**（与上游一致，第三方导入器靠这个字段识别）、**F-33 BBS 战绩页签保留**（上游有，隐藏反而偏离）；两项都写进 D138。
 
 ### 6.1 执行进度（2026-11-26）
 
@@ -237,7 +239,8 @@
 | B5 死代码批 1 | ✅ | `30643ed5`（D137）；批 2 待真机验证 |
 | B2 看图窗 | ⚠️ 高频子集 | 见上表第 2 行 |
 | B6 文档校准 | ✅ | 本表 + D135–D137 + 12-shims §9.1 + CHANGELOG |
-| B7 全量验证 | 进行中 | Release/Debug、单测、自检、lint 四件套、cli-smoke/cli-extra、publish 同参数 |
+| B7 全量验证 | ✅ | Release/Debug 0 错、368 单测、13/13 自检、lint 四件套、cli-smoke 40+1、cli-extra 28+4、`publish -r linux-x64 --self-contained` 同参数通过；CI `45807563653` 与 `45811151939` 均 success |
+| 第二轮收口（D138） | ✅ | `f3ea6f87`：F-12/F-14/F-15/F-16/F-17/F-06/F-08/F-18/F-23/F-25/F-26 + B5 批 2（登录页簇）；剩余项见 §5.1 |
 
 ---
 

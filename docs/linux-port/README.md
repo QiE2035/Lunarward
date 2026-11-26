@@ -1,8 +1,8 @@
 # Lunarward 文档总览（Starward 的 Linux 移植）
 
-- **最后更新**：2026-11-24（文档事实校准：提交数 / 测试计数 / 前缀读取耗时按实测更正；D123 视频硬解；D122 覆盖率口径；D109 米游社工具箱页签/下载组件修复；D108 运行环境页面 UI 21 条；D104–D107 运行环境 42 条实现错位；D95–D103 审计 70 条修复）
-- **当前阶段**：功能移植完成（M1–M3 主体）+ 运行环境与打包收口。**代码侧没有在做的功能批**，剩下的是真机验收。
-- **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 **186** 个提交、落后 **1** 个（2026-11-25 快照；merge base `747ed10b` = `0.19.0` 版本号提交，已随 PR #1 并入，见 D93/D128）。未并入的上游提交：`48b0cd90` `hide quick clear image when there is no clearance record (#1945)`
+- **最后更新**：2026-11-26（D128–D138：上游 0.19.0 全量合入、.NET 11 + Uno 7、全量文件级对齐复核与三轮回改；数字按当日 `dotnet test` / `list-deviations.sh` / `find` 实测重算）
+- **当前阶段**：功能移植完成（M1–M3 主体）+ 运行环境与打包收口 + **全量对齐上游 0.19.0**（D128–D138 已收口）。**代码侧没有在做的功能批**，剩下的是真机验收与引擎缺口（见 30 号 §5）。
+- **分支**：`main`（`linux-port` 自 2026-11-13 停用，仅留作历史）；`src/Starward/` 保持 **0 改动**；相对 `upstream/main` 领先 **217** 个提交、落后 **1** 个（2026-11-26 快照；merge base `747ed10b` = `0.19.0` 版本号提交，已随 PR #1 并入，见 D93/D128）。未并入的上游提交：`48b0cd90` `hide quick clear image when there is no clearance record (#1945)`
 - **版本**：`0.1.0`（`src/Lunarward/Lunarward.csproj`）
 - **分发**：AUR（`lunarward` / `lunarward-git`）、AppImage、CI 产物（`lunarward-linux-x64`，self-contained tar.gz，保留 7 天）
 - **用户文档**：[`docs/user/faq.md`](../user/faq.md)、[`docs/user/runtime-environment.md`](../user/runtime-environment.md)
@@ -15,21 +15,21 @@
 | 模块 | 状态 | 关键实现 / 入口 | 记录 |
 | --- | --- | --- | --- |
 | 主界面（启动器页） | ✅ | 背景（静态/视频）、公告/资讯、开始/暂停/更新按钮 | `12` `19` |
-| 游戏选择 | ✅ | 固定图标条 + 全屏选择层（`GameSelector`） | D56 |
+| 游戏选择 | ✅ | 固定图标条 + 全屏选择层（上游 0.19.0 的 `GameSwitcher`；移植侧自建的 `GameSelector` 已删除，D138） | D56 D138 |
 | 游戏设置 | ✅ | 分辨率/图形/HDR/语音 + 运行配置 + 后启动程序 + 诊断 | D61 D63 |
 | 注册表读取 | ✅ | 直接解析 `<prefix>/user.reg` / `system.reg`（`\xHHHH` 解码 + 长 hex 折行拼接），命中就不 fork wine，给不出结论才回落 `wine reg query`；同一键约 **95 ms**，而 fork 一次 `wine reg query`：**热缓存 0.13–0.2 s、冷启动首次 1–5 s**（不同机器/前缀差距大，以本机实测为准；历史另一次测量为热 1843 ms / 冷 4128–5411 ms，见 D86、L-174） | D86 L-174 |
-| 截图 | ✅ | `spectacle`/`grim`/`gnome-screenshot` 优先、portal 兜底；图库、批量转换 | D31 D75 |
+| 截图 | ✅ | `spectacle`/`grim`/`gnome-screenshot` 优先、portal 兜底；图库（含游戏内截图目录 + 多目录监控 + 拖出）、看图窗（缩放/复制/另存/删除）、按设置转 AVIF/JXL | D31 D75 D135 |
 | 抽卡记录 / 战绩 | ✅（未登录为空态） | `GachaLog` / `GameRecord` / `SelfQuery` | D61 |
-| 账号登录 | ✅（本程序内建 WebKitGTK 6.0 登录窗） | `WebKitLoginHost`（`--webkit-login`）+ `WebLoginService`（cookie 0600）；没有 `libwebkitgtk-6.0` 时退回 python3 助手 | D32 D76 |
-| 安装/更新/修复/预下载 | ✅ | Sophon 分块 + 差分补丁 + chunk 复用 + 断点续传 | D41 D42 |
+| 账号登录 | ✅（`HypLoginWindow` 内嵌 WebKitGTK 6.0） | 与上游一致走 `MainView.HypLoginAsync()`；`WebKitLoginHost`（`--webkit-login`）+ `WebLoginService`（cookie 0600）仍是底层；没有 `libwebkitgtk-6.0` 时退回 python3 助手。移植侧自建的 `LoginPage` 已随上游删除（D138） | D32 D76 D138 |
+| 安装/更新/修复/预下载 | ✅ | 进程内 facade 直接调上游 `Starward.GameInstall.GameInstallRunner`（Sophon 分块 + 差分补丁 + chunk 复用 + 断点续传都由上游实现；移植侧自研管线已于 D128 删除） | D41 D42 D128 |
 | 运行环境（Linux 新增） | ✅ | 一级页（左栏齿轮正上方）：**方案 master-detail**（左列列表 + 右栏五段卡片：运行器 / 图形层 / 前缀 / 增强 / 最近启动）+ chip 条 + 组件页收敛（主按钮 + 更多 + 筛选）+ 前缀占用条与所属方案 + 默认运行器（D85）；组件层（扫描含 Steam 自定义库 / 下载队列 / 导入 / 健康检查 / 受管删除 / 镜像测速 / 暂存列表 / 源编辑）+ 前缀只是路径 + 八字段环境 + 首次使用自动建环境 + 一致性同步/清理未使用/启动历史/预设（D84） | D58 D73 D74 D77 D78 D84 D85 D87 |
 | 外部能力 | ✅ | 打开链接 / 选文件 / 通知 / 截图走 portal，外部命令仅兜底；图片补齐 AVIF·JXL·HEIC | D75 |
 | 启动前预检 | ✅ | 11 项只读检查（运行身份 / 可执行文件 / 运行器 / 前缀 / 结构 / 可写 / 占用 / 图形组件 / 游戏自带 dll / 游戏架构 / 增强开关）+ 失败弹窗按层分组给动作 | D44 D77 D78 |
-| 命令行 | ✅ | 79 个开关的帮助与校验来自 `Helpers/CliSpec.cs` 单一来源，未知开关 exit 2 并给最接近候选 | D79 |
+| 命令行 | ✅ | 72 条命令的帮助与校验来自 `Helpers/CliSpec.cs` 单一来源（含 `startgame` / `playtime` / `rpc` 三个裸子命令），未知开关 exit 2 并给最接近候选 | D79 D138 |
 | 组件与解压 | ✅ | `ArchiveExtractor`（进程内解压，可取消、有进度）+ `ComponentDownloader`（分片并行 / 暂停续传） | D73 `24` P1 |
 | 伴随启动 / 一次性运行 / 调试 Shell | ✅ | `CompanionRunner`、`RunOnceService`、`ProfileShellService` | D24 D64 |
 | 托盘 / 热键 / 窗口显隐 | ✅ | StatusNotifierItem、X11 轮询热键、libxcb 显隐 | D43 D47 |
-| 单实例 / 深链 / 通知 / 诊断包 | ✅ | `SingleInstancePipe`、`lunarward://`、通知走 `org.freedesktop.Notifications`（`notify-send` 仅兜底）、`--diagnose` | D50 D59 D75 |
+| 单实例 / 深链 / 通知 / 诊断包 | ✅ | `SingleInstancePipe`（`show` / `exit` / `startgame<TAB>biz<TAB>install_path`）、`lunarward://startgame/<biz>?install_path=…`、通知走 `org.freedesktop.Notifications`（`notify-send` 仅兜底）、`--diagnose`（默认 XDG 下载目录） | D50 D59 D75 D138 |
 | 打包与分发 | ✅ | 三份 PKGBUILD 依赖清单单一来源（含 `libxcb`/`webkitgtk-6.0`/`xdg-utils`）+ `packaging/PKGBUILD` 默认打本地 HEAD（`LUNARWARD_SOURCE=remote` 切远端）+ AppImage + CI 自包含产物 | D88 D89 D90 D91 |
 | 悬浮窗 / 手柄 / RPC / 云游戏·战绩·BBS 桥 | ⬜ M4 | 占位，明确暂不做 | `12` `19` |
 
@@ -39,8 +39,9 @@
 
 **待真机验收**
 
-- 真实米游社登录（D76 只用带 `Set-Cookie` 的本地假服务验过）。
-- 原神 / 绝区零真实启动、真实登录回填、游玩时长记录。
+- 真实米游社登录（D76 只用带 `Set-Cookie` 的本地假服务验过；D138 把登录统一到 `HypLoginAsync` 后也未在真机点过一次）。
+- 原神 / 星铁 / 绝区零真实安装、更新、启动、登录回填、游玩时长记录。
+- 热更新整链路（D131/D132 起的 `GenshinHotUpdateService` 在 Linux 上启用，打补丁走 `HardLinkCompat` + Wine 注册表读服务器名，只在假前缀上验过）。
 - AUR 包在非本机环境 `makepkg -f` 真跑一次（D89 只放宽了 SDK 下限，本机无 10.0.1xx SDK 可测）。
 
 **测试欠账**
@@ -48,8 +49,11 @@
 - `19` 附录 L3 首轮：`T-UI-33 换游戏` 未完成（选择器需先 hover 左上角才展开）。
 - 两项旧缺陷（滚动条不可见、分辨率 0×0）未再复现，原记录随 22 号删除；要追就照 `19` 的 L3 用例重跑一次。
 - 交互 / 状态 / 性能三组 L3 用例尚未跑完，记录直接写进 `19` 附录。
+- `--selftest-ui` 现有 13 条断言，其中 3 条是 2026-11-26 新增（`ScreenshotSetting` 能加载自己的 XAML、安装链路服务根容器与 scope 同一实例、运行环境是一级页）。
 
-**依赖（`24`）**：P1–P5 全部有结论，无待做批次。
+**依赖（`24`）**：P1–P5 全部有结论，无待做批次；2026-11-26 复核后 `Process.Start(` 字面量 49 处（存活 42 + 死代码 7），`NoWarn`/`internal` 的库内调用另计，详见该文 §1。
+
+**引擎缺口（改不动，已登记到 30 号 §5）**：无 DWM 丙烯（只铺不透明底色，部分页面壁纸透字）、`Segoe Fluent Icons`/`Segoe MDL2 Assets` 族名被 Uno 拦截（图标已改 Uno Symbols + 码位替换，L-15/L-88）、`PipsPager` 模板不响应、截图卡片圆角裁剪（Toolkit `ClipToBounds` 随 L-185 移除包）、截图颜色管理 / HDR→SDR 编码、纯 Wayland 下全局热键不可用（X11 轮询）。
 
 ---
 
@@ -59,20 +63,20 @@
 
 | 文档 | 用途 |
 | --- | --- |
-| `00-decisions.md` | **唯一决策源**：D0–D138 的结论、理由、代价、变更记录 |
+| `00-decisions.md` | **唯一决策源**：D0–D139 的结论、理由、代价、变更记录 |
 | `12-shims-and-gaps.md` | **唯一状态登记表**：每处替身/缺口的真实状态 |
-| `13-lessons.md` | **唯一坑记录**：L-01…L-190 的实测结论与复现方法（编号勘误见文末）（单元测试数量以 `dotnet test` 输出为准） |
+| `13-lessons.md` | **唯一坑记录**：L-01…L-193 的实测结论与复现方法（编号勘误见文末）（单元测试数量以 `dotnet test` 输出为准） |
 | `18-upstream-deviations.md` | 移植偏差原则、登记标记、上游同步流程 |
-| `18-upstream-table.md` | 同名差异文件的自动分类与复核进度（`scripts/list-deviations.sh` 生成）；逐点清单以 `25` 为准 |
+| `18-upstream-table.md` | 同名差异文件（当前 74 个）的自动分类与复核进度（`list-deviations.sh` + 变更行统计生成）；逐点清单以 `25` 为准 |
 | `19-test-plan.md` | **唯一测试计划**：237 条用例（225 `T-*` + 12 `RG-*`，按表内唯一 ID 统计）、L1/L1.5/L2/L3 分层、性能预算、缺陷流程 |
 | `23-runtime-env-design.md` | **运行环境设计的唯一依据**：三概念 / 自洽硬目标 / 受管组件 / 八字段 / 验收项 / §13 实施记录 |
-| `24-dependency-audit.md` | 依赖盘点：43 处存活外部进程逐条判定 + 手写实现可换库项 + 新增依赖清单 + 批次执行记录 |
-| `25-deviation-register.md` | **逐点偏离总账**：345 点 / 113 个文件条目，标类别、必要性（must/reasonable/avoidable）、可否回流；含 53 条排除清单与 19 条可避免清单（D134 分批回改 78 条后）；2026-11-25 按上游 0.19.0 全量重算 |
+| `24-dependency-audit.md` | 依赖盘点：外部进程逐条判定（2026-11-26 复核为字面量 49 / 存活 42）+ 手写实现可换库项 + 新增依赖清单 + 批次执行记录 |
+| `25-deviation-register.md` | **逐点偏离总账**：345 点 / 113 个文件条目，标类别、必要性（must/reasonable/avoidable）、可否回流；含 53 条排除清单与 19 条可避免清单（D134 分批回改 78 条后；D135/D138 又回改 12 条，见 §2.5/§2.6）；2026-11-25 按上游 0.19.0 全量重算 |
 | `28-runtime-env-audit.md` | **运行环境模块审查**：第一轮 R01–R42 已按批次 A–D 修复（D104–D107）；第二轮 2026-11-24 复审 R43–R130（3 Critical / 52 High / 20 Medium / 13 Low），批 E–J（R43–R97，D115–D120）与批 K（R98–R130，D121）已全部修完；动运行环境前先读 |
 | `29-runtime-env-ui-audit.md` | **运行环境页面 UI 审查**：21 条（术语/i18n、布局视觉、交互可达性），D108 已全部修复；改运行环境页面前先读 |
 | `26-misalignment-audit.md` | **实现错位 bug 候选**：76 条（high 29 / medium 31 / low 16），2026-11-22 已全部读码复核（成立 51 / 部分成立 19 / 不成立 6），**已修复 70 条**（D95–D103，6 条不成立不修）；修复提交引用 `B..` 编号 |
 | `27-audit-report.md` | **审计可读版（修复前快照）**：按模块讲每条「哪里错、上游怎么写、用户看到什么」，与 `26` 同编号；交接、复盘先读它，状态以 `26` 为准 |
-| `30-full-alignment-audit.md` | **全量文件级对齐复核**（2026-11-26）：351↔484 文件逐行对读、78 个差异文件全文判读、16 个仅上游与 149 个仅移植逐个定性；六条旧结论更正 + 7 批修复计划（B1–B7，约 60 条），逐文件原始报告在 `30-appendix/`（8 份） |
+| `30-full-alignment-audit.md` | **全量文件级对齐复核**（2026-11-26）：351↔484 文件逐行对读、差异文件全文判读、16 个仅上游与 149 个仅移植逐个定性；六条旧结论更正 + B1–B7 修复计划（已执行到第二轮，D135/D136/D137/D138），逐文件原始报告在 `30-appendix/`（8 份） |
 | `README.md` | 本文 |
 
 数据与证据：`screenshots/`（截图证据）、`perf-baseline.json`（性能基线快照）。
@@ -95,6 +99,7 @@
 - **要改代码** → `12`（先看是不是替身）→ `13`（有没有踩过）→ `00`（D 编号与代价）
 - **碰运行环境** → `23`（唯一设计依据）→ `28`（常见错位）→ `29`（页面 UI 约定）
 - **想看 76 条实现错位现在修到哪** → `26`（唯一状态源，§1 有复核结论表）；`27` 只用于快速理解问题，别再拿它当进度表
+- **想核「和上游到底差多少」** → `30`（全量复核报告，含 74 个同名差异文件的逐条判定）+ `25`（逐点总账）
 - **要查某处是不是「真的做了」** → `12`
 - **要加测试** → `19`（先登记用例 ID）
 - **要加/换依赖** → `24`（先看有没有论证过）

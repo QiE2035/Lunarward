@@ -2,7 +2,7 @@
 
 > 这份文档回答一个问题：**Linux 版里，哪些地方是「真的做了」，哪些只是「先让它编译过」？**
 >
-> **最后核对**：2026-11-24（HEAD `2b86682`，D123）。本文只回答「实现了没有、还是只是替身」。
+> **最后核对**：2026-11-26（HEAD `f3ea6f87`，D138）。本文只回答「实现了没有、还是只是替身」。
 >
 > **数据来源**（2026-11-24 全部重跑，勿凭记忆填数）：`bash scripts/list-deviations.sh`、`grep -c '<Compile Remove' src/Lunarward/Lunarward.csproj`、`find src/Lunarward -name '*.Linux.cs'`。
 >
@@ -13,12 +13,12 @@
 >
 > **本表是唯一登记处。** 其它文档只描述机制，不描述状态。
 >
-> 逐点偏离（265 条，含必要性判定）见 `25-deviation-register.md`；实现错位 bug 候选（76 条，已全部复核）见 `26-misalignment-audit.md`。
+> 逐点偏离见 `25-deviation-register.md`（2026-11-25 按上游 0.19.0 全量重算，见该文 §1）；实现错位 bug 候选（76 条，已全部复核）见 `26-misalignment-audit.md`。
 
-- 最后更新：2026-11-24（全表复核：§3 补登 4 个漏登文件并纠正 2 处路径、§6 按 csproj 现算 53 条、§7 用 diff 脚本重算 XAML 差异；2026-11-20 的文档整理记录：删 17 份过时文档、D91 打包本地源、D90 CI 产物、D89 SDK 下限、D88 打包依赖单一来源、D87 运行器显示名、D86 注册表改读文件）
-- 对应代码：`src/Lunarward/`（`main` 分支；`git rev-list --count HEAD` = 1485 提交，其中 109 条动过 `src/Lunarward/`；`linux-port` 已于 2026-11-13 停用）
-- 最后核对：2026-11-25（HEAD = 合并 upstream 0.19.0 + net11 分支工作区）
-- 规模：**29 个** `*.Linux.cs`、5 个 `*.LinuxAuto.cs`、`Compat/` 兼容层 2 个文件（`VanaraHotkeyCompat.cs`、`NotifyIcon/TaskbarIconCompat.cs`）、47 条 `<Compile Remove>`（2026-11-25 `find` / `grep` 实测；对齐上游 0.19.0 后 `GameInstallShims.cs`、`GameInstallService.Linux.cs`、`InstallGameDialog.Linux.cs`、`PreDownloadDialog.Linux.cs` 四个文件已删除，`WindowEx.Linux.cs` 随基类改名 `WindowBase.Linux.cs`）
+- 变更历史见文末；2026-11-20 的文档整理记录：删 17 份过时文档、D91 打包本地源、D90 CI 产物、D89 SDK 下限、D88 打包依赖单一来源、D87 运行器显示名、D86 注册表改读文件
+- 对应代码：`src/Lunarward/`（`main` 分支；`git rev-list --count HEAD` = 1539 提交，其中 142 条动过 `src/Lunarward/`；`linux-port` 已于 2026-11-13 停用）
+- 最后核对：2026-11-26（HEAD `f3ea6f87`；D135–D138 之后重跑 `find` / `grep` / XAML 脚本）
+- 规模：**29 个** `*.Linux.cs`、**4 个** `*.LinuxAuto.cs`、`Compat/` 兼容层 2 个文件（`VanaraHotkeyCompat.cs`、`NotifyIcon/TaskbarIconCompat.cs`）、**46 条** `<Compile Remove>`（2026-11-26 `find` / `grep` 实测；对齐上游 0.19.0 后 `GameInstallShims.cs`、`GameInstallService.Linux.cs`、`InstallGameDialog.Linux.cs`、`PreDownloadDialog.Linux.cs`、`GameRecord/LoginPage.Linux.cs`、`GameRecord/LoginPage.LinuxAuto.cs`、`RPC/RpcService.Linux.cs`、`Helpers/WindowWaitAsync.Linux.cs` 等已删，`WindowEx.Linux.cs` 随基类改名 `WindowBase.Linux.cs`）
 
 ---
 
@@ -71,7 +71,7 @@
 
 ---
 
-## 3 · Linux 实现文件（30 个 `*.Linux.cs` + 3 个非 `*.Linux.cs` 替身）
+## 3 · Linux 实现文件（29 个 `*.Linux.cs` + 3 个非 `*.Linux.cs` 替身）
 
 | 文件 | 替代的 Windows 机制 | 状态 | 里程碑 | 说明 |
 |---|---|---|---|---|
@@ -173,15 +173,15 @@
 
 ## 6 · 排除编译的上游文件（46 条）
 
-> 口径：`grep -c '<Compile Remove' src/Lunarward/Lunarward.csproj` = **47**（2026-11-25 重跑；D134 删掉上游已移除的截图二代/批量转换/图片查看与 `TestUrlProtocolWindow` 后从 53 降到 47）。逐条文件清单见 `25-deviation-register.md` 附录 A（与 csproj 逐条一致，脚本比对无差异）。
+> 口径：`grep -c '<Compile Remove' src/Lunarward/Lunarward.csproj` = **46**（2026-11-26 重跑；D134 删掉截图二代/批量转换/图片查看与 `TestUrlProtocolWindow` 的 53→47，D137/D138 又删掉 `RpcService.Linux.cs`、`WindowWaitAsync.Linux.cs` 等已不存在的对应项后降到 46）。逐条文件清单见 `25-deviation-register.md` 附录 A（与 csproj 逐条一致，脚本比对无差异）。
 
 | 子系统 | 条数 | 代表文件 | 排除原因 | 归属 |
 |---|---|---|---|---|
 | `Features/Screenshot/*` | 7 | `ScreenshotPage.xaml.cs`、`ScreenCaptureService.cs`、`ScreenshotHelper.cs` | DXGI/Win2D 画布与捕获 | M3 已用 Linux 实现替代，剩余 Warp 见 §2 |
 | `Features/Codec/*` | 8 | `ImageLoader.cs`、`HDR10GammaEffect.cs` | Win2D/ComputeSharp 特效 | M4（接 `Starward.Codec` + 系统原生库） |
 | `Helpers/*`（Windows 原版） | 8 | `FileDialogHelper.cs`、`HotkeyManager.cs`、`DriveHelper.cs`、`AccentColorHelper.cs` 等 | 已有 `.Linux.cs` | M1 |
-| `Features/GameInstall/*` | 4 | `GameInstallService.cs`、`GameInstallTaskStartedMessage.cs`、`InstallGameDialog.xaml.cs` | gRPC/RPC + Windows 路径 | M3 已替代：流程搬进主进程 |
-| `Features/GameRecord/*` | 3 | `LoginPage.xaml.cs`、`BBSWebBridge.xaml.cs`、`BattleChronicleWindow.xaml.cs` | WebView2 脚本桥 | M2/M4 |
+| `Features/GameInstall/*` | 1 | `GameInstallService.cs` | gRPC/RPC + Windows 路径 | M3 已替代：流程搬进主进程（其余上游文件随 0.19.0 重写不再被排除） |
+| `Features/GameRecord/*` | 2 | `BBSWebBridge.xaml.cs`、`BattleChronicleWindow.xaml.cs` | WebView2 脚本桥 | M2/M4（`LoginPage.xaml.cs` 已随上游删页一起删除，D138） |
 | `Features/Overlay/*` | 3 | `OverlayWindow.xaml.cs`、`RunningGameService.cs`、`RunningGame.cs` | Win32 钩子 | M4 |
 | `Features/Update/*` | 3 | `SetupService.cs`、`UpdateService.cs`、`UpdateWindow.xaml.cs` | Windows 安装器 | M2 已替代 |
 | `Features/Background/*` | 2 | `AppBackground.xaml.cs`、`AccentColorHelper.cs` | Win2D + MediaPlayer / WinRT 取色 | M3 已替代；`BackgroundViewWindow.xaml.cs` **没有被排除**，仍在编译 |
@@ -190,10 +190,10 @@
 | `Features/UrlProtocol/*` | 1 | `UrlProtocolService.cs` | 注册表 | M2 已替代 |
 | `Controls/*` | 1 | `CachedImage.cs` | 依赖 WinUI 控件库 | M1 已替代（`Controls/CachedImage.Linux.cs`） |
 | `Features/GameSetting/*` | 1 | `GenshinHDRLuminanceSettingDialog.xaml.cs` | Win2D 实时预览 | M3 已用代码重建对话框 |
-| `Features/RPC/*` | 1 | `RpcService.cs` | 命名管道 | M4 |
+| `Features/RPC/*` | 3 | `RpcService.cs` 及其消息类型 | 命名管道 | M4（`RpcService.Linux.cs` 已删，D137） |
 | `Features/WindowBase.cs` | 1 | 上游 Windows 实现（Vanara User32 子类化） | PInvoke 标题栏 | 用 `Features/WindowBase.Linux.cs` 替代，拖拽/最小化交给 WM；上游那份不编译 |
 
-按目录汇总（脚本输出，合计 47）：`Screenshot` 7、`Codec` 8、`Helpers` 8、`GameInstall` 4、`GameRecord` 3、`Overlay` 3、`Update` 3、`Background` 2、`GamepadControl` 2、`Setting` 2、`UrlProtocol` 1、`Controls` 1、`GameSetting` 1、`RPC` 1、`Frameworks` 1。
+按目录汇总（脚本输出，合计 **46**）：`Helpers` 8、`Codec` 8、`Screenshot` 7、`Update` 3、`RPC` 3、`Overlay` 3、`Setting` 2、`GameRecord` 2、`GamepadControl` 2、`Background` 2、`Frameworks` 1、`Features/WindowBase.cs` 1、`UrlProtocol` 1、`GameSetting` 1、`GameInstall` 1、`Controls` 1。
 
 ```bash
 # 复算：按目录聚合（2026-11-24 用过）
@@ -208,81 +208,79 @@ grep -o '<Compile Remove="[^"]*"' src/Lunarward/Lunarward.csproj | sed 's/<Compi
 - 删掉移植侧自建登录页：`Features/GameRecord/LoginPage.xaml`、`LoginPage.Linux.cs`、`LoginPage.LinuxAuto.cs`、`GameRecordService.cs`、`GameRecordRoleChangedMessage.cs`。上游 0.19.0 已无该页，登录统一走 `MainView.HypLoginAsync()`（`HypLoginWindow` + WebKitGTK）。`WebLoginService`/`WebKitLoginHost`/`--webkit-login` 保留（BBS 桥与 CLI 助手仍用）。
 - 因此 `*.Linux.cs` 从 31 个降到 **29 个**，同名差异文件从 78 降到 **74**（删掉的 4 个中有的是上游已不存在、有的是移植独有）。
 
-## 7 · 与上游 XAML 的差异（37 个字节不同：32 个实质差异 + 5 个仅编码差异；另有 6 个缺失）
+## 7 · 与上游 XAML 的差异（27 个实质差异 + 0 个仅编码 + 8 个缺失 + 3 个移植独有）
 
-> 口径（2026-11-24 重算，脚本见本节末）：`src/Starward` 共 82 个 `.xaml`，其中 39 个与移植侧逐字节相同；37 个字节不同——32 个文本有实质差异、5 个只差 BOM/换行；另有 6 个移植侧没有同名文件（5 个改名 `*.xaml.disabled` + 已删除的 `GameNoticeWindow.xaml`）。
+> 口径（2026-11-26 重算，脚本见本节末）：`src/Starward` 共 **88** 个 `.xaml`，其中与移植侧同名且逐字节相同 **53** 个、字节不同 **27** 个（全部是文本实质差异，仅 BOM/换行差异 **0** 个）、移植侧没有同名文件的 **8** 个；另有移植侧独有 **3** 个。
 >
 > 原则不变：**能不改就不改**，每一处都要能说清「为什么非改不可」。差异行数 = `diff -u` 的新增 + 删除行数。
+>
+> D138 之后这张表变短了：`GameLauncherSettingDialog.xaml` 已与上游逐字节相同（上游 0.19.0 重写），`GameSelector.xaml`、`LoginPage.xaml`、`TestUrlProtocolWindow.xaml` 随页面一起删除。
 
 | # | 文件 | 差异行（+新增/−删除） | 一句话原因 |
 |---:|---|---:|---|
-| 1 | `Features/GameLauncher/GameLauncherSettingDialog.xaml` | 1077（+542/−535） | `NavigationView` 左栏 + 纵向 `FlipView` 改成 `200/*` 两列网格、删掉整段 `FlipView_Settings`（Uno 纵向 `FlipView` 翻页手势与选中索引不同步、内容超高时底部不可达）；主题 `CustomAcrylicBrush`→`LunarwardSurfaceBrush`，Glyph `F012`→`E896` |
-| 2 | `Features/Screenshot/ScreenshotPage.xaml` | 258（+52/−206） | `GridView`+`GroupStyle` → `ItemsControl`+`WrapPanel`（Uno 分组容器不渲染，L-48，用户拍板） |
-| 3 | `Features/GameSetting/GameSettingPage.xaml` | 93（+88/−5） | 加「运行配置」「后启动程序」分区（D28）、修上游 `Grid.Row` 越界一处（L-37） |
-| 4 | `Features/Setting/AdvancedSetting.xaml` | 56（+56/−0） | 加「RPC 服务未实现」InfoBar（D61）、诊断包与「运行输出」按钮 |
-| 5 | `Features/GameLauncher/GameBannerAndPost.xaml` | 35（+22/−13） | banner 加 `DecodePixelWidth`/`Tapped`、`Pivot` 加 `x:Name`；帖子行 `MaxWidth=340`、`Hyperlink`→`Tapped` 走 `OpenUrl`（L-74） |
-| 6 | `Features/Background/BackgroundViewPage.xaml` | 35（+16/−19） | `GridView`→`ListView`+`tk:WrapPanel`；`CachedImage` 改 `DecodePixelWidth`/`DisplayPath`（D49/L-48） |
-| 7 | `Features/GameLauncher/GameLauncherPage.xaml` | 33（+24/−9） | 加 `NavigationCacheMode`；`PipsPager` 改代码生成圆点（L-69）；加安装任务状态条 |
-| 8 | `Features/GameRecord/ZZZ/ShiyuDefensePage.xaml` | 30（+15/−15） | 图标码位替换（`F08F`→`E768`）；`ElementWeaknessVisibility(...,-1)` → `ElementWeaknessConstants.None` |
-| 9 | `Features/GameRecord/LoginPage.xaml` | 29（+26/−3） | 隐藏 `WebView2`，叠「在独立窗口中登录」面板（D29/D32） |
-| 10 | `Features/GameRecord/StarRail/SimulatedUniversePage.xaml` | 27（+16/−11） | `ItemsRepeater`+`cc:WrapLayout` → `ItemsControl`+`cc:WrapPanel`（Uno 不调自定义 `Layout`） |
-| 11 | `Features/Setting/GeneralSetting.xaml` | 24（+2/−22） | 删「透明/动画效果」Windows 系统设置引导段（Linux 无对应开关，D61）；托盘文案去 `x:Bind` |
-| 12 | `Features/GameRecord/GameRecordPage.xaml` | 22（+21/−1） | 未登录空态（D61/B50），只盖内容区、保留左侧工具箱可点 |
-| 13 | `Features/ViewHost/MainView.xaml` | 21（+18/−3） | 「运行环境」进 footer 一级页（D80）；图标码位替换 |
-| 14 | `Features/Setting/SettingPage.xaml` | 14（+10/−4） | 移除「运行环境」子导航项（D80）；页面给实底（D61）；`XboxFluent2` 手柄图标改内置 `Symbols`（`E7FC`） |
-| 15 | `App.xaml` | 10（+8/−2） | 弹层/菜单/下拉改实底 `LunarwardSurfaceBrush`（半透明时底层文字透过来，D61） |
-| 16 | `Features/Setting/GamepadControlSetting.xaml` | 9（+9/−0） | 整页置灰 + 「M4 未实现」InfoBar（D61） |
-| 17 | `Features/Setting/ScreenshotSetting.xaml` | 8（+4/−4） | 单键热键的「管理员权限」提示改 Linux 口径（X11 轮询；Wayland 用系统快捷键）；`Visibility` 补 `Mode=OneWay` |
-| 18 | `Features/GameSelector/GameSelector.xaml` | 8（+5/−3） | 卡片宽高由代码按可用宽度均分（D56），不依赖横向滚动 |
-| 19 | `Features/Setting/AboutSetting.xaml` | 6（+3/−3） | 品牌改 Lunarward（logo `lunarward.png`、版权行） |
-| 20 | `Features/GameLauncher/StartGameButton.xaml` | 6（+3/−3） | 图标码位替换（`E917`→`E823`、`F012`→`E896`，L-88） |
-| 21 | `Features/GameInstall/PreDownloadDialog.xaml` | 6（+3/−3） | 三处 `Run.Text` 补 `Mode=OneWay` |
-| 22 | `Features/Setting/HotkeySetting.xaml` | 4（+2/−2） | 「管理员权限」提示改 Linux 口径（D61） |
-| 23 | `Features/GameRecord/DailyNote/DailyNoteButton.xaml` | 4（+2/−2） | `ToString('HH\:mm')` → `'HH\\:mm'`（Uno 把 `\:` 当非法转义，L-16）+ 图标码位 |
-| 24 | `Features/GameInstall/PreDownloadButton.xaml` | 4（+2/−2） | 图标码位替换 |
-| 25 | `Features/Update/UpdateWindow.xaml` | 3（+2/−1） | 错误文案 `TextBlock` 加 `x:Name` 供代码控制可见性 |
-| 26 | `Features/Setting/FileManageSetting.xaml` | 3（+1/−2） | 去掉 `IsTextTrimmedChanged`（Uno 不触发，L-132）+ 图标码位 |
-| 27 | `Features/SelfQuery/SelfQueryPage.xaml` | 3（+2/−1） | 加 `NavigationCacheMode="Required"` |
-| 28 | `Features/Gacha/GenshinBeyondGachaPage.xaml` | 3（+2/−1） | 同上 |
-| 29 | `Features/Gacha/GachaLogPage.xaml` | 3（+2/−1） | 同上 |
-| 30 | `Features/UrlProtocol/TestUrlProtocolWindow.xaml` | 2（+1/−1） | logo 换 `lunarward.png` |
-| 31 | `Features/Screenshot/ScreenshotFolderManageDialog.xaml` | 2（+1/−1） | 图标码位替换 |
-| 32 | `Features/GameInstall/InstallGameDialog.xaml` | 2（+1/−1） | `MaxLines` 属性换序 |
+| 1 | `Features/Screenshot/ScreenshotPage.xaml` | 263（+57/−206） | `GridView`+`GroupStyle` → `ItemsControl`+`WrapPanel`（Uno 分组容器不渲染，L-48）；条目加 `IsThumbnail`、`RightTapped`、`PointerCursor` |
+| 2 | `Features/GameSetting/GameSettingPage.xaml` | 93（+88/−5） | 加「运行配置」「后启动程序」分区（D28）、修上游 `Grid.Row` 越界一处（L-37） |
+| 3 | `Features/Setting/AdvancedSetting.xaml` | 52（+51/−1） | 诊断包与「运行输出」按钮、文案走 `x:Bind lang:`（D133/D138） |
+| 4 | `Features/GameLauncher/GameBannerAndPost.xaml` | 35（+22/−13） | banner 加 `DecodePixelWidth`/`Tapped`、`Pivot` 加 `x:Name`；帖子行 `MaxWidth=340`、`Hyperlink`→`Tapped` 走 `OpenUrl`（L-74） |
+| 5 | `Features/Background/BackgroundViewPage.xaml` | 35（+16/−19） | `GridView`→`ListView`+`tk:WrapPanel`；`CachedImage` 改 `DecodePixelWidth`/`DisplayPath`（D49/L-48） |
+| 6 | `Features/GameRecord/ZZZ/ShiyuDefensePage.xaml` | 30（+15/−15） | 图标码位替换（`F08F`→`E768`）；`ElementWeaknessVisibility(...,-1)` → `ElementWeaknessConstants.None` |
+| 7 | `Features/GameRecord/StarRail/SimulatedUniversePage.xaml` | 27（+16/−11） | `ItemsRepeater`+`cc:WrapLayout` → `ItemsControl`+`cc:WrapPanel`（Uno 不调自定义 `Layout`） |
+| 8 | `Features/GameLauncher/GameLauncherPage.xaml` | 25（+23/−2） | 加 `NavigationCacheMode`；`PipsPager` 改代码生成圆点（L-69）；安装任务状态条 `Maximum="100"`（D135）；背景切换条改用上游 `BackgroundSwitcher`（D134） |
+| 9 | `Features/GameRecord/GameRecordPage.xaml` | 24（+22/−2） | 未登录空态（D61/B50），只盖内容区、保留左侧工具箱可点；登录入口随上游改走 `HypLoginAsync`（D138） |
+| 10 | `Features/Setting/GeneralSetting.xaml` | 22（+1/−21） | 删「透明/动画效果」Windows 系统设置引导段（Linux 无对应开关，D61）；托盘文案走 `Lang`（D134/D138） |
+| 11 | `Features/ViewHost/MainView.xaml` | 16（+16/−0） | 「运行环境」进 footer 一级页（D80）；图标码位替换 |
+| 12 | `Features/Setting/SettingPage.xaml` | 16（+11/−5） | 移除「运行环境」子导航项（D80）；页面给实底（D61）；`XboxFluent2` 手柄图标改内置 `Symbols`（`E7FC`） |
+| 13 | `Features/Setting/ScreenshotSetting.xaml` | 12（+3/−9） | 单键热键提示改 Linux 口径（X11 轮询；Wayland 用系统快捷键）；删掉从未引用的 `TextBlock_CaptureError`（D134/D138） |
+| 14 | `App.xaml` | 10（+8/−2） | 弹层/菜单/下拉改实底 `LunarwardSurfaceBrush`（半透明时底层文字透过来，D61）；D135 删掉与面板同色的分隔线覆盖 |
+| 15 | `Features/Setting/GamepadControlSetting.xaml` | 9（+9/−0） | 整页置灰 + 「M4 未实现」InfoBar（D61） |
+| 16 | `Features/Setting/AboutSetting.xaml` | 6（+3/−3） | 品牌改 Lunarward（logo `lunarward.png`、版权行） |
+| 17 | `Features/Gacha/GenshinBeyondGachaPage.xaml` | 5（+3/−2） | 组件改动不参与渲染，补 `NavigationCacheMode="Required"` 与资源引用 |
+| 18 | `Features/Setting/HotkeySetting.xaml` | 4（+2/−2） | 「管理员权限」提示改 Linux 口径（D61） |
+| 19 | `Features/GameRecord/DailyNote/DailyNoteButton.xaml` | 4（+2/−2） | `ToString('HH\:mm')` → `'HH\\:mm'`（Uno 把 `\:` 当非法转义，L-16）+ 图标码位 |
+| 20 | `Features/GameInstall/PreDownloadButton.xaml` | 4（+2/−2） | 图标码位替换 |
+| 21 | `Features/GameInstall/InstallGameDialog.xaml` | 4（+2/−2） | 图标码位替换 |
+| 22 | `Features/Update/UpdateWindow.xaml` | 3（+2/−1） | 错误文案 `TextBlock` 加 `x:Name`（D138 起由 `INotifyPropertyChanged` 驱动，XAML 仍与上游同为 OneTime） |
+| 23 | `Features/SelfQuery/SelfQueryPage.xaml` | 3（+2/−1） | 加 `NavigationCacheMode="Required"` |
+| 24 | `Features/Gacha/GachaLogPage.xaml` | 3（+2/−1） | 同上；云游戏抽卡入口在 Linux 隐藏（D135，Uno WebView 无 `ExecuteScriptAsync`） |
+| 25 | `Features/ViewHost/SystemTrayWindow.xaml` | 2（+1/−1） | 托盘菜单标题与上游同文字，仅窗口属性差异（`ExtendsContentIntoTitleBar`） |
+| 26 | `Features/Setting/FileManageSetting.xaml` | 2（+1/−1） | 恢复 `IsTextTrimmedChanged`（`PageBase` 的 protected 方法，D138） |
+| 27 | `Features/Screenshot/ScreenshotFolderManageDialog.xaml` | 2（+1/−1） | 图标码位替换 |
 
-**仅编码差异（内容一致，5 个）**：`Features/Gacha/GachaStatsCard.xaml`、`Features/Gacha/ZZZGachaStatsCard.xaml`、`Features/GameRecord/StarRail/ApocalypticShadowPage.xaml`、`Features/GameRecord/StarRail/ForgottenHallPage.xaml`、`Features/GameRecord/StarRail/PureFictionPage.xaml` —— 只差 BOM / 换行，渲染与行为完全一致。
-
-**缺失（移植侧没有同名文件，6 个）**：
+**缺失（移植侧没有同名文件，8 个）**：
 
 | 文件 | 现状 | 原因 |
 |---|---|---|
-| `Features/GameLauncher/GameNoticeWindow.xaml` | 已删除（提交 `5cd4862b`，D64） | 公告/资讯改系统浏览器打开（D40/D64） |
-| `Features/GameSetting/GenshinHDRLuminanceSettingDialog.xaml` | 改名 `*.xaml.disabled` | 整页 Win2D 实时预览 + DirectX 色彩管理（D31）；`<Page Remove>` 在 Uno SDK 不生效（L-17） |
-| `Features/Screenshot/ImageBatchConvertWindow.xaml` | `.xaml.disabled` | Win2D 批量转换窗，功能由 `ScreenshotConverter` + 设置页「批量转 JPG」覆盖 |
-| `Features/Screenshot/ImageViewWindow2.xaml` | `.xaml.disabled` | Win2D 看图窗，改用自研 `ScreenshotViewerWindow` |
-| `Features/Screenshot/ScreenCaptureInfoWindow.xaml` | `.xaml.disabled` | DXGI 捕获提示窗（`.xaml.cs` 一并排除），Linux 侧失败走通知 + 日志 |
-| `Features/Screenshot/ScreenshotPage2.xaml` | `.xaml.disabled` | 旧版图库页，已被重写的 `ScreenshotPage` 取代 |
+| `Features/GameLauncher/GameNoticeWindow.xaml` | 已删除（`5cd4862b`，D64） | 公告/资讯改系统浏览器打开（D40/D64） |
+| `Features/GameSetting/GenshinHDRLuminanceSettingDialog.xaml` | 改名 `*.xaml.disabled` + code-behind 由 `.Linux.cs` 手写 | 整页 Win2D 实时预览 + DirectX 色彩管理（D31）；`<Page Remove>` 在 Uno SDK 不生效（L-17） |
+| `Features/Screenshot/ImageBatchConvertWindow.xaml` | 不再存在于移植侧（D137 删） | 上游仍在用；移植侧「批量转 JPG」由设置页 + `ScreenshotConverter` 覆盖，完整窗口留 M4（30 号 B2 判「可选」） |
+| `Features/Screenshot/ImageViewWindow.xaml` | 不再存在（D137 删） | 上游零引用，属死代码（30 号 B2 判「不需要」） |
+| `Features/Screenshot/ImageViewWindow2.xaml` | 不再存在 | 高频子集由 `ScreenshotViewerWindow` 提供（缩放/复制/另存/删除，D135 批 3），画廊与 HDR 预览留 M4 |
+| `Features/Screenshot/ScreenCaptureInfoWindow.xaml` | 不再存在 | DXGI 捕获提示窗，Linux 失败走通知 + 日志；需要 `_NET_WM_STATE_ABOVE` 才能在 X11 上等效，留 M4 |
+| `Features/Screenshot/ScreenshotPage2.xaml` | 不再存在 | 旧版图库页，依赖 Uno 无模板的 `ItemsView`，已被重写的 `ScreenshotPage` 取代 |
+| `Features/UrlProtocol/TestUrlProtocolWindow.xaml` | 不再存在（D137 删） | 调试窗口，上游也从不实例化（30 号 B2 判「不需要」） |
+
+**移植侧独有（3 个，不是差异，是上游没有的页面）**：`Features/Runtime/RuntimeEnvironmentSetting.xaml`（运行环境设置页，D58/D73）、`Features/Screenshot/ScreenshotViewerWindow.xaml`（看图窗）、`Features/Screenshot/ScreenshotFolderManageDialog.xaml`（截图目录管理对话框，D135）。
 
 ```bash
-# 生成上面两张表（2026-11-24 用过；仓库根执行）
-python3 - <<'EOF'
+# 生成上面三张表（2026-11-26 用法；仓库根执行）
+uv run --no-project python - <<'EOF'
 import os, difflib
 up, lo = 'src/Starward', 'src/Lunarward'
 rows, byteonly, missing = [], [], []
 for root, _, files in os.walk(up):
-    for name in files:
+    for name in sorted(files):
         if not name.endswith('.xaml'):
             continue
         rel = os.path.relpath(os.path.join(root, name), up)
-        a_path, b_path = os.path.join(up, rel), os.path.join(lo, rel)
+        b_path = os.path.join(lo, rel)
         if not os.path.exists(b_path):
             missing.append(rel); continue
-        a, b = open(a_path, 'rb').read(), open(b_path, 'rb').read()
-        if a == b:
-            continue
+        a, b = open(os.path.join(up, rel), 'rb').read(), open(b_path, 'rb').read()
+        if a == b: continue
         ta = a.decode('utf-8-sig').replace('\r\n', '\n').splitlines()
         tb = b.decode('utf-8-sig').replace('\r\n', '\n').splitlines()
         if ta == tb:
-            byteonly.append(rel); continue          # 只有 BOM / 换行差异
+            byteonly.append(rel); continue
         d = list(difflib.unified_diff(ta, tb, lineterm='', n=0))
         add = sum(1 for l in d if l.startswith('+') and not l.startswith('+++'))
         rem = sum(1 for l in d if l.startswith('-') and not l.startswith('---'))
@@ -290,8 +288,6 @@ for root, _, files in os.walk(up):
 for total, add, rem, rel in sorted(rows, reverse=True):
     print(f'{total:5d}  +{add:<5d}-{rem:<5d}{rel}')
 print(f'--- 实质差异 {len(rows)} / 仅 BOM·换行 {len(byteonly)} / 缺失 {len(missing)}')
-for rel in sorted(byteonly): print('  BOM ', rel)
-for rel in sorted(missing):  print('  MISS', rel)
 EOF
 ```
 

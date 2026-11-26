@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## 2026-11-26 · D139 · 文档整理：数值统一、失效引用清理与表格脚本化
+
+- **数字统一到现测**：单测 368、`--selftest-ui` 13 条、`Lang.resx` 1422 键、外部进程存活 46（49 字面量 − 5 死代码 + 2 非字面量）、`*.Linux.cs` 29 + `*.LinuxAuto.cs` 4 + 排除 46、XAML 27 实质差异 / 0 仅编码 / 8 缺失 / 3 移植独有、同名文件 74；`00-decisions.md` 的「统计口径统一」行作为唯一口径并附取数命令。
+- **表格脚本化**：新增 `scripts/gen-upstream-table.py`，`18-upstream-table.md` 改由它生成（`--write`）；`12-shims` §7 的 XAML 差异表按现测重排并附可复跑片段。
+- **审计报告标快照**：26/27/28/29 顶部加「历史快照」横幅，指向 30 号（当前总体）与 25 号（逐点判定）。
+- **坑编号纠错**：L-183/184/185 已被占用，本次三条改为 **L-191**（`Grid.ContextFlyout` 在 Uno 上可用，代码设要用 `FlyoutBase.SetAttachedFlyout`）、**L-192**（`Environment.Exit` 丢 Serilog 缓冲、GUI 早期 `Console` 是黑洞）、**L-193**（本地 `net11.0-desktop` 构建 ≠ CI 的 `publish -r linux-x64`，`RectInt32`/`WindowActivationState` 两处必须同参数验证）；文档范围同步 `L-01…L-193`。
+- **失效引用**：`19` 的 `net10.0-desktop`→`net11.0-desktop`、自检 12→13 条；`24` 的 `.NET 10`→`.NET 11`、runtimes 路径与 RID 目录数按现测；`12-shims` 头部「265 条」「最后更新 2026-11-24」与提交计数改现测。
+
 ## 2026-11-26 · D138 · 对齐上游第二轮（B3 剩余 + 登录页簇删除）
 
 - **设置页**：`FileManageSetting` 三处 WinRT 启动器改 `OpenUrl`（点了没反应 → 真的打开）；恢复长路径缩字号；诊断包与「打开诊断目录」统一走 `XDG_DOWNLOAD_DIR`；`ScreenshotSetting.WindowHandle` 改回 `nint`；删与 `PageBase` 重复的处理器。

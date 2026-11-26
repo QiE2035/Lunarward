@@ -3,7 +3,7 @@
 > 这里只记「踩过一次就不该再踩」的东西。每条都给出证据位置与处理方式。
 > 目的：让后来者（或几个月后的我们）不用重新发现一遍。
 >
-> 条目 **L-01…L-175**（最后更新 2026-11-24；L-166 VLC 抽帧窗口、L-167 wineboot 卡 wine-mono；编号勘误见文末）。
+> 条目 **L-01…L-193**（最后更新 2026-11-26；L-191 `ContextFlyout` 误判、L-192 界面诊断的日志陷阱、L-193 本地构建与 CI 发布参数不一致；编号勘误见文末）。
 
 - 最后更新：2026-11-19（L-163）
 
@@ -1700,3 +1700,33 @@ bitmap.Resize(info, new SKSamplingOptions(SKCubicResampler.Mitchell));
 **做法**：`docs/linux-port/00-decisions.md` 里保留一条「统计口径统一（后续改动以这些为准）」的行，所有文档引用数字时以它为准；能机器判定的交给 `scripts/test/lint-doc-status.sh`（编号唯一、替身清单、排除条数、同名文件数、文档份数），其余在每次改动的那份文档里写「最后核对：日期 + HEAD」。
 
 **教训**：数字不是知识，是缓存。缓存就必须有失效条件——不写「怎么复算」的数字，下一轮一定是错的；同理，`18-upstream-table.md` 那种纯人工分类的表，改脚本生成比每次人工补行可靠（分类从 `25` §3 推导）。
+
+## L-191　`Grid.ContextFlyout` 在 Uno 上完全可用——别因为「代码里设不了」就整块不做
+
+**现象**：移植侧截图页的右键菜单长期缺失，注释写着「Uno 的 `Grid` 没有 `ContextFlyout`」。后来做背景页时 `BackgroundViewPage.xaml` 里赫然写着 `<Grid.ContextFlyout>`，两边自相矛盾。
+
+**原因**：我当初在 code-behind 里调 `Grid.SetContextFlyout(grid, flyout)`，编译报 `CS0117: "Grid" 未包含"SetContextFlyout"的定义`，就把结论记成「平台没有这个属性」。实际上 `ContextFlyout` 是 `Microsoft.UI.Xaml.UIElement` 的属性，不是 `Grid` 的；代码里要设得走 `FlyoutBase.SetAttachedFlyout(element, flyout)`（或者干脆在 XAML 里写 `<Grid.ContextFlyout>`）。
+
+**做法**：右键菜单优先写在 XAML 的 `Grid.ContextFlyout` 里；确实要动态生成时用 `FlyoutBase.SetAttachedFlyout`。判断「Uno 有没有某能力」要看基类与 XAML 侧，不要只看某次 code-behind 的编译报错——`CS0117` 只说明「这个静态方法不在这个类型上」。
+
+**教训**：把「API 用法不对」记成「平台不支持」，代价是整块功能被跳过（截图页七项右键菜单）。以后写「平台缺口」前，先在同一仓库里搜一遍有没有人用过同名属性。
+
+## L-192　界面阶段诊断：`Environment.Exit` 会把日志缓冲丢掉，`Console` 在 Provider 建好前也是黑洞
+
+**现象**：`--selftest-ui` 在 Xvfb 下挂死时，`~/.local/share/lunarward/log/` 里最后一行停在启动横幅，看起来「后面什么都没执行」；把 `Serilog.Log.Information` 加到启动路径上依然没有输出，一度怀疑 DI 没跑起来。
+
+**原因**：两件事叠加——①`--selftest-ui` 结束与多数退出路径都走 `Environment.Exit`，Serilog 的 `File` sink 有内部缓冲，没 flush 就没了进程；②GUI 启动早期 `Console.Error` 还没有接收方（Provider 建好前），重定向到文件也是 0 字节。
+
+**做法**：临时打点直接 `File.AppendAllText("/tmp/lw-trace.txt", "…\n")`（无条件 flush），跑完立刻删；判断「启动期是否执行过」不能看日志文件 mtime，也不能只信 `strace`（缓冲不产生 write）。验完 `grep -rn "lw-trace" src/` 必须为 0。
+
+**教训**：日志系统的可靠性取决于它自己的初始化完成度。诊断「启动链有没有跑到 X」，用最笨的同步写文件；诊断「跑到 X 之后为什么停」，再用日志与 `dotnet-stack`。
+
+## L-193　本地 `net11.0-desktop` 构建过 ≠ CI 的 `publish -r linux-x64 --self-contained` 能过
+
+**现象**：把两处平台调用改回上游写法后，本地 Debug/Release 全绿、368 条测试全过、`--selftest-ui` 13/13，推上去 CI 却挂在 Publish：`error CS1729: 'RectInt32' does not contain a constructor that takes 4 arguments`、`error CS0266: Cannot implicitly convert type 'Microsoft.UI.Xaml.WindowActivationState' to 'Windows.UI.Core.CoreWindowActivationState'`。
+
+**原因**：CI 用 `dotnet publish src/Lunarward/Lunarward.csproj -c Release -r linux-x64 --self-contained true -p:DebugType=none`（`.github/workflows/linux.yml`）。带 RID 的发布走的是另一套 Uno/WinRT projection（`Windows.UI.Core.*` 命名空间生效、`RectInt32` 是投影类型），与桌面框架下的 `Microsoft.UI.Xaml.*` 不是同一套类型形状。
+
+**做法**：动了 `WindowActivationState`、`RectInt32`、`AppWindow` 这类跨投影类型后，提交前必须本地跑一次与 CI 完全相同的 publish；临时退回写法用 `args.WindowActivationState.ToString() == "Deactivated"` 与 `new RectInt32 { X = 0, Y = 0, Width = 100000, Height = (int)(48 * UIScale) }`（对象初始化器在两边都可用）。
+
+**教训**：CI 与本地差的不只是「跑没跑测试」，还有**编译期的类型投影**。`dotnet build` 绿只证明桌面框架能编；发布产物能编才算数。

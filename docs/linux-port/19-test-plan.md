@@ -4,10 +4,10 @@
 >
 > 维护规则：新增模块必须先在本表登记用例；删除用例要写理由；预算表中的阈值改动要有一次实测数据支撑（记在 §9 基线表里）。
 
-- 最后核对：2026-11-25（上游 0.19.0 基线，HEAD `53ddc52a`；计数、覆盖率门限与口径已按 D122/D125/D133 复测，`README` 的上游基线同步为 186/1）
+- 最后核对：2026-11-26（上游 0.19.0 基线，HEAD `f3ea6f87`，D138 之后；单测 368、自检 13 条、`Lang.resx` 1422 键、同名差异 74 个，见 `00-decisions.md` 的「统计口径统一」行）
 - 最后更新：2026-11-24（用例计数按表内唯一 ID 重算为 **237 条** = 225 `T-*` + 12 `RG-*`，并修掉 `T-UI-30/31/33` 的重号；覆盖率口径按 D122 落实；D87 运行器命名 12 例、D88 `lint-pkgbuild.sh` 静态检查、D89 SDK 下限防回归）
 - 对应代码：`src/Lunarward`（`main`），单头 Linux，不改 `src/Starward/`
-- 现状（2026-11-24 实测）：L1 单测数量以 `dotnet test Starward.slnx -c Debug` 的实际输出为准（2026-11-25 为 **365 条**）；L1.5 `--selftest-ui` **12 条**；L2 `cli-smoke.sh` **41 例（40 通过 + 1 跳过）** + `cli-extra.sh` **32 例（含 4 条退役 SKIP）** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
+- 现状（2026-11-26 实测）：L1 单测数量以 `dotnet test Starward.slnx -c Debug` 的实际输出为准（当前 **368 条**）；L1.5 `--selftest-ui` **13 条**；L2 `cli-smoke.sh` **41 例（40 通过 + 1 跳过）** + `cli-extra.sh` **32 例（含 4 条退役 SKIP）** + `lint-ui-thread.sh` 三规则 + `lint-cli-help.sh` 四规则 + `lint-pkgbuild.sh` 四规则（A 依赖覆盖 / B 三份一致 / C source 与哈希 / D SDK 下限） + `perf.sh`；L3 真机只跑过一部分（未跑完的用例在本文附录里写明原因）
 
 ### 覆盖率口径（D122，2026-11-24）
 
@@ -15,7 +15,7 @@
 
 - 分母 = **被链接进 `tests/Lunarward.Tests` 的源码文件**（当前 `tests/Lunarward.Tests/Lunarward.Tests.csproj` 里 23 条 `Compile Include="../../src/…"`；行数以 cobertura 报告为准）。没被链接的主程序代码（窗口、页面、服务层，6000+ 行）**不进分母**——覆盖率只对「能单测的那部分」有意义。
 - 测试工程用「链接源码」编译（D37），所以 `IncludeTestAssembly=true` 必须开；但它会把 **测试文件自身**也算进统计（历史上有 26 个测试文件几乎 100% 覆盖，占分母三分之一）。`tests/coverlet.runsettings` 因此用 `ExcludeByFile` 排除 `**/tests/Lunarward.Tests/*.cs`，**口径只留 `src/Lunarward/`**。
-- 结论：`85%` 指的是「链接集里 src 的行覆盖」，不含测试代码。2026-11-24 修正口径前，报告里的 82%–88% 都掺了测试代码，实际 src 只有 81.58%（D122）；门限 85，最近一次实测 **85.3%（2026-11-24）**。
+- 结论：`85%` 指的是「链接集里 src 的行覆盖」，不含测试代码。2026-11-24 修正口径前，报告里的 82%–88% 都掺了测试代码，实际 src 只有 81.58%（D122）；门限 85，最近一次实测 **85.3%（2026-11-24）**；2026-11-26 的 `dotnet test` 为 368 条，覆盖率需在 CI 上重测后再更新此处。
 - 改这个口径要一并改本节与 D122，不要只改阈值。
 
 ### 增量门（D125，2026-11-24）
@@ -60,7 +60,7 @@
 
 - 官方 *Using Uno.UITest* 明确写「not yet supported: **SkiaSharp backends (GTK, WPF, Tizen)**, Xamarin.macOS, Windows」；只支持 WebAssembly（Selenium）与 iOS/Android（Xamarin.UITest/AppCenter）。
 - NuGet 上 `Uno.UITest`、`.Helpers`、`.Xamarin`、`.Selenium` 全部停在 `1.0.0`，没有 X11/Skia driver。
-- 我们目标框架 `net10.0-desktop` 正好落在不支持区间；编成 WASM 也测不到 wine/GTK/X11 的真实链路。
+- 我们目标框架 `net11.0-desktop` 正好落在不支持区间；编成 WASM 也测不到 wine/GTK/X11 的真实链路。
 - 替代：L1.5（进程内断言）+ L3（真实输入）。
 
 ---
@@ -365,7 +365,7 @@
 
 | ID | 场景 | 期望 | 层 |
 |---|---|---|---|
-| T-I18N-01 | 11 语言键齐全 | 与 `src/Starward.Language/Lang.resx` 的键集一致（2026-11-25 为 1393 键），无缺失 | L1 |
+| T-I18N-01 | 11 语言键齐全 | 与 `src/Starward.Language/Lang.resx` 的键集一致（2026-11-26 为 1422 键），无缺失 | L1 |
 | T-I18N-02 | 运行时切换语言 | 界面与活动/资讯标题都跟着变（`Lang` + `CoreLang` 两处） | L3 |
 | T-I18N-03 | 长语言文案 | 德语/俄语长词不撑破布局 | L3 |
 | T-I18N-04 | 数字/时间格式 | 按 locale 显示 | L1 |
@@ -447,7 +447,7 @@
 | 阶段 | 内容 | 产出 | 预估 |
 |---|---|---|---|
 | M-T1 | L2 骨架：临时 XDG 夹具、假前缀/假运行器、假 Sophon、`cli-smoke.sh`；把 RT/LA/IN/CL 的 P0 无头用例脚本化 | 一条命令跑完 ~30 条 P0 | 1.5 天 |
-| M-T2 | L1.5：`--selftest-ui` + 12 条视觉树断言（UI-04/09/15、A11Y-02/04、CP-01/02） | CI 可跑的 UI 回归网 | 1 天 |
+| M-T2 | L1.5：`--selftest-ui` + 13 条断言（UI-04/09/15、A11Y-02/04、CP-01/02，D136 增设「安装链路服务单例」一条） | CI 可跑的 UI 回归网 | 1 天 |
 | M-T3 | L3 骨架：GUI 用例模板 + 日志断言 + 像素判据；覆盖 UI-01/02/03/13/14、PL-04..07/13/14 | ~12 条关键 GUI 用例 | 1.5 天 |
 | M-T4 | LP：`perf.sh` + 基线 JSON + 6 条预算门禁（LP-01/02/03/05/16/17） | 性能回归可自动判定 | 1 天 |
 | M-T5 | RC/SEC/SO 补齐 + 每晚任务 + Issue 模板 + 文档收口 | 全链路闭环 | 1 天 |
@@ -638,7 +638,7 @@ CI：`.github/workflows/linux.yml` 在 L2 之后跑 `xvfb-run -a -s "-screen 0 1
 | RG-11 预检结论要反映到退出码 | `--preflight` 判定不可启动仍 `rc=0` | 不可启动时 `rc=1` | L2 | ✅ `cli-extra.sh` |
 | RG-12 安装路径不依赖 config.json | `--install-fetch` 说「没有记录安装路径」，实际存 SQLite | 传 `--install-dir` 后能完成规划 | L2 | ✅ `cli-extra.sh` |
 
-落地位置汇总：`tests/Lunarward.Tests/*`（L1）、`Features/Dev/UiSelfTest.cs`（L1.5，12 条）、`scripts/test/{cli-smoke,cli-extra,lint-ui-thread,lint-cli-help,lint-doc-status,lint-pkgbuild,perf}.sh`（L2）。
+落地位置汇总：`tests/Lunarward.Tests/*`（L1）、`Features/Dev/UiSelfTest.cs`（L1.5，13 条）、`scripts/test/{cli-smoke,cli-extra,lint-ui-thread,lint-cli-help,lint-doc-status,lint-pkgbuild,perf}.sh`（L2）。
 
 ### 12.1 关于「lint」这一层
 

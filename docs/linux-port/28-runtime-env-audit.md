@@ -1,5 +1,7 @@
 # 28 · 「运行环境」模块审查报告
 
+> ⚠️ **历史快照**：本文记录的是 2026-11-23 当时的状态，之后又被 D128–D138 的对齐改动推进过；**当前总体对齐情况看 `30-full-alignment-audit.md`，逐点偏离判定看 `25-deviation-register.md`**，本文只用于回看当时的问题与论据。
+
 > 日期：2026-11-23　范围：`src/Lunarward/Features/Runtime/`（25 文件）、`Features/Setting/RuntimeEnvironmentSetting.*`（4 个 partial，4040 行）、`Features/GameLauncher/LaunchPreflight.cs`、`GameLauncherService(.Linux).cs` 的启动链。
 > 方法：本人读码 + 4 组只读子代理（页面 / 启动 / 存储 / 组件），结论逐条回到源码核对。
 > 状态：2026-11-23 用户 m02913「全处理了」→ 42 条全部修完（批 A D104 / 批 B D105 / 批 C D106 / 批 D D107），进度见各条 🛠 标记。

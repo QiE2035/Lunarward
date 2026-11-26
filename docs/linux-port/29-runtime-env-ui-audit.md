@@ -1,5 +1,7 @@
 # 29 · 运行环境页面 UI 审查
 
+> ⚠️ **历史快照**：本文记录的是 2026-11-23 当时的状态，之后又被 D128–D138 的对齐改动推进过；**当前总体对齐情况看 `30-full-alignment-audit.md`，逐点偏离判定看 `25-deviation-register.md`**，本文只用于回看当时的问题与论据。
+
 > 审查日期：2026-11-23　范围：`src/Lunarward/Features/Setting/RuntimeEnvironmentSetting.*`（XAML + 4 个 partial）
 > 依据：[23 运行环境设计](23-runtime-env-design.md) §7/§13、D80/D82/D84/D85、AGENTS.md 硬规则（禁止硬编码颜色、危险入口不进发行版）
 > 方法：真机逐页走查（`cu_screenshot target=area`，1200×680 窗口）+ 读 XAML/code-behind 对照设计；只读审查，修与不修由用户拍板。

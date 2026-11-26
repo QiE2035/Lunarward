@@ -61,7 +61,7 @@ Lunarward 是 Uno/Skia 应用，**不发布 AT-SPI 树**：`cu_a11y_find` / `cu_
 dotnet build Starward.slnx -c Debug
 dotnet build Starward.slnx -c Release
 
-# 单元测试（当前 365 条）
+# 单元测试（当前 368 条）
 dotnet test Starward.slnx -c Debug
 
 # 运行（开发构建）
@@ -108,10 +108,11 @@ bash scripts/test/lint-pkgbuild.sh
 
 ```
 App.xaml(.cs)                 应用启动、单实例、托盘、深链、语言
-Program.Linux.cs              CLI 入口（60+ 开关/子命令，headless 可用）
+Program.Linux.cs              CLI 入口（72 条开关/子命令，headless 可用；含 startgame/playtime/rpc）
 Features/WindowBase.Linux.cs  平台底座：窗口 chrome/尺寸/显隐（上游 0.19.0 起基类改名为 WindowBase）
-Helpers/                      X11Window(libxcb)、AppIcon、OpenUrl、JsonFile(原子写)、
-                              DesktopNotification、DiagnosticBundle、ProcessQuery、Housekeeping、X11KeyState
+Helpers/                      X11Window(libxcb)、AppIcon、OpenUrl、JsonFile(原子写)、XdgFolders、
+                              DesktopNotification、DiagnosticBundle、ProcessQuery、X11KeyState、
+                              SessionLockWatcher(锁屏通知)、HotkeyManager(X11 轮询)
 Features/
   ViewHost/                   MainWindow、MainView、导航、页面缓存
   GameLauncher/               启动器页、游戏设置页、公告/资讯、预检与启动
@@ -152,19 +153,19 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 活跃文档**共 15 份**（2026-11-21 增补 `25`/`26`/`27`，2026-11-23 增补 `28`/`29`，2026-11-26 增补 `30`）：
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D138 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D139 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
-- `13-lessons.md` — L-01…L-190 坑与复现方法（唯一；编号勘误见文末）
-- `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`18-upstream-table.md` 由脚本按 `scripts/list-deviations.sh` 生成，当前 78 个；逐点判定以 `25` 为准）
+- `13-lessons.md` — L-01…L-193 坑与复现方法（唯一；编号勘误见文末）
+- `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`18-upstream-table.md` 由 `scripts/list-deviations.sh` + 变更行统计生成，当前 74 个；逐点判定以 `25` 为准）
 - `19-test-plan.md` — 测试计划（唯一，237 条：225 T-* + 12 RG-*，按表内唯一 ID 统计）
 - `23-runtime-env-design.md` — **运行环境设计的唯一依据**（D73：组件层 / 前缀只是路径 / 九字段 / 四层检查 / 页面）
-- `24-dependency-audit.md` — 依赖盘点（43 处存活外部进程、可换库项、建议批次）：换依赖前先看这张表
+- `24-dependency-audit.md` — 依赖盘点（外部进程 2026-11-26 复核：字面量 49 / 存活 42，另有库内 internal 调用；可换库项、建议批次）：换依赖前先看这张表
 - `25-deviation-register.md` — **逐点偏离总账**（2026-11-25 按 0.19.0 全量重算：**345 点**（2026-11-25 全量重算 423 点，D134 回改 78 条后剩 345）/ 113 个文件条目、类别 + 必要性 + 可否回流、53 条排除清单、19 条可避免清单、12 条可回流上游；数字随上游同步漂移，以该文 §1 当场重算为准）：判断「这个偏离是否必须」先查它
 - `26-misalignment-audit.md` — **实现错位 bug 候选**（76 条，2026-11-22 已全部读码复核：成立 51 / 部分成立 19 / 不成立 6；**已修复 70 条**，D95–D103；`B01`…`B76` 编号）：修 bug 前先对号，修完把 ◐/○ 改成 ✅ 并补证据
 - `27-audit-report.md` — **审计可读版（修复前快照）**：按模块讲每条「哪里错、上游怎么写、用户看到什么」，与 26 同编号；想快速理解看这份，当前状态看 `26`
 - `28-runtime-env-audit.md` — **运行环境模块审查**：第一轮 R01–R42 已按批次 A–D 修复（D104–D107）；第二轮 2026-11-24 复审 R43–R130（3 Critical / 52 High / 20 Medium / 13 Low，**批 E–K 已全部修完**（R43–R130，D115–D121），其中 2 处**有意不修**：R117 字号统一、R126 VDF 库存在性探测）：动 `Features/Runtime/` 或运行环境页之前先看它
 - `29-runtime-env-ui-audit.md` — **运行环境页面 UI 审查**（2026-11-23，21 条：术语/i18n / 布局视觉 / 交互可达性，D108 全部修完）：改运行环境页 XAML 或要动文案/配色之前先看它
-- `30-full-alignment-audit.md` — **全量文件级对齐复核**（2026-11-26，351↔484 文件逐行对读、78 个差异文件全文判读、16 个仅上游与 149 个仅移植逐个定性）：六条旧结论更正 + 判别 7 批修复计划（B1–B7，约 60 条）；逐文件原始报告在 `30-appendix/`（8 份）。开工修对齐问题前先看它
+- `30-full-alignment-audit.md` — **全量文件级对齐复核**（2026-11-26，351↔484 文件逐行对读、差异文件全文判读、16 个仅上游与 149 个仅移植逐个定性）：六条旧结论更正 + B1–B7 修复计划（B1–B5 已执行，B3 剩余项在 D138 收口）；逐文件原始报告在 `30-appendix/`（8 份）。开工修对齐问题前先看它
 - `docs/user/` — 给用户的 FAQ 与运行环境说明
 - `screenshots/` / `perf-baseline.json` — 截图证据与性能基线数据
 
@@ -184,7 +185,8 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 - 悬浮窗、手柄映射、RPC 服务、云游戏/战绩/BBS 桥 → **M4 占位，明确暂不做**。
 - 公告窗改为「浏览器打开」（`GameNoticeWindow` 已删除）。
 - 引擎能力差异（记软差异，不改上游 XAML）：无 DWM 丙烯（只铺不透明底色，部分页面壁纸透字）、Uno 拦截 `Segoe Fluent Icons` / `Segoe MDL2 Assets` 族名导致随包字体不加载（L-15；与路径、空格无关——含空格路径、`%20`、无空格别名都试过，图标已改 Uno Symbols + 码位替换，L-88）、`PipsPager` 模板不响应、`Window.Hide()` 在 Uno 原生为空，`Features/WindowBase.Linux.cs` 已用 libxcb 补齐、`AppWindow.Id` 恒 `0x1`。
-- 真机待验收：原神/绝区零真实启动、真实登录回填、游玩时长记录。
+- 真机待验收：原神/星铁/绝区零真实安装·更新·启动、真实登录回填、游玩时长、热更新整链路（D131/D132 起在 Linux 上启用但只在假前缀验过）。
+- 引擎缺口明细见 `30-full-alignment-audit.md` §5：无 DWM 丙烯、图标字体族名被拦截、`PipsPager` 模板、截图卡片圆角裁剪（Toolkit 包已移除）、HDR→SDR 编码、纯 Wayland 全局热键。
 
 ---
 
