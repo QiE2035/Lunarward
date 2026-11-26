@@ -43,7 +43,7 @@
                         Spacing="24">
                 <RadioButton Name="RadioButton_CloseWindowOption_Hide"
                              Checked="RadioButton_CloseWindowOption_Checked"
-                             Content="隐藏到系统托盘"
+                             Content="{x:Bind lang:Lang.ExperienceSettingPage_MinimizeToSystemTray}"
                              GroupName="CloseWindowOption"
                              Tag="{x:Bind sfv:MainWindowCloseOption.Hide}" />
                 <RadioButton Name="RadioButton_CloseWindowOption_Exit"

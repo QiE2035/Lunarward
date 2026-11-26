@@ -2345,3 +2345,12 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 - 删掉 `GameSelector` 后，0.19.0 之前用户配置里的 `SelectedGameBizs`/`CachedGameInfo` 不再被读取，当前游戏回落到默认——与上游 0.19.0 的行为一致。
 - 截图保存格式编码在本机进程内完成（Magick.NET），大图（4K AVIF）会比写 PNG 多几百毫秒，落在后台任务里但仍占用一次全图内存。
 
+**D134 第四轮（收尾，2026-11-26）**
+
+- `Controls/CachedImage.Linux.cs` 的 http 分支改走 `Helpers/FileCache`（`GetFromCacheAsync` 命中磁盘缓存不再下载，空文件/解码失败 `DeleteCacheFile`），删掉自带的静态 `HttpClient` —— 与上游 `CachedImage : ImageEx` 的取图路径一致，也顺手修掉「每进一次页面重下一遍」。
+- `Features/Background/BackgroundService.cs` 视频分支补容器魔数校验（EBML / `ftyp` / `RIFF…AVI `），不再只看扩展名；解码器仍交给 libvlc（选文件路径上不起播放器实例）。
+- `Features/Setting/ScreenshotSetting.Linux.cs` 的三个开关（`AutoCopyScreenshotToClipboard` / `AutoConvertScreenshotToSDR` / `EnableScreenshotColorManagement`）改成 setter 直接写 `AppConfig`（上游同），`OnNavigatedFrom` 不再重复回写；XAML 删掉从未被引用的 `TextBlock_CaptureError`、`Segmented.Visibility` 去掉多余的 `Mode=OneWay`。
+- `Features/Setting/GeneralSetting.xaml` 的「隐藏到系统托盘」改走 `Lang.ExperienceSettingPage_MinimizeToSystemTray`；`Features/GamepadControl/GamepadController.Linux.cs` 的错误键从 Lang 里不存在的 `Gamepad_NotSupportedOnLinux` 改成 `Lunarward_Gamepad_NotSupported_Message`（以前界面会把键名直接拼给用户）。
+- `packaging/build-appimage.sh` 装完 `.desktop` 后调 `update-desktop-database` —— AppImage 不走包管理器，不刷缓存则深链注册后不生效。
+- 台账：25 号 §2.4 记 78 条回改、19 条保留（引擎能力 / 移植侧必要分支 / 无调用点 API），§1 统计改为 345 点、avoidable 19；附录 B 重写为这 19 条并逐条写「为什么留着」。
+- 边界：`AppBackground.Current` 仍是惰性 getter（上游靠 XAML 实例化顺序），改回自动属性会让「先取 `Current` 再构造」的顺序直接 NRE；`Current` 的兜底是刻意的，不是漏改。

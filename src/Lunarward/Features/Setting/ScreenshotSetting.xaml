@@ -116,7 +116,7 @@
                 <cwc:Segmented x:Name="Segmented_ScreenshotQuality"
                                VerticalAlignment="Center"
                                SelectedIndex="{x:Bind ScreenshotQuality, Mode=TwoWay}"
-                               Visibility="{x:Bind ScreenshotQualityVisibility, Mode=OneWay}">
+                               Visibility="{x:Bind ScreenshotQualityVisibility}">
                     <cwc:SegmentedItem MinWidth="80" Content="{x:Bind lang:Lang.GameSettingPage_Medium}" />
                     <cwc:SegmentedItem Content="{x:Bind lang:Lang.GameSettingPage_High}" />
                     <cwc:SegmentedItem Content="{x:Bind lang:Lang.ScreenshotSetting_Lossless}" />
@@ -161,12 +161,6 @@
                 <!--  清除缩略图缓存  -->
                 <Button Command="{x:Bind ClearThumbnailCacheCommand}" Content="{x:Bind lang:Lang.ScreenshotSetting_ClearThumbnailCache}" />
             </StackPanel>
-
-            <!--  截图错误  -->
-            <TextBlock x:Name="TextBlock_CaptureError"
-                       Margin="0,12,0,0"
-                       Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                       Visibility="Collapsed" />
 
         </StackPanel>
     </ScrollViewer>

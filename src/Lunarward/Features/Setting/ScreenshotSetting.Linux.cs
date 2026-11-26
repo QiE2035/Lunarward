@@ -1,4 +1,4 @@
-using Microsoft.UI.Xaml.Controls;
+﻿using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml;
 // Lunarward：截图设置页。上游整页围绕 DirectX 捕获与 HDR 色彩管理（D31 决定 M3 重做）。
 // 这里保留可用的那部分设置项（文件夹、格式、质量、剪贴板），色彩管理项恒为关闭。
@@ -49,11 +49,46 @@ public sealed partial class ScreenshotSetting : PageBase
         }
     }
 
-    public bool AutoCopyScreenshotToClipboard { get; set; }
+    // D134：与上游一致，三个开关的 setter 直接写 AppConfig（上游 ScreenshotSetting.xaml.cs 同）。
+    // 之前是纯自动属性 + OnNavigatedFrom 统一回写，两个只被记录、从未落盘的开关就丢了。
+    public bool AutoCopyScreenshotToClipboard
+    {
+        get => AppConfig.AutoCopyScreenshotToClipboard;
+        set
+        {
+            if (AppConfig.AutoCopyScreenshotToClipboard != value)
+            {
+                AppConfig.AutoCopyScreenshotToClipboard = value;
+                OnPropertyChanged(nameof(AutoCopyScreenshotToClipboard));
+            }
+        }
+    }
 
-    public bool AutoConvertScreenshotToSDR { get; set; }
+    public bool AutoConvertScreenshotToSDR
+    {
+        get => AppConfig.AutoConvertScreenshotToSDR;
+        set
+        {
+            if (AppConfig.AutoConvertScreenshotToSDR != value)
+            {
+                AppConfig.AutoConvertScreenshotToSDR = value;
+                OnPropertyChanged(nameof(AutoConvertScreenshotToSDR));
+            }
+        }
+    }
 
-    public bool EnableScreenshotColorManagement { get; set; }
+    public bool EnableScreenshotColorManagement
+    {
+        get => AppConfig.EnableScreenshotColorManagement;
+        set
+        {
+            if (AppConfig.EnableScreenshotColorManagement != value)
+            {
+                AppConfig.EnableScreenshotColorManagement = value;
+                OnPropertyChanged(nameof(EnableScreenshotColorManagement));
+            }
+        }
+    }
 
     public Microsoft.UI.Xaml.Visibility ScreenshotQualityVisibility => ScreenshotForamt > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
@@ -80,7 +115,6 @@ public sealed partial class ScreenshotSetting : PageBase
         base.OnNavigatedFrom(e);
         // 设置页用普通属性 + 双向绑定，离开页面时统一落盘（Uno 下逐属性 setter 落盘会写太多次文件）
         AppConfig.ScreenshotFolder = string.IsNullOrWhiteSpace(ScreenshotFolder) ? null : ScreenshotFolder;
-        AppConfig.AutoCopyScreenshotToClipboard = AutoCopyScreenshotToClipboard;
         // 格式/质量已经由属性 setter 即时落盘；Linux 捕获统一出 PNG，质量只影响「批量转换」（B17）。
     }
 

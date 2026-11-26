@@ -30,6 +30,11 @@ install -m 644 "$repo/packaging/lunarward.png" "$appdir/lunarward.png"
 install -m 644 "$repo/packaging/lunarward.png" "$appdir/usr/share/icons/hicolor/256x256/apps/lunarward.png"
 install -m 644 "$repo/packaging/lunarward.desktop" "$appdir/usr/share/applications/lunarward.desktop"
 
+# D134：AppImage 不经过包管理器，桌面缓存必须自己刷；否则 lunarward:// 深链注册后不生效。
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database "$appdir/usr/share/applications" >/dev/null 2>&1 || true
+fi
+
 cat > "$appdir/AppRun" <<'SH'
 #!/bin/sh
 # AppImage 入口：资源与 dll 都在 usr/lib/lunarward 下

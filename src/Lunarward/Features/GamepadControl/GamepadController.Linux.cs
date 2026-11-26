@@ -1,4 +1,4 @@
-// Lunarward：手柄控制依赖 Windows GameInput（SharpGameInput），Linux 暂不可用。
+﻿// Lunarward：手柄控制依赖 Windows GameInput（SharpGameInput），Linux 暂不可用。
 // 这里镜像上游公开成员，使设置页可用；真实手柄支持计划走 evdev/uinput（M4）。
 using Microsoft.UI.Dispatching;
 using System.Collections.Generic;
@@ -38,13 +38,15 @@ public static class GamepadController
 
     public static bool SetGamepadGuideButtonMapKeys(string? value, [NotNullWhen(true)] out string? keysTextOrErrorKey)
     {
-        keysTextOrErrorKey = "Gamepad_NotSupportedOnLinux";
+        // D134：以前这里返回的是 Lang 里不存在的键名，界面会把它原样拼进错误提示。
+        keysTextOrErrorKey = Starward.Language.Lang.Lunarward_Gamepad_NotSupported_Message;
         return false;
     }
 
     public static bool SetGamepadShareButtonMapKeys(string? value, [NotNullWhen(true)] out string? keysTextOrErrorKey)
     {
-        keysTextOrErrorKey = "Gamepad_NotSupportedOnLinux";
+        // D134：以前这里返回的是 Lang 里不存在的键名，界面会把它原样拼进错误提示。
+        keysTextOrErrorKey = Starward.Language.Lang.Lunarward_Gamepad_NotSupported_Message;
         return false;
     }
 

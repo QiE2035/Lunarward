@@ -310,13 +310,63 @@ public class BackgroundService
         // GetImagePixelSizeAsync 自己就在后台线程解码（SKCodec），这里直接 await，
         // 不要再套 Task.Run + GetAwaiter().GetResult() 的嵌套同步等待。
         string extension = Path.GetExtension(file).ToLowerInvariant();
-        if (extension is not (".mp4" or ".mkv" or ".webm" or ".mov" or ".avi"))
+        if (extension is ".mp4" or ".mkv" or ".webm" or ".mov" or ".avi")
+        {
+            // D134：上游对视频也是真校验（MediaSource.OpenAsync 打不开就抛），以前这里只看扩展名，
+            // 坏视频会被照常复制进 bg/ 并持久化。libvlc 打开一次就是起一个播放器实例，不适合放在选文件路径上，
+            // 所以退一步只校验容器魔数——能挡掉改后缀的图片、空文件、截断文件里的大多数。
+            if (!LooksLikeVideoContainer(file))
+            {
+                throw new InvalidDataException("background file is not a playable video container");
+            }
+        }
+        else
         {
             var (width, height) = await Starward.Features.Codec.ImageLoader.GetImagePixelSizeAsync(file);
             if (width == 0 || height == 0)
             {
                 throw new InvalidDataException("background image cannot be decoded");
             }
+        }
+    }
+
+
+    /// <summary>
+    /// D134：按容器头判断「这确实是视频」。只做魔数，不做解码（解码要起 libvlc 实例，代价不适合放这里）。
+    /// </summary>
+    private static bool LooksLikeVideoContainer(string file)
+    {
+        try
+        {
+            using var stream = File.OpenRead(file);
+            Span<byte> head = stackalloc byte[12];
+            int read = stream.ReadAtLeast(head, head.Length, throwOnEndOfStream: false);
+            if (read < 12)
+            {
+                return false;
+            }
+            // Matroska / WebM：EBML 头 1A 45 DF A3
+            if (head[0] == 0x1A && head[1] == 0x45 && head[2] == 0xDF && head[3] == 0xA3)
+            {
+                return true;
+            }
+            // MP4 / MOV：第 4 字节起是 "ftyp"
+            if (head[4] == 0x66 && head[5] == 0x74 && head[6] == 0x79 && head[7] == 0x70)
+            {
+                return true;
+            }
+            // AVI："RIFF" + 8 字节后 "AVI "
+            if (head[0] == 0x52 && head[1] == 0x49 && head[2] == 0x46 && head[3] == 0x46
+                && head[8] == 0x41 && head[9] == 0x56 && head[10] == 0x49 && head[11] == 0x20)
+            {
+                return true;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Warning(ex, "read video container header failed: {file}", file);
+            return false;
         }
     }
 

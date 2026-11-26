@@ -7,7 +7,6 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using System;
 using System.IO;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,8 +14,6 @@ namespace Starward.Controls;
 
 public sealed partial class CachedImage : Image
 {
-    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
-
     /// <summary>
     /// Lunarward：上游 `CachedImage : ImageEx`（Control）自带 `Background`，0.19.0 的 XAML 用它给
     /// 未加载出来的占位块上色；我们的实现继承 `Image`（没有 Background），这里补一个同名依赖属性
@@ -173,13 +170,36 @@ public sealed partial class CachedImage : Image
 
         if (uri.Scheme is "http" or "https")
         {
-            var bytes = await _http.GetByteArrayAsync(uri, token);
+            // D134：与上游一致走 Helpers/FileCache —— 命中磁盘缓存就不再下载，解码失败要删掉坏缓存。
+            // 以前这里每次 GetByteArrayAsync 全量下到内存：每进一次页面重下一遍、断网就是一片白块。
+            string? cached = await Starward.Helpers.FileCache.GetFromCacheAsync(uri.ToString(), false, token);
             token.ThrowIfCancellationRequested();
-            using var ms = new MemoryStream(bytes);
-            using var ras = ms.AsRandomAccessStream();
-            var bitmap = new BitmapImage();
-            await bitmap.SetSourceAsync(ras);
-            return bitmap;
+            if (cached is null || !File.Exists(cached))
+            {
+                Serilog.Log.Debug("cached image download failed: {uri}", uri);
+                return null;
+            }
+            byte[] bytes = await File.ReadAllBytesAsync(cached, token);
+            if (bytes.Length == 0)
+            {
+                Starward.Helpers.FileCache.DeleteCacheFile(uri.ToString());
+                return null;
+            }
+            try
+            {
+                using var ms = new MemoryStream(bytes);
+                using var ras = ms.AsRandomAccessStream();
+                var bitmap = new BitmapImage();
+                await bitmap.SetSourceAsync(ras);
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                // 上游 BitmapImage_ImageFailed 里做的是同一件事：解码失败即删缓存，下次重新下载。
+                Serilog.Log.Warning(ex, "decode cached image failed, drop cache: {uri}", uri);
+                Starward.Helpers.FileCache.DeleteCacheFile(uri.ToString());
+                return null;
+            }
         }
 
         return new BitmapImage(uri);

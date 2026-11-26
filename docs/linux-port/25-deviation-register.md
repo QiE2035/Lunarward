@@ -16,33 +16,35 @@
 
 | 维度 | 数量 |
 |---|---|
-| 偏离点 | **423** |
+| 偏离点 | **345**（2026-11-25 全量重算 423 → D134 回改 78 条后为 345） |
 | 文件条目 | **113**（`MainView.xaml.cs` 跨模块重复 1 个 → 实际 112 个文件；`*.Linux.cs` 31 + 同名文件 76 + 移植侧独有 5；另有 4 个只属格式/单行的见 §3.10） |
 | 类别 | linux 专属实现 100、eng 工程性 95、api 平台 API 65、engine 引擎能力 57、cut 裁剪 51、cosmetic 外观文案 43、bugfix 修上游缺陷 12 |
-| 必要性 | reasonable 合理取舍 166、must 必需 158、avoidable 可避免 99 |
+| 必要性 | reasonable 合理取舍 168、must 必需 158、avoidable 可避免 19（D134 前为 166 / 158 / 99） |
 | 可回流上游 | 12（附录 C） |
 
 按模块：
 
 | 模块 | 偏离点 | must | reasonable | avoidable | 文件条目 |
 |---|---|---|---|---|---|
-| 3.1 launcher 启动器与游戏入口 | 46 | 21 | 18 | 7 | 7 |
-| 3.2 install 安装 / 更新 / 预下载 | 18 | 7 | 8 | 3 | 5 |
-| 3.3 gamesetting 游戏设置 / 运行环境 / 账号 | 40 | 11 | 21 | 8 | 6 |
-| 3.4 shell 外壳 | 72 | 48 | 11 | 13 | 16 |
-| 3.5 screenshot 截图与图库 | 37 | 8 | 16 | 13 | 9 |
-| 3.6 gacha-record 抽卡 / 战绩 | 47 | 19 | 18 | 10 | 19 |
-| 3.7 background-codec 背景与图片加载 | 43 | 16 | 17 | 10 | 10 |
-| 3.8 settings-ui 设置界面 | 51 | 9 | 27 | 15 | 14 |
-| 3.9 services-helpers 服务与帮助器 | 69 | 19 | 30 | 20 | 27 |
-| **合计** | **423** | **158** | **166** | **99** | **113** |
+| 3.1 launcher 启动器与游戏入口 | 39 | 21 | 18 | 0 | 7 |
+| 3.2 install 安装 / 更新 / 预下载 | 15 | 7 | 8 | 0 | 5 |
+| 3.3 gamesetting 游戏设置 / 运行环境 / 账号 | 32 | 11 | 21 | 0 | 6 |
+| 3.4 shell 外壳 | 65 | 48 | 13 | 4 | 16 |
+| 3.5 screenshot 截图与图库 | 26 | 8 | 16 | 2 | 9 |
+| 3.6 gacha-record 抽卡 / 战绩 | 41 | 19 | 18 | 4 | 19 |
+| 3.7 background-codec 背景与图片加载 | 37 | 16 | 17 | 4 | 10 |
+| 3.8 settings-ui 设置界面 | 40 | 9 | 27 | 4 | 14 |
+| 3.9 services-helpers 服务与帮助器 | 50 | 19 | 30 | 1 | 27 |
+| **合计** | **345** | **158** | **168** | **19** | **113** |
+
+> 「偏离点」是**当前仍然存在**的偏离。§3 里按 2026-11-25 重算的口径保留了 423 条的原文（含 D134 已回改的 78 条，便于对照「当初差在哪」），要现在的数就看本表。
 
 > 与 `scripts/list-deviations.sh` 的关系：脚本 2026-11-25 重跑得到 **114 个同名不同内容的文件**（含 28 个 `.xaml`），而本文同名条目 76 条（另有 4 个只属格式或单行的见 §3.10） —— 差额来自三处：①脚本把 `*.Linux.cs` 之外的同名差异一网打尽（含纯格式差异，本文不记）；②本文按「行为/结构不同」合并（如 `AdvancedSetting.xaml` 与 `.cs` 并成一条）；③0.19.0 合并后部分文件只是上游自己改了、移植侧逐字节相同（如 `GameLauncherSettingDialog`、`StartGameButton` 四个文件在本次重算中归零）。要文件清单看脚本，要判定看本文。
 
 ## 2 · 结论（需拍板的三件事）
 
 1. **must 160 条** = 移植骨架，去掉任一条就直接失去对应功能，不应回退：X11/Wayland 窗口与托盘（3.4）、Uno/Skia 引擎缺口（3.5/3.7 的图像解码与视频帧）、wine 前缀与注册表（3.3/3.9）、进程与会话观察（3.9）、文件对话框与 portal（3.9）。
-2. **avoidable 97 条** = 与平台无关、本可照上游写；清单见附录 B。建议逐条二选一：改回上游语义，或在 §3 对应条目里写明「有意保留」的理由。2026-11-25 已按此原则顺手修掉 5 条可复现缺陷（见 §2.1），并按「优先对齐上游」批量回改了一批（D134，见 §2.3）；其中 2 条经 CI 的 `dotnet publish -r linux-x64` 实测**不是**可避免的（`RectInt32` 4 参构造器、`WindowActivationState` 同名双类型），已改判 must。
+2. **avoidable 19 条**（D134 前 97 条）= 与平台无关、本可照上游写；清单见附录 B。建议逐条二选一：改回上游语义，或在 §3 对应条目里写明「有意保留」的理由。2026-11-25 已按此原则顺手修掉 5 条可复现缺陷（见 §2.1），并按「优先对齐上游」批量回改了一批（D134，见 §2.3）；其中 2 条经 CI 的 `dotnet publish -r linux-x64` 实测**不是**可避免的（`RectInt32` 4 参构造器、`WindowActivationState` 同名双类型），已改判 must。
 3. **可回流上游 12 条**（附录 C）全是「上游自己也有这个毛病」的修正，值得单独提 PR；风险最低的是 `Helpers/PointerCursor.cs`、`Features/Setting/FileManageSetting.xaml.cs` 手工备份、`Features/GameInstall` 的图标码位替换。
 
 ### 2.1 本次重算顺带修掉的（已在工作区/已提交）
@@ -91,6 +93,25 @@
 **D134 第三轮（3.5/3.6/3.8/3.9）**：截图页恢复多目录列出并接回「管理截图文件夹」对话框（默认目录 + 每游戏外部目录，`ScreenshotFolders()` → `AppConfig.GetExternalScreenshotFolder`）；深链注销同时清 `~/.config/mimeapps.list` 关联，AppImage 的 `.desktop` Exec 改用 `$APPIMAGE` 并在启动时后台补注册；诊断区文案全部走 `Lang`（9 个键），「打开下载目录」按 `XDG_DOWNLOAD_DIR`、「打开日志目录」按 `XDG_DATA_HOME`；下载限速滑块直接下发 `GameInstallRunner.SetRateLimiter`（以前是空壳，要等下次安装才生效）；删 `GameSelector`（574 行 XAML + 1202 行 code-behind + `GameBizDisplay`/`GameBizIcon`）、上游已移除的截图二代/批量转换/图片查看 12 个文件、`ImageConvertItem`、`TestUrlProtocolWindow`、`ms-settings:easeofaccess-visualeffects` 死处理器；`FileDialogHelper` 探测失败也缓存并在无工具时 toast；`GameLauncherPage` 内联切换条换回上游 `sfb:BackgroundSwitcher`（删约 270 行 code-behind，仅保留 `x:Name` 以在换游戏时下发 `CurrentGameId`）。
 
 **仍保留的 avoidable 项**：截图「颜色管理 / HDR→SDR」开关（无 HDR 采集与色调映射，归 engine）、BBS 桥裁剪（上游依赖 WebView2 桥，归 engine）、`LoginPage` 残留（上游 0.19.0 已删，但移植侧 Linux 登录页仍是唯一登录入口，保留待后续替换）、背景相关 engine 缺口（http 解码、圆角裁剪、渐变遮罩）、`ClipboardHelper` 缺 `SetBitmap`/`GetTextAsync`（无存活调用点）、`GamepadController` 的 `Gamepad_NotSupportedOnLinux` 错误键（设置页在 Linux 上不可达）。
+
+### 2.4 D134 回改台账（78 条，按模块）
+
+第四轮（对齐收尾）之后各模块回改条数与剩余项：
+
+| 模块 | 回改 | 剩余 avoidable（见附录 B） |
+| --- | --- | --- |
+| 3.1 启动器 | 7 | 0 |
+| 3.2 安装 | 3 | 0 |
+| 3.3 游戏设置 | 8 | 0 |
+| 3.4 外壳 | 7 | 4：首跑扫盘选游戏分支、`DevSwitches` 页面直达、`RunDebugWindowAction`、`Program.cs` 崩溃日志目录 |
+| 3.5 截图 | 11 | 2：`ScreenCaptureService` 取 HDR 亮度、HDR→SDR 编码 |
+| 3.6 抽卡/战绩 | 6 | 4：战绩页空态层与登录入口、`CheckAgreementAsync`、`LoginPage` 头注释 |
+| 3.7 背景 | 6 | 4：`UpdateClip` 圆角、`Current` 惰性 getter、校验顺序、`ImageThumbnail` 死文件 |
+| 3.8 设置 | 11 | 4：长路径 `IsTextTrimmedChanged`、`XboxFluent2` 字体×2、截图热键说明文案 |
+| 3.9 服务 | 19 | 1：`ClipboardHelper` 缺 `SetBitmap`/`GetTextAsync` |
+| **合计** | **78** | **19** |
+
+> 回改的判据一律是「改回上游写法」：能删的死代码直接删、能照抄的文案走 `Lang`、能复用的上游实现（`FileCache`、`BackgroundSwitcher`、`SetValuesAsync`）直接复用。剩余的 19 条分成三类：①引擎能力（HDR 采集/色调映射、圆角裁剪、字体族）；②移植侧独有但必要的分支（首跑扫盘、DevSwitches 门禁、Linux 登录页）；③无存活调用点的 API 缺口（`ClipboardHelper`）。
 
 ## 3 · 逐模块偏离点
 
@@ -2628,111 +2649,32 @@
 
 > 为什么整份排除：Windows 专属 API 或 M4 占位功能。逐项实现状态见 `12-shims-and-gaps.md` §6。
 
-## 附录 B · `avoidable` 清单（97 条，需要逐条决定）
 
-> 2026-11-25 全量重算后按新类别重新生成。规则：这些与平台无关，本可以照上游写。
+## 附录 B · `avoidable` 清单（剩余 19 条）
 
-| 模块 | 文件 | 位置 | 类别 |
-|---|---|---|---|
-| 启动器与游戏入口 | `Features/GameLauncher/GameBannerAndPost.xaml.cs` | **第 377-405 行（`#if DEBUG` + `LUNARWARD_DEV_BANNER_AUTOLINK` 钩子）** | eng |
-| 启动器与游戏入口 | `Features/GameLauncher/GameLauncherPage.xaml` | **第 57-141 行（上游一行 `sfb:BackgroundSwitcher` → 页面内联一份约 85 行的切换条：渐变底 `#00000000→#88000000`、`Height="60"`、`Opacity="0"` + `OpacityTransition`、`PointerEntered/Exited`、`PointerWheelChanged`、图库/复制/另存为/播放暂停按钮）** | eng |
-| 启动器与游戏入口 | `Features/GameLauncher/GameLauncherPage.xaml.cs` | **第 778-790 行（`GetPreflightActionText` 返回硬编码中文：打开游戏设置 / 打开运行环境 / 打开前缀目录 / 重建前缀 / 安装图形组件 / 查看占用进程 / 打开游戏目录）** | cosmetic |
-| 启动器与游戏入口 | `Features/GameLauncher/GameLauncherPage.xaml.cs` | **第 1350-1618 行（`#region Switch Background Image`，被内联的切换条代码：`BackgroundImages` / `CurrentBackgroundImageIndex`（先 `Math.Clamp`）/ `RebuildBackgroundDots` / `UpdateBackgroundDots` / `UpdateVideoButtonState` / `InitializeBackgameImageSwitcherAsync` / `ChangeBackgroundImageIndex` / `PointerEntered`·`Exited`·`WheelChanged` / `OpenBackgroundViewWindow` / 复制·另存为·暂停，以及第 1484-1505 行 `#if DEBUG` 的 `LUNARWARD_DEV_BG_CYCLE`）** | eng |
-| 启动器与游戏入口 | `Features/GameLauncher/GameLauncherService.cs` | **第 290-292 行（`GameConfigIni` 使用全限定名 `Starward.GameInstall.Model.GameConfigIni`）** | eng |
-| 启动器与游戏入口 | `Features/GameLauncher/GameLauncherService.cs` | **第 738-745 行（遗留的无调用点 `private void SetGenshinEnableHDR(GameId gameId)`）** | eng |
-| 启动器与游戏入口 | `Features/GameLauncher/GameNoticeService.cs` | **第 33-34 行（新增同步包装 `GetGameNoticeUrl(GameBiz)`）** | eng |
-| 安装/更新/预下载 | `Features/GameInstall/GameInstallScanner.Linux.cs` | **第 193–238 行（ScanRoots / SetScanRoots / MarkDirty）、第 271–281 行（GetCandidateRoots）、第 274 行（LUNARWARD_GAME_ROOTS）** | linux |
-| 安装/更新/预下载 | `Features/GameInstall/GameInstallService.cs` | **第 76–83 行（finally 分支）** | eng |
-| 安装/更新/预下载 | `Features/GameInstall/GameInstallService.cs` | **第 228–247 行（AddOrUpdateProgress）** | eng |
-| 游戏设置/运行环境/账号 | `Features/GameAccount/GameAccountService.cs` | **第 47 行（同上，读路径的注销）** | linux |
-| 游戏设置/运行环境/账号 | `Features/GameSetting/GameSettingPage.xaml.cs` | **第 91 行、第 142-145 行（OnNavigatedTo 的 Stopwatch、OnLoaded 的滚动钩子）** | eng |
-| 游戏设置/运行环境/账号 | `Features/GameSetting/GameSettingPage.xaml.cs` | **第 554 行（ApplySettingAsync 里的分辨率写入）** | eng |
-| 游戏设置/运行环境/账号 | `Features/GameSetting/GameSettingService.cs` | **第 45、54、63-75、151-164、233、364 行（读路径取前缀）** | linux |
-| 游戏设置/运行环境/账号 | `Features/GameSetting/GameSettingService.cs` | **第 73 行（GetGameResolutionSetting 的 nap 分支全屏标志）** | linux |
-| 游戏设置/运行环境/账号 | `Features/GameSetting/GameSettingService.cs` | **第 327 行（SetGenshinEnableHDRAsync 的写入）** | linux |
-| 游戏设置/运行环境/账号 | `Features/GameSetting/GameSettingService.cs` | **第 286-292 行（SetStarRailFPSIndexAsync 缺键时的兜底值）** | eng |
-| 游戏设置/运行环境/账号 | `Features/GameSetting/GenshinHDRLuminanceSettingDialog.Linux.cs` | **第 83-101 行（硬编码中文提示与借用的标题）** | cosmetic |
-| 外壳 | `App.xaml.cs` | **第 108、110 行（首跑自动识别游戏的分支）** | eng |
-| 外壳 | `App.xaml.cs` | **第 285-329 行（HandleStartupAsync / ExpandUrlArgument）** | eng |
-| 外壳 | `App.xaml.cs` | **第 517-528 行（ApplyAcrylicFallback）** | eng |
-| 外壳 | `AppConfig.Configuration.cs` | **第 156-177 行（首次运行分支 + 缺 GameFileDatabase.SetDatabase）** | eng |
-| 外壳 | `AppConfig.ServiceProvider.cs` | **第 187、189、210、212 行（User-Agent）** | cosmetic |
-| 外壳 | `Features/ViewHost/MainView.xaml.cs` | **第 166-256 行（DevSwitches 页面直达 + 调试下载/安装对话框）** | eng |
-| 外壳 | `Features/ViewHost/MainView.xaml.cs` | **第 663-688 行（InitializePassportUser 被系统代理检测逻辑覆盖）** | eng |
-| 外壳 | `Features/ViewHost/MainWindow.xaml.cs` | **第 58、164-210 行（RunDebugWindowAction）** | eng |
-| 外壳 | `Features/ViewHost/SystemTrayWindow.xaml` | **第 11 行（Title）** | cosmetic |
-| 外壳 | `Features/ViewHost/SystemTrayWindow.xaml.cs` | **第 76 行（激活状态判断）** | eng |
-| 外壳 | `Features/ViewHost/WelcomeWindow.xaml.cs` | **第 46 行（SetDragRectangles 调用写法）** | cosmetic |
-| 外壳 | `Program.Linux.cs` | **第 18-72 行（没有任何 `rpc` / `playtime` / `startgame` 子命令分支）** | eng |
-| 外壳 | `Program.cs` | **第 117 行（崩溃日志目录）** | eng |
-| 截图与图库 | `Features/Screenshot/ScreenshotPage.xaml` | **第 51-53 行注释 / 整块缺失的右键菜单（上游 `:121-213` 的 `Grid.ContextFlyout`）** | cut |
-| 截图与图库 | `Features/Screenshot/ScreenshotPage.xaml` | **第 78-81 行（`CachedImage` 少了 `IsThumbnail="True"`）** | eng |
-| 截图与图库 | `Features/Screenshot/ScreenshotPage.Linux.cs` | **第 95-130 行（`LoadImages` 只枚举单一默认目录，排序与分组也换了）** | cut |
-| 截图与图库 | `Features/Screenshot/ScreenshotPage.Linux.cs` | **第 220-236 行（`ManageScreenshotFolderCommand` = `xdg-open` 目录）** | cut |
-| 截图与图库 | `Features/Screenshot/ScreenshotPage.Linux.cs` | **第 239-242、261-267 行（两个 XAML 里已无绑定的死事件处理器）** | eng |
-| 截图与图库 | `Features/Screenshot/ScreenshotPage.Linux.cs` | **第 308-321 行（`BatchConvertAsync`：语义与格式设置都变了）** | cut |
-| 截图与图库 | `Features/Screenshot/ScreenCapture.Linux.cs` | **第 60 行（文件名 `Lunarward_yyyy-MM-dd_HH-mm-ss.png`）** | cut |
-| 截图与图库 | `Features/Screenshot/ScreenCapture.Linux.cs` | **第 53-68 行（忽略「保存格式 / 编码质量 / HDR→SDR」三个设置）** | cut |
-| 截图与图库 | `Features/Screenshot/ScreenCaptureService.cs` | **第 405 行（`SaveAsSdrAsync` 里取原神 HDR 亮度）** | eng |
-| 截图与图库 | `Features/Screenshot/ImageViewWindow.Linux.cs` | **第 3 行注释与实际引用不符（死窗口，`ImageViewWindow.xaml` 却仍编入）** | eng |
-| 截图与图库 | `Features/Screenshot/ImageConvertItem.Linux.cs` | **第 6-13 行（属性从 14 个缩到 3 个）** | cut |
-| 截图与图库 | `Features/Screenshot/ImageConvertItem.Linux.cs` | **第 1-13 行（唯一消费者不参与构建 → 死代码）** | eng |
-| 截图与图库 | `Features/Screenshot/ScreenshotFolderManageDialog.xaml` | **第 1-158 行（整个对话框没有任何入口）** | eng |
-| 抽卡/战绩 | `Features/Gacha/GachaLogPage.xaml.cs` | **第 26 行（`using Vanara.PInvoke;`）** | eng |
-| 抽卡/战绩 | `Features/GameRecord/BattleChronicleWindow.Linux.cs` | **第 22 行（`Title = "战绩"`）** | cosmetic |
-| 抽卡/战绩 | `Features/GameRecord/BattleChronicleWindow.Linux.cs` | **第 64–72 行（`ShowBattleChronicle(Window owner, GameRecordRole? role)`）** | eng |
-| 抽卡/战绩 | `Features/GameRecord/BattleChronicleWindow.Linux.cs` | **第 1–2 行（头注释揭示的整体处理方式）** | eng |
-| 抽卡/战绩 | `Features/GameRecord/GameRecordPage.xaml` | **第 490–506 行（新增空态层）** | cosmetic |
-| 抽卡/战绩 | `Features/GameRecord/GameRecordPage.xaml.cs` | **第 105–160 行（新增 `CheckAgreementAsync()`）** | cosmetic |
-| 抽卡/战绩 | `Features/GameRecord/GameRecordPage.xaml.cs` | **第 376–397、503–506 行（空态数据源 + 空态登录入口）** | cosmetic |
-| 抽卡/战绩 | `Features/GameRecord/LoginPage.Linux.cs` | **第 1–8 行（文件头注释）** | cosmetic |
-| 抽卡/战绩 | `Features/GameRecord/LoginPage.Linux.cs` | **第 60 行（`Send(new GameRecordRoleChangedMessage(...))`）** | eng |
-| 抽卡/战绩 | `Features/GameRecord/LoginPage.Linux.cs` | **第 48、52、57、61、65 行（面向用户的状态文案）** | cosmetic |
-| 背景与图片加载 | `Controls/CachedImage.Linux.cs` | **第 18 行 + 第 174-183 行（http 分支）** | engine |
-| 背景与图片加载 | `Controls/CachedImage.Linux.cs` | **第 64-76 行（`UpdateClip` 只做矩形裁剪）** | cosmetic |
-| 背景与图片加载 | `Controls/CachedImage.Linux.cs` | **第 300-302 行（空的 `private static class StreamExtensions { }`）** | eng |
-| 背景与图片加载 | `Features/Background/AppBackground.Linux.cs` | **第 166-170 行（手搭树里没有渐变遮罩，也没有 ProgressBar）** | cosmetic |
-| 背景与图片加载 | `Features/Background/AppBackground.Linux.cs` | **第 34 / 52 / 311 / 582 / 991-992 行（五个 `LUNARWARD_*` 环境变量）** | linux |
-| 背景与图片加载 | `Features/Background/AppBackground.Linux.cs` | **第 58-62 行（`Current` 惰性 getter）** | eng |
-| 背景与图片加载 | `Features/Background/BackgroundService.cs` | **第 312-320 行（视频分支只按扩展名放行，不再真正打开）** | cut |
-| 背景与图片加载 | `Features/Background/BackgroundService.cs` | **第 315 行（`GetImagePixelSizeAsync(file).GetAwaiter().GetResult()` 嵌套同步等待）** | eng |
-| 背景与图片加载 | `Features/Background/BackgroundService.cs` | **第 256-259 行（校验放在「是否已在 bg 目录」判断之前）** | eng |
-| 背景与图片加载 | `Features/Codec/ImageThumbnail.cs` | **第 31 行（唯一的实质改动：`CacheFolder` 改 `AppConfig.CacheDirectory` 并改成只读属性）** | eng |
-| 设置界面 | `Features/Setting/AdvancedSetting.xaml` | **第 19、23–25、31、37 行（诊断区的标题/说明/两个按钮文案）** | cosmetic |
-| 设置界面 | `Features/Setting/AdvancedSetting.xaml.cs` | **第 47–52 行（上述对话框的标题与三个按钮）** | cosmetic |
-| 设置界面 | `Features/Setting/AdvancedSetting.xaml.cs` | **第 107–115 行（`Button_OpenDiagnoseFolder_Click`）** | api |
-| 设置界面 | `Features/Setting/AdvancedSetting.xaml.cs` | **第 125–135 行（`OpenOutputFolder`）** | api |
-| 设置界面 | `Features/Setting/DownloadSetting.xaml.cs` | **第 5、11、53–60 行（残留脚手架）** | eng |
-| 设置界面 | `Features/Setting/FileManageSetting.xaml` | **第 55–61 行（备份/数据库区的长路径 `TextBlock`）** | cut |
-| 设置界面 | `Features/Setting/GamepadControlSetting.xaml` | **第 14、101、109、113、128、159 行（`XboxFluent2` 字体资源与 5 处图标）** | engine |
-| 设置界面 | `Features/Setting/GeneralSetting.xaml` | **第 46 行（「关闭窗口时」`RadioButtons` 的「隐藏到系统托盘」项）** | cosmetic |
-| 设置界面 | `Features/Setting/GeneralSetting.xaml.cs` | **第 186–198 行（`Hyperlink_VisualEffects_Click`）** | cut |
-| 设置界面 | `Features/Setting/ScreenshotSetting.Linux.cs` | **第 63–67 行（构造函数）** | eng |
-| 设置界面 | `Features/Setting/ScreenshotSetting.Linux.cs` | **第 52–56、75–83 行（`AutoConvertScreenshotToSDR` / `EnableScreenshotColorManagement` / `AutoCopyScreenshotToClipboard`）** | cut |
-| 设置界面 | `Features/Setting/ScreenshotSetting.xaml` | **第 77–85 行（截图快捷键说明文本）** | cosmetic |
-| 设置界面 | `Features/Setting/ScreenshotSetting.xaml` | **第 119 行（`Segmented` 的可见性绑定）** | eng |
-| 设置界面 | `Features/Setting/ScreenshotSetting.xaml` | **第 166–169 行（`TextBlock_CaptureError`）** | cut |
-| 设置界面 | `Features/Setting/SettingPage.xaml` | **第 14–16 行（`Page.Resources`）** | eng |
-| 服务与帮助器 | `Features/PlayTime/PlayTimeRecordService.cs` | **第 294-302 行（SavePlayTimeStats 两条日志的 interruption 实参恒为 false）** | eng |
-| 服务与帮助器 | `Features/PlayTime/PlayTimeSession.Linux.cs` | **第 192-227 行（HasNamedProcessForPrefix 里的内层 `catch {}`）** | eng |
-| 服务与帮助器 | `Features/Database/DatabaseService.cs` | **第 113-115 行（产物是 ZIP，扩展名与清理通配符仍写 .7z）** | cosmetic |
-| 服务与帮助器 | `Features/GameSelector/GameBizDisplay.cs` | **第 1-30 行（整份类型上游已删、移植侧仍编译）** | eng |
-| 服务与帮助器 | `Features/GameSelector/GameSelector.xaml` | **第 1-574 行（整份 XAML 上游已删，移植侧仍编译）** | eng |
-| 服务与帮助器 | `Features/GameSelector/GameSelector.xaml.cs` | **第 1-1202 行（整份 code-behind 上游已删，移植侧仍编译）** | eng |
-| 服务与帮助器 | `Features/GameSelector/GameSelector.xaml.cs` | **第 75-112 行（0.19.0 旧键迁移：SelectedGameBizs / CachedGameInfo / IsGameBizSelectorPinned / CurrentGameBiz → CurrentGameId）** | eng |
-| 服务与帮助器 | `Features/UrlProtocol/UrlProtocolService.Linux.cs` | **第 80-94 行（UnregisterProtocol 摘掉 .desktop 但不撤销 xdg-mime 默认值）** | eng |
-| 服务与帮助器 | `Features/UrlProtocol/UrlProtocolService.Linux.cs` | **打包侧（`packaging/build-appimage.sh:28-31` 只 install .desktop，未跑 update-desktop-database / 无集成分发步骤）** | eng |
-| 服务与帮助器 | `Features/UrlProtocol/TestUrlProtocolWindow.xaml` | **`TestUrlProtocolWindow.xaml.cs` 被 `Lunarward.csproj:134` 排除、无 `.Linux.cs` 取代（第 1-41 行 XAML 仍参与编译）** | eng |
-| 服务与帮助器 | `Helpers/FileDialogHelper.Linux.cs` | **第 21-45 行（DetectTool 探测失败不缓存）** | eng |
-| 服务与帮助器 | `Helpers/FileDialogHelper.Linux.cs` | **第 167-172 行（既无 portal 也无 kdialog/zenity 时只 Debug.WriteLine 后返回 null）** | eng |
-| 服务与帮助器 | `Helpers/ClipboardHelper.Linux.cs` | **全文件（缺 `SetBitmap` 3 重载与 `GetTextAsync`）** | cut |
-| 服务与帮助器 | `Helpers/XamlRootExtension.Linux.cs` | **全文件（缺 `GetUIScaleFactor`）** | cut |
-| 服务与帮助器 | `Helpers/SystemBackdropHelper.Linux.cs` | **`Features/ViewHost/SystemTrayWindow.xaml.cs:34-38`（唯一的活调用点传 `true`，被当成 isDark，浅色主题下托盘恒为深灰底）** | cosmetic |
-| 服务与帮助器 | `Features/Update/UpdateWindow.Linux.cs` | **第 15-47 行（类上没有 `[INotifyPropertyChanged]`，属性全是普通自动属性）** | engine |
-| 服务与帮助器 | `Features/Update/UpdateWindow.Linux.cs` | **第 107-115 行（SetErrorMessage 用 `FindName("TextBlock_ErrorMessage")` 直接改控件）** | eng |
-| 服务与帮助器 | `Features/Update/UpdateWindow.Linux.cs` | **第 117-134 行（Retry()/CheckUpdateAsync 直接赋 `ErrorMessage`，失败文案永不显示）** | eng |
-| 服务与帮助器 | `Features/GamepadControl/GamepadController.Linux.cs` | **第 39-49 行（Set…MapKeys 返回 `Gamepad_NotSupportedOnLinux` 作为错误键）** | cosmetic |
-| 服务与帮助器 | `Features/ViewHost/MainView.xaml.cs` | **第 118-140 行（TryCloseGameSelector 及第 272/276 行注释仍指向已不存在的 GameSelector）** | eng |
+> 2026-11-25 全量重算时这里列了 97 条；D134「优先对齐上游」分批回改后剩 19 条（回改台账见 §2.4，已回改条目的原文仍留在 §3 供对照）。剩下这些不是「懒得改」，而是改不动或不该改：引擎没有对应能力、移植侧确实需要的分支、或者根本没有调用者。
+
+| 模块 | 文件 | 位置 | 类别 | 为什么留着 |
+|---|---|---|---|---|
+| 外壳 | `App.xaml.cs` | 第 108、110 行（首跑自动识别游戏的分支） | eng | Linux 没有注册表，首跑只能扫目录，这一步等价于上游的注册表读取 |
+| 外壳 | `Features/ViewHost/MainView.xaml.cs` | 第 166–256 行（`DevSwitches` 页面直达 + 调试下载/安装对话框） | eng | 已被 `DevSwitches.IsEnabled` 门禁（Debug 默认开、Release 需 `LUNARWARD_DEV=1`），是排查入口不是用户功能 |
+| 外壳 | `Features/ViewHost/MainWindow.xaml.cs` | 第 58、164–210 行（`RunDebugWindowAction`） | eng | 同上，DevSwitches 门禁内的调试通道 |
+| 外壳 | `Program.cs` | 第 117 行（崩溃日志目录） | eng | 该文件整份在 `#if DISABLE_XAML_GENERATED_MAIN` 里，Linux 构建不参与编译，留着给遗留 WinUI 工程 |
+| 截图 | `Features/Screenshot/ScreenCaptureService.cs` | 第 405 行（`SaveAsSdrAsync` 里取原神 HDR 亮度） | eng | 取亮度走的是移植侧异步 `GetGenshinHDRLuminanceAsync`（上游是同步方法），改回同步会在 UI 线程等 wine |
+| 截图 | `Features/Screenshot/ScreenCapture.Linux.cs` | 第 53–68 行（HDR→SDR 编码） | cut | 采集侧拿不到 HDR 亮度元数据，也没有色调映射实现（颜色管理同属此列） |
+| 抽卡/战绩 | `Features/GameRecord/GameRecordPage.xaml` | 第 490–506 行（新增空态层） | cosmetic | 移植侧 Linux 登录页是唯一入口，没有账号时必须有引导层，否则整页空白 |
+| 抽卡/战绩 | `Features/GameRecord/GameRecordPage.xaml.cs` | 第 105–160 行（`CheckAgreementAsync()`） | cosmetic | 同上：登录前必须先确认米游社协议，上游由 WebView2 页面自己承担 |
+| 抽卡/战绩 | `Features/GameRecord/GameRecordPage.xaml.cs` | 第 376–397、503–506 行（空态数据源 + 登录入口） | cosmetic | 同上 |
+| 抽卡/战绩 | `Features/GameRecord/LoginPage.Linux.cs` | 第 1–8 行（文件头注释） | cosmetic | 上游 0.19.0 已删该页，移植侧仍是唯一登录入口，头注释记录的是这段差异的来由 |
+| 背景 | `Controls/CachedImage.Linux.cs` | 第 64–76 行（`UpdateClip` 只做矩形裁剪） | cosmetic | 圆角裁剪要自己做蒙版/着色器，属引擎能力缺口，视觉上只差圆角 |
+| 背景 | `Features/Background/AppBackground.Linux.cs` | 第 58–62 行（`Current` 惰性 getter） | eng | 上游靠 XAML 实例化顺序保证非空；移植侧保留惰性兜底，避免构造顺序变化时 NRE |
+| 背景 | `Features/Background/BackgroundService.cs` | 第 256–259 行（校验放在「是否已在 bg 目录」判断之前） | eng | 顺序是有意的：先校验再决定复制，避免把不可用文件搬进 `bg/` |
+| 背景 | `Features/Codec/ImageThumbnail.cs` | 第 31 行（`CacheFolder` 改 `AppConfig.CacheDirectory`） | eng | 该文件已被 `<Compile Remove>` 且无活跃调用点，属死文件，改动无收益 |
+| 设置 | `Features/Setting/FileManageSetting.xaml` | 第 55–61 行（长路径 `TextBlock` 缺 `IsTextTrimmedChanged`） | cut | Uno 的 `IsTextTrimmedChanged` 事件在 Skia 后端不稳定，靠 `MaxLines` + `CharacterEllipsis` 已能截断 |
+| 设置 | `Features/Setting/GamepadControlSetting.xaml` | 第 14、101、109、113、128、159 行（`XboxFluent2` 字体与 5 处图标） | engine | Uno 拦截 `Segoe Fluent Icons` 族名（L-15），随包字体不加载，需要换码位而不是改声明 |
+| 设置 | `Features/Setting/SettingPage.xaml` | 第 14–16 行（`Page.Resources` 里的 `XboxFluent2`） | engine | 同上，页内已无引用，删掉也不改变渲染 |
+| 设置 | `Features/Setting/ScreenshotSetting.xaml` | 第 77–85 行（截图快捷键说明文本） | cosmetic | 移植侧快捷键是 X11 轮询、纯 Wayland 不可用，上游文案在这里会误导，因此保留 Linux 专属说明 |
+| 服务 | `Helpers/ClipboardHelper.Linux.cs` | 全文件（缺 `SetBitmap` 3 重载与 `GetTextAsync`） | cut | 两个 API 的调用点全在被排除的文件里（BBS 图床、图片查看器二代），补之前先得有调用者 |
 
 ## 附录 C · 可回流上游的修正（12 条）
 
