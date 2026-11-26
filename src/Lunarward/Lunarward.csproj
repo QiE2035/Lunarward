@@ -34,6 +34,7 @@
     <Compile Remove="Features/GameInstall/GameInstallController.cs" />
     <Compile Remove="Features/RPC/NamedPipesConnectionFactory.cs" />
     <Compile Remove="Features/RPC/RpcRunner.cs" />
+    <Compile Remove="Features/RPC/RpcService.cs" />
 
     <Content Include="../../vendor/upstream/large-resource/Starward.Assets/Assets/**/*" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
@@ -110,13 +111,11 @@
     <Compile Remove="Features/GameSetting/GenshinHDRLuminanceSettingDialog.xaml.cs" />
     <Compile Remove="Features/GameRecord/BBSWebBridge.xaml.cs" />
     <Compile Remove="Features/GameRecord/BattleChronicleWindow.xaml.cs" />
-    <Compile Remove="Features/GameRecord/LoginPage.xaml.cs" />
     <Compile Remove="Features/GamepadControl/GamepadController.cs" />
     <Compile Remove="Features/GamepadControl/SimulateInputTipsWindow.xaml.cs" />
     <Compile Remove="Features/Overlay/OverlayWindow.xaml.cs" />
     <Compile Remove="Features/Overlay/RunningGame.cs" />
     <Compile Remove="Features/Overlay/RunningGameService.cs" />
-    <Compile Remove="Features/RPC/RpcService.cs" />
     <Compile Remove="Features/Screenshot/ScreenCaptureContext.cs" />
     <Compile Remove="Features/Screenshot/ScreenCaptureHelper.cs" />
     <Compile Remove="Features/Screenshot/ScreenCaptureItem.cs" />

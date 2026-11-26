@@ -71,7 +71,7 @@
 
 ---
 
-## 3 · Linux 实现文件（32 个 `*.Linux.cs` + 3 个非 `*.Linux.cs` 替身）
+## 3 · Linux 实现文件（30 个 `*.Linux.cs` + 3 个非 `*.Linux.cs` 替身）
 
 | 文件 | 替代的 Windows 机制 | 状态 | 里程碑 | 说明 |
 |---|---|---|---|---|
@@ -88,12 +88,10 @@
 | `Helpers/X11KeyState.cs` | 无 | 🟡 | M2 | 只做只读查询与 keysym→keycode；窗口操作走子进程，本进程不碰 Xlib 分配/错误处理器（L-45） |
 | `Helpers/XamlRootExtension.Linux.cs` | `GetWindowHandle`/拖动区 | 🟡 | M1 | 句柄恒 0；`GetAppWindow()` 经 `ContentIslandEnvironment` 反查并兜底 `MainWindow.Current`（L-31） |
 | `Helpers/SystemBackdropHelper.Linux.cs` | Mica/Acrylic | 🟡 | M3 | 只把 `Content.Background` 铺成**不透明底色**（`FallbackColor`：Mica `0xFF202020`/`0xFFF3F3F3`、Acrylic `0xFF545454`/`0xFFD3D3D3`），无叠层、无模糊 |
-| `Helpers/WindowWaitAsync.Linux.cs` | 窗口句柄等待 | ✅ | M1 | 改用窗口生命周期事件 |
 | `Properties/AssemblyVersion.cs` | MSBuild 生成版本特性 | ✅ | M2 | Uno.Sdk 不生成版本特性；配合 `<GenerateAssemblyInfo>false</GenerateAssemblyInfo>`（L-50） |
 | `Features/Background/AppBackground.Linux.cs` | Win2D + MediaPlayer 动态壁纸 | ✅ | M3 | 静态图**原样显示**（`_image.Opacity = 1.0`，底色 `#16161A`；0.42 的半透明近似已弃用——观感明显偏暗）与视频（`VideoBackgroundPlayer`，LibVLC 为 Uno 传递依赖）双路；无 libvlc 回退静态（L-41/L-43/L-52） |
 | `Features/Codec/ImageLoader.Linux.cs` | Win2D `CanvasBitmap` | ✅ | M1 | 尺寸走 SkiaSharp `SKCodec`；解码 PNG/JPG/WebP 走 Skia，**AVIF/JXL/HEIC 走 Magick.NET**（`Helpers/MagickCodec`，`NeedsMagick` 覆盖这 4 个扩展名；原生库缺失时提示不支持，D75） |
 | `Features/Overlay/RunningGameService.Linux.cs` | `SetWinEventHook` | 🟡 | M1 | `Process.HasExited` 判定存活，不感知窗口焦点；`OpenOverlayWindow()` 恒 false |
-| `Features/RPC/RpcService.Linux.cs` | 命名管道 + gRPC 子进程 | ⬜ | M4 | 恒「未运行」；`CreateRpcClient` 抛 NotSupported（D6） |
 | `Features/GameInstall/GameInstallService.cs`（**非** `*.Linux.cs`） | `Starward.RPC.GameInstall` 的 gRPC 客户端包装 | ✅ | M3 | 移植侧改成**进程内 facade**：同名同命名空间（`Starward.Features.GameInstall`），内部直接 `CreateContextAsync` + `StartOrContinueTaskAsync`，不再起子进程（上游 0.19.0 已删 RPC 项目，D128）。`RunOnce`/限速/任务进度订阅与上游一致 | 少了子进程隔离；`GameInstallController`（gRPC 服务端）在 Linux 上不编译 |
 | `Features/GameInstall/GameInstallScanner.Linux.cs` | 注册表枚举已装游戏 | ✅ | M1 | 扫 `~/games`、`/opt`、Steam `common` 与设置页配置的扫描根（D134 删掉 `$LUNARWARD_GAME_ROOTS`），`NameMatches` 防国服/B 服同名 exe 误认 |
 | `Features/GameLauncher/GameLauncherService.Linux.cs` | `ProcessStartInfo{Verb="runas"}` + `cmd /c start` | ✅ | M1–M2 | 直 `exec wine`；补 Proton 的 `WINEDLLPATH`/`LD_LIBRARY_PATH`/`PROTONPATH`（L-44）；前缀锁、报告、退出钩子都在这里 |
@@ -174,7 +172,7 @@
 
 ---
 
-## 6 · 排除编译的上游文件（47 条）
+## 6 · 排除编译的上游文件（46 条）
 
 > 口径：`grep -c '<Compile Remove' src/Lunarward/Lunarward.csproj` = **47**（2026-11-25 重跑；D134 删掉上游已移除的截图二代/批量转换/图片查看与 `TestUrlProtocolWindow` 后从 53 降到 47）。逐条文件清单见 `25-deviation-register.md` 附录 A（与 csproj 逐条一致，脚本比对无差异）。
 

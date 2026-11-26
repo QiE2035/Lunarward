@@ -31,7 +31,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Windows.Foundation;
 using Starward.Features.GameSetting;
-using Starward.Features.RPC;
 
 
 namespace Starward.Features.ViewHost;

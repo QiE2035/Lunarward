@@ -4,7 +4,6 @@ using Microsoft.Windows.AppLifecycle;
 using Starward.Core;
 using Starward.Core.HoYoPlay;
 using Starward.Features.GameLauncher;
-using Starward.Features.RPC;
 using Starward.Features.UrlProtocol;
 using System;
 using System.Collections;

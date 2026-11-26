@@ -41,7 +41,6 @@ using System.Net.Http;
 using ZiggyCreatures.Caching.Fusion;
 using ZiggyCreatures.Caching.Fusion.Serialization.SystemTextJson;
 using Starward.Core.GameRecord;
-using Starward.Features.RPC;
 
 namespace Starward;
 
@@ -159,8 +158,6 @@ public static partial class AppConfig
         sc.AddSingleton<Starward.Features.Companion.CompanionRunner>();
         // Lunarward：BBS 登录页 / 战绩页要用的门面（0.19.0 合并时同样丢了注册）。
         sc.AddSingleton<Starward.Features.GameRecord.GameRecordService>();
-        // Lunarward：Hyp 登录通道（GameAuthLoginButton 会解析它）。
-        sc.AddHttpClient<Starward.Features.GameLauncher.GameAuthLoginService>();
 
         sc.AddHttpClient<LogUploadClient>().ConfigStarwardHttpClient();
     }
