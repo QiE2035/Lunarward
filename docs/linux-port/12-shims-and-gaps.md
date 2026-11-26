@@ -18,7 +18,7 @@
 - 最后更新：2026-11-24（全表复核：§3 补登 4 个漏登文件并纠正 2 处路径、§6 按 csproj 现算 53 条、§7 用 diff 脚本重算 XAML 差异；2026-11-20 的文档整理记录：删 17 份过时文档、D91 打包本地源、D90 CI 产物、D89 SDK 下限、D88 打包依赖单一来源、D87 运行器显示名、D86 注册表改读文件）
 - 对应代码：`src/Lunarward/`（`main` 分支；`git rev-list --count HEAD` = 1485 提交，其中 109 条动过 `src/Lunarward/`；`linux-port` 已于 2026-11-13 停用）
 - 最后核对：2026-11-25（HEAD = 合并 upstream 0.19.0 + net11 分支工作区）
-- 规模：**33 个** `*.Linux.cs`、6 个 `*.LinuxAuto.cs`、`Compat/` 兼容层 2 个文件（`VanaraHotkeyCompat.cs`、`NotifyIcon/TaskbarIconCompat.cs`）、53 条 `<Compile Remove>`（2026-11-25 `find` / `grep` 实测；对齐上游 0.19.0 后 `GameInstallShims.cs`、`GameInstallService.Linux.cs`、`InstallGameDialog.Linux.cs`、`PreDownloadDialog.Linux.cs` 四个文件已删除，`WindowEx.Linux.cs` 随基类改名 `WindowBase.Linux.cs`）
+- 规模：**31 个** `*.Linux.cs`、5 个 `*.LinuxAuto.cs`、`Compat/` 兼容层 2 个文件（`VanaraHotkeyCompat.cs`、`NotifyIcon/TaskbarIconCompat.cs`）、47 条 `<Compile Remove>`（2026-11-25 `find` / `grep` 实测；对齐上游 0.19.0 后 `GameInstallShims.cs`、`GameInstallService.Linux.cs`、`InstallGameDialog.Linux.cs`、`PreDownloadDialog.Linux.cs` 四个文件已删除，`WindowEx.Linux.cs` 随基类改名 `WindowBase.Linux.cs`）
 
 ---
 
@@ -105,8 +105,6 @@
 | `Features/Screenshot/ScreenCapture.Linux.cs` | `Windows.Graphics.Capture` + DXGI | ✅ | M3 | `spectacle -b -n -f -o` → `grim` → `gnome-screenshot` 降级链，三者都不行再走 portal `ScreenshotAsync`；目录优先取设置里的文件夹，否则 `SpecialFolder.MyPictures`（为空回落 `~/Pictures`）下的 `Lunarward/` |
 | `Features/Screenshot/ScreenshotPage.Linux.cs` | DXGI 图库 | ✅ | M3 | 扁平 `ItemsControl` + `WrapPanel`（L-48）；多选、批量转 JPG、打开查看器 |
 | `Features/Setting/ScreenshotSetting.Linux.cs` | DirectX 色彩管理设置 | 🟡 | M3 | 文件夹/格式/质量/自动复制剪贴板/批量转换/测试截图可用；`EnableScreenshotColorManagement`、`AutoConvertScreenshotToSDR` 只是恒关属性，HDR 转换未接（D31） |
-| `Features/Screenshot/ImageViewWindow.Linux.cs` | Win2D 看图窗 | 🟡 | M3 | 窗口壳；实际看图走 `ScreenshotViewerWindow` |
-| `Features/Screenshot/ImageConvertItem.Linux.cs` | Win2D 编码 | 🟡 | M3 | 批量转换走 `ScreenshotConverter`（SkiaSharp，JPEG 92） |
 | `Features/Update/UpdateService.Linux.cs` | GitHub Release | 🟡 | M2 | 查 AUR RPC 版本；网络失败按「无更新」 |
 | `Features/Update/UpdateWindow.Linux.cs` | Windows 自更新 UI | 🟡 | M2 | 检查/忽略/提醒可用；「立即更新」按钮**可点**，点了给出「请用包管理器（AUR/AppImage）升级」的提示（走 `SetErrorMessage` 才会刷新，L-183；以前按钮恒禁用且无解释） |
 | `Features/Update/SetupService.Linux.cs` | Windows 安装器 | ⛔ | — | Linux 不做（D5） |
@@ -175,13 +173,13 @@
 
 ---
 
-## 6 · 排除编译的上游文件（53 条）
+## 6 · 排除编译的上游文件（47 条）
 
-> 口径：`grep -c '<Compile Remove' src/Lunarward/Lunarward.csproj` = **53**（2026-11-24 重跑）。逐条文件清单见 `25-deviation-register.md` 附录 A（与 csproj 逐条一致，脚本比对无差异）。
+> 口径：`grep -c '<Compile Remove' src/Lunarward/Lunarward.csproj` = **47**（2026-11-25 重跑；D134 删掉上游已移除的截图二代/批量转换/图片查看与 `TestUrlProtocolWindow` 后从 53 降到 47）。逐条文件清单见 `25-deviation-register.md` 附录 A（与 csproj 逐条一致，脚本比对无差异）。
 
 | 子系统 | 条数 | 代表文件 | 排除原因 | 归属 |
 |---|---|---|---|---|
-| `Features/Screenshot/*` | 12 | `ScreenshotPage.xaml.cs`、`ScreenCaptureService.cs`、`ImageViewWindow2.xaml.cs` | DXGI/Win2D 画布与捕获 | M3 已用 Linux 实现替代，剩余 Warp 见 §2 |
+| `Features/Screenshot/*` | 7 | `ScreenshotPage.xaml.cs`、`ScreenCaptureService.cs`、`ScreenshotHelper.cs` | DXGI/Win2D 画布与捕获 | M3 已用 Linux 实现替代，剩余 Warp 见 §2 |
 | `Features/Codec/*` | 8 | `ImageLoader.cs`、`HDR10GammaEffect.cs` | Win2D/ComputeSharp 特效 | M4（接 `Starward.Codec` + 系统原生库） |
 | `Helpers/*`（Windows 原版） | 8 | `FileDialogHelper.cs`、`HotkeyManager.cs`、`DriveHelper.cs`、`AccentColorHelper.cs` 等 | 已有 `.Linux.cs` | M1 |
 | `Features/GameInstall/*` | 4 | `GameInstallService.cs`、`GameInstallTaskStartedMessage.cs`、`InstallGameDialog.xaml.cs` | gRPC/RPC + Windows 路径 | M3 已替代：流程搬进主进程 |
@@ -191,13 +189,13 @@
 | `Features/Background/*` | 2 | `AppBackground.xaml.cs`、`AccentColorHelper.cs` | Win2D + MediaPlayer / WinRT 取色 | M3 已替代；`BackgroundViewWindow.xaml.cs` **没有被排除**，仍在编译 |
 | `Features/GamepadControl/*` | 2 | `GamepadController.cs`、`SimulateInputTipsWindow.xaml.cs` | GameInput/InputSimulator | M4 |
 | `Features/Setting/*` | 2 | `HotkeyManager.cs`、`ScreenshotSetting.xaml.cs` | RegisterHotKey / DXGI | M2/M3 已替代 |
-| `Features/UrlProtocol/*` | 2 | `UrlProtocolService.cs`、`TestUrlProtocolWindow.xaml.cs` | 注册表 | M2 已替代 |
+| `Features/UrlProtocol/*` | 1 | `UrlProtocolService.cs` | 注册表 | M2 已替代 |
 | `Controls/*` | 1 | `CachedImage.cs` | 依赖 WinUI 控件库 | M1 已替代（`Controls/CachedImage.Linux.cs`） |
 | `Features/GameSetting/*` | 1 | `GenshinHDRLuminanceSettingDialog.xaml.cs` | Win2D 实时预览 | M3 已用代码重建对话框 |
 | `Features/RPC/*` | 1 | `RpcService.cs` | 命名管道 | M4 |
 | `Features/WindowBase.cs` | 1 | 上游 Windows 实现（Vanara User32 子类化） | PInvoke 标题栏 | 用 `Features/WindowBase.Linux.cs` 替代，拖拽/最小化交给 WM；上游那份不编译 |
 
-按目录汇总（脚本输出，合计 53）：`Screenshot` 12、`Codec` 8、`Helpers` 8、`GameInstall` 4、`GameRecord` 3、`Overlay` 3、`Update` 3、`Background` 2、`GamepadControl` 2、`Setting` 2、`UrlProtocol` 2、`Controls` 1、`GameSetting` 1、`RPC` 1、`Frameworks` 1。
+按目录汇总（脚本输出，合计 47）：`Screenshot` 7、`Codec` 8、`Helpers` 8、`GameInstall` 4、`GameRecord` 3、`Overlay` 3、`Update` 3、`Background` 2、`GamepadControl` 2、`Setting` 2、`UrlProtocol` 1、`Controls` 1、`GameSetting` 1、`RPC` 1、`Frameworks` 1。
 
 ```bash
 # 复算：按目录聚合（2026-11-24 用过）

@@ -2326,3 +2326,22 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 **验证**：`dotnet build Starward.slnx -c Debug/Release` 0 错误；`dotnet test` 365 通过；`--selftest-ui` 12/12；`lint-ui-thread.sh`、`lint-cli-help.sh`、`lint-doc-status.sh --strict` 全绿；`cli-smoke` 40 通过 + 1 跳过；`src/Starward/` 零改动。
 
 **确认方式**：用户 message「优先对齐上游」（2026-11-25）。
+**D134 续（同日第三轮，3.5/3.6/3.8/3.9）**
+
+13. **截图页恢复多目录 + 管理对话框**：`ScreenshotPage.Linux.cs` 新增 `ScreenshotFolders()`（默认目录 + `AppConfig.GetExternalScreenshotFolder(CurrentGameId)` 按 `;` 拆），`LoadImages` 逐目录读、按 `ScreenshotItem.CreationTime` 倒序；「管理截图文件夹」按钮改弹上游的 `ScreenshotFolderManageDialog`（走 `DialogGate`），改完写回配置并刷新。
+14. **截图保存格式真的生效**：`ScreenCapture.Linux.cs` 落盘后按 `AppConfig.ScreenCaptureSavedFormat`（PNG/AVIF/JXL）用 `MagickCodec.TryEncode` 转码（质量 75/92/100），失败保留 PNG 并记 warning；以前选 AVIF 得到的是 PNG。
+15. **深链两条修完**：注销时清 `~/.config/mimeapps.list` 里指向我们的 `x-scheme-handler/lunarward` 行；AppImage 的 `.desktop` Exec 优先 `$APPIMAGE`（挂载点路径会失效），启动时后台补一次注册（fork 的 `update-desktop-database`/`xdg-mime` 不占 UI 线程）。
+16. **诊断区可按语言显示**：9 个 `Lunarward_Diagnose_*` 键替代硬编码中文；「打开下载目录」按 `XDG_DOWNLOAD_DIR`（没有才回落 `$HOME`），「打开输出日志目录」按 `XDG_DATA_HOME`（与 `OutputCapture` 写日志的位置一致）。
+17. **限速滑块即时生效**：`DownloadSetting.SetRateLimiterAsync` 不再空壳，直接 `AppConfig.GetService<GameInstallRunner>().SetRateLimiter(...)`。
+18. **删上游已删的东西**：`GameSelector`（574 行 XAML + 1202 行 code-behind）、`GameBizDisplay`、`GameBizIcon`、截图二代/批量转换/图片查看 12 个文件（含 `.disabled` 与孤立 code-behind）、`ImageConvertItem`、`TestUrlProtocolWindow`、`ms-settings:easeofaccess-visualeffects` 死处理器，以及 csproj 里对应的 `<Compile Remove>`。上游 0.19.0 用 `GameSwitcher` 取代选择层，旧键迁移逻辑上游也已删除，因此不做数据迁移。
+19. **换回上游控件**：`GameLauncherPage` 的内联切换条（约 85 行 XAML + 270 行 code-behind）改回一行 `<sfb:BackgroundSwitcher>`；控件自行订阅 `AppBackground.PropertyChanged`，页面只在换游戏时下发 `CurrentGameId`（为此加了 `x:Name`，是这条上唯一的差异）。
+20. **两处小修**：`FileDialogHelper` 探测失败也缓存并在无工具时 toast（以前每次调用重新 fork 两个进程，且点了没反应）；`PlayTimeSession.HasNamedProcessForPrefix` 内外两层 catch 都留日志。
+
+**代价与边界（第三轮）**
+
+- `ScreenshotFolders()` 的文件监视器仍只盯默认目录：外部目录里新增文件要手动刷新才出现（上游用 `FileSystemWatcher` 数组，移植侧暂未跟进）。
+- AppImage 的深链注册只在 `$APPIMAGE` 存在时自动做，其它安装方式仍需 `--register-protocol`（发行版打包已在 `.desktop` 里声明 `MimeType`）。
+- `GameSwitcher` 的 `x:Name` 让这一行与上游不再逐字节相同；改回内联的路线没有收益，保持现状。
+- 删掉 `GameSelector` 后，0.19.0 之前用户配置里的 `SelectedGameBizs`/`CachedGameInfo` 不再被读取，当前游戏回落到默认——与上游 0.19.0 的行为一致。
+- 截图保存格式编码在本机进程内完成（Magick.NET），大图（4K AVIF）会比写 PNG 多几百毫秒，落在后台任务里但仍占用一次全图内存。
+

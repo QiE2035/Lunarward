@@ -88,7 +88,9 @@
 
 **D134 第二轮（3.5/3.7/3.8/3.9）**：截图格式/质量真的生效（`ScreenCapture.Linux.cs` 落盘后按设置转 AVIF/JXL，失败保留 PNG）；托盘底色按桌面主题推断（`SystemBackdropHelper` 把上游 `alwaysActive` 当 `isDark` 的误读）；更新窗补 `INotifyPropertyChanged` + `Bindings.Update()`，「重试」失败会显示原因；数据库自动备份扩展名 `.7z` → `.zip`（产物本来就是 ZIP）；自定义背景校验去掉嵌套同步等待；删 `CachedImage` 里的空类。
 
-**仍保留的 avoidable 项（下一轮）**：`GameLauncherPage` 内联 `BackgroundSwitcher`（约 270 行，需截图验证）、截图外部目录管理与「格式/质量」设置开关、`ImageViewWindow` 死窗口三件套、`ImageConvertItem` 孤立模型、`LoginPage` 残留（上游 0.19.0 已删）、BBS 桥裁剪、托盘主题/更新窗重试/深链等 3.8/3.9 条目。
+**D134 第三轮（3.5/3.6/3.8/3.9）**：截图页恢复多目录列出并接回「管理截图文件夹」对话框（默认目录 + 每游戏外部目录，`ScreenshotFolders()` → `AppConfig.GetExternalScreenshotFolder`）；深链注销同时清 `~/.config/mimeapps.list` 关联，AppImage 的 `.desktop` Exec 改用 `$APPIMAGE` 并在启动时后台补注册；诊断区文案全部走 `Lang`（9 个键），「打开下载目录」按 `XDG_DOWNLOAD_DIR`、「打开日志目录」按 `XDG_DATA_HOME`；下载限速滑块直接下发 `GameInstallRunner.SetRateLimiter`（以前是空壳，要等下次安装才生效）；删 `GameSelector`（574 行 XAML + 1202 行 code-behind + `GameBizDisplay`/`GameBizIcon`）、上游已移除的截图二代/批量转换/图片查看 12 个文件、`ImageConvertItem`、`TestUrlProtocolWindow`、`ms-settings:easeofaccess-visualeffects` 死处理器；`FileDialogHelper` 探测失败也缓存并在无工具时 toast；`GameLauncherPage` 内联切换条换回上游 `sfb:BackgroundSwitcher`（删约 270 行 code-behind，仅保留 `x:Name` 以在换游戏时下发 `CurrentGameId`）。
+
+**仍保留的 avoidable 项**：截图「颜色管理 / HDR→SDR」开关（无 HDR 采集与色调映射，归 engine）、BBS 桥裁剪（上游依赖 WebView2 桥，归 engine）、`LoginPage` 残留（上游 0.19.0 已删，但移植侧 Linux 登录页仍是唯一登录入口，保留待后续替换）、背景相关 engine 缺口（http 解码、圆角裁剪、渐变遮罩）、`ClipboardHelper` 缺 `SetBitmap`/`GetTextAsync`（无存活调用点）、`GamepadController` 的 `Gamepad_NotSupportedOnLinux` 错误键（设置页在 Linux 上不可达）。
 
 ## 3 · 逐模块偏离点
 
