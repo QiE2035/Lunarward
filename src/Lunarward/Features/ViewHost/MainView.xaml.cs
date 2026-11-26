@@ -98,8 +98,6 @@ public sealed partial class MainView : UserControl
 
 
 
-    /// <summary>托盘菜单「打开设置」用。</summary>
-    /// <summary>导航到当前游戏的设置页（预检修复按钮用）。</summary>
     /// <summary>当前页类型（L1.5 UI 自检用）。</summary>
     public Type? CurrentPageType => MainView_Frame?.SourcePageType;
 

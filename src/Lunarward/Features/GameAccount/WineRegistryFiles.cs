@@ -1,10 +1,10 @@
-// Lunarward：直接解析 wine 的注册表文件（<prefix>/user.reg、system.reg），替代一次 `wine reg query` 的 fork。
+﻿// Lunarward：直接解析 wine 的注册表文件（<prefix>/user.reg、system.reg），替代一次 `wine reg query` 的 fork。
 //
 // 为什么要有这条路（D86、L-160）：
 //   每次 `wine reg query` 都是一次 fork + wineserver 冷启动，实测冷路径 1–5 秒（本机 1.1 s，历史另测 4–5 s），
 //   热 0.13–0.2 秒，口径见 WineRegistry 头注释。
-//   上游 src/Starward/ 里的同步 API（GameSettingService.SetGameResolutionSetting / SetGenshinEnableHDR 等）没法异步化，
-//   我们在 Linux 侧只能用 `GetAwaiter().GetResult()` 包一层，于是「改个画质」「启动原神」都要在 UI 线程上等 fork。
+//   上游 src/Starward/ 里的同步 API（例如 GameSettingService.GetGameResolutionSetting）没法异步化，
+//   移植侧仍沿用同步签名，于是「读个画质」也会在 UI 线程上等 fork（写侧已全部改成 Async 版本，见 D135）。
 //   注册表本体就在前缀里、是纯文本，直接读文件就是毫秒级 —— 从根上消掉这条 fork。
 //
 // 与 `reg query` 输出的语义差异（两处都是文件版更正确）：

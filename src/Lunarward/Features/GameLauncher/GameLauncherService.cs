@@ -543,7 +543,8 @@ internal partial class GameLauncherService
                 arg = $"""/c start "" /d "{Path.GetDirectoryName(exe)}" "{exe}" {arg}""";
                 exe = "cmd.exe";
             }
-            _logger.LogInformation("Start game ({biz})\r\npath: {exe}\r\narg: {arg}", gameId, exe, arg);
+            // D135：arg 里含 login_auth_ticket，日志会被诊断包带走，打码后再记
+            _logger.LogInformation("Start game ({biz})\r\npath: {exe}\r\narg: {arg}", gameId, exe, RedactLaunchArgument(arg));
             // Lunarward：Linux 启动前预检（失败即中止，并把每条原因写进异常信息与启动报告）
             Features.Runtime.RuntimeProfile? launchProfile = null;
             PreflightResult? preflight = null;
@@ -789,5 +790,22 @@ internal partial class GameLauncherService
 
     #endregion
 
+
+
+
+    /// <summary>
+    /// 启动参数里带登录票据/令牌，日志落到磁盘还会被诊断包带走，记录前打码（D135）。
+    /// </summary>
+    private static string RedactLaunchArgument(string argument)
+    {
+        if (string.IsNullOrEmpty(argument))
+        {
+            return argument;
+        }
+        return System.Text.RegularExpressions.Regex.Replace(argument,
+            @"(?<key>login_auth_ticket|login_ticket|stoken|st|token)(?<sep>\s*[=\s]\s*)(?<value>\S+)",
+            "${key}${sep}***",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
 
 }

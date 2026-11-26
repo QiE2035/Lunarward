@@ -78,9 +78,10 @@
                        FontSize="12"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        TextTrimming="CharacterEllipsis" />
+            <!-- D135：后台写的是 PercentProgress * 100，这里必须是 100，否则进度条恒满 -->
             <ProgressBar x:Name="ProgressBar_InstallTask"
                          Height="3"
-                         Maximum="1"
+                         Maximum="100"
                          Minimum="0" />
         </StackPanel>
 

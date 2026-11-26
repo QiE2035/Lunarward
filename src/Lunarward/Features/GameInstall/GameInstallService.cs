@@ -1,4 +1,4 @@
-// LUNARWARD-DEVIATION: 上游这个类是 gRPC 客户端（GameInstaller.GameInstallerClient），
+﻿// LUNARWARD-DEVIATION: 上游这个类是 gRPC 客户端（GameInstaller.GameInstallerClient），
 // 安装/更新跑在独立的 Starward.RPC 进程里。移植侧不拆进程，直接在同进程里调 Starward.GameInstall.GameInstallRunner，
 // 公开 API 与上游保持一致（D128）。D6 里「换成 Unix socket」的方案随上游 0.19.0 的进程内 Runner 一并作废。
 using Microsoft.Extensions.Logging;
@@ -36,6 +36,13 @@ internal class GameInstallService
 
 
     private ConcurrentDictionary<GameId, GameInstallProgress> _tasks = new();
+
+
+    /// <summary>
+    /// 过场动画更新用的块列表。Runner 的 <see cref="GameInstallRequest"/> 需要它，
+    /// 但 <see cref="GameInstallProgress"/> 不带这个字段，所以按 GameId 记下来供暂停/继续时重建请求（D135）。
+    /// </summary>
+    private readonly ConcurrentDictionary<GameId, List<string>> _cutsceneBlockLists = new();
 
 
     public GameInstallProgress? GetGameInstallTask(GameId gameId)
@@ -208,6 +215,14 @@ internal class GameInstallService
             PassportUserInfo = launcher.IsBeta ? _hoYoPlayService.PassportUserInfo : null,
             CutsceneBlockList = blockList ?? new List<string>(),
         };
+        if (blockList is { Count: > 0 })
+        {
+            _cutsceneBlockLists[gameId] = blockList;
+        }
+        else
+        {
+            _cutsceneBlockLists.TryRemove(gameId, out _);
+        }
         _logger.LogInformation("""
             Start game install task: 
             Operation: {operation}
@@ -233,13 +248,29 @@ internal class GameInstallService
         GameId gameId = value.GameId;
         if (_tasks.TryGetValue(gameId, out GameInstallProgress? task))
         {
-            task.State = value.State;
-            task.ErrorMessage = value.ErrorMessage;
-            task.Step = value.Step;
+            // D135：与上游 AddOrUpdateTask 一致拷全 21 个字段。以前只合并 7 个，
+            // 于是 Pause/Continue/Stop 的即时返回值里速度、字节数、剩余时间都是旧值。
+            task.LauncherConfig = value.LauncherConfig;
+            task.GameId = value.GameId;
+            task.InstallPath = value.InstallPath;
+            task.Operation = value.Operation;
+            task.AudioLanguage = value.AudioLanguage;
+            task.CategoryScenario = value.CategoryScenario;
+            task.Timestamp = value.Timestamp;
             task.CurrentStep = value.CurrentStep;
             task.TotalStep = value.TotalStep;
+            task.Step = value.Step;
+            task.State = value.State;
+            task.ErrorMessage = value.ErrorMessage;
             task.PercentProgress = value.PercentProgress;
             task.ProgressDisplay = value.ProgressDisplay;
+            task.NetworkTotalBytes = value.NetworkTotalBytes;
+            task.NetworkFinishedBytes = value.NetworkFinishedBytes;
+            task.StorageTotalBytes = value.StorageTotalBytes;
+            task.StorageFinishedBytes = value.StorageFinishedBytes;
+            task.HardLinkBytes = value.HardLinkBytes;
+            task.NetworkDownloadSpeed = value.NetworkDownloadSpeed;
+            task.RemainTimeSeconds = value.RemainTimeSeconds;
         }
         else
         {
@@ -256,34 +287,40 @@ internal class GameInstallService
     }
 
 
-    public async Task<GameInstallProgress> PauseTaskAsync(GameInstallProgress task)
+    public Task<GameInstallProgress> PauseTaskAsync(GameInstallProgress task)
     {
+        // D135：以前声明成 async 却没有 await，等于在 UI 线程同步跑完；
+        // Runner 这几个入口本身是同步落状态，用 Task.FromResult 明确表达。
         _logger.LogInformation("Pause game install task: {gameId} {gameBiz}", task.GameId.Id, task.GameId.GameBiz);
         GameInstallProgress progress = _gameInstallRunner.PauseTask(ToRequest(task));
         StartUpdateTaskProgress();
-        return AddOrUpdateProgress(progress);
+        return Task.FromResult(AddOrUpdateProgress(progress));
     }
 
 
-    public async Task<GameInstallProgress> ContinueTaskAsync(GameInstallProgress task)
+    public Task<GameInstallProgress> ContinueTaskAsync(GameInstallProgress task)
     {
+        // D135：以前声明成 async 却没有 await，等于在 UI 线程同步跑完；
+        // Runner 这几个入口本身是同步落状态，用 Task.FromResult 明确表达。
         _logger.LogInformation("Continue game install task: {gameId} {gameBiz}", task.GameId.Id, task.GameId.GameBiz);
         GameInstallProgress progress = _gameInstallRunner.StartOrContinueTask(ToRequest(task));
         StartUpdateTaskProgress();
-        return AddOrUpdateProgress(progress);
+        return Task.FromResult(AddOrUpdateProgress(progress));
     }
 
 
-    public async Task<GameInstallProgress> StopTaskAsync(GameInstallProgress task)
+    public Task<GameInstallProgress> StopTaskAsync(GameInstallProgress task)
     {
+        // D135：以前声明成 async 却没有 await，等于在 UI 线程同步跑完；
+        // Runner 这几个入口本身是同步落状态，用 Task.FromResult 明确表达。
         _logger.LogInformation("Stop game install task: {gameId} {gameBiz}", task.GameId.Id, task.GameId.GameBiz);
         GameInstallProgress progress = _gameInstallRunner.StopTask(ToRequest(task));
         StartUpdateTaskProgress();
-        return AddOrUpdateProgress(progress);
+        return Task.FromResult(AddOrUpdateProgress(progress));
     }
 
 
-    private static GameInstallRequest ToRequest(GameInstallProgress task)
+    private GameInstallRequest ToRequest(GameInstallProgress task)
     {
         return new GameInstallRequest
         {
@@ -293,6 +330,10 @@ internal class GameInstallService
             Operation = task.Operation,
             AudioLanguage = task.AudioLanguage,
             CategoryScenario = task.CategoryScenario,
+            // D135：上游 ToRequestDTO 会带上登录票据（beta 渠道）与过场动画块列表；
+            // 少了这两项，暂停后继续会丢票据、续传会漏块。
+            PassportUserInfo = task.LauncherConfig.IsBeta ? _hoYoPlayService.PassportUserInfo : null,
+            CutsceneBlockList = _cutsceneBlockLists.GetValueOrDefault(task.GameId) ?? new(),
         };
     }
 

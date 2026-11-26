@@ -1,4 +1,4 @@
-using Starward.Features.Database;
+﻿using Starward.Features.Database;
 using Starward.GameInstall;
 using Starward.Features.ViewHost;
 using Starward.Helpers;
@@ -46,7 +46,6 @@ public static partial class AppConfig
 
     public static string LogFile { get; private set; }
 
-    /// <summary>XDG 数据根目录（~/.local/share）。</summary>
     /// <summary>XDG 缓存根目录（~/.cache）。</summary>
     internal static string LinuxCacheHome
     {
@@ -131,6 +130,9 @@ public static partial class AppConfig
             }
 
             CacheDirectory = Path.Combine(LinuxCacheHome, "lunarward");
+            // 上游在这个位置把同一份数据目录交给 GameInstall 库（src/Starward/AppConfig.Configuration.cs:114）。
+            // D135 之前移植侧漏了这行，HoYoPlayService 的清单缓存会退回库里写死的 ~/.local/share/Starward。
+            GameInstallEnv.CacheFolder = CacheFolder;
             try
             {
                 Directory.CreateDirectory(CacheDirectory);
@@ -184,7 +186,17 @@ public static partial class AppConfig
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"{Lang.AppConfig_AnUnknownIssueOccurredDuringInitialization}\n{ex.Message}");
+            // D135：上游这里弹 MessageBox + 把异常写进剪贴板；Linux 没有 MessageBox，
+            // 但至少要让用户看见（终端 / journal / 启动器日志），不能只写 Debug 输出。
+            string message = $"{Lang.AppConfig_AnUnknownIssueOccurredDuringInitialization}\n{ex.Message}";
+            try
+            {
+                Console.Error.WriteLine(message);
+            }
+            catch
+            {
+            }
+            Serilog.Log.Fatal(ex, "Initialize environment failed");
             Environment.Exit(0);
         }
     }

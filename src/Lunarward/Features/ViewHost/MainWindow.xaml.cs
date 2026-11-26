@@ -354,11 +354,11 @@ public sealed partial class MainWindow : WindowBase
 
 
 
-    // Lunarward：WTS 会话通知（wtsapi32.dll）是 Windows 专有，Linux 端会话切换由 compositor/logind 通知，M2 接入。
+    // Lunarward：WTS 会话通知（wtsapi32.dll）是 Windows 专有；Linux 的锁屏/解锁由
+    // Helpers/SessionLockWatcher.Linux.cs 订阅 ScreenSaver / logind，再发同一条 MainWindowStateChangedMessage（D135）。
 
 
 
-    /// <summary>托盘菜单用：把主视图导航到设置页。</summary>
     /// <summary>根视图（L1.5 UI 自检用；x:Name 生成的字段对其他类不可见）。</summary>
     public MainView? RootView => MainContentHost;
 

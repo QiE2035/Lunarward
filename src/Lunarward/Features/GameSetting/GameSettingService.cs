@@ -1,4 +1,4 @@
-using Starward.Core;
+﻿using Starward.Core;
 using Starward.Features.GameAccount;
 using System;
 using System.Collections.Generic;
@@ -83,11 +83,6 @@ internal static class GameSettingService
         }
         return null;
     }
-
-
-
-    public static void SetGameResolutionSetting(GameBiz biz, GraphicsSettings_PCResolution_h431323223 model)
-        => SetGameResolutionSettingAsync(biz, model).GetAwaiter().GetResult();
 
 
 
@@ -183,11 +178,6 @@ internal static class GameSettingService
         }
         return null;
     }
-
-
-    public static void SetGameVoiceLanguageSetting(GameBiz biz, int lang)
-        => SetGameVoiceLanguageSettingAsync(biz, lang).GetAwaiter().GetResult();
-
 
 
     public static async Task SetGameVoiceLanguageSettingAsync(GameBiz biz, int lang, CancellationToken cancellationToken = default)
@@ -315,11 +305,6 @@ internal static class GameSettingService
 
 
 
-    public static void SetGenshinEnableHDR(GameBiz biz, bool enableHDR, string? winePrefix = null)
-        => SetGenshinEnableHDRAsync(biz, enableHDR, winePrefix).GetAwaiter().GetResult();
-
-
-
     public static async Task SetGenshinEnableHDRAsync(GameBiz biz, bool enableHDR, string? winePrefix = null, CancellationToken cancellationToken = default)
     {
         if (biz.Game is not GameBiz.hk4e)
@@ -420,11 +405,6 @@ internal static class GameSettingService
 
 
 
-    public static void SetGenshinHDRLuminance(GameBiz biz, int maxLuminance, int sceneLuminance, int uiLuminance)
-        => SetGenshinHDRLuminanceAsync(biz, maxLuminance, sceneLuminance, uiLuminance).GetAwaiter().GetResult();
-
-
-
     public static async Task SetGenshinHDRLuminanceAsync(GameBiz biz, int maxLuminance, int sceneLuminance, int uiLuminance, CancellationToken cancellationToken = default)
     {
         maxLuminance = Math.Clamp(maxLuminance, 300, 2000);
@@ -451,6 +431,11 @@ internal static class GameSettingService
             node?["uiPaperWhite"] = uiLuminance;
         }
         string value = (node?.ToJsonString() ?? $"{{\"maxLuminosity\":{maxLuminance},\"scenePaperWhite\":{sceneLuminance},\"uiPaperWhite\":{uiLuminance}}}") + "\0";
-        await WineRegistry.SetValueAsync(key, GENERAL_DATA_h2389025596, Encoding.UTF8.GetBytes(value), lumPrefix, cancellationToken).ConfigureAwait(false);
+        // D135：以前走 SetValueAsync（不返回结果、失败只 Debug 日志），
+        // 与同文件分辨率/语音/FPS 的失败语义不一致；这里改成会抛错的 SetValuesAsync。
+        if (!await WineRegistry.SetValuesAsync(key, new Dictionary<string, object> { [GENERAL_DATA_h2389025596] = Encoding.UTF8.GetBytes(value) }, lumPrefix, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidOperationException(Starward.Language.Lang.Lunarward_Error_SetGameSettingFailed);
+        }
     }
 }

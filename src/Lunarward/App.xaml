@@ -65,7 +65,7 @@
 
             <!--  右键菜单 / 下拉菜单同样要实底：半透明时底层文字会透过来，浅色壁纸上根本读不清  -->
             <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="LunarwardSurfaceBrush" />
-            <StaticResource x:Key="MenuFlyoutSeparatorBackground" ResourceKey="LunarwardSurfaceBrush" />
+            <!-- D135：分隔线不能也铺成面板同色，否则菜单里完全看不见分组；交回默认的主题分隔线。 -->
 
             <FontFamily x:Key="SegoeFluentIcons">ms-appx:///Assets/Font/Segoe Fluent Icons.ttf#Segoe Fluent Icons</FontFamily>
             <Style TargetType="FontIcon">

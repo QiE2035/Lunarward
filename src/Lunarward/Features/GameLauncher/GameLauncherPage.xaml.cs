@@ -704,10 +704,8 @@ public sealed partial class GameLauncherPage : PageBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Start game");
-            if (!OperatingSystem.IsWindows())
-            {
-                Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_Launch_Failed + " " + ex.Message, 6000);
-            }
+            // D135：这条提示以前被包在 !IsWindows() 里，非 Linux 平台启动异常会彻底静默
+            Helpers.InAppToast.MainWindow?.Error((string?)null, Lang.Lunarward_Launch_Failed + " " + ex.Message, 6000);
         }
     }
 

@@ -106,8 +106,6 @@ public sealed partial class GameSettingPage : PageBase
             GameBiz.nap => new BitmapImage(AppConfig.EmojiBangboo),
             _ => null,
         };
-        RefreshProfileSelector();
-        RefreshCompanions();
         if (CurrentGameId.GameBiz == GameBiz.bh3_global)
         {
             CurrentGameBiz = CurrentGameId.Id switch
@@ -119,6 +117,10 @@ public sealed partial class GameSettingPage : PageBase
                 _ => GameBiz.bh3_global,
             };
         }
+        // D135：运行环境/后启动程序按「映射后的分区服」取方案，顺序放在 bh3_global 展开之后，
+        // 否则国际服的 BH3 会拿到 bh3_global 的方案（上游是映射后调用的）。
+        RefreshProfileSelector();
+        RefreshCompanions();
     }
 
 
@@ -334,6 +336,14 @@ public sealed partial class GameSettingPage : PageBase
                     var appWindow = this.XamlRoot.GetAppWindow();
                     if (appWindow is not null)
                     {
+                        // D135：切游戏或重进本页会再走一次这里，旧实例要先退订并释放，
+                        // 否则 AdvancedColorInfoChanged 会越挂越多（上游每次新建页面，不存在这个问题）。
+                        if (_displayInformation is not null)
+                        {
+                            _displayInformation.AdvancedColorInfoChanged -= _displayInformation_AdvancedColorInfoChanged;
+                            _displayInformation.Dispose();
+                            _displayInformation = null!;
+                        }
                         _displayInformation = DisplayInformation.CreateForWindowId(appWindow.Id);
                         _displayInformation.AdvancedColorInfoChanged += _displayInformation_AdvancedColorInfoChanged;
                         UpdateHdrState(_displayInformation);

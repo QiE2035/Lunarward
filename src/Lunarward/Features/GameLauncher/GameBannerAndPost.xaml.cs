@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using Microsoft.Extensions.Logging;
@@ -299,6 +299,27 @@ public sealed partial class GameBannerAndPost : UserControl
     }
 
 
+    private string? _lastBannerLink;
+
+    private long _lastBannerOpenTick;
+
+
+    /// <summary>
+    /// 同一条链接在 400 ms 内只允许打开一次（同一次点击会经过图片与容器两个处理器）。
+    /// </summary>
+    private bool TryClaimBannerOpen(string link)
+    {
+        long now = Environment.TickCount64;
+        if (link == _lastBannerLink && now - _lastBannerOpenTick < 400)
+        {
+            return false;
+        }
+        _lastBannerLink = link;
+        _lastBannerOpenTick = now;
+        return true;
+    }
+
+
     private void PostRow_Tapped(object sender, TappedRoutedEventArgs e)
     {
         try
@@ -323,7 +344,12 @@ public sealed partial class GameBannerAndPost : UserControl
                              ?? FlipView_Banner?.SelectedItem as GameBanner;
         if (banner is not null && !string.IsNullOrWhiteSpace(banner.Image?.Link))
         {
-            Starward.Helpers.OpenUrl.Open(banner.Image.Link);
+            // D135：图片的 Tapped 用 handledEventsToo 注册、容器的 Tapped 也会冒泡到，
+            // 同一次点击可能把同一条链接打开两次，这里按链接 + 时间窗去重。
+            if (TryClaimBannerOpen(banner.Image.Link))
+            {
+                Starward.Helpers.OpenUrl.Open(banner.Image.Link);
+            }
         }
         else
         {
@@ -338,7 +364,10 @@ public sealed partial class GameBannerAndPost : UserControl
         // 只能从 FlipView 的选中项取当前轮播条目。
         if (FlipView_Banner?.SelectedItem is GameBanner banner && !string.IsNullOrWhiteSpace(banner.Image?.Link))
         {
-            Starward.Helpers.OpenUrl.Open(banner.Image.Link);
+            if (TryClaimBannerOpen(banner.Image.Link))
+            {
+                Starward.Helpers.OpenUrl.Open(banner.Image.Link);
+            }
         }
         else
         {

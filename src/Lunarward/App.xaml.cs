@@ -95,10 +95,10 @@ public partial class App : Application
 
         // Lunarward：游戏启动后拉起「伴随启动」的后启动程序（D24/D28）
         Features.Companion.CompanionAutoStart.Register(AppConfig.GetService<Features.Companion.CompanionRunner>(), AppConfig.GetLogger<App>());
-        // Lunarward：Uno 的 AcrylicBrush 只实现为 FallbackColor（96% 不透明的深色），会把壁纸完全盖住。
-        // 这里换成半透明画刷，近似 Windows 上「壁纸透过亚克力」的观感（真模糊见 D31 / M3）。
         // LUNARWARD-DEVIATION: 上游这里用 AppInstance.GetCurrent() 重定向单实例激活，Uno 上没有该实现，
         // Linux 单实例由下面的 SingleInstancePipe（文件锁 + Unix socket）负责（D6）。
+        // 亚克力画刷的替代（Uno 只把 AcrylicBrush 实现成 FallbackColor，会把壁纸盖住）见 App.xaml 的
+        // LunarwardSurfaceBrush 与 D31 / M3。
         // Lunarward：Linux 首次运行先识别已有安装（注册表不可用，改为扫目录，D25）
         if (!OperatingSystem.IsWindows())
         {
@@ -397,6 +397,8 @@ public partial class App : Application
         if (!OperatingSystem.IsWindows())
         {
             _ = StartTrayAsync();
+            // D135：上游靠 WM_WTSSESSION_CHANGE 通知锁屏，Linux 改订阅 logind 的 Session.Lock/Unlock
+            Helpers.SessionLockWatcher.Start(AppConfig.GetLogger<App>());
             // 退出时摘掉 D-Bus 注册，否则托盘区会留一个点不动的死图标（L-62）
             AppDomain.CurrentDomain.ProcessExit += (_, _) => Features.Tray.StatusNotifierTray.Stop();
             return;
