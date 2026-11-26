@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.WinUI;
 using Microsoft.Extensions.Logging;
+using Starward.Helpers;
 using Starward.Features;
 using System;
 using System.Threading.Tasks;
@@ -94,7 +95,10 @@ public sealed partial class ScreenshotSetting : PageBase
 
     public Microsoft.UI.Xaml.Visibility ScreenshotQualityVisibility => ScreenshotForamt > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
-    public string? WindowHandle { get; set; }
+    // D135/F-16：上游是 nint（XamlRoot.GetWindowHandle），移植侧以前是恒 null 的 string?，
+    // 传给 HotkeyInput 的 WindowHandle 也就永远是空。HotkeyManager 的 Linux 实现忽略 hwnd，
+    // 但类型与取值要和上游一致，避免下次同步时看不懂。
+    public nint WindowHandle => XamlRoot.GetWindowHandle();
 
 
     private readonly Microsoft.Extensions.Logging.ILogger<ScreenshotSetting> _logger =
@@ -273,15 +277,6 @@ public sealed partial class ScreenshotSetting : PageBase
         {
             _logger.LogError(ex, "Hotkey edit finished");
             Helpers.InAppToast.MainWindow?.Error(ex, Lang.HotkeySetting_FailedToRegisterTheShortcutKeys);
-        }
-    }
-    // Lunarward：上游这段逻辑在 ScreenshotSetting.xaml.cs（本工程 <Compile Remove>），
-    // 这里补回来：文字被截断一次就缩小一号（最小 12），避免长路径被硬切（D46 复核结论 1）。
-    private void TextBlock_IsTextTrimmedChanged(Microsoft.UI.Xaml.Controls.TextBlock sender, IsTextTrimmedChangedEventArgs e)
-    {
-        if (sender.FontSize > 12)
-        {
-            sender.FontSize -= 1;
         }
     }
 }

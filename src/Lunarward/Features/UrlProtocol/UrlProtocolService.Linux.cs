@@ -83,6 +83,9 @@ internal static class UrlProtocolService
     public static void UnregisterHypLoginProtocol()
     {
         // 与 RegisterProtocol 共用 .desktop，注销交给 UnregisterProtocol，避免把主协议一起删掉。
+        // 但 0.19.0 的登录窗只在登录期间需要这个协议，关窗后必须把 mimeapps.list 里那条也清掉，
+        // 否则「关掉登录窗再点 hyp://」会落到一个已经不存在的处理链上（D135/F-23）。
+        RemoveMimeAssociation();
     }
 
 

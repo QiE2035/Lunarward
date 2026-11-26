@@ -18,7 +18,7 @@
 - 最后更新：2026-11-24（全表复核：§3 补登 4 个漏登文件并纠正 2 处路径、§6 按 csproj 现算 53 条、§7 用 diff 脚本重算 XAML 差异；2026-11-20 的文档整理记录：删 17 份过时文档、D91 打包本地源、D90 CI 产物、D89 SDK 下限、D88 打包依赖单一来源、D87 运行器显示名、D86 注册表改读文件）
 - 对应代码：`src/Lunarward/`（`main` 分支；`git rev-list --count HEAD` = 1485 提交，其中 109 条动过 `src/Lunarward/`；`linux-port` 已于 2026-11-13 停用）
 - 最后核对：2026-11-25（HEAD = 合并 upstream 0.19.0 + net11 分支工作区）
-- 规模：**31 个** `*.Linux.cs`、5 个 `*.LinuxAuto.cs`、`Compat/` 兼容层 2 个文件（`VanaraHotkeyCompat.cs`、`NotifyIcon/TaskbarIconCompat.cs`）、47 条 `<Compile Remove>`（2026-11-25 `find` / `grep` 实测；对齐上游 0.19.0 后 `GameInstallShims.cs`、`GameInstallService.Linux.cs`、`InstallGameDialog.Linux.cs`、`PreDownloadDialog.Linux.cs` 四个文件已删除，`WindowEx.Linux.cs` 随基类改名 `WindowBase.Linux.cs`）
+- 规模：**29 个** `*.Linux.cs`、5 个 `*.LinuxAuto.cs`、`Compat/` 兼容层 2 个文件（`VanaraHotkeyCompat.cs`、`NotifyIcon/TaskbarIconCompat.cs`）、47 条 `<Compile Remove>`（2026-11-25 `find` / `grep` 实测；对齐上游 0.19.0 后 `GameInstallShims.cs`、`GameInstallService.Linux.cs`、`InstallGameDialog.Linux.cs`、`PreDownloadDialog.Linux.cs` 四个文件已删除，`WindowEx.Linux.cs` 随基类改名 `WindowBase.Linux.cs`）
 
 ---
 
@@ -97,7 +97,6 @@
 | `Features/GameLauncher/GameLauncherService.Linux.cs` | `ProcessStartInfo{Verb="runas"}` + `cmd /c start` | ✅ | M1–M2 | 直 `exec wine`；补 Proton 的 `WINEDLLPATH`/`LD_LIBRARY_PATH`/`PROTONPATH`（L-44）；前缀锁、报告、退出钩子都在这里 |
 | `Features/GameSetting/GenshinHDRLuminanceSettingDialog.Linux.cs` | Win2D HDR 预览 | 🟡 | M3 | `.xaml` 已改名 `*.xaml.disabled`（整页 Win2D 实时预览，D31）；对话框由本文件**代码重建**：3 个 Slider + 数值文本 + 恢复默认 + `Opened` 读 `GameSettingService.GetGenshinHDRLuminanceAsync` / 关闭写回，只能调写入游戏的亮度参数，无预览 |
 | `Features/GamepadControl/GamepadController.Linux.cs` | `SharpGameInput` + `InputSimulator` | ⬜ | M4 | 整体未实现 |
-| `Features/GameRecord/LoginPage.Linux.cs` | WebView2 内嵌登录 | 🟡 | M1–M2 | 主路径是**本程序 `--webkit-login` 子进程**（WebKitGTK 6.0 + GirCore，D76），直接读 WebKit 的 cookie 库；`WebKitLoginHost.IsAvailable()` 为假才回落 `python3` + `python-gobject` 跑 `login.py`（D29/D32） |
 | `Features/GameRecord/BBSWebBridge.Linux.cs` | WebView2 脚本桥 | ⬜ | M4 | 仅有 `GameBiz`/`IsHoyolab`/`IsLoggedIn` |
 | `Features/GameRecord/BattleChronicleWindow.Linux.cs` | 战绩窗口 | ⬜ | M4 | 占位 |
 | `Features/PlayTime/PlayTimeSession.Linux.cs` | 无同名上游文件（上游靠进程退出即判定会话结束） | ✅ | M2 | `wineserver -w` 等该前缀的 wine 全部退出（wine 会 fork，只盯启动拿到的 pid 会早退）；拿不到 wineserver 时退回「进程 + 子孙进程」轮询；30s 心跳写 `Interruption`（L-55） |
@@ -203,6 +202,11 @@ grep -o '<Compile Remove="[^"]*"' src/Lunarward/Lunarward.csproj | sed 's/<Compi
 ```
 
 ---
+
+## 6.1 · 2026-11-26 的第二轮对齐（D138）
+
+- 删掉移植侧自建登录页：`Features/GameRecord/LoginPage.xaml`、`LoginPage.Linux.cs`、`LoginPage.LinuxAuto.cs`、`GameRecordService.cs`、`GameRecordRoleChangedMessage.cs`。上游 0.19.0 已无该页，登录统一走 `MainView.HypLoginAsync()`（`HypLoginWindow` + WebKitGTK）。`WebLoginService`/`WebKitLoginHost`/`--webkit-login` 保留（BBS 桥与 CLI 助手仍用）。
+- 因此 `*.Linux.cs` 从 31 个降到 **29 个**，同名差异文件从 78 降到 **74**（删掉的 4 个中有的是上游已不存在、有的是移植独有）。
 
 ## 7 · 与上游 XAML 的差异（37 个字节不同：32 个实质差异 + 5 个仅编码差异；另有 6 个缺失）
 

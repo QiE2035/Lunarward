@@ -54,14 +54,29 @@ public class CliSpecTests
     }
 
     [Fact]
-    public void EveryDeclaredSwitchStartsWithDash()
+    public void EveryDeclaredSwitchIsWellFormed()
     {
         foreach (var item in CliSpec.Commands.Concat(CliSpec.Modifiers))
         {
-            Assert.StartsWith("-", item.Name, StringComparison.Ordinal);
+            // 上游的 CLI 里既有 `--preflight` 这种开关，也有 `playtime` / `startgame` 这种裸子命令
+            // （桌面环境的深链与云游戏按钮按这种方式拉起程序），两类都要能登记进表。
+            bool wellFormed = item.Name.StartsWith("-", StringComparison.Ordinal)
+                || (item.Name.Length > 0 && item.Name.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c)));
+            Assert.True(wellFormed, $"命令名既不是开关也不是小写子命令：{item.Name}");
             Assert.False(string.IsNullOrWhiteSpace(item.Description), item.Name);
             Assert.False(string.IsNullOrWhiteSpace(item.Group), item.Name);
         }
+    }
+
+
+    [Theory]
+    [InlineData("startgame")]
+    [InlineData("playtime")]
+    [InlineData("rpc")]
+    public void BareSubcommandsAreDeclared(string name)
+    {
+        Assert.Contains(CliSpec.Commands, x => x.Name == name);
+        Assert.Contains(name, CliSpec.Known);
     }
 
     [Theory]

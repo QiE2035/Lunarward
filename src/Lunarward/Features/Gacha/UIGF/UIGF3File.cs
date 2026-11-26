@@ -36,7 +36,7 @@ public class UIAF3FileInfo
     public string ExportTime { get; set; }
 
     [JsonPropertyName("export_app")]
-    public string ExportApp { get; set; } = "Lunarward";
+    public string ExportApp { get; set; } = "Starward";
 
     [JsonPropertyName("export_app_version")]
     public string ExportAppVersion { get; set; }

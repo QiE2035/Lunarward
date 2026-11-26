@@ -138,6 +138,27 @@
 
 **统计口径**：§1 的 345 点 / 113 文件条目是 2026-11-25 的快照，尚未计入上表 5 条新增与 D135 的 12 处行为补齐；下一轮全量重算以当时脚本输出为准（脚本在 `/tmp/lw-audit2/gen/`，报告在 `30-appendix/`，可复现）。
 
+## §2.6 · D138：第二轮对齐（2026-11-26）
+
+30 号报告 §B3 里剩下的可改项，按「优先保证和上游一致」处理完 12 条，另加删掉移植侧自建的登录页簇。
+
+| 项 | 处理 | 性质 |
+| --- | --- | --- |
+| F-12 `FileManageSetting` 的 WinRT 启动器 | 改 `Helpers.OpenUrl.Open` | 修行为丢失 |
+| F-14 长路径缩字号 | 恢复 `IsTextTrimmedChanged` | 修行为丢失 |
+| F-15 诊断包目录 | 新增 `Helpers/XdgFolders.DownloadFolder()`，与「打开目录」共用 | 修行为不一致 |
+| F-16 `ScreenshotSetting.WindowHandle` | `string?` → `nint` | 对齐类型 |
+| F-17 重复处理器 | 删 | 去重 |
+| F-06 截图条目指针 | 补 `PointerCursor.CursorShape="Hand"` | 对齐交互 |
+| F-08 视频背景校验 | 魔数之后再试解第一帧 | 补校验 |
+| F-18 三条硬编码中文 | 走 `Lang`（四语言） | i18n |
+| F-23 登录窗协议注册 | 移出 UI 线程，注销清 mime 关联 | 修硬规则 10 违规 |
+| F-25 深链 | 支持 `startgame/<biz>?install_path=`，新增 `startgame` 裸命令 | 修功能丢失 |
+| F-26 `export_app` | 回退 `Starward` | 对齐上游字段值 |
+| 登录页簇 | 删 `LoginPage*`、`GameRecordService`、`GameRecordRoleChangedMessage`，空态登录走 `HypLoginAsync()` | 移除移植独有实现 |
+
+**仍保留（引擎缺口，见 30 号 §5）**：F-05 圆角裁剪（Toolkit 的 `ClipToBounds`，包已移除；Uno 的 `RectangleGeometry` 无圆角）、F-11 颜色管理/SDR（无 HDR→SDR 编码）、F-19 无用 using、F-31 跨进程去重。
+
 ## 3 · 逐模块偏离点
 
 ### 3.1 启动器与游戏入口（GameLauncher）

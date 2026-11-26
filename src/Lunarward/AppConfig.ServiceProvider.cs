@@ -157,7 +157,6 @@ public static partial class AppConfig
         // Lunarward：伴随启动的运行器（移植侧自建，上游没有），缺注册会让 App.OnLaunched 解析时抛异常。
         sc.AddSingleton<Starward.Features.Companion.CompanionRunner>();
         // Lunarward：BBS 登录页 / 战绩页要用的门面（0.19.0 合并时同样丢了注册）。
-        sc.AddSingleton<Starward.Features.GameRecord.GameRecordService>();
 
         sc.AddHttpClient<LogUploadClient>().ConfigStarwardHttpClient();
     }

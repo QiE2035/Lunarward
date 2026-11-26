@@ -4400,6 +4400,15 @@
   <data name="Lunarward_Diagnose_Close" xml:space="preserve">
     <value>關閉</value>
   </data>
+  <data name="Lunarward_Advanced_OutputDescription" xml:space="preserve">
+    <value>遊戲本體與「後啟動程式」的 stdout/stderr 會一直擷取並落盤（預設不清屏、不改動遊戲行為）；這裡只控制「怎麼看」。</value>
+  </data>
+  <data name="Lunarward_Advanced_OutputEmpty" xml:space="preserve">
+    <value>（還沒有擷取到輸出。啟動一次遊戲或「後啟動程式」後，這裡會出現它們寫到 stdout/stderr 的內容。）</value>
+  </data>
+  <data name="Lunarward_Screenshot_HotkeyHint" xml:space="preserve">
+    <value>Linux 下截圖熱鍵透過輪詢 X11 鍵盤狀態實作，不需要管理員權限。純 Wayland 工作階段不可用，可以把系統快速鍵綁定到 lunarward --screenshot。</value>
+  </data>
   <data name="Lunarward_Diagnose_Failed" xml:space="preserve">
     <value>產生診斷包失敗：{0}</value>
   </data>

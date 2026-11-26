@@ -101,6 +101,12 @@ public partial class Lang
         public static string Lunarward_Diagnose_Refresh => ResourceManager.GetString("Lunarward_Diagnose_Refresh", resourceCulture) ?? "Lunarward_Diagnose_Refresh";
         public static string Lunarward_Diagnose_OpenLogFolder => ResourceManager.GetString("Lunarward_Diagnose_OpenLogFolder", resourceCulture) ?? "Lunarward_Diagnose_OpenLogFolder";
         public static string Lunarward_Diagnose_Close => ResourceManager.GetString("Lunarward_Diagnose_Close", resourceCulture) ?? "Lunarward_Diagnose_Close";
+        public static string Lunarward_Advanced_OutputDescription => ResourceManager.GetString("Lunarward_Advanced_OutputDescription", resourceCulture) ?? "Lunarward_Advanced_OutputDescription";
+
+        public static string Lunarward_Advanced_OutputEmpty => ResourceManager.GetString("Lunarward_Advanced_OutputEmpty", resourceCulture) ?? "Lunarward_Advanced_OutputEmpty";
+
+        public static string Lunarward_Screenshot_HotkeyHint => ResourceManager.GetString("Lunarward_Screenshot_HotkeyHint", resourceCulture) ?? "Lunarward_Screenshot_HotkeyHint";
+
         public static string Lunarward_Diagnose_Failed => ResourceManager.GetString("Lunarward_Diagnose_Failed", resourceCulture) ?? "Lunarward_Diagnose_Failed";
         public static string Lunarward_FileDialog_NoTool => ResourceManager.GetString("Lunarward_FileDialog_NoTool", resourceCulture) ?? "Lunarward_FileDialog_NoTool";
         public static string Lunarward_Login_OpeningWindow => ResourceManager.GetString("Lunarward_Login_OpeningWindow", resourceCulture) ?? "Lunarward_Login_OpeningWindow";

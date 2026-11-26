@@ -96,8 +96,10 @@ public sealed partial class FileManageSetting : PageBase
         {
             if (Directory.Exists(AppConfig.UserDataFolder))
             {
-                await Launcher.LaunchUriAsync(new Uri(AppConfig.UserDataFolder));
+                // D135/F-12：WinRT 的 Launcher 在 Uno/Linux 下是空实现（点了没反应），走 xdg-open。
+                Helpers.OpenUrl.Open(AppConfig.UserDataFolder);
             }
+            await Task.CompletedTask;
         }
         catch (Exception ex)
         {
@@ -219,13 +221,9 @@ public sealed partial class FileManageSetting : PageBase
                 file = Path.Join(AppConfig.UserDataFolder, "DatabaseBackup", file);
                 if (File.Exists(file))
                 {
-                    var item = await StorageFile.GetFileFromPathAsync(file);
-                    var folder = await StorageFolder.GetFolderFromPathAsync(Path.GetDirectoryName(file));
-                    var options = new FolderLauncherOptions
-                    {
-                        ItemsToSelect = { item }
-                    };
-                    await Launcher.LaunchFolderAsync(folder, options);
+                    // D135/F-12：WinRT 的文件夹启动器在 Linux 不可用；xdg 没有「打开并选中文件」，
+                    // 退一步打开所在文件夹（与「在文件夹中显示」一致）。
+                    Helpers.OpenUrl.Open(Path.GetDirectoryName(file)!);
                 }
                 else
                 {
@@ -265,15 +263,14 @@ public sealed partial class FileManageSetting : PageBase
         {
             if (File.Exists(AppConfig.LogFile))
             {
-                var item = await StorageFile.GetFileFromPathAsync(AppConfig.LogFile);
-                var options = new FolderLauncherOptions();
-                options.ItemsToSelect.Add(item);
-                await Launcher.LaunchFolderPathAsync(Path.GetDirectoryName(AppConfig.LogFile), options);
+                // D135/F-12：同上，WinRT 文件夹启动器在 Linux 是空实现。
+                Helpers.OpenUrl.Open(Path.GetDirectoryName(AppConfig.LogFile)!);
             }
             else
             {
-                await Launcher.LaunchFolderPathAsync(Path.Combine(AppConfig.CacheFolder, "log"));
+                Helpers.OpenUrl.Open(Path.Combine(AppConfig.CacheFolder, "log"));
             }
+            await Task.CompletedTask;
         }
         catch (Exception ex)
         {

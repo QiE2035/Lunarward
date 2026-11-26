@@ -77,7 +77,7 @@ public sealed partial class AdvancedSetting : PageBase
         IReadOnlyList<Features.Runtime.OutputLine> lines = Features.Runtime.OutputCapture.Recent(500);
         if (lines.Count == 0)
         {
-            return "（还没有捕获到输出。启动一次游戏或「后启动程序」后，这里会出现它们写到 stdout/stderr 的内容。）";
+            return Starward.Language.Lang.Lunarward_Advanced_OutputEmpty;
         }
         var sb = new StringBuilder();
         foreach (Features.Runtime.OutputLine line in lines)
@@ -108,7 +108,7 @@ public sealed partial class AdvancedSetting : PageBase
     {
         try
         {
-            string downloads = DownloadFolder();
+            string downloads = Helpers.XdgFolders.DownloadFolder();
             Directory.CreateDirectory(downloads);
             Helpers.OpenUrl.Open(downloads);
         }
@@ -116,43 +116,6 @@ public sealed partial class AdvancedSetting : PageBase
         {
             _logger.LogWarning(ex, "Open Downloads failed");
         }
-    }
-
-
-    /// <summary>
-    /// D134：`~/Downloads` 是 Windows 的习惯；Linux 走 `user-dirs.dirs` 的 XDG_DOWNLOAD_DIR，
-    /// 没配置才回落到 `$HOME`（而不是造一个空的 `~/Downloads`）。
-    /// </summary>
-    private static string DownloadFolder()
-    {
-        try
-        {
-            string configHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME") is { Length: > 0 } xdg
-                ? xdg
-                : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config");
-            string file = Path.Combine(configHome, "user-dirs.dirs");
-            if (File.Exists(file))
-            {
-                foreach (string line in File.ReadAllLines(file))
-                {
-                    if (!line.StartsWith("XDG_DOWNLOAD_DIR=", StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
-                    string value = line["XDG_DOWNLOAD_DIR=".Length..].Trim().Trim('"');
-                    value = value.Replace("$HOME", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), StringComparison.Ordinal);
-                    if (value.Length > 0)
-                    {
-                        return value;
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, "read XDG_DOWNLOAD_DIR failed");
-        }
-        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     }
 
 

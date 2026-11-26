@@ -103,6 +103,45 @@ internal class LunarwardProgram
             return;
         }
 
+        // 深链启动游戏（对齐上游 `src/Starward/Program.cs:86`：`HandleUrlProtocolAsync` 直接起进程后退出）。
+        // 主实例没跑时，桌面环境会把 `lunarward://startgame/...` 交给本进程；以前这条路径什么都不做。
+        if (args.Length >= 1 && args[0].ToLowerInvariant() is "startgame")
+        {
+            InitEnviroment();
+            string startBiz = "";
+            string? startInstallPath = null;
+            for (int i = 1; i < args.Length; i++)
+            {
+                if (args[i] is "--biz" && i + 1 < args.Length)
+                {
+                    startBiz = args[++i];
+                }
+                else if (args[i] is "--install-path" && i + 1 < args.Length)
+                {
+                    startInstallPath = args[++i];
+                }
+            }
+            if (!Starward.Core.GameBiz.TryParse(startBiz, out Starward.Core.GameBiz startBizValue)
+                || Starward.Core.HoYoPlay.GameId.FromGameBiz(startBizValue) is not { } startGameId)
+            {
+                Console.Error.WriteLine($"未知游戏：{startBiz}");
+                Environment.ExitCode = 1;
+                return;
+            }
+            try
+            {
+                AppConfig.GetService<Starward.Features.GameLauncher.GameLauncherService>()
+                    .StartGameAsync(startGameId, startInstallPath).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "startgame from url failed: {game}", startGameId.Id);
+                Console.Error.WriteLine($"启动失败：{ex.Message}");
+                Environment.ExitCode = 1;
+            }
+            return;
+        }
+
         // 游玩时长记账（对齐上游 `src/Starward/Program.cs:48` 的 playtime 分支）：
         // 云游戏按钮会以 `lunarward playtime --biz hk4e_cn --pid <pid>` 拉起本程序，
         // 这里只记账然后退出——不走 GUI，否则会多开一个主窗口（D134）。

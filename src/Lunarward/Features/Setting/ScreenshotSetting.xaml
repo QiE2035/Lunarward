@@ -81,7 +81,7 @@
             <!--  Linux 口径（D61）：截图热键同为 X11 轮询实现，Wayland 会话请用系统快捷键调用 lunarward 截图命令。  -->
             <TextBlock Margin="0,8,0,0"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Text="Linux 下截图热键通过轮询 X11 键盘状态实现，不需要管理员权限。纯 Wayland 会话不可用，可以把系统快捷键绑定到 lunarward --screenshot。"
+                       Text="{x:Bind lang:Lang.Lunarward_Screenshot_HotkeyHint}"
                        TextWrapping="Wrap" />
 
             <!--  设置快捷键  -->

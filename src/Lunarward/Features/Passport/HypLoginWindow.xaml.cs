@@ -62,7 +62,8 @@ public sealed partial class HypLoginWindow : WindowBase
             AppWindow.TitleBar.IconShowOptions = IconShowOptions.ShowIconAndSystemMenu;
             AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Tall;
             AdaptTitleBarButtonColorToActuallTheme();
-            UrlProtocolService.RegisterHypLoginProtocol();
+            // D135/F-23：注册要 fork xdg-mime / update-desktop-database，不能占 UI 线程（硬规则 10）。
+            _ = Task.Run(UrlProtocolService.RegisterHypLoginProtocol);
         }
         catch { }
     }
@@ -132,7 +133,8 @@ public sealed partial class HypLoginWindow : WindowBase
     {
         try
         {
-            UrlProtocolService.UnregisterHypLoginProtocol();
+            // D135/F-23：注销同样会 fork 外部命令（xdg-mime / update-desktop-database）。
+            _ = Task.Run(UrlProtocolService.UnregisterHypLoginProtocol);
             _loginTaskSource?.TrySetResult(null);
         }
         catch { }

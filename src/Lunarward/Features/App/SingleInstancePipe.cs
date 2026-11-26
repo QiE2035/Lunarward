@@ -4,7 +4,7 @@
 // 用 UNIX domain socket（~/.local/state/lunarward/lunarward.sock），协议简单到只有几行文本：
 //   show                 唤起主窗口
 //   exit                 退出主实例
-//   startgame<TAB>biz    在主实例里启动游戏（`lunarward://startgame?biz=hk4e_cn` 深链要用）
+//   startgame<TAB>biz[<TAB>install_path]  在主实例里启动游戏（`lunarward://startgame/hk4e_cn?install_path=…` 深链要用）
 // 不做双向通信，主实例处理完就关连接——这类需求不值得上 gRPC。
 using System;
 using System.IO;
@@ -39,7 +39,9 @@ internal static class SingleInstancePipe
             {
                 "exit" => ExitCommand,
                 "startgame" when GetArgValue(args, "--biz") is string biz && !string.IsNullOrWhiteSpace(biz)
-                    => $"{StartGameCommand}\t{biz}",
+                    => GetArgValue(args, "--install-path") is string installPath && installPath.Length > 0
+                        ? $"{StartGameCommand}\t{biz}\t{installPath}"
+                        : $"{StartGameCommand}\t{biz}",
                 _ => ShowCommand,
             };
             using var client = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);

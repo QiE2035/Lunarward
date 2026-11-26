@@ -30,8 +30,9 @@ public static class DiagnosticBundle
 
     public static async Task<string> CreateAsync(string? outputDirectory = null, GameBiz? gameBiz = null, ILogger? logger = null)
     {
-        string folder = outputDirectory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        // D135/F-15：生成位置与「打开文件夹」按钮必须一致，按钮读的是 XDG_DOWNLOAD_DIR，
+        // 这里以前写死 ~/Downloads —— 该目录存在与否、是否被本地化（中文桌面是「下载」）都不一定。
+        string folder = outputDirectory ?? Helpers.XdgFolders.DownloadFolder();
         Directory.CreateDirectory(folder);
         string stamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
         string zipPath = Path.Combine(folder, $"lunarward-diagnose-{stamp}.zip");

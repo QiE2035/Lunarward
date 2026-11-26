@@ -67,6 +67,7 @@
                     <DataTemplate x:DataType="local:ScreenshotItem">
                         <Border Margin="0,0,0,0"
                                 Padding="6"
+                                sh:PointerCursor.CursorShape="Hand"
                                 CanDrag="True"
                                 DragStarting="Item_DragStarting"
                                 Tapped="Item_Tapped"

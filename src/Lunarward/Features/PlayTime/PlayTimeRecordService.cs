@@ -147,7 +147,6 @@ internal class PlayTimeRecordService
 
 
 
-    /// <summary>取该 PID 最近一次的 Start 事件时间；没有就返回 null。</summary>
     /// <summary>B76：读 /proc/&lt;pid&gt;/stat 的启动时刻（boot ticks + btime）。</summary>
     private static DateTime? GetProcessStartTime(int pid)
     {

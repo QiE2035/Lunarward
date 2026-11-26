@@ -51,7 +51,7 @@ internal static class CliSpec
         new("--preflight", "<biz>", "启动前预检：运行身份 / 组件 / 游戏架构 / 前缀 / 图形", GroupDiagnose),
         new("--launch-plan", "<exe> [参数…]", "只解析不启动，打印配方、argv、环境变量与覆盖项", GroupDiagnose),
         new("--profile-ensure", "[biz]", "解析这个游戏的环境绑定，首次使用会自动建或改名", GroupDiagnose),
-        new("--diagnose", "[--out DIR] [--game BIZ]", "生成诊断包 zip（默认 ~/Downloads）", GroupDiagnose),
+        new("--diagnose", "[--out DIR] [--game BIZ]", "生成诊断包 zip（默认 XDG 下载目录）", GroupDiagnose),
         new("--output-tail", "[行数]", "打印日志尾部（默认 50 行，上限 5000）", GroupDiagnose),
         new("--screenshot", "", "截图并存到设置目录", GroupDiagnose),
         new("--convert-screenshots", "[目录]", "把截图目录里的旧格式转成当前格式", GroupDiagnose),
@@ -102,7 +102,12 @@ internal static class CliSpec
         new("--update-check", "", "查询 AUR 版本", GroupMisc),
         new("--url-plan", "<url>", "展开 URL 参数（不启动）", GroupMisc),
         new("--webkit-login", "--url <页> --output <文件>", "登录窗（本程序 + WebKitGTK 6.0，独立进程）", GroupMisc),
-        new("--selftest-ui", "", "进程内 UI 自检（11 条断言）", GroupMisc),
+        new("--selftest-ui", "", "进程内 UI 自检（13 条断言）", GroupMisc),
+
+        // 协议/深链用的裸命令（不带 -- 前缀，第一条 token 就是命令名）。
+        new("startgame", "--biz <biz> [--install-path 目录]", "启动游戏后退出（深链 lunarward://startgame/<biz> 展开到这里）", GroupMisc),
+        new("playtime", "--biz <biz> [--pid <pid>]", "记一次游玩时长后退出（云游戏按钮拉起）", GroupMisc),
+        new("rpc", "", "未实现（M4 占位，退出码 2）", GroupMisc),
 
         // 开发 / 截图用：直接决定「开窗后落到哪个状态」，由 Features/App/DevSwitches.cs 读。
         new("--page", "<页面>", "启动后直接跳到某个主页", GroupGui),

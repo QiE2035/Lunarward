@@ -1,6 +1,6 @@
 # 决策记录（ADR）
 
-- **状态**：生效中（D0–D137）
+- **状态**：生效中（D0–D138）
 - **最后更新**：2026-11-25
 - **规则**：本文件是唯一施工依据。新增决策只能追加；变更必须记录「变更原因 + 影响范围 + 受影响文档」。
 - **历史文档引用**：正文里出现的 `01`–`17`、`20`–`22` 号文档已于 2026-11-20 从仓库删除（已完成使命，或被 `12`/`13`/`23`/`24` 取代）。引用处保留原编号便于回溯；原文用 `git log --diff-filter=D -- docs/linux-port/` 找到删除提交后 `git show <commit>^:<路径>` 取回。
@@ -2423,4 +2423,32 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 **验证**：Debug/Release 0 错误、365 单测、`--selftest-ui` 13/13、`lint-ui-thread` 全绿；`lint-doc-status --strict` 在同步 12-shims 登记后全绿。
 
 **确认方式**：30 号报告 §B5 + 用户「优先对齐上游」（2026-11-26）。
+
+---
+
+## D138　对齐上游第二轮：B3 剩余项与登录页簇删除（2026-11-26）
+
+**背景**：30 号报告 §B3 的 35 项里，B1–B5 只做掉了高价值子集；用户重申「优先保证和上游一致」，于是把剩下能改的、以及两项此前挂着「产品取舍」的，一并按上游处理。
+
+**决定（12 条）**：
+1. **F-12** `FileManageSetting.xaml.cs` 的三处 WinRT 调用（`Launcher.LaunchUriAsync`/`LaunchFolderAsync`/`LaunchFolderPathAsync` + `StorageFile.GetFileFromPathAsync`）改 `Helpers.OpenUrl.Open`——Uno/Linux 下 WinRT 启动器是空实现，点了没有任何反应。
+2. **F-14** `FileManageSetting.xaml` 恢复 `IsTextTrimmedChanged="TextBlock_IsTextTrimmedChanged"`（`PageBase` 的 protected 方法），长路径重新缩字号。
+3. **F-15** 新增 `Helpers/XdgFolders.DownloadFolder()`（读 `user-dirs.dirs` 的 `XDG_DOWNLOAD_DIR`，回落 `$HOME`），`DiagnosticBundle` 与设置页「打开诊断目录」共用——以前生成到 `~/Downloads`、打开的是本地化下载目录，两边对不上。
+4. **F-16** `ScreenshotSetting.Linux.cs` 的 `WindowHandle` 从恒 null 的 `string?` 改回 `nint`（`XamlRoot.GetWindowHandle()`），与上游同型。
+5. **F-17** 删掉与 `PageBase` 重复的 `TextBlock_IsTextTrimmedChanged`。
+6. **F-06** 截图条目补 `sh:PointerCursor.CursorShape="Hand"`。
+7. **F-08** 视频背景在容器魔数之后再加一道「第一帧能否解出」：用 `VideoThumbnailer.EnsureAsync` 试解（只在用户选文件时发生，不在启动路径），解不出就当坏文件拒绝，避免坏文件被持久化后黑屏。
+8. **F-18** 三条硬编码中文改 `Lang`（新增 `Lunarward_Advanced_OutputDescription`/`Lunarward_Advanced_OutputEmpty`/`Lunarward_Screenshot_HotkeyHint`，四份 resx + `Lang.Lunarward.cs`）。
+9. **F-23** `HypLoginWindow` 的协议注册/注销移出 UI 线程（`Task.Run`），注销时同时清 `mimeapps.list` 里那条关联——关掉登录窗后 `hyp://` 不再落到不存在的处理链。
+10. **F-25** 深链对齐上游形态：支持 `lunarward://startgame/<biz>?install_path=…`（biz 在路径里），并把 `install_path` 通过单实例管道（`startgame<TAB>biz<TAB>install_path`）传到主实例；主实例没跑时 `Program.Linux.cs` 新增 `startgame` 裸命令直接起进程后退出（上游 `Program.cs:86` 的行为）。
+11. **F-26** `export_app` 从 `Lunarward` 回退为 `Starward`（UIGF3/UIGF4/`GachaLogExportFile`/ZZZ 落盘），与上游逐字一致——第三方导入器按这个字段做白名单。
+12. **B5 批 2**：删掉移植侧自建的登录页簇 —— `Features/GameRecord/LoginPage.xaml`、`LoginPage.Linux.cs`、`LoginPage.LinuxAuto.cs`、`GameRecordService.cs`（唯一消费者是登录页）、`GameRecordRoleChangedMessage.cs`（唯一发送方是登录页）+ DI 注册行；`GameRecordPage` 的空态「登录」改走 `MainView.HypLoginAsync()`（上游 `GameRecordPage.xaml.cs:398` 的路径），`MainView` 的 `login` 直达映射一并去掉。上游 0.19.0 已无该页面。
+
+**有意保留（引擎缺口，写进 30 号 §5）**：F-05 卡片圆角裁剪（`ui:UIElementExtensions.ClipToBounds` 属 CommunityToolkit，包已按 L-185 移除；Uno 的 `RectangleGeometry` 没有圆角）；F-11 截图颜色管理/SDR 两开关仍只写不读（没有 HDR→SDR 编码路径）；F-19 无用 using、F-31 跨进程游玩时长去重（低价值/高风险）。
+
+**代价与边界**：`--webkit-login` 与 `WebLoginService` 保留（BBS 桥与 CLI 登录助手仍用），只删页面层；`GameRecordRoleChangedMessage` 删除后，登录完成刷新依赖上游的 `HypThirdPartyLoginMessage`。
+
+**验证**：Debug/Release 0 错误；`dotnet test` 365；`--selftest-ui` 13/13；`lint-ui-thread`、`lint-doc-status --strict`、`lint-pkgbuild`、`lint-cli-help`（A 43 / B 72 / C）全绿；`cli-smoke` 40 通过 + 1 跳过；`cli-extra` 28 通过 + 4 跳过；`--url-plan` 实测三条深链展开正确；`dotnet publish -c Release -r linux-x64 --self-contained true` 成功。
+
+**确认方式**：30 号报告 §B3/§B5 + 用户 m08779「优先保证和上游一致」。
 

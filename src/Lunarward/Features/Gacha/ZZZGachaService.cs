@@ -547,7 +547,7 @@ internal class ZZZGachaService : GachaLogService
         [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
         public long export_timestamp { get; set; }
 
-        public string export_app { get; set; } = "Lunarward";
+        public string export_app { get; set; } = "Starward";
 
         public string export_app_version { get; set; } = AppConfig.AppVersion ?? "";
 

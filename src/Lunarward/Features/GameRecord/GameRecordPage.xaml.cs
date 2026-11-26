@@ -60,13 +60,6 @@ public sealed partial class GameRecordPage : PageBase
         {
             DispatcherQueue.TryEnqueue(() => _ = InitializeGameRoleAsync());
         });
-        // 上游 0.19.0 登录完成后由 HypThirdPartyLoginMessage 触发刷新；Linux 的登录页走独立 WebKitGTK
-        // 窗口，完成后发的是 GameRecordRoleChangedMessage（LoginPage.Linux.cs）——以前没人订阅它，
-        // 结果登录成功回到战绩页仍是空的（D134）。
-        WeakReferenceMessenger.Default.Register<GameRecordRoleChangedMessage>(this, (r, m) =>
-        {
-            DispatcherQueue.TryEnqueue(() => _ = InitializeGameRoleAsync());
-        });
         await Task.Delay(16);
         NavigateTo(typeof(BlankPage));
         await InitializeGameRoleAsync();
@@ -503,14 +496,12 @@ public sealed partial class GameRecordPage : PageBase
 
 
     /// <summary>
-    /// LUNARWARD-DEVIATION: 空态「登录」入口（移植侧 XAML 独有，上游 0.19.0 不会走到没有角色态的页面）。
-    /// Linux 的 LoginPage 用进程内 WebKitGTK 登录助手取 cookie（D29/D32），参数仍是 GameBiz。
+    /// 空态「登录」入口（移植侧 XAML 独有，上游 0.19.0 不会走到没有角色态的页面）。
+    /// 对齐上游：登录统一走 MainView.HypLoginAsync（HypLoginWindow 内嵌 WebKitGTK，D29/D32），
+    /// 不再跳移植侧自建的 LoginPage —— 上游 0.19.0 已经把这个页面删掉了（D138）。
     /// </summary>
     [RelayCommand]
-    private void WebLogin()
-    {
-        NavigateTo(typeof(LoginPage), CurrentGameBiz);
-    }
+    private Task WebLoginAsync() => LoginAsync();
 
 
     [RelayCommand]

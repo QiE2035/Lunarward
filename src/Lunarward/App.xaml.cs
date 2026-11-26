@@ -176,9 +176,14 @@ public partial class App : Application
                 m_MainWindow?.Activate();
             }),
             onExit: () => OnUi(Exit),
-            onStartGame: bizName => OnUi(() =>
+            onStartGame: payload => OnUi(() =>
             {
-                Serilog.Log.Information("Second instance asked to start game {biz}", bizName);
+                // D138/F-25：payload 是 `<biz>` 或 `<biz>\t<install_path>`；install_path 来自深链查询串，
+                // 第三方启动器（如 umu / Steam 快捷方式）靠它指定非默认安装目录。
+                string[] parts = payload.Split('\t', 2);
+                string bizName = parts[0].Trim();
+                string? launchInstallPath = parts.Length > 1 && parts[1].Length > 0 ? parts[1] : null;
+                Serilog.Log.Information("Second instance asked to start game {biz} (install path: {path})", bizName, launchInstallPath ?? "(default)");
                 if (GameBiz.TryParse(bizName, out GameBiz biz) && GameId.FromGameBiz(biz) is GameId gameId)
                 {
                     EnsureMainWindow();
@@ -187,7 +192,7 @@ public partial class App : Application
                     {
                         try
                         {
-                            await AppConfig.GetService<GameLauncherService>().StartGameAsync(gameId);
+                            await AppConfig.GetService<GameLauncherService>().StartGameAsync(gameId, launchInstallPath);
                         }
                         catch (Exception ex)
                         {
@@ -300,8 +305,11 @@ public partial class App : Application
             return args;
         }
         string host = uri.Host.ToLowerInvariant();
-        string? biz = null;
+        // D138/F-25：上游把 game_biz 放在路径里（`starward://startgame/hk4e_cn?install_path=…`），
+        // 移植侧以前只认 `?biz=`，于是第三方启动器拼的深链会被当成「没有 biz」而被静默丢弃。
+        string? biz = uri.AbsolutePath.Trim('/') is { Length: > 0 } pathBiz ? Uri.UnescapeDataString(pathBiz) : null;
         string? pid = null;
+        string? installPath = null;
         foreach (string pair in uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
             int eq = pair.IndexOf('=');
@@ -319,12 +327,29 @@ public partial class App : Application
             {
                 pid = value;
             }
+            else if (name.Equals("install_path", StringComparison.OrdinalIgnoreCase))
+            {
+                installPath = value;
+            }
         }
         // B57：上游支持 startgame / playtime / test 三种 host，这里把 query 展开成内部参数。
         switch (host)
         {
             case "startgame":
-                return biz is null ? ["startgame"] : ["startgame", "--biz", biz];
+            {
+                List<string> list = ["startgame"];
+                if (!string.IsNullOrWhiteSpace(biz))
+                {
+                    list.Add("--biz");
+                    list.Add(biz!);
+                }
+                if (!string.IsNullOrWhiteSpace(installPath))
+                {
+                    list.Add("--install-path");
+                    list.Add(installPath!);
+                }
+                return [.. list];
+            }
             case "playtime":
             {
                 List<string> list = ["playtime"];

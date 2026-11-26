@@ -43,7 +43,7 @@
             <TextBlock Margin="0,8,0,0"
                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                        TextWrapping="Wrap">
-                游戏本体与「后启动程序」的 stdout/stderr 会一直捕获并落盘（默认不清屏、不改动游戏行为）；这里只控制「怎么看」。
+                Text="{x:Bind lang:Lang.Lunarward_Advanced_OutputDescription}"
             </TextBlock>
             <StackPanel Margin="0,12,0,0" Orientation="Horizontal" Spacing="12">
                 <Button Height="40"

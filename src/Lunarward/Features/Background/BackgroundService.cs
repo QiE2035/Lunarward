@@ -319,6 +319,13 @@ public class BackgroundService
             {
                 throw new InvalidDataException("background file is not a playable video container");
             }
+            // D138/F-08：魔数只证明「这是 mp4/mkv/webm 的壳」，截断文件、编码不支持的文件照样能过。
+            // 上游是 MediaSource.OpenAsync 真开一次；这里用缩略图链路解第一帧（libvlc 起一次，
+            // 只在用户选文件时发生，不在启动路径上），解不出来就当坏文件拒绝，别让用户下次开机看到黑屏。
+            if (await VideoThumbnailer.EnsureAsync(file).ConfigureAwait(false) is null)
+            {
+                throw new InvalidDataException("background video cannot be decoded");
+            }
         }
         else
         {

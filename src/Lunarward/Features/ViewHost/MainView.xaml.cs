@@ -182,7 +182,6 @@ public sealed partial class MainView : UserControl
                 "beyond" => typeof(GenshinBeyondGachaPage),
                 "runtimeenv" => typeof(Features.Setting.RuntimeEnvironmentSetting),
                 "setting" => typeof(SettingPage),
-                "login" => typeof(Features.GameRecord.LoginPage),
                 "predownload" => typeof(GameLauncherPage),
                 "installprogress" => typeof(GameLauncherPage),
                 "notice" => typeof(Features.GameLauncher.GameLauncherPage),

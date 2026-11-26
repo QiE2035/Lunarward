@@ -1,5 +1,14 @@
 ﻿# Changelog
 
+## 2026-11-26 · D138 · 对齐上游第二轮（B3 剩余 + 登录页簇删除）
+
+- **设置页**：`FileManageSetting` 三处 WinRT 启动器改 `OpenUrl`（点了没反应 → 真的打开）；恢复长路径缩字号；诊断包与「打开诊断目录」统一走 `XDG_DOWNLOAD_DIR`；`ScreenshotSetting.WindowHandle` 改回 `nint`；删与 `PageBase` 重复的处理器。
+- **截图/背景**：条目补手型指针；视频背景在魔数校验后再试解第一帧，解不出即拒绝（坏文件不再黑屏）；右键菜单注释按实测更正（`ContextFlyout` 是 `UIElement` 属性）。
+- **文案**：输出面板说明/空态、截图热键说明三条中文改 `Lang`（四语言）。
+- **账号与深链**：登录窗协议注册/注销移出 UI 线程，注销清 `mimeapps.list`；深链支持 `lunarward://startgame/<biz>?install_path=…` 并把安装路径转发给主实例；新增 `startgame` 裸命令（主实例未运行时直接起进程）；`export_app` 回退为 `Starward`。
+- **删除**：登录页簇（`LoginPage.xaml`/`.Linux.cs`/`.LinuxAuto.cs`、`GameRecordService`、`GameRecordRoleChangedMessage` + DI 行），空态登录改走 `MainView.HypLoginAsync()`；`MainView` 的 `login` 直达映射去掉。
+- 文档：D138、30 号报告进度表、25 号 §2.6、12-shims（`*.Linux.cs` 32→31）。
+
 ## 2026-11-26 · D135/D136/D137 · 全量对齐上游（B1–B5）
 
 - **D135 批 1**（`6be7b97f`）：补会话锁通知（`SessionLockWatcher`，锁屏暂停视频壁纸）、`GameInstallEnv.CacheFolder` 指向 XDG 数据目录、启动期异常落 stderr + `Log.Fatal`、安装进度条值域、安装任务请求/进度字段补全、日志脱敏 `login_auth_ticket`、游戏设置页 `DisplayInformation` 泄漏与 bh3_global 映射顺序、HDR 亮度写入失败上抛、App.xaml 分隔线可见性、banner 双击只开一次、`MenuFlyoutSeparatorBackground` 覆盖删除。

@@ -152,7 +152,7 @@ Assets/                       图标、字体（注意：Uno 自带 Symbols 字�
 活跃文档**共 15 份**（2026-11-21 增补 `25`/`26`/`27`，2026-11-23 增补 `28`/`29`，2026-11-26 增补 `30`）：
 
 - `README.md` — 总览与状态（**先看这个**）
-- `00-decisions.md` — D0–D137 决策（唯一决策源；改结论要追加变更行）
+- `00-decisions.md` — D0–D138 决策（唯一决策源；改结论要追加变更行）
 - `12-shims-and-gaps.md` — 实现状态登记（唯一）
 - `13-lessons.md` — L-01…L-190 坑与复现方法（唯一；编号勘误见文末）
 - `18-upstream-deviations.md` / `18-upstream-table.md` — 与上游的偏差原则与同名差异文件清单（`18-upstream-table.md` 由脚本按 `scripts/list-deviations.sh` 生成，当前 78 个；逐点判定以 `25` 为准）

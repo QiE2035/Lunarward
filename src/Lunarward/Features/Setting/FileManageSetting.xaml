@@ -54,6 +54,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock VerticalAlignment="Center"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   IsTextTrimmedChanged="TextBlock_IsTextTrimmedChanged"
                                    MaxLines="2"
                                    Text="{x:Bind s:AppConfig.UserDataFolder}"
                                    TextTrimming="CharacterEllipsis"

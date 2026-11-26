@@ -383,9 +383,13 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
 
 
     /// <summary>
-    /// 右键菜单：上游写在 XAML 的 `Grid.ContextFlyout` 里，Uno 的 Grid 没有这个属性（CS0117），
-    /// 所以改成 RightTapped 时现造同样的菜单。项与上游 ScreenshotPage.xaml:121-213 一一对应，
-    /// 少了「打开方式」（Windows 专有的对话框）——「用默认应用打开」已覆盖同一需求。D134。
+    /// 右键菜单：上游写在 XAML 的 `Grid.ContextFlyout` 里。
+    /// 2026-11-26 更正（E2）：以前这里写「Uno 的 Grid 没有这个属性（CS0117）」——那是搞错了 API，
+    /// `ContextFlyout` 是 `UIElement` 上的属性，Grid 继承得到；代码里要设得走 `FlyoutBase.SetAttachedFlyout`，
+    /// 直接 `grid.ContextFlyout = menu` 才编译不过。这里保留 RightTapped 现造菜单的做法，原因是菜单项
+    /// 依赖当前条目（文件信息、勾选状态），写在 code-behind 里比 XAML 里绑一组命令更短。
+    /// 项与上游 ScreenshotPage.xaml:121-213 一一对应，少了「打开方式」（Windows 专有对话框）——
+    /// 「用默认应用打开」已覆盖同一需求。D134/D138。
     /// </summary>
     private void Item_RightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {

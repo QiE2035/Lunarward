@@ -4406,6 +4406,15 @@ To add or remove sources, edit that file (this dialog only changes mirrors).</va
   <data name="Lunarward_Diagnose_Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="Lunarward_Advanced_OutputDescription" xml:space="preserve">
+    <value>Everything the game and companion programs write to stdout/stderr is captured to disk (nothing is cleared and the game's behaviour is untouched); this only controls how it is displayed.</value>
+  </data>
+  <data name="Lunarward_Advanced_OutputEmpty" xml:space="preserve">
+    <value>(Nothing captured yet. Start the game or a companion program once and whatever they write to stdout/stderr shows up here.)</value>
+  </data>
+  <data name="Lunarward_Screenshot_HotkeyHint" xml:space="preserve">
+    <value>On Linux the screenshot hotkey works by polling the X11 keyboard state and needs no privileges. It does not work in a pure Wayland session: bind a system shortcut to "lunarward --screenshot" instead.</value>
+  </data>
   <data name="Lunarward_Diagnose_Failed" xml:space="preserve">
     <value>Failed to create the diagnostic bundle: {0}</value>
   </data>
