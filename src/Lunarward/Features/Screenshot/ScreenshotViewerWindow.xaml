@@ -25,15 +25,31 @@
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
                 <Button x:Name="Button_Previous" Click="Button_Previous_Click" Content="{x:Bind lang:Lang.Lunarward_Viewer_Prev}" />
                 <Button x:Name="Button_Next" Click="Button_Next_Click" Content="{x:Bind lang:Lang.Lunarward_Viewer_Next}" />
+                <Button x:Name="Button_ZoomOut" Click="Button_ZoomOut_Click" Content="&#xE71F;" FontFamily="Segoe Fluent Icons" ToolTipService.ToolTip="缩小" />
+                <Button x:Name="Button_ZoomReset" Click="Button_ZoomReset_Click" Content="适应" />
+                <Button x:Name="Button_ZoomIn" Click="Button_ZoomIn_Click" Content="&#xE8A3;" FontFamily="Segoe Fluent Icons" ToolTipService.ToolTip="放大" />
+                <Button x:Name="Button_Copy" Click="Button_Copy_Click" Content="复制" />
+                <Button x:Name="Button_SaveAs" Click="Button_SaveAs_Click" Content="另存为" />
+                <Button x:Name="Button_OpenWith" Click="Button_OpenWith_Click" Content="用默认应用打开" />
+                <Button x:Name="Button_Delete" Click="Button_Delete_Click" Content="删除" />
                 <Button x:Name="Button_OpenFolder" Click="Button_OpenFolder_Click" Content="{x:Bind lang:Lang.Lunarward_Viewer_ShowInFolder}" />
                 <Button x:Name="Button_Close" Click="Button_Close_Click" Content="{x:Bind lang:Lang.Lunarward_Viewer_Close}" />
             </StackPanel>
         </Grid>
 
-        <Image x:Name="Image_Preview"
-               Grid.Row="1"
-               Margin="16,0,16,8"
-               Stretch="Uniform" />
+        <ScrollViewer x:Name="Scroll_Image"
+                      Grid.Row="1"
+                      Margin="16,0,16,8"
+                      HorizontalScrollBarVisibility="Auto"
+                      HorizontalScrollMode="Enabled"
+                      VerticalScrollBarVisibility="Auto"
+                      VerticalScrollMode="Enabled"
+                      ZoomMode="Disabled">
+            <Image x:Name="Image_Preview"
+                   Stretch="Uniform"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center" />
+        </ScrollViewer>
 
         <TextBlock x:Name="TextBlock_Status"
                    Grid.Row="2"

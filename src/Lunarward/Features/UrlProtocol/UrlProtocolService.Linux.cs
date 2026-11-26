@@ -163,8 +163,14 @@ internal static class UrlProtocolService
             {
                 return false;
             }
+            // D135：先 ReadToEnd 再 WaitForExit，一旦 xdg-mime 卡住就会一直阻塞调用线程；
+            // 反过来先等（超时就直接判否），读到的输出才是完整的。
+            if (!proc.WaitForExit(3000))
+            {
+                Serilog.Log.Debug("xdg-mime query x-scheme-handler timed out");
+                return false;
+            }
             string output = proc.StandardOutput.ReadToEnd().Trim();
-            proc.WaitForExit(3000);
             return output.Equals("lunarward.desktop", StringComparison.OrdinalIgnoreCase);
         }
         catch (Exception ex)

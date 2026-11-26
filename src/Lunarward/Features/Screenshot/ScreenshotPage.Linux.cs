@@ -405,7 +405,7 @@ public sealed partial class ScreenshotPage : PageBase, System.ComponentModel.INo
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(CreateMenuItem(Lang.Common_Open, "\uE8A7", item, MenuFlyoutItem_Open_Click));
         menu.Items.Add(CreateMenuItem(Lang.ImageViewWindow2_CopyFile, "\uE8C8", item, MenuFlyoutItem_CopyFile_Click));
-        menu.Items.Add(CreateMenuItem(Lang.ImageViewWindow2_CopyAsJPG, "\uF413", item, MenuFlyoutItem_CopyAsJPG_Click));
+        menu.Items.Add(CreateMenuItem(Lang.ImageViewWindow2_CopyAsJPG, "\uE74E", item, MenuFlyoutItem_CopyAsJPG_Click));
         menu.Items.Add(new MenuFlyoutSeparator());
         menu.Items.Add(CreateMenuItem(Lang.ImageViewWindow2_OpenInExplorer, "\uEC50", item, MenuFlyoutItem_OpenInExplorer_Click));
         menu.Items.Add(CreateMenuItem(Lang.ImageViewWindow2_OpenWithDefaultApp, "\uE91B", item, MenuFlyoutItem_OpenWithDefault_Click));
