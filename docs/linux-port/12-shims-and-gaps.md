@@ -71,7 +71,7 @@
 
 ---
 
-## 3 · Linux 实现文件（33 个 `*.Linux.cs` + 3 个非 `*.Linux.cs` 替身）
+## 3 · Linux 实现文件（32 个 `*.Linux.cs` + 3 个非 `*.Linux.cs` 替身）
 
 | 文件 | 替代的 Windows 机制 | 状态 | 里程碑 | 说明 |
 |---|---|---|---|---|
@@ -83,6 +83,7 @@
 | `Helpers/DriveHelper.Linux.cs` | `DriveInfo`/`GetDriveType` | ✅ | M1 | 解析 `/proc/mounts` |
 | `Helpers/AccentColorHelper.Linux.cs` | `Helpers/AccentColorHelper.cs`（WinRT/WIC 读像素取色） | 🟡 | M3 | 改 SkiaSharp 从背景图/海报取主色，异步取色后**回 UI 线程**写 `App.xaml` 主题字典（`DispatcherQueue` 在 `Task.Run` 里取到 null，L-89/D50）；Windows 上还染标题栏与边框（DWM），Linux 交给 WM（D47） |
 | `Helpers/DataFolder.Linux.cs` | 无同名上游文件（Linux 新增） | ✅ | M1 | 应用数据目录统一：把 `~/.local/share/lunarward` 与 `~/.local/share/Lunarward` 合并成小写一个、大写目录换成符号链接（D56）；`Program.Linux.cs:1272` 启动即 `Unify()` |
+| `Helpers/SessionLockWatcher.Linux.cs` | `WM_WTSSESSION_CHANGE` 会话锁通知 | ✅ | M3 | 订阅 `org.freedesktop.ScreenSaver.ActiveChanged` 与 logind `Session.Lock/Unlock`，发 `MainWindowStateChangedMessage{SessionLock}`（以前这个消息在 Linux 上没有任何发送方，视频壁纸锁屏后还在解码，D135） |
 | `Helpers/HotkeyManager.Linux.cs` | `RegisterHotKey` + 消息循环 | 🟡 | M2 | `XQueryKeymap` 25ms 轮询；Alt+S 唤回、Alt+D 截图；唤回走 `Helpers/X11Window.Show`（原先按标题 `"Starward"` 查找、而实际标题是 `Lunarward`，唤回永远失败，已修） |
 | `Helpers/X11KeyState.cs` | 无 | 🟡 | M2 | 只做只读查询与 keysym→keycode；窗口操作走子进程，本进程不碰 Xlib 分配/错误处理器（L-45） |
 | `Helpers/XamlRootExtension.Linux.cs` | `GetWindowHandle`/拖动区 | 🟡 | M1 | 句柄恒 0；`GetAppWindow()` 经 `ContentIslandEnvironment` 反查并兜底 `MainWindow.Current`（L-31） |
