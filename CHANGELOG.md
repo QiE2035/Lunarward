@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## 2026-11-27 · D140 · 剪贴板与登录窗去外部命令 + 依赖复审
+
+- **文本剪贴板**：`Helpers/ClipboardHelper.Linux` 的文本改走 Uno `Clipboard` API（`DataPackage.SetText` + `Clipboard.SetContent`，非 UI 线程经 `DispatcherQueue` 排队），去掉文本路径的 `wl-copy`/`xclip`/`xsel` 分支；PNG 与 `text/uri-list` 仍用 `wl-copy`/`xclip`。三份 PKGBUILD 新增 `wl-clipboard`/`xclip` optdepends，`lint-pkgbuild` 的 `PKG_OF` 同步登记。
+- **登录窗挂载**：`X11Window.TrySetTransientFor` 改纯 libxcb（`_NET_CLIENT_LIST` + 树扫描按标题找窗口，`xcb_change_property` 写 `WM_TRANSIENT_FOR`），不再 fork `xdotool`/`xprop`；缺外部命令时不再静默跳过。
+- **验证**：xvfb 下端到端验过两处——`xprop` 读回父窗口 id、外部 Xlib 客户端读回 Uno 写入的文本（逐字节一致）；`dotnet build` 0 错误、`dotnet test` 368/368、`--selftest-ui` 13/13、`lint-ui-thread`/`lint-doc-status --strict`/`lint-pkgbuild` 通过（仅剩 tag 未建 1 条提醒）。
+- **子目录 SDK**：`src/Lunarward/global.json`、`tests/global.json` 补到 .NET 11 / Uno.Sdk 7.0.22（D128 遗留；在子目录执行 `dotnet` 不再报 `A compatible .NET SDK was not found`）。
+- **依赖复审**：见 `24-dependency-audit.md` §6——两处改走 BCL（`Environment.IsPrivilegedProcess` 判 root、`SpecialFolder.LocalApplicationData` 取代手写 XDG 分支），其余保留并写明理由。
+
 ## 2026-11-26 · D139 · 文档整理：数值统一、失效引用清理与表格脚本化
 
 - **数字统一到现测**：单测 368、`--selftest-ui` 13 条、`Lang.resx` 1422 键、外部进程存活 46（49 字面量 − 5 死代码 + 2 非字面量）、`*.Linux.cs` 29 + `*.LinuxAuto.cs` 4 + 排除 46、XAML 27 实质差异 / 0 仅编码 / 8 缺失 / 3 移植独有、同名文件 74；`00-decisions.md` 的「统计口径统一」行作为唯一口径并附取数命令。

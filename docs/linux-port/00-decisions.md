@@ -2470,3 +2470,24 @@ token 存在时请求头带 `Bearer`（代码路径审查），403/429 走 `Desc
 **验证**：`bash scripts/test/lint-doc-status.sh --strict` 全绿（L-* 唯一、T-* 225/225、12-shims 集合 29 == 磁盘 29、排除 46==46、18 号 74==74、文档份数 15==15）；`dotnet build -c Debug` 0 错误；`dotnet test` 368 通过。
 
 **确认方式**：用户 m09032「整理一下文档，更新过时内容，删除无效内容，补全缺失内容等」。
+
+## D140　剪贴板与登录窗去外部命令 + 「可用依赖却手写」复审（2026-11-27）
+
+**背景**：`lint-pkgbuild` 长期提醒 `wl-copy` / `xclip` / `xprop` 未登记；复核发现这三条外部命令的活都能由「已引入的 Uno API」或「本仓已有的 libxcb 封装」干，属于重复造轮子。用户批准后按 D140 执行，并要求顺带清一遍「有可用依赖却手写」的地方（上游自己造的除外）。
+
+**决定**
+
+1. **文本剪贴板改 Uno `Clipboard` API**：`Helpers/ClipboardHelper.Linux.cs` 的 `SetText` 改为 `DataPackage.SetText` + `Clipboard.SetContent`；非 UI 线程经 `MainWindow.Current.DispatcherQueue.TryEnqueue` 排队。依据：Uno 官方文档写明 Skia/Linux 的 `SetContent/GetContent` 可用，但**只支持文本**（「currently support textual data on all platforms」）。
+2. **PNG 与 `text/uri-list` 保留外部命令，但登记为 optdepends**：`wl-copy --type image/png|text/uri-list`、`xclip -t …` 保留（Uno 的 `SetBitmap`/`SetStorageItems` 在 Linux 无实现）；`xsel` 不能带 MIME 类型，从 uri-list 路径删除。三份 `PKGBUILD` 新增 `wl-clipboard` / `xclip` 两条 optdepends，`scripts/test/lint-pkgbuild.sh` 的 `PKG_OF` 登记（空包名 = 只进 optdepends）。
+3. **`WM_TRANSIENT_FOR` 改纯 libxcb**：`X11Window.TrySetTransientFor` 不再 fork `xdotool search` + `xprop`，改为在已初始化的 xcb 连接上按标题找窗口（`_NET_CLIENT_LIST` → 树扫描 3 层，标题取 `_NET_WM_NAME`/`WM_NAME`），再用 `xcb_change_property(…, XA_WINDOW, 32, 1, [parent])` 写入。`Features/Passport/HypLoginWindow.xaml.cs` 注释与调用同步（D135 引入的 fork 实现整体替换）。
+4. **子目录 `global.json` 补齐 .NET 11**（D128 遗留）：`src/Lunarward/global.json`（Uno.Sdk `7.0.22`、sdk `11.0.100`、`latestFeature`）与 `tests/global.json`（`11.0.100`、`latestFeature`）对齐根 `global.json`；此前在子目录执行 `dotnet` 报 `A compatible .NET SDK was not found. Requested SDK version: 10.0.100`。`poc/` 两个 spike 工程（不在 slnx）不动。
+5. **「有可用依赖却手写」复审**：全仓 `DllImport` 仅 19 处（libxcb 15、libX11 13 中的 libX11、libc `open`/`fsync`/`close`、`geteuid`、`stat`、`CoreMessaging.dll`、`user32` 兼容层）；逐条对照已引入依赖与 BCL 后只找到两处低风险替换，**已在批准后替换**（`24-dependency-audit.md` §6 记录）：
+   - `PosixIdentity.IsRoot` 的 `geteuid()` P/Invoke → `Environment.IsPrivilegedProcess`（.NET 8+，语义即 euid==0）。
+   - `DataFolder.DataHome` 的手写 `XDG_DATA_HOME` 分支 → `Environment.GetFolderPath(SpecialFolder.LocalApplicationData)`（.NET 在 Unix 上本来就认 `XDG_DATA_HOME`）。
+   - 其余（`stat` 身份键、`JsonFile` 目录 fsync、`X11KeyState`/`X11Window`、`DriveHelper`、`XdgFolders`、`AppIcon`、`FileHashHelper`、`FileCache`、`VideoThumbnailer`）无等价且仍在维护的库，保留。
+
+**验证**（2026-11-27，xvfb）：`dotnet build` 0 错误；`dotnet test` 368/368；`--selftest-ui` 13/13；`lint-ui-thread`、`lint-doc-status --strict`、`lint-pkgbuild`（仅剩 tag 未建 1 条提醒）全通过。端到端各用一次外部读回：`xprop -id 0xc00002 WM_TRANSIENT_FOR` → `window id # 0x200002`；自写 Xlib 客户端（`XConvertSelection`）读回 Uno 写入的 probe 文本，逐字节一致。临时插桩随后全部撤除（`git diff -- src/Lunarward/Features/Dev/UiSelfTest.cs` 为空）。
+
+**代价与边界**：文本剪贴板不再有「Uno 失败还能退外部命令」的兜底（`SetContent` 在非 UI 线程/无窗口时只记 Debug 日志），实际使用点都在 UI 线程；图片与文件列表仍要求用户装 `wl-clipboard` 或 `xclip`（已列 optdepends）。登录窗 `WM_TRANSIENT_FOR` 只在 X11/XWayland 生效，纯 Wayland 下窗口管理器不认该提示。
+
+**确认方式**：用户 m00135「可以。记得随时更新时间线…」批准 D135 内的执行计划；m00137 追加「做完之后再查一查，还有哪些能用依赖，却在重复造轮子的地方（除非上就是自己造的）」。

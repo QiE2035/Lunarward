@@ -50,7 +50,7 @@
 | 位置 | 现在 | 候选 | 取舍 |
 | --- | --- | --- | --- |
 | `Helpers/FileDialogHelper.Linux.cs:29/186` | ✅ portal 优先（`org.freedesktop.portal.FileChooser`，含 filters / multiple / directory / 保存建议名），`kdialog` → `zenity` 兜底 | XDG Desktop Portal `FileChooser`（`Tmds.DBus`） | ✅ 2026-11-14 已完成（P3）：portal 在精简桌面可能没实现，所以保留 kdialog/zenity 兜底（D31 降级链） |
-| `Helpers/ClipboardHelper.Linux.cs:49/82/110` | `wl-copy` / `xclip` 兜底（Wayland 优先）；「配置文本」对话框已用 Uno `Clipboard` API | Uno `Clipboard` API（已在用）/ portal | **仍待定**：Uno 侧可用，但文件列表/PNG 两种粘贴还没验证 Uno 是否稳定，helper 先留作 X11 兜底 |
+| `Helpers/ClipboardHelper.Linux.cs:13/72/129` | 文本已走 Uno `Clipboard`（`DataPackage.SetText` + `SetContent`，非 UI 线程经 `DispatcherQueue` 排队）；PNG 与 `text/uri-list` 仍调 `wl-copy` / `xclip` | Uno `Clipboard` API（已在用） | ✅ 2026-11-27 **已定**（D140）：Uno Skia 后端只实现文本（官方文档：SetContent/GetContent 可用，但「currently support textual data on all platforms」），文本通道已用外部 Xlib 客户端读回验证；`SetBitmap`/`SetStorageItems` 在 Linux 无实现 → 图片/文件列表只能外部命令，`wl-clipboard`/`xclip` 登记为 optdepends（`xsel` 不能带 MIME，已删除） |
 | `Helpers/OpenUrl.cs:57/118` | ✅ `org.freedesktop.portal.OpenURI` 优先，`xdg-open` → `gio open` 兜底 | Portal `OpenURI` | ✅ 2026-11-14 已完成（P2）：sandbox/flatpak 场景 portal 更稳，兜底保留 |
 | `Features/Screenshot/ScreenCapture.Linux.cs:148` | `spectacle` / `grim` / `gnome-screenshot` 优先，portal `Screenshot` 兜底（**刻意保留**外部优先） | Portal `ScreenCast`（PipeWire）/ `Screenshot` | **部分已做**：portal 兜底已落地（P4）；PipeWire 路线没做——收益最大（Wayland 原生、不绑桌面），改动也最大（会话协商、流、编码），**应单独立项** |
 | `Features/GameRecord/WebLoginService.cs:105/129` | ✅ 登录窗 = 本程序子进程 + WebKitGTK 6.0（`--webkit-login`，D76）；`python3` 助手只作旧系统兜底（`:129`） | `GirCore`（WebKitGTK 绑定）进程内打开登录窗 | ✅ 2026-11-14 已完成 A 方案（D76）：不再要求系统有 `python3`（仅兜底）。B 方案（同进程）实测能跑，但 GTK3/GTK4 并存、标题栏观感不统一，不采用 |
@@ -131,3 +131,28 @@
 - **打开链接 / 选文件：portal 优先**。理由：沙盒（flatpak、纯 Wayland）里 fork 出去的 `xdg-open` 看不到宿主文件系统，`kdialog` 也不一定有；portal 是这些场景唯一的正规通道，而原生安装下 portal 也几乎必然存在（KDE/GNOME 都自带 `xdg-desktop-portal`）。
 - **截图：外部工具优先，portal 兜底**。理由：`spectacle -b -n -f` 是静默全屏，按一次热键就出图；portal 的 `Screenshot` 在部分桌面上会弹授权或选区，把「静默截图」变成「每次都要点一下」。只有外部工具都不在（沙盒 / 精简系统）时才用 portal。
 - 两者都保留兜底路径，任何一侧失败都不会静默：失败会写日志并在返回值上体现。
+
+---
+
+## 6　2026-11-27 复审：还有哪些「有依赖却手写」
+
+用户口径：**鼓励第三方依赖**，只排除「上游自己造的那些」（`src/Starward/` 里的手写实现属于上游，不动）。
+
+方法：全仓 `DllImport` 清点（仅 19 处）+ 逐个读 Linux 专属 helper + 抽查 Features 里的解析/并发/哈希/版本比较，逐条问「已引入的库或 BCL 里有没有等价体」。
+
+| 位置 | 现在 | 现成轮子 | 判定 |
+| --- | --- | --- | --- |
+| `Helpers/PosixIdentity.cs:15-32` | ✅ 已换（D140）：`geteuid()` P/Invoke 与用户名兜底删除，改 `Environment.IsPrivilegedProcess` | .NET 8+ `Environment.IsPrivilegedProcess`（语义就是 euid==0；实测 False） | ✅ 2026-11-27：一行替代，Windows 上先排除（该属性在 Windows 表示管理员提权，与 wine 的 root 限制无关） |
+| `Helpers/DataFolder.Linux.cs:19-23` | ✅ 已换（D140）：`DataHome` 直接取 `SpecialFolder.LocalApplicationData` | `Environment.GetFolderPath(SpecialFolder.LocalApplicationData)`（.NET 在 Unix 上本身就读 `XDG_DATA_HOME`；实测默认 `~/.local/share`，`XDG_DATA_HOME=/tmp/xdgtest` 时返回该值） | ✅ 2026-11-27：删掉手写分支 |
+| `Helpers/PosixIdentity.cs:45-88` | `stat` P/Invoke 读 `(st_dev, st_ino)` 做文件身份键 | 无 BCL 等价（`File.GetUnixFileMode` 不含 inode） | 保留（B27 已登记；偏移 x86_64/aarch64 一致的前提要留注释） |
+| `Helpers/JsonFile.cs:135-160` | libc `open`/`fsync`/`close` 对**目录** fsync | BCL 无目录 fsync（`FileStream.Flush(true)` 只刷文件） | 保留 |
+| `Helpers/X11KeyState.cs`（13 处）/ `Helpers/X11Window.cs`（xcb 15 处） | libX11 / libxcb P/Invoke | 无维护中的托管绑定（SharpHook 已实测否决，见 P5） | 保留 |
+| `Helpers/DriveHelper.Linux.cs` | `/proc/mounts` + `statvfs` | `DriveInfo` 在 Linux 不给「可移动/网络」语义 | 保留 |
+| `Helpers/XdgFolders.cs` | 解析 `user-dirs.dirs` 的 `XDG_DOWNLOAD_DIR` | 无（.NET 不读 user-dirs.dirs） | 保留 |
+| `Helpers/AppIcon.cs` | SkiaSharp 解 PNG → `_NET_WM_ICON` | SkiaSharp（已在用） | 保留 |
+| `Helpers/FileHashHelper.cs` | BCL `SHA256` | 已用 BCL | 保留 |
+| `Helpers/FileCache.cs` | 磁盘缓存但**内部已用 FusionCache** | FusionCache（已在用） | 保留 |
+| `Features/Background/VideoThumbnailer.cs` | LibVLCSharp `vmem` 回调抽帧 | LibVLCSharp（已在用） | 保留 |
+| 并发/哈希/版本 | 无自研线程池；`System.IO.Hashing`（XxHash64/Crc32）、`NuGetVersion`、`File.SetUnixFileMode`、`Process.Kill(entireProcessTree)` 均按现代 API 用 | — | 无重复 |
+
+结论：上面两条 BCL 替换已于 2026-11-27 落地（D140），此外没有「已引入依赖却在重造」的实例；`xdotool` 仅剩 `X11KeyState` 的兜底用途（libxcb 失败时），保留并在 PKGBUILD 里登记。

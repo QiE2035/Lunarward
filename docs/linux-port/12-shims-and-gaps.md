@@ -79,7 +79,7 @@
 | `Features/WindowBase.Linux.cs` | `WindowBase` 标题栏/PInvoke（上游 0.19.0 把 `Frameworks/WindowEx.cs` 改名 `Features/WindowBase.cs`） | ✅ | M1 | 基于 `Window.AppWindow`；`CenterInScreen` 先 `Resize` 再 `MoveAndResize`（后者在 X11 空操作）；`SetDragRectangles`/`AdaptTitleBarButtonColorToActuallTheme`/`ChangeAccentColor` 空实现 → Windows 上「自绘标题栏」方案在 Linux 不可用，改用系统标题栏。`Hide()/Show()/ShowFromMinimized()` 走 `Helpers/X11Window`（libxcb unmap/map + `_NET_ACTIVE_WINDOW`），因为 Uno X11 既没有 `HideCore`、`Activate()` 也只发 `XRaiseWindow`（D47、L-84）；`Show()` 统一关掉 `ExtendsContentIntoTitleBar` 并按 `DefaultWindowSizeInDips` + 屏幕钳制摆位（D49）；`SetIcon()` 复用 `Helpers/AppIcon` 的 `_NET_WM_ICON`（每个窗口都调，L-183）；`ShouldAppsUseDarkMode/ShouldSystemUseDarkMode` 读 GTK `settings.ini`/`kdeglobals` 推断（以前恒 true，浅色桌面的子窗口被强制深色，L-183）；另维护窗口登记表给 `Helpers/XamlRootExtension.GetAppWindow` 按 `XamlRoot` 反查真正的 `AppWindow`（以前一律回落到主窗口） | X11 下图标/标题栏配色只能尽力而为；纯 Wayland 无 `_NET_WM_ICON` 写入通道 |
 | `Controls/CachedImage.Linux.cs` | `Scighost.WinUI.CachedImage` | 🟡 | M1 | ms-appx/网络/本地（本地读字节 + `SetSourceAsync`）；`CornerRadius` 为矩形裁剪 |
 | `Helpers/FileDialogHelper.Linux.cs` | `FileOpenPicker`/`FileSavePicker` | 🟡 | M1 | **portal 优先**（`Portal.PickFilesAsync`，xdg-desktop-portal）→ 失败才 `kdialog` → `zenity`；沙箱内走 portal，可用（D75） |
-| `Helpers/ClipboardHelper.Linux.cs` | WinRT Clipboard | 🟡 | M1 | wl-copy → xclip → xsel |
+| `Helpers/ClipboardHelper.Linux.cs` | WinRT Clipboard | 🟡 | M1 | 文本走 Uno `Clipboard` API（`DataPackage.SetText` + `Clipboard.SetContent`，非 UI 线程经 `DispatcherQueue` 排队；2026-11-27 外部 Xlib 客户端端到端验证）；PNG 与 `text/uri-list` 仍 wl-copy → xclip（optdepends，D140） |
 | `Helpers/DriveHelper.Linux.cs` | `DriveInfo`/`GetDriveType` | ✅ | M1 | 解析 `/proc/mounts` |
 | `Helpers/AccentColorHelper.Linux.cs` | `Helpers/AccentColorHelper.cs`（WinRT/WIC 读像素取色） | 🟡 | M3 | 改 SkiaSharp 从背景图/海报取主色，异步取色后**回 UI 线程**写 `App.xaml` 主题字典（`DispatcherQueue` 在 `Task.Run` 里取到 null，L-89/D50）；Windows 上还染标题栏与边框（DWM），Linux 交给 WM（D47） |
 | `Helpers/DataFolder.Linux.cs` | 无同名上游文件（Linux 新增） | ✅ | M1 | 应用数据目录统一：把 `~/.local/share/lunarward` 与 `~/.local/share/Lunarward` 合并成小写一个、大写目录换成符号链接（D56）；`Program.Linux.cs:1272` 启动即 `Unify()` |
@@ -373,6 +373,6 @@ EOF
 | 文件 : 行 | 原因 |
 | --- | --- |
 | `Features/ViewHost/SystemTrayWindow.xaml.cs:76` | `WindowActivatedEventArgs.WindowActivationState` 在本地 `net11.0-desktop` 构建里是 `Microsoft.UI.Xaml.WindowActivationState`，CI 的 `dotnet publish -r linux-x64` 里却是 `Windows.UI.Core.CoreWindowActivationState`；写枚举模式匹配会在其中一侧 `CS0266`，改用 `ToString() == "Deactivated"`。 |
-| `Features/Passport/HypLoginWindow.xaml.cs:88` | 上游用 `User32.SetWindowLong(GWL_HWNDPARENT)` 把登录窗挂到主窗；Linux 上 Uno 不暴露 X 窗口 id（`XamlRootExtension.GetWindowHandle` 恒 0），改在后台线程按标题找到窗口后写 `WM_TRANSIENT_FOR`（`X11Window.TrySetTransientFor`，缺 xdotool/xprop 时静默跳过；D135）。 |
+| `Features/Passport/HypLoginWindow.xaml.cs:88` | 上游用 `User32.SetWindowLong(GWL_HWNDPARENT)` 把登录窗挂到主窗；Linux 上 Uno 不暴露 X 窗口 id（`XamlRootExtension.GetWindowHandle` 恒 0），改在后台线程按标题找到窗口后写 `WM_TRANSIENT_FOR`（`X11Window.TrySetTransientFor`：`_NET_CLIENT_LIST` + 树扫描找窗口，`xcb_change_property` 写入；纯 libxcb，不 fork `xdotool`/`xprop`；D135/D140）。 |
 | `Features/ViewHost/WelcomeWindow.xaml.cs:46` | `RectInt32` 的 4 参构造器只在 Windows 目标下存在，`linux-x64` publish 报 `CS1729`；改用对象初始化器。 |
 

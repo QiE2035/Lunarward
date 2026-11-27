@@ -3,7 +3,7 @@
 > 这里只记「踩过一次就不该再踩」的东西。每条都给出证据位置与处理方式。
 > 目的：让后来者（或几个月后的我们）不用重新发现一遍。
 >
-> 条目 **L-01…L-193**（最后更新 2026-11-26；L-191 `ContextFlyout` 误判、L-192 界面诊断的日志陷阱、L-193 本地构建与 CI 发布参数不一致；编号勘误见文末）。
+> 条目 **L-01…L-195**（最后更新 2026-11-27；L-191 `ContextFlyout` 误判、L-192 界面诊断的日志陷阱、L-193 本地构建与 CI 发布参数不一致、L-194 Skia 剪贴板只有文本、L-195 Uno 窗口标题在 X11 属性里；编号勘误见文末）。
 
 - 最后更新：2026-11-19（L-163）
 
@@ -1730,3 +1730,23 @@ bitmap.Resize(info, new SKSamplingOptions(SKCubicResampler.Mitchell));
 **做法**：动了 `WindowActivationState`、`RectInt32`、`AppWindow` 这类跨投影类型后，提交前必须本地跑一次与 CI 完全相同的 publish；临时退回写法用 `args.WindowActivationState.ToString() == "Deactivated"` 与 `new RectInt32 { X = 0, Y = 0, Width = 100000, Height = (int)(48 * UIScale) }`（对象初始化器在两边都可用）。
 
 **教训**：CI 与本地差的不只是「跑没跑测试」，还有**编译期的类型投影**。`dotnet build` 绿只证明桌面框架能编；发布产物能编才算数。
+
+## L-194　Uno（Skia/X11）的剪贴板只有文本通道，验证时还必须让 UI 线程空出来
+
+**现象**：想给「复制截图到剪贴板」换成 Uno `Clipboard` API 时，官方文档只写「`SetContent`/`GetContent` 在 Linux (Skia) 可用」，没说支持哪些格式；`SetBitmap`/`SetStorageItems` 在 Linux 上调用后什么也不发生，也不抛错。
+
+**原因**：Skia 后端的剪贴板实现只处理文本（文档另一句「currently support textual data on all platforms」是唯一的说明），二进制与文件列表没有实现。
+
+**做法 / 验证手法**：文本改 `DataPackage.SetText` + `Clipboard.SetContent`；图片与 `text/uri-list` 继续走 `wl-copy`/`xclip`。验证时写一个独立 Xlib 客户端（`XConvertSelection` 依次试 `UTF8_STRING`/`STRING`/`text/plain;charset=utf-8`/`text/plain`），进程内写完 probe 后由它读回——**读的时候必须 `await` 让出 UI 线程**，否则 Uno 没机会响应 `SelectionRequest`，客户端只会拿到空属性、看起来像「API 没生效」。
+
+**证据**：2026-11-27 xvfb 实测，probe `lunarward-clip-probe-639313581707191565` 原样读回；临时客户端 `/tmp/lw-clipread.c` 用完即删。
+
+## L-195　Uno 窗口的 `_NET_WM_NAME`/`WM_NAME` 就是 `Window.Title`，找窗口不必 fork `xdotool`/`xprop`
+
+**现象**：登录窗要挂 `WM_TRANSIENT_FOR`，旧实现先 `xdotool search --name` 找窗口 id、再 `xprop` 写属性；xdotool/xprop 不在时静默跳过，登录窗就永远浮在任务栏外。
+
+**原因**：`X11Window` 已经有完整的 libxcb 连接与属性读写（`ReadStringProperty`、`xcb_change_property`），直接扫 `_NET_CLIENT_LIST` 再按标题匹配即可；Uno 把 `Window.Title` 原样写进 `_NET_WM_NAME`/`WM_NAME`（xvfb 实测：临时建 `Title="Starward HYP Login"` 的窗口，立刻能被找到）。
+
+**做法**：`FindWindowByTitle` = `_NET_CLIENT_LIST` 遍历 + 3 层树扫描兜底，`MatchesTitle` 先 `Ordinal` 全等再 `OrdinalIgnoreCase` 包含；写入用 `xcb_change_property(…, XA_WINDOW, 32, 1, [parent])` + `xcb_flush`。
+
+**教训**：写 X11 交互前先看 `X11Window.cs` 已封装了什么——这个文件里已有 libxcb 的找窗口、读属性、写属性，别为一条属性 fork 两个进程。
