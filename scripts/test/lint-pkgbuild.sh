@@ -48,6 +48,8 @@ declare -A PKG_OF=(
   ["python3"]=""
   ["cp"]=""
   ["xdotool"]=""
+  ["wl-copy"]=""
+  ["xclip"]=""
 )
 
 libs=$(grep -rhoE '"(lib[A-Za-z0-9._+-]*\.so(\.[0-9]+)*|CoreMessaging\.dll)"' \

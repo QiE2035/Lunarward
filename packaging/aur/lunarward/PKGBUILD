@@ -29,6 +29,8 @@ optdepends=(
   'proton: 用 Proton 作为运行器'
   'vlc: 视频壁纸与视频预览（缺失时回退静态壁纸，D33）'
   'xdotool: libxcb 不可用时唤回最小化窗口的兜底'
+  'wl-clipboard: 复制截图/图片与文件列表到剪贴板（wl-copy；Wayland 与 X11 均可）'
+  'xclip: 复制截图/图片与文件列表到剪贴板（没有 wl-clipboard 时的 X11 兜底）'
   'webkit2gtk-4.1: 登录窗的 python3 + WebKitGTK 4.1 兜底路径（只在没有 webkitgtk-6.0 时用）'
   'python-gobject: 上述兜底路径需要 python3 + PyGObject'
   'kdialog: 文件/目录选择对话框（或 zenity）'

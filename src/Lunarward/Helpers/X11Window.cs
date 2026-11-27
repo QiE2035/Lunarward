@@ -175,63 +175,135 @@ public static class X11Window
     /// D135：把窗口设为另一个窗口的「临时子窗口」（WM_TRANSIENT_FOR）。
     /// Win32 侧上游用 SetWindowLong(GWL_HWNDPARENT) 做这件事，Linux 上 Uno 不暴露自己的 X 窗口 id
     /// （<see cref="XamlRootExtension.GetWindowHandle(XamlRoot?)"/> 恒 0），所以只能按标题找到窗口再写属性。
-    /// 必须在后台线程调用（会 fork xdotool/xprop，硬规则 10）。两个工具都缺时静默跳过。
+    /// D140：走 libxcb 写属性，不再 fork xdotool/xprop；找不到窗口时静默跳过。
     /// </summary>
     public static bool TrySetTransientFor(string childTitle, string parentTitle)
     {
-        try
+        lock (Gate)
         {
-            uint? child = FindWindowIdByTitle(childTitle);
-            uint? parent = FindWindowIdByTitle(parentTitle);
-            if (child is null || parent is null)
+            EnsureInitialized();
+            if (!_available)
             {
                 return false;
             }
-            using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xprop")
+            try
             {
-                ArgumentList = { "-id", child.Value.ToString(), "-f", "WM_TRANSIENT_FOR", "32x", "-set", "WM_TRANSIENT_FOR", parent.Value.ToString() },
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-            });
-            if (process is null)
+                uint child = FindWindowByTitle(childTitle);
+                uint parent = FindWindowByTitle(parentTitle);
+                if (child == 0 || parent == 0)
+                {
+                    Log.Debug("X11Window: TrySetTransientFor 找不到窗口（child={ChildTitle}, parent={ParentTitle}）", childTitle, parentTitle);
+                    return false;
+                }
+                uint atom = InternAtom("WM_TRANSIENT_FOR");
+                if (atom == 0)
+                {
+                    return false;
+                }
+                xcb_change_property(_connection, 0 /* Replace */, child, atom, XA_WINDOW, 32, 1, new[] { parent });
+                xcb_flush(_connection);
+                Log.Information("X11Window: 已设置 WM_TRANSIENT_FOR 0x{Child:X} -> 0x{Parent:X}", child, parent);
+                return true;
+            }
+            catch (Exception ex)
             {
+                Log.Warning(ex, "X11Window.TrySetTransientFor failed");
                 return false;
             }
-            process.WaitForExit(2000);
-            return process.HasExited && process.ExitCode == 0;
-        }
-        catch (Exception ex)
-        {
-            Log.Debug(ex, "X11Window.TrySetTransientFor failed");
-            return false;
         }
     }
 
 
-    private static uint? FindWindowIdByTitle(string title)
+    /// <summary>
+    /// 按标题找顶层窗口：先查 _NET_CLIENT_LIST，再遍历窗口树兜底（刚 map 的窗口可能还没进 client list）。
+    /// 不复用 <see cref="FindWindow(string?)"/>：它按 _NET_WM_PID 优先，而登录窗和主窗同属一个进程，
+    /// 用它会永远命中主窗。
+    /// </summary>
+    private static uint FindWindowByTitle(string title)
     {
-        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("xdotool")
+        foreach (uint client in ReadCardinalList(_root, _atomClientList, XA_WINDOW))
         {
-            ArgumentList = { "search", "--name", title },
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        });
-        if (process is null)
-        {
-            return null;
-        }
-        string output = process.StandardOutput.ReadToEnd();
-        process.WaitForExit(2000);
-        foreach (string line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (uint.TryParse(line.Trim(), out uint id))
+            if (MatchesTitle(client, title))
             {
-                return id;
+                return client;
             }
         }
-        return null;
+        return FindWindowByTitleInTree(_root, title, 3);
+    }
+
+
+    private static uint FindWindowByTitleInTree(uint parent, string title, int depth)
+    {
+        try
+        {
+            IntPtr cookie = xcb_query_tree(_connection, parent);
+            IntPtr reply = xcb_query_tree_reply(_connection, cookie, out IntPtr error);
+            if (reply == IntPtr.Zero || error != IntPtr.Zero)
+            {
+                if (reply != IntPtr.Zero)
+                {
+                    free(reply);
+                }
+                return 0;
+            }
+            int childrenLength = Marshal.ReadInt16(reply, 16);
+            IntPtr data = reply + 32;
+            uint[] children = new uint[childrenLength];
+            for (int i = 0; i < childrenLength; i++)
+            {
+                children[i] = (uint)Marshal.ReadInt32(data, i * 4);
+            }
+            free(reply);
+            foreach (uint child in children)
+            {
+                if (MatchesTitle(child, title))
+                {
+                    return child;
+                }
+            }
+            if (depth <= 1)
+            {
+                return 0;
+            }
+            foreach (uint child in children)
+            {
+                uint found = FindWindowByTitleInTree(child, title, depth - 1);
+                if (found != 0)
+                {
+                    return found;
+                }
+            }
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "X11Window.FindWindowByTitleInTree failed");
+            return 0;
+        }
+    }
+
+
+    /// <summary>标题匹配：_NET_WM_NAME（UTF-8）优先、WM_NAME 兜底；先全等再忽略大小写包含（对齐 xdotool --name 的匹配语义）。</summary>
+    private static bool MatchesTitle(uint window, string title)
+    {
+        if (string.IsNullOrEmpty(title))
+        {
+            return false;
+        }
+        foreach (string property in new[] { "_NET_WM_NAME", "WM_NAME" })
+        {
+            string? name = ReadStringProperty(window, property);
+            if (string.IsNullOrEmpty(name))
+            {
+                continue;
+            }
+            if (string.Equals(name, title, StringComparison.Ordinal)
+                || name.Contains(title, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
 

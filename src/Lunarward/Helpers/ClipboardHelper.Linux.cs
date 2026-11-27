@@ -1,4 +1,5 @@
-// Lunarward：Linux 剪贴板优先用 Uno/平台 API；这里用 wl-copy/xclip 兜底（Wayland 优先）。
+// Lunarward：Linux 剪贴板——文本走 Uno 的 Clipboard API（Linux/Skia 支持文本）；
+// Uno 在 Linux 只实现文本，所以 text/uri-list 与 image/png 仍借 wl-copy / xclip。
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -30,13 +31,13 @@ public static class ClipboardHelper
     }
 
 
-    private static void TryWriteClipboard(string text, string? mime = null)
+    /// <summary>非文本载荷（text/uri-list、image/png）只能借外部工具；只给文件管理器这类需要具体 MIME 的场景用。</summary>
+    private static void TryWriteClipboard(string text, string mime)
     {
         foreach (var (cmd, args) in new[]
         {
-            ("wl-copy", mime is null ? new[] { "--" } : new[] { "--type", mime }),
-            ("xclip", mime is null ? new[] { "-selection", "clipboard" } : new[] { "-selection", "clipboard", "-t", mime }),
-            ("xsel", new[] { "--clipboard", "--input" }),
+            ("wl-copy", new[] { "--type", mime }),
+            ("xclip", new[] { "-selection", "clipboard", "-t", mime }),
         })
         {
             try
@@ -121,7 +122,10 @@ public static class ClipboardHelper
     }
 
 
-    /// <summary>B60：复制文本不能在 UI 线程等外部进程（每个候选最多 2s）。</summary>
+    /// <summary>
+    /// 文本走 Uno 的 Clipboard API（官方文档：Linux/Skia 的 SetContent 支持文本）。
+    /// 该 API 在 UI 线程上调用最稳，所以不在 UI 线程时切到主窗的 DispatcherQueue。
+    /// </summary>
     public static void SetText(string? text)
     {
         if (string.IsNullOrEmpty(text))
@@ -129,6 +133,27 @@ public static class ClipboardHelper
             return;
         }
         string value = text;
-        _ = System.Threading.Tasks.Task.Run(() => TryWriteClipboard(value));
+        void Write()
+        {
+            try
+            {
+                var data = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                data.SetText(value);
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(data);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ClipboardHelper] Clipboard.SetContent failed: {ex.Message}");
+            }
+        }
+        var dispatcher = Features.ViewHost.MainWindow.Current?.DispatcherQueue;
+        if (dispatcher is null || dispatcher.HasThreadAccess)
+        {
+            Write();
+        }
+        else
+        {
+            dispatcher.TryEnqueue(Write);
+        }
     }
 }
