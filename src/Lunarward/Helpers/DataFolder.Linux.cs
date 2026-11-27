@@ -16,18 +16,11 @@ internal static class DataFolder
     public const string AppFolderName = "lunarward";
 
 
-    public static string DataHome
-    {
-        get
-        {
-            string? xdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
-            if (!string.IsNullOrWhiteSpace(xdg))
-            {
-                return xdg;
-            }
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "share");
-        }
-    }
+    /// <summary>
+    /// XDG 数据目录。.NET 在 Unix 上的 <see cref="Environment.SpecialFolder.LocalApplicationData"/>
+    /// 本身就按 XDG_DATA_HOME → $HOME/.local/share 解析，不用自己拼。
+    /// </summary>
+    public static string DataHome => Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
 
     /// <summary>把小写的 `lunarward` 定为唯一目录，大写 `Lunarward` 变成它的符号链接。</summary>

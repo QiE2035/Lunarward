@@ -12,13 +12,10 @@ namespace Starward.Helpers;
 public static class PosixIdentity
 {
 
-    [DllImport("libc", EntryPoint = "geteuid")]
-    private static extern uint GetEuid();
-
-
     /// <summary>
-    /// 当前有效 UID 是否 0（root）。取不到时退回 <see cref="Environment.UserName"/>，
-    /// 宁可漏判也不要因为 P/Invoke 失败把普通用户挡在门外。
+    /// 当前有效 UID 是否 0（root）。用 BCL 的 <see cref="Environment.IsPrivilegedProcess"/>（.NET 8+，
+    /// Unix 上语义就是 euid == 0），不再自己 P/Invoke geteuid。
+    /// Windows 上该属性表示「管理员提权」，而 wine 的 root 限制只对 Unix 有意义，所以先排除 Windows。
     /// </summary>
     public static bool IsRoot
     {
@@ -28,14 +25,7 @@ public static class PosixIdentity
             {
                 return false;
             }
-            try
-            {
-                return GetEuid() == 0;
-            }
-            catch (Exception)
-            {
-                return string.Equals(Environment.UserName, "root", StringComparison.Ordinal);
-            }
+            return Environment.IsPrivilegedProcess;
         }
     }
 
